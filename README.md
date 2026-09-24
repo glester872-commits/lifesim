@@ -136,6 +136,26 @@ ni acceso global al estado.
 - **Señalización** — al llegar a un sitio, su nombre aparece bajo el HUD y se
   va solo; delante de una puerta, el aviso dice a dónde lleva y, si cuesta algo,
   cuánto.
+- **Una sola forma de interactuar** — personas, puertas y cosas que se miran son
+  el mismo `Interactable` de `WorldScene`: la E abre un diálogo, cruza un portal
+  o muestra una línea. Un local sin interior lleva su texto en `inspect`; un
+  cartel suelto va en `inspects` de la localización. No hay código por sitio.
+- **Movimiento ambiental** — `world/Ambience.ts`, sacado de los datos: coches por
+  los dos carriles de la avenida (`traffic`) que frenan ante cualquier peatón de
+  su carril y guardan distancia; el chorro de la fuente (`PropDef.ambient`), quieto
+  con movimiento reducido; y las puertas de cristal con interior, que se abren al
+  acercarse (140 ms) y se cierran despacio (260 ms). El resto del barrio está
+  quieto a propósito.
+- **Lugares** — `data/places.ts` da un id estable a cada vivienda, negocio,
+  transporte y espacio público, con tipo, etiquetas, aforo y horario.
+  `systems/Places.ts` resuelve el resto desde edificios y puntos
+  (`placeInfo('cafe')`: entradas, salidas, puntos de interacción, dónde
+  aparecen y a dónde van los NPC). Ahí se atarán `npcId → residenceId`,
+  `npcId → workplaceId` y `eventId → placeId`.
+- **Rutas entre puertas** — `worldRoute(desde, hasta)` devuelve los tramos por
+  localización: salir del interior, cruzar la calle por el grafo y entrar en el
+  destino. En interiores recorre la cuadrícula esquivando muebles y NPC quietos.
+  `npm run check` lo prueba con cinco rutinas de un día entero.
 - **Diálogo** — conversación lineal que no sabe nada de cómo se pinta. Bloquea
   el movimiento y pausa el reloj mientras está abierto.
 - **Cartelería** — las bocas de metro llevan el rótulo `METRO` dibujado con una
@@ -238,7 +258,8 @@ src/
     SaveSystem.ts         persistencia + adaptador de almacenamiento
     DialogueSystem.ts     conversación con elección opcional (sin render)
     LocationSystem.ts     registro, validación, edificios -> portales, máscara de colisión
-    Navigation.ts         destinos con nombre y rutas por el grafo de peatones (puro)
+    Navigation.ts         destinos con nombre, rutas por el grafo y entre puertas (puro)
+    Places.ts             lugares resueltos: entradas, salidas, destinos, horario (puro)
     TrainSystem.ts        tren: estados, horario y puertas (sin Phaser)
     MetroSystem.ts        estación viva: coordina tren, pasajeros, vigilancia y microeventos
     MetroDaily.ts         estado diario con semilla, franjas, arquetipos, retrasos (puro)
@@ -257,6 +278,7 @@ src/
     TextureFactory.ts     terreno, personajes, tren y props originales
     BuildingArt.ts        fachadas, tejados y rótulos por estilo de edificio
     PropArt.ts            props de calle e interiores del barrio
+    Ambience.ts           tráfico, fuente y puertas automáticas
     paint.ts              primitivas de dibujo y fuentes de píxel
     LocationBuilder.ts    suelo y edificios horneados, props, colisiones agrupadas
     tiles.ts              leyenda de terreno y props
@@ -271,10 +293,11 @@ src/
     locations.ts          registro: 12 localizaciones (2 distritos, 2 andenes, 8 interiores)
     vallesco.ts           el barrio: suelo, 27 edificios, mobiliario, puntos y grafo
     interiors.ts          gimnasio, tienda de ropa, súper, restaurante y oficinas
+    places.ts             lugares con id estable: viviendas, negocios, transporte, plaza y parque
     npcs.ts               dieciocho personajes (Marco, Iker y Rocío vigilan) + 12 aspectos de pasajero
     announcements.ts      textos de megafonía por contexto
     metroEvents.ts        16 eventos de viaje en la Línea 2
-scripts/check-world.ts    recorre el mundo: todo alcanzable a pie, grafo conectado, tiempos
+scripts/check-world.ts    recorre el mundo: todo alcanzable, grafo, lugares y cinco rutinas de NPC
 scripts/check-metro.ts    varios ciclos completos del tren
 scripts/simulate-metro-days.ts  npm run simulate: días completos, con checks de variedad
 scripts/simulate-metro-events.ts  npm run simulate:events: años de viajes, con checks del sistema de eventos
@@ -291,8 +314,9 @@ Conocidas y deliberadas:
   (`GYM_TREADMILL_01`, `CLOTHING_STORE_TILL`, `HOME_WARDROBE`…), pero no hay
   entrenar, comprar ni trabajar, y por eso ningún botón lo finge. El centro de
   estudios y los comercios del barrio sólo tienen fachada.
-- **Nadie camina todavía por la calle.** El grafo, los puntos y `route()` están
-  listos y validados; los peatones y las rutinas son la fase siguiente.
+- **Nadie camina todavía por la calle.** Grafo, puntos, lugares y
+  `worldRoute()` están listos y probados; los personajes son la fase siguiente.
+  Pendientes y decisiones previas, en `TODO.md`.
 - **Los bordes del barrio son invisibles en las calles.** Las calles siguen fuera
   del mapa como resto de la ciudad; el jugador se detiene en el límite.
 - **La Línea 2 tiene dos paradas.** No hay red. El horario va en tiempo real
