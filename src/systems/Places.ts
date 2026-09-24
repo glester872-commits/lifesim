@@ -90,3 +90,8 @@ export function isOpen(place: PlaceInfo, hour: number, minute = 0): boolean {
   const [open, close] = place.hours;
   return t >= open && t < close;
 }
+
+/** Lugar cuyo interior es esta localización (el gimnasio para 'gym'), si alguno. */
+export function placeForInterior(locationId: string): PlaceInfo | undefined {
+  return [...INFO.values()].find((p) => p.interior === locationId);
+}

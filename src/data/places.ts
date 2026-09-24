@@ -20,7 +20,7 @@ export interface PlaceDef {
   anchors?: readonly string[];
   /** Personas a la vez: vecinos de un portal, aforo de un local. */
   capacity: number;
-  /** [abre, cierra] en horas. Hoy no cierra nada: lo usan las rutinas futuras y check-world. */
+  /** [abre, cierra] en horas. Con interior, fuera de horario la puerta está cerrada y no entra nadie. */
   hours?: readonly [number, number];
 }
 
@@ -36,12 +36,12 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-avenida-20', name: 'Avenida 20', type: 'residence', tags: ['home'], building: 'res-av-20', capacity: 12 },
 
   // Negocios con interior
-  { id: 'cafe', name: 'Cafetería Pausa', type: 'business', tags: ['food', 'social', WORK], building: 'cafe-door', anchors: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], capacity: 16, hours: [7, 22] },
-  { id: 'gym', name: 'Gimnasio Forja', type: 'business', tags: ['sport', 'social', WORK], building: 'gym-door', capacity: 25, hours: [7, 23] },
-  { id: 'clothing-store', name: 'Hilo · moda', type: 'business', tags: ['shop', 'fashion', WORK], building: 'fashion-door', capacity: 10, hours: [10, 21] },
-  { id: 'supermarket', name: 'Súper Rosales', type: 'business', tags: ['shop', 'food', WORK], building: 'super-door', capacity: 18, hours: [8, 22] },
-  { id: 'restaurant', name: 'Casa Tomás', type: 'business', tags: ['food', 'social', WORK], building: 'restaurant-door', capacity: 30, hours: [12, 24] },
-  { id: 'office', name: 'Edificio Atalaya', type: 'business', tags: [WORK], building: 'office-door', capacity: 30, hours: [8, 19] },
+  { id: 'cafe', name: 'Cafetería Pausa', type: 'business', tags: ['food', 'social', WORK], building: 'cafe-door', anchors: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], capacity: 10, hours: [7, 22] },
+  { id: 'gym', name: 'Gimnasio Forja', type: 'business', tags: ['sport', 'social', WORK], building: 'gym-door', capacity: 18, hours: [6, 23] },
+  { id: 'clothing-store', name: 'Hilo · moda', type: 'business', tags: ['shop', 'fashion', WORK], building: 'fashion-door', capacity: 14, hours: [10, 21] },
+  { id: 'supermarket', name: 'Súper Rosales', type: 'business', tags: ['shop', 'food', WORK], building: 'super-door', capacity: 20, hours: [9, 22] },
+  { id: 'restaurant', name: 'Casa Tomás', type: 'business', tags: ['food', 'social', WORK], building: 'restaurant-door', capacity: 16, hours: [12, 24] },
+  { id: 'office', name: 'Edificio Atalaya', type: 'business', tags: [WORK], building: 'office-door', capacity: 20, hours: [8, 20] },
 
   // Negocios de fachada: se puede trabajar o comprar en ellos aunque hoy no se entre.
   { id: 'pharmacy', name: 'Farmacia', type: 'business', tags: ['shop', 'health', WORK], building: 'pharmacy', capacity: 4, hours: [9, 21] },
@@ -54,7 +54,7 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'civic-office', name: 'Junta municipal', type: 'business', tags: ['civic', WORK], building: 'civic', capacity: 10, hours: [9, 14] },
 
   // Transporte y espacio público
-  { id: 'metro-vallesco', name: 'Metro · Vallesco', type: 'transit', tags: ['transit'], building: 'metro-door', anchors: ['METRO_PLAZUELA_BENCH'], capacity: 60, hours: [6, 24] },
+  { id: 'metro-vallesco', name: 'Metro · Vallesco', type: 'transit', tags: ['transit'], building: 'metro-door', anchors: ['METRO_PLAZUELA_BENCH'], capacity: 60 },
   { id: 'bus-stop', name: 'Parada de la avenida', type: 'transit', tags: ['transit'], anchors: ['BUS_STOP'], capacity: 8 },
   { id: 'plaza', name: 'Plaza de la Fuente', type: 'public', tags: ['social', 'outdoor'], anchors: ['PLAZA_FOUNTAIN', 'PLAZA_BENCH_01', 'PLAZA_BENCH_02', 'PLAZA_BENCH_03', 'PLAZA_BENCH_04', 'NEWS_KIOSK'], capacity: 30 },
   { id: 'park', name: 'Parque del Olmo', type: 'public', tags: ['social', 'sport', 'outdoor'], anchors: ['PARK_BENCH_01', 'PARK_BENCH_02', 'PARK_COURT'], capacity: 25 },

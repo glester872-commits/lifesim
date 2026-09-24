@@ -110,7 +110,8 @@ const CAFE: LocationDef = {
   portals: [
     { id: 'exit', tx: 8, ty: 11, label: 'Salir a la calle', to: { location: 'district', spawn: 'cafe-door' } },
   ],
-  npcs: [{ id: 'nilo', tx: 11, ty: 3, facing: 'down' }],
+  // Nilo y la clientela los pone data/population.ts según la hora.
+  npcs: [],
   spawns: {
     entry: { tx: 8, ty: 10, facing: 'up' },
   },
@@ -122,6 +123,15 @@ const CAFE: LocationDef = {
     CAFE_TABLE_02: { tx: 12, ty: 9, kind: 'seat', facing: 'up' },
     CAFE_TABLE_03: { tx: 3, ty: 10, kind: 'seat', facing: 'up' },
     CAFE_TABLE_04: { tx: 15, ty: 9, kind: 'seat', facing: 'up' },
+    CAFE_TABLE_05: { tx: 14, ty: 4, kind: 'seat', facing: 'left' },
+    CAFE_TABLE_06: { tx: 13, ty: 8, kind: 'seat', facing: 'left' },
+    CAFE_TABLE_07: { tx: 4, ty: 9, kind: 'seat', facing: 'left' },
+    CAFE_TABLE_08: { tx: 16, ty: 8, kind: 'seat', facing: 'left' },
+    CAFE_WINDOW_SEAT: { tx: 10, ty: 3, kind: 'seat', facing: 'up' },
+    CAFE_QUEUE_01: { tx: 5, ty: 8, kind: 'wait', facing: 'up' },
+    CAFE_QUEUE_02: { tx: 5, ty: 9, kind: 'wait', facing: 'up' },
+    CAFE_WAITER_01: { tx: 10, ty: 6, kind: 'work' },
+    CAFE_WAITER_02: { tx: 14, ty: 6, kind: 'work' },
   },
 };
 

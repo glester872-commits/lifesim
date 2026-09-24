@@ -87,7 +87,8 @@ export interface MetroDailyState {
 }
 
 const WEEK = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
-const weekIndex = (day: number): number => (((day - 1) % 7) + 7) % 7;
+/** 0 = lunes … 6 = domingo. */
+export const weekIndex = (day: number): number => (((day - 1) % 7) + 7) % 7;
 
 /** El día 1 es lunes. */
 export function weekday(day: number): string {

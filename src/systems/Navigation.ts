@@ -153,3 +153,8 @@ export function worldRoute(fromId: string, toId: string): Leg[] | null {
   if (inn && !add(inn.exit, toId)) return null;
   return legs;
 }
+
+/** Camino por tiles dentro de una localización, entre dos tiles cualesquiera. */
+export function tilePath(loc: LocationDef, from: TilePoint, to: TilePoint): TilePoint[] | null {
+  return gridRoute(loc, from, to);
+}
