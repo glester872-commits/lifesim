@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barrio · C</title>
+<link rel="stylesheet" href="board.css">
+</head>
+<body>
+<main>
+  <header>
+    <p class="mark">LIFE<i>//</i>SIM · BARRIO VALLESCO · DIRECCIÓN C</p>
+    <h1 data-title></h1>
+    <p class="thesis" data-thesis></p>
+    <p class="form" data-form></p>
+    <p class="size" data-size></p>
+  </header>
+  <figure>
+    <canvas></canvas>
+    <label><input type="checkbox" data-graph checked> grafo de peatones (futuros NPC)</label>
+    <div class="keys" style="margin-top:8px">
+      <span style="--c:#f0b46a">puerta</span><span style="--c:#6fd0c6">espera</span>
+      <span style="--c:#e07a8f">encuentro</span><span style="--c:#9fd36b">entrada/salida del mapa</span>
+    </div>
+  </figure>
+  <aside>
+    <section><h2>Edificios</h2><ol data-buildings></ol></section>
+    <section><h2>Trayectos a pie (por el grafo)</h2><table data-trips></table></section>
+  </aside>
+</main>
+<script src="render.js"></script>
+<script>
+const b = (n, name, type, x, y, w, h, facade, door, extra = {}) =>
+  ({ n, name, type, x, y, w, h, facade, doors: door ? [door] : [], ...extra });
+
+mount({
+  title: 'C · Casco y Plaza Mayor',
+  thesis: 'Un casco viejo que se recoge alrededor de una Plaza Mayor irregular: el gimnasio y el café dan a la plaza, una cuesta escalonada baja desde el noroeste y la Calle Real concentra el comercio. La ronda con el metro cierra el barrio por el sur.',
+  form: 'La forma sale del encuentro: todo desemboca en la plaza, así que es donde más se cruzan los personajes. A cambio, la jerarquía urbana es menos «ciudad» y más «pueblo», y la cuesta en diagonal tiene que dibujarse en escalones sobre la rejilla.',
+  w: 60, h: 50,
+  ground: [
+    { t: 'plaza', x: 20, y: 14, w: 20, h: 14 }, { t: 'plaza', x: 17, y: 16, w: 3, h: 5 },
+    { t: 'cobble', x: 2, y: 2, w: 7, h: 3 }, { t: 'cobble', x: 8, y: 2, w: 4, h: 3 }, { t: 'cobble', x: 11, y: 5, w: 4, h: 4 },
+    { t: 'cobble', x: 14, y: 8, w: 4, h: 4 }, { t: 'cobble', x: 17, y: 11, w: 4, h: 4 },
+    { t: 'cobble', x: 40, y: 19, w: 20, h: 3 },
+    { t: 'cobble', x: 0, y: 22, w: 20, h: 2 },
+    { t: 'cobble', x: 27, y: 28, w: 4, h: 11 },
+    { t: 'sidewalk', x: 0, y: 39, w: 60, h: 1 }, { t: 'asphalt', x: 0, y: 40, w: 60, h: 4, lane: true },
+    { t: 'asphalt', x: 27, y: 40, w: 3, h: 4, zebra: 'ew' }, { t: 'sidewalk', x: 0, y: 44, w: 60, h: 1 },
+    { t: 'plaza', x: 22, y: 45, w: 14, h: 5 },
+    { t: 'cobble', x: 44, y: 5, w: 16, h: 1 },
+  ],
+  buildings: [
+    b(1, 'Tu portal · Calle Baja 2', 'home', 31, 30, 8, 9, 's', [34, 38], { access: true, chimneys: 2 }),
+    b(2, 'Metro · Vallesco (existente)', 'metro', 27, 45, 3, 3, 's', [28, 47], { access: true }),
+    b(3, 'Gimnasio Forja', 'gym', 24, 4, 12, 10, 's', [29, 13], { access: true }),
+    b(4, 'Cafetería Pausa (existente)', 'cafe', 36, 7, 8, 7, 's', [39, 13], { access: true, chimneys: 1 }),
+    b(5, 'Hilo · moda', 'fashion', 44, 12, 8, 7, 's', [47, 18], { access: true }),
+    b(6, 'Súper Rosales', 'super', 52, 12, 8, 7, 's', [55, 18], { access: true }),
+    b(7, 'Casa Tomás · menú del día', 'rest', 40, 22, 8, 7, 'n', [43, 22], { access: true, chimneys: 1 }),
+    b(8, 'Antigua fábrica · oficinas', 'office', 13, 28, 14, 11, 'n', [20, 28], { access: true, tall: true }),
+    b(9, 'Peluquería', 'shop', 11, 14, 6, 8, 's', [14, 21]),
+    b(10, 'Farmacia', 'pharmacy', 48, 22, 5, 6, 'n', [50, 22]),
+    b(11, 'Bloque Callejón 1', 'res', 2, 14, 9, 8, 's', [6, 21], { future: 'vivienda NPC', chimneys: 2 }),
+    b(12, 'Banco y cajero', 'bank', 53, 22, 7, 6, 'n', [56, 22]),
+    b(13, 'Casa de la Cuesta', 'res2', 15, 0, 9, 8, 's', [16, 7], { future: 'vivienda NPC', chimneys: 1 }),
+    b(14, 'Local «Se alquila»', 'closed', 31, 28, 8, 2, 'n', [34, 28], { future: 'próximamente' }),
+    b(15, 'Bloque Cuesta 5', 'res3', 2, 5, 9, 9, 'n', [5, 5], { future: 'vivienda NPC', chimneys: 2 }),
+    b(16, 'Junta municipal', 'civic', 2, 30, 11, 9, 's', [7, 38], { future: 'administrativo' }),
+    b(17, 'Bloque Callejón 4', 'res', 2, 24, 11, 6, 'n', [7, 24], { future: 'vivienda NPC' }),
+    b(18, 'Centro de estudios (existente, sin interior)', 'study', 37, 45, 21, 5, 'n', [47, 45], { future: 'estudios' }),
+    b(19, 'Bloque Ronda 9', 'res2', 2, 45, 18, 5, 'n', [10, 45], { future: 'vivienda NPC', chimneys: 2 }),
+    b(20, 'Bloque Real 20', 'res', 40, 29, 20, 10, 's', [50, 38], { future: 'vivienda NPC', chimneys: 3 }),
+  ],
+  props: [
+    { k: 'fountain', x: 30.5, y: 20.5 },
+    ...[[21, 15], [37, 25], [21, 25], [45, 2], [50, 8], [56, 2], [58, 8], [1, 0], [24, 1], [36, 1]].map(([x, y]) => ({ k: 'tree', x, y })),
+    { k: 'bench', x: 23, y: 17, w: 2 }, { k: 'bench', x: 34, y: 24, w: 2 }, { k: 'bench', x: 48, y: 4, w: 2 },
+    ...[[36, 15], [38, 16], [40, 15]].map(([x, y]) => ({ k: 'terrace', x, y })),
+    { k: 'kiosk', x: 25, y: 22, w: 2 }, { k: 'kiosk', x: 33, y: 17, w: 2 },
+    { k: 'terrace', x: 41, y: 21, c: '#79454f' }, { k: 'terrace', x: 45, y: 21, c: '#79454f' },
+    ...[[22, 14], [38, 14], [26, 27], [16, 12], [10, 4]].map(([x, y]) => ({ k: 'lamp', x, y })),
+    { k: 'lamp', x: 52, y: 20 }, { k: 'atm', x: 58, y: 21 }, { k: 'bin', x: 42, y: 19 }, { k: 'vending', x: 30, y: 30 },
+    { k: 'car', x: 4, y: 40, c: '#a8743e' }, { k: 'car', x: 16, y: 43, c: '#26424e' }, { k: 'car', x: 40, y: 40, c: '#79454f' }, { k: 'car', x: 52, y: 42, c: '#e8e3da' },
+    { k: 'stop', x: 38, y: 39, w: 3 },
+    { k: 'bench', x: 32, y: 48, w: 2 }, { k: 'bike', x: 23, y: 48 }, { k: 'bike', x: 24, y: 48 }, { k: 'tree', x: 35, y: 45 },
+  ],
+  labels: [
+    { text: 'PLAZA MAYOR', x: 30, y: 26.6 }, { text: 'CALLE REAL', x: 52, y: 20.6 }, { text: 'CUESTA', x: 10, y: 3.6 },
+    { text: 'CALLEJÓN', x: 8, y: 23 }, { text: 'BAJA', x: 29, y: 35 }, { text: 'RONDA SUR', x: 12, y: 42 }, { text: 'JARDÍN (TAPIA)', x: 52, y: 7 },
+  ],
+  graph: {
+    nodes: [
+      ...[['NW', 2, 3], ['E_real', 59, 20], ['W_cj', 0, 22], ['W_r', 0, 39], ['E_r', 59, 39], ['W_rS', 0, 44], ['E_rS', 59, 44]]
+        .map(([id, x, y]) => ({ id, x, y, kind: 'spawn' })),
+      ...[['c4', 9, 3], ['c3', 12, 6], ['c2', 15, 9], ['c1', 18, 12], ['pnw', 21, 15], ['pN', 29, 15], ['pW', 21, 20], ['pS', 24, 26],
+        ['pE', 38, 20], ['pSB', 29, 27], ['cj19', 19, 22], ['rl43', 43, 20], ['rl47', 47, 20], ['rl50', 50, 20], ['rl55', 55, 20],
+        ['bj1', 28, 32], ['s20', 20, 39], ['s28', 28, 39], ['z28', 28, 44], ['pz', 24, 47]].map(([id, x, y]) => ({ id, x, y, kind: 'path' })),
+      ...[['home', 34, 39], ['metro', 28, 48], ['gym', 29, 14], ['cafe', 39, 14], ['fashion', 47, 19], ['super', 55, 19],
+        ['rest', 43, 21], ['office', 20, 27], ['pelu', 14, 22], ['farma', 50, 21], ['r11', 6, 22], ['bank', 56, 21],
+        ['r13', 16, 8], ['local', 34, 27], ['r15', 5, 4], ['civic', 7, 39], ['r17', 7, 23], ['study', 47, 44],
+        ['r19', 10, 44], ['r20', 50, 39]].map(([id, x, y]) => ({ id, x, y, kind: 'door' })),
+      ...[['bancos', 24, 17], ['pzw', 33, 47]].map(([id, x, y]) => ({ id, x, y, kind: 'wait' })),
+      ...[['fuente', 30, 20], ['terraza', 36, 16]].map(([id, x, y]) => ({ id, x, y, kind: 'meet' })),
+    ],
+    edges: [
+      ['NW', 'r15'], ['r15', 'c4'], ['c4', 'c3'], ['c3', 'c2'], ['c2', 'r13'], ['c2', 'c1'], ['c1', 'pnw'],
+      ['pnw', 'pN'], ['pnw', 'pW'], ['pnw', 'bancos'], ['bancos', 'fuente'], ['pN', 'gym'], ['pN', 'fuente'],
+      ['pN', 'terraza'], ['terraza', 'cafe'], ['terraza', 'fuente'], ['fuente', 'pE'], ['fuente', 'pS'], ['fuente', 'pSB'],
+      ['pW', 'pS'], ['pS', 'office'], ['pSB', 'local'], ['pSB', 'bj1'],
+      ['pW', 'cj19'], ['cj19', 'pelu'], ['pelu', 'r11'], ['r11', 'W_cj'], ['r11', 'r17'],
+      ['pE', 'rl43'], ['rl43', 'rest'], ['rl43', 'rl47'], ['rl47', 'fashion'], ['rl47', 'rl50'], ['rl50', 'farma'],
+      ['rl50', 'rl55'], ['rl55', 'super'], ['rl55', 'bank'], ['rl55', 'E_real'],
+      ['bj1', 's28'], ['W_r', 'civic'], ['civic', 's20'], ['s20', 's28'], ['s28', 'home'], ['home', 'r20'], ['r20', 'E_r'],
+      ['s28', 'z28'], ['W_rS', 'r19'], ['r19', 'z28'], ['z28', 'study'], ['study', 'E_rS'],
+      ['z28', 'pz'], ['pz', 'metro'], ['metro', 'pzw'], ['pzw', 'z28'],
+    ],
+  },
+  trips: [
+    ['Casa → metro', 'home', 'metro'], ['Casa → cafetería', 'home', 'cafe'], ['Casa → gimnasio', 'home', 'gym'],
+    ['Casa → súper', 'home', 'super'], ['Casa → oficinas', 'home', 'office'], ['Metro → tienda de ropa', 'metro', 'fashion'],
+    ['Oficinas → restaurante', 'office', 'rest'], ['Gimnasio → cafetería', 'gym', 'cafe'], ['Casa → plaza', 'home', 'fuente'],
+  ],
+});
+</script>
+</body>
+</html>
+

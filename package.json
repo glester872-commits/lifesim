@@ -1,0 +1,21 @@
+{
+  "name": "lifesim",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "check": "node scripts/check-world.ts && node scripts/check-metro.ts && node scripts/simulate-metro-days.ts 28 && node scripts/simulate-metro-events.ts",
+    "simulate": "node scripts/simulate-metro-days.ts",
+    "simulate:events": "node scripts/simulate-metro-events.ts"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  }
+}

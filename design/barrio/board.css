@@ -1,0 +1,32 @@
+:root {
+  --ink: #0e0f16; --night: #171a24; --white: #e8e3da; --amber: #f0b46a; --accent: #6fd0c6;
+  --mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ink); color: var(--white); font-family: var(--sans); }
+main { display: grid; grid-template-columns: auto minmax(300px, 380px); gap: 28px; padding: 28px; align-items: start; }
+header { grid-column: 1 / -1; display: grid; gap: 6px; }
+.mark { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .22em; color: rgba(232,227,218,.55); }
+.mark i { font-style: normal; color: var(--amber); }
+h1 { margin: 0; font-size: 26px; letter-spacing: -.01em; }
+.thesis { margin: 0; max-width: 90ch; font-size: 15px; line-height: 1.5; text-wrap: pretty; }
+.form { margin: 0; max-width: 90ch; font-size: 13px; color: rgba(232,227,218,.7); }
+.size { margin: 0; font-family: var(--mono); font-size: 12px; color: var(--accent); }
+figure { margin: 0; }
+canvas { display: block; image-rendering: pixelated; border: 2px solid rgba(232,227,218,.14); max-width: 100%; height: auto; }
+label { display: inline-flex; gap: 8px; align-items: center; margin-top: 10px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+aside { display: grid; gap: 20px; font-size: 13px; }
+h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--amber); }
+ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; }
+li { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: baseline; color: rgba(232,227,218,.62); }
+li b { font-family: var(--mono); font-weight: 700; text-align: right; }
+li em { font-style: normal; font-family: var(--mono); font-size: 12px; }
+li.is-access { color: var(--white); }
+li.is-access b, li.is-access em { color: var(--amber); }
+table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+td { padding: 3px 0; border-bottom: 1px solid rgba(232,227,218,.08); }
+td + td { text-align: right; padding-left: 10px; }
+td.bad { color: #e07a8f; }
+.keys { display: flex; flex-wrap: wrap; gap: 10px 16px; font-family: var(--mono); font-size: 12px; color: rgba(232,227,218,.7); }
+.keys span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--c); vertical-align: -1px; }
