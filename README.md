@@ -156,16 +156,93 @@ ni acceso global al estado.
   localización: salir del interior, cruzar la calle por el grafo y entrar en el
   destino. En interiores recorre la cuadrícula esquivando muebles y NPC quietos.
   `npm run check` lo prueba con cinco rutinas de un día entero.
+- **Sara y Ada, personajes con nombre que se mueven** — `data/characters.ts`
+  da a cada una varias rutinas de un día entero (facultad, recados, gimnasio,
+  noche en la discoteca, domingo sin salir de casa…) y `systems/Characters.ts`
+  elige la de cada día por día de la semana y peso, con semilla: el mismo día es
+  siempre igual, pero no todos los martes lo son, y si repite la de ayer cambia
+  de planes una vez. Los planes compartidos (`OUTINGS`, p. ej. la noche del
+  viernes) salen a la vez para todas las que los tienen: cenan en la misma mesa
+  y bailan juntas. El día empieza a las 06:00 con todas en casa, así que la
+  madrugada es de la noche anterior y las rutinas empalman sin saltos. Salen con
+  el tiempo justo para llegar por `worldRoute()`, cruzan puertas y entran en los
+  interiores; en casa, en la academia o en el metro no se ven. Su posición sale
+  del reloj: no se simula fuera de cámara ni se guarda. Donde están paradas es
+  suyo: la gente del local o de la calle no se sienta encima. `npm run check`
+  recorre cada rutina y ocho semanas seguidas.
+- **Gente en la calle** — `systems/StreetLife.ts` con `data/streets.ts`: cuánta
+  gente hay según hora y día (la madrugada cuenta con la noche anterior) y qué
+  viajes hace, siempre de un sitio con sentido a otro: de casa al metro por la
+  mañana, recados a las tiendas abiertas, terraza, plaza y parque por la tarde,
+  cena, y de noche cola y corrillo en la puerta de la discoteca y gente saliendo
+  de madrugada. Un local cerrado no es origen ni destino; uno con perfil de
+  afluencia atrae en proporción a lo lleno que está (`pull`). Caminan por el
+  grafo de peatones, van solos o en grupos que se quedan charlando juntos, a
+  veces se paran un momento y nunca se quedan quietos en la calzada. Los coches
+  frenan por todos. Como en los locales, se reconstruye al entrar.
+  `npm run simulate:streets`.
+- **Sala Órbita, la discoteca** — el antiguo local en alquiler de la Calle
+  Mayor. Abre jueves, viernes y sábado de 21:00 a 06:00 (`days` y horario que
+  cruza la medianoche en `data/places.ts`); fuera de hora la puerta dice que está
+  cerrado y cuándo abre, y eso vale ya para cualquier local con interior. Dentro:
+  barra, cabina de DJ entre altavoces, pista y zona de estar. Se llena poco a
+  poco (casi vacía a las 21:00, pico a las 02:00, vaciándose desde las 04:00) y
+  el jueves es más flojo. La música se ve: focos que saltan a cada pulso y la
+  gente bailando al mismo compás (no hay audio). De madrugada, por la avenida
+  sólo pasan taxis (`traffic.hourly`).
+- **Gente en los locales** — `systems/Crowd.ts` decide quién hay en la
+  cafetería, el gimnasio, la tienda, el súper, el restaurante y la oficina según
+  hora, día y aforo (`data/population.ts`); `world/CrowdView.ts` lo pinta con los
+  mismos `Character` que Sara y se puede hablar con todos. El personal con
+  nombre (Nilo, Nerea, Iván, Carmen, Tomás, Julia) ocupa su puesto en su turno;
+  el anónimo lleva uniforme (`look` → `UNIFORM_LOOKS`). Lo que se ve hacer sale
+  del punto y del estado, sin IA: sentado en asientos y mesas de trabajo,
+  corriendo en la cinta, con el móvil en colas y descansos, charlando en
+  mostradores y reuniones. Al salir del local nadie se simula: al volver se
+  reconstruye desde la hora.
+- **Interiores con carácter** — props de pared (ventana, cuadro, reloj, pizarra,
+  neón, balda) sobre la fila de muro, de barra (cafetera, vitrina) sobre el
+  mostrador y del techo (`overhead`: colgantes y tubos, que ni colisionan ni
+  hacen sombra). `ambient` en la localización tiñe la sala y sus lámparas se
+  encienden siempre.
 - **Diálogo** — conversación lineal que no sabe nada de cómo se pinta. Bloquea
   el movimiento y pausa el reloj mientras está abierto.
 - **Cartelería** — las bocas de metro llevan el rótulo `METRO` dibujado con una
   fuente de 5x7 px hecha a mano; dentro, el muro del fondo lleva plano de línea
   y carteles. El resto de señalética es abstracta a propósito: a 16 px por tile
   una palabra larga no se lee, y fingir que sí es peor que no ponerla.
-- **Viaje** — un portal puede llevar `fare` y `minutes`. La puerta de casa es
-  gratis; el tren de la Línea 2 cuesta €2 y 15 minutos de reloj. El coste se
-  muestra **antes** de pulsar E, y si no llega el dinero el torniquete lo dice y
-  no te deja pasar.
+- **Compras** — `systems/Commerce.ts`: una cartera (dinero, bolsa y tarjetas)
+  y funciones puras que compran, pagan un trayecto o consumen algo y devuelven
+  la cartera nueva y qué pasó. Lo que se vende está en `data/catalogs.ts`
+  (máquina expendedora de la Calle Mayor, barra del Pausa, máquina de billetes
+  del metro) y se coloca en el mapa como `terminals` de la localización; un
+  sitio nuevo que venda algo es un catálogo y un terminal, sin código. Se elige
+  en un menú (`ui/Menu.ts`: W/S, E, 1–9, Esc) que apaga lo que no se puede
+  comprar y dice por qué. Con I se abre la bolsa: comer o beber devuelve
+  energía. Dinero con céntimos, bolsa y tarjetas se guardan con la partida.
+- **Metro con tarjeta y destino** — no se empieza con acceso al metro: la
+  tarjeta de transporte se compra (€12,50 con €10 de saldo) y se recarga en la
+  máquina del vestíbulo. Al subir al tren se elige destino (`data/transit.ts`:
+  paradas de la Línea 2 con su orden; los minutos salen de la distancia) y el
+  viaje (€2) se descuenta de la tarjeta; sin tarjeta o sin saldo, el menú lo
+  dice y no deja subir. Una parada puede ser una estación con mapa o un sitio
+  que aún no lo tiene (`offMap`).
+- **Sitios sin mapa y actividades** — Polígono Norte · Decathlon es una parada
+  sin mapa: se llega en tren y se ve en un menú con sus actividades
+  (`data/activities.ts`: duración, requisitos, coste, efectos). Un turno de 6 h
+  paga €54 y cansa; al acabar se vuelve en metro. Salir a las 10:00 es volver a
+  las 17:00 a un barrio que va a las 17:00: personajes, locales, calle, metro,
+  discoteca y luz salen del reloj, así que nada se queda congelado.
+  `npm run check` recorre ese viaje. Cuando Decathlon tenga mapa, su parada pasa
+  de `offMap` a `station` y el tren, el pago y las actividades siguen igual.
+- **Personal de servicio** — `data/services.ts`: oficios reutilizables
+  (camarero, barra, caja, seguridad, gimnasio, tienda, cocina, recepción, DJ)
+  con uniforme, frase y forma de trabajar: en su puesto, de ronda o sirviendo
+  mesas. El que sirve va junto al cliente sentado que lleva más rato sin que le
+  atiendan (`systems/Service.ts`), dentro (Crowd) y en las terrazas del Pausa y
+  de Casa Tomás (StreetLife), sólo mientras el local está abierto. Los clientes
+  llegan solos, en pareja o en grupo, se sientan juntos y se van a la vez; en la
+  mesa se ve el plato o el vaso.
 - **Metro vivo** — las estaciones tienen vestíbulo, torniquetes, andén y vía, y
   un tren con máquina de estados real (`APPROACHING → ARRIVING → STOPPED →
   DOORS_OPENING → BOARDING → DOORS_CLOSING → DEPARTING → AWAY`). Frena con curva
@@ -224,7 +301,35 @@ ni acceso global al estado.
   muestra; posición y orientación se escriben cada frame sin emitir.
 - **Arte procedural** — `world/TextureFactory.ts` dibuja cada tile, prop y
   personaje a partir de la paleta de `config/constants.ts`. Cambiar la dirección
-  cromática del juego es cambiar ese objeto.
+  cromática del juego es cambiar ese objeto. La paleta es de día (granito,
+  revoco ocre, ladrillo visto, teja árabe); la noche no está en ella.
+- **Luz y hora** — `world/Lighting.ts`, sólo en exteriores: una capa que
+  multiplica la escena con el color del cielo según la hora (amanecer, día,
+  hora dorada, anochecer, noche) y, encima, las farolas que declaran `light` en
+  su `PropDef` y una parte fija de los cristales de fachada que devuelve
+  `bakeBuildings()`. Charcos de luz escalonados, sin bloom.
+- **Visual V2: la plazuela del metro como referencia** — `design/ART_BIBLE.md` fija
+  la resolución, la escala (1 px ≈ 7 cm), la perspectiva, el orden de dibujo, las
+  sombras, la paleta y la luz. La plazuela es la primera zona hecha con ese
+  estándar (`world/UrbanArt.ts`): adoquín de granito con cenefa, franja
+  podotáctil, boca de metro con marquesina de cristal, rótulo y escalera,
+  plátanos con alcorque, bancos con respaldo, farolas altas, aparcabicis,
+  jardinera, tótem y plano del barrio, alcantarilla, rejilla y hojas. Las piezas
+  nuevas declaran en su `PropDef` sombra proyectada hacia el sureste (`cast`),
+  charco de luz en el suelo (`light.pool`), partes que brillan de noche
+  (`emissive`) o que son suelo (`flat`, horneadas); todo lo quieto se hornea. El
+  resto del barrio conserva sus piezas hasta que se mejore con las mismas.
+- **Volumen horneado** — `LocationBuilder` pinta con el suelo el bordillo de
+  granito entre acera y calzada (rebajado en los pasos de cebra), la sombra de
+  los edificios hacia el sureste, una sombra al pie de cada prop (`shadow` en
+  su `PropDef`) y la cara clara y alicatada de la última fila de muro interior.
+- **Personas** — `world/HumanArt.ts` dibuja a todos con las mismas reglas:
+  contorno de un píxel, luz del noroeste, perfil izquierdo en espejo del
+  derecho, cuatro poses (quieto, dos pasos, respiración) y peinado, piel y
+  pantalón que salen del id cuando el aspecto no los fija. Paso a 8 fps en
+  cuatro tiempos; quieto, respira.
+- **Escala única** — el zoom sale de la ventana, no del sitio: un píxel mide lo
+  mismo en la calle, en el metro y en casa.
 
 ## Guardado
 
@@ -278,7 +383,11 @@ src/
     TextureFactory.ts     terreno, personajes, tren y props originales
     BuildingArt.ts        fachadas, tejados y rótulos por estilo de edificio
     PropArt.ts            props de calle e interiores del barrio
+    UrbanArt.ts           piezas Visual V2 (design/ART_BIBLE.md): plazuela del metro
     Ambience.ts           tráfico, fuente y puertas automáticas
+    Lighting.ts           color del cielo por hora, farolas y ventanas de noche; luz de cada interior
+    CrowdView.ts          pinta la gente de los locales (systems/Crowd.ts)
+    HumanArt.ts           personas: proporciones, peinados, poses y contorno
     paint.ts              primitivas de dibujo y fuentes de píxel
     LocationBuilder.ts    suelo y edificios horneados, props, colisiones agrupadas
     tiles.ts              leyenda de terreno y props
@@ -290,9 +399,9 @@ src/
     Announcer.ts          megafonía
     PlaceBanner.ts        nombre del sitio al llegar
   data/
-    locations.ts          registro: 12 localizaciones (2 distritos, 2 andenes, 8 interiores)
+    locations.ts          registro: 13 localizaciones (2 distritos, 2 andenes, 9 interiores)
     vallesco.ts           el barrio: suelo, 27 edificios, mobiliario, puntos y grafo
-    interiors.ts          gimnasio, tienda de ropa, súper, restaurante y oficinas
+    interiors.ts          gimnasio, tienda de ropa, súper, restaurante, oficinas y discoteca
     places.ts             lugares con id estable: viviendas, negocios, transporte, plaza y parque
     npcs.ts               dieciocho personajes (Marco, Iker y Rocío vigilan) + 12 aspectos de pasajero
     announcements.ts      textos de megafonía por contexto
@@ -314,9 +423,12 @@ Conocidas y deliberadas:
   (`GYM_TREADMILL_01`, `CLOTHING_STORE_TILL`, `HOME_WARDROBE`…), pero no hay
   entrenar, comprar ni trabajar, y por eso ningún botón lo finge. El centro de
   estudios y los comercios del barrio sólo tienen fachada.
-- **Nadie camina todavía por la calle.** Grafo, puntos, lugares y
-  `worldRoute()` están listos y probados; los personajes son la fase siguiente.
-  Pendientes y decisiones previas, en `TODO.md`.
+- **La calle sólo tiene gente en Vallesco.** Ribera Norte no tiene perfil en
+  `data/streets.ts` todavía. El metro circula las 24 horas; cerrarlo de
+  madrugada cambiaría cómo vuelve el jugador a casa, y no está decidido.
+- **Las rutinas no dependen aún de la relación con el jugador.** No existen
+  relaciones ni memoria de los personajes; cuando existan, `routineFor()` es el
+  único sitio donde entran. Pendientes y decisiones previas, en `TODO.md`.
 - **Los bordes del barrio son invisibles en las calles.** Las calles siguen fuera
   del mapa como resto de la ciudad; el jugador se detiene en el límite.
 - **La Línea 2 tiene dos paradas.** No hay red. El horario va en tiempo real
@@ -327,9 +439,13 @@ Conocidas y deliberadas:
   puntos definidos en `data/locations.ts` (validados en arranque) y no chocan
   entre sí; empujan al jugador pero nada los bloquea. Mientras hay un diálogo
   abierto, la estación se congela con el resto del mundo.
-- **La única economía es el billete de metro.** El dinero baja al viajar y nada
-  más lo mueve. La energía existe, se muestra y se guarda, pero todavía no la
-  gasta nada, y por eso no hay ningún botón que finja hacerlo.
+- **La economía es mínima.** Se gana con el turno de Decathlon y se gasta en
+  tarjeta, viajes, máquina y barra del Pausa. La energía la gasta trabajar y la
+  devuelve comer o beber; todavía no se duerme. Restaurante, tiendas y súper no
+  venden aún: tendrán su catálogo cuando haga falta. No hay tiempo atmosférico,
+  así que las terrazas dependen sólo de la hora.
+- **Si se recarga la página en un sitio sin mapa**, se aparece en la estación de
+  la que se salió, con el reloj ya avanzado y lo cobrado cobrado.
 - **Los eventos no tienen todavía a dónde llevar.** Rumores, folletos y
   contactos (`contacto:olga-estudio`, `contacto:amparo-mercado`) quedan como
   flags para cuando existan trabajo y estudios; hoy no abren nada. No hay
