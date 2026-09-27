@@ -123,7 +123,7 @@ for (const [who, steps] of Object.entries(ROUTINES)) {
     const arrive = minutes(at);
     // El personal entra antes de abrir: sólo a los clientes se les exige que esté abierto.
     const staff = findPoint(to)?.kind === 'work';
-    assert.ok(staff || !place || isOpen(place, Math.floor(arrive / 60), arrive % 60), `${who}: ${place?.name} está cerrado a las ${at}`);
+    assert.ok(staff || !place || isOpen(place, 1, Math.floor(arrive / 60), arrive % 60), `${who}: ${place?.name} está cerrado a las ${at}`);
     // Llegar tarde no rompe el mundo, pero hay que saberlo antes de escribir horarios.
     const late = minutes(steps[i - 1][0]) + walk - arrive;
     if (late > 0) lateness.push(`  ${who}: llega a ${to} ${late} min tarde (${walk} min andando)`);

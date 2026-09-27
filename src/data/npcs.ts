@@ -213,6 +213,21 @@ const DEFS: readonly NpcDef[] = [
       'Si algún día te llaman para una entrevista, será en esta planta.',
     ],
   },
+  {
+    // Camina por el barrio según la hora: rutina y frases en data/characters.ts.
+    id: 'sara',
+    name: 'Sara',
+    cloth: '#ece6dc',
+    clothDark: '#cfc6b8',
+    hair: '#5a3824',
+    skin: '#c48a64',
+    sleeves: '#c48a64',
+    trousers: '#b98a52',
+    spots: '#3b2a1c',
+    longHair: true,
+    earrings: '#e8b84a',
+    lines: ['¡Vamosss, que hay plan!'],
+  },
 ];
 
 const BY_ID = new Map(DEFS.map((npc) => [npc.id, npc]));
@@ -224,6 +239,19 @@ export function getNpc(id: string): NpcDef {
   if (!npc) throw new Error(`NPC desconocido: ${id}`);
   return npc;
 }
+
+/**
+ * Uniformes del personal anónimo de los locales (data/population.ts los pide
+ * por id en `look`): el camarero se distingue del cliente sin leer nada.
+ */
+export const UNIFORM_LOOKS: readonly NpcLook[] = [
+  { id: 'uniforme-sala', cloth: '#efe9df', clothDark: '#c9c1b4', hair: '#2a2430', trousers: '#232329' },
+  { id: 'uniforme-gym', cloth: '#b8423a', clothDark: '#8e3029', hair: '#4a3b2f', trousers: '#232329' },
+  { id: 'uniforme-tienda', cloth: '#2a2830', clothDark: '#1c1a20', hair: '#6b5a3f', trousers: '#3a3a44' },
+  { id: 'uniforme-super', cloth: '#4f7d3a', clothDark: '#3b5e2b', hair: '#241d16', trousers: '#33374a' },
+  { id: 'uniforme-noche', cloth: '#1c1a22', clothDark: '#121016', hair: '#1a1614', trousers: '#1c1a22' },
+  { id: 'dj', cloth: '#ff6ab8', clothDark: '#b84a86', hair: '#8ff0ff', trousers: '#1c1a22' },
+];
 
 /**
  * Pasajeros anónimos de las estaciones. Sin nombre ni diálogo: son ambiente y
@@ -242,4 +270,17 @@ export const PASSENGER_LOOKS: readonly NpcLook[] = [
   { id: 'pasajero-10', cloth: '#8a7a3f', clothDark: '#675b2f', hair: '#241d16' },
   { id: 'pasajero-11', cloth: '#5c8a7a', clothDark: '#45675b', hair: '#5a3b2a' },
   { id: 'pasajero-12', cloth: '#9a5a78', clothDark: '#74435a', hair: '#2a2430' },
+  // Segunda tanda: complementos (bolso, gorra, manga suelta) para que la calle no se repita.
+  { id: 'pasajero-13', cloth: '#d8d2c4', clothDark: '#b3ad9f', hair: '#2a2430', bag: '#5a3a26', trousers: '#2f4563' },
+  { id: 'pasajero-14', cloth: '#2f3a4a', clothDark: '#222a36', hair: '#6b5a3f', cap: '#b8423a' },
+  { id: 'pasajero-15', cloth: '#c98a3f', clothDark: '#9d6a2f', hair: '#1f1a15', longHair: true, earrings: '#e8c86a' },
+  { id: 'pasajero-16', cloth: '#3f6f5a', clothDark: '#2f5444', hair: '#b8b0a4', bag: '#2a2830' },
+  { id: 'pasajero-17', cloth: '#e6e0d4', clothDark: '#c4bdb0', hair: '#4a3b2f', sleeves: '#5c6fa8', cap: '#232329' },
+  { id: 'pasajero-18', cloth: '#7a3f5a', clothDark: '#5c2f44', hair: '#241d16', bag: '#c9a27a', skin: '#96654a' },
+  { id: 'pasajero-19', cloth: '#4f5f8c', clothDark: '#3b4769', hair: '#8a4a2a', longHair: true },
+  { id: 'pasajero-20', cloth: '#6a6d75', clothDark: '#50525a', hair: '#2b2622', cap: '#3f5d78', trousers: '#5b4b3a' },
+  { id: 'pasajero-21', cloth: '#b86a5a', clothDark: '#8e5044', hair: '#33291f', bag: '#232329', skin: '#f0caa8' },
+  { id: 'pasajero-22', cloth: '#2a2830', clothDark: '#1c1a20', hair: '#c9b27a', earrings: '#d8d2c4', trousers: '#6a6d75' },
+  { id: 'pasajero-23', cloth: '#8aa05a', clothDark: '#687844', hair: '#3a3128', sleeves: '#e6e0d4', bag: '#7b5a3d' },
+  { id: 'pasajero-24', cloth: '#5a4a7a', clothDark: '#43375c', hair: '#1f1a15', cap: '#e6e0d4', skin: '#b98462' },
 ];

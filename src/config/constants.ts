@@ -1,7 +1,18 @@
 export const TILE = 16;
 
-export const CAMERA_ZOOM = 3;
-export const MAX_CAMERA_ZOOM = 5;
+/**
+ * Zoom en píxeles físicos (el lienzo va a la resolución del dispositivo, ver
+ * main.ts): 2 es el mínimo para que un píxel del juego se lea como píxel.
+ */
+export const CAMERA_ZOOM = 2;
+/**
+ * Mundo que se ve como poco, en px: unos 21 × 18 tiles, el encuadre de
+ * design/visual-reference (una plaza con su boca de metro, gente a tamaño de
+ * leerse). El zoom sale del eje que más aprieta: en vertical manda el ancho.
+ */
+export const VIEW_WIDTH = 336;
+export const VIEW_HEIGHT = 288;
+export const MAX_CAMERA_ZOOM = 12;
 export const CAMERA_LERP = 0.14;
 
 export const PLAYER_SPEED = 76;
@@ -32,70 +43,83 @@ export const INITIAL_CLOCK = { day: 1, hour: 8, minute: 30 };
 /**
  * Paleta única del proyecto. Todo el arte procedural sale de aquí, así que
  * cambiar la dirección cromática del juego es cambiar este objeto.
+ *
+ * Es la paleta de día: Madrid a media mañana, granito, revoco ocre, ladrillo
+ * visto y teja. La noche no está en estos colores: la pone world/Lighting.ts
+ * encima, según la hora.
  */
 export const PALETTE = {
   ink: '#0e0f16',
   night: '#171a24',
+  /** Contorno de personajes: casi negro y algo cálido, para que no parezcan recortados. */
+  outline: '#1c1620',
 
-  asphalt: '#262a36',
-  asphaltLit: '#2e3342',
-  roadLine: '#7f8471',
+  asphalt: '#3b3e47',
+  asphaltLit: '#464a54',
+  roadLine: '#d6d0bf',
 
-  pavement: '#414757',
-  pavementLit: '#4b5265',
-  pavementSeam: '#373c4a',
+  pavement: '#a39c90',
+  pavementLit: '#b2ab9f',
+  pavementSeam: '#8a8378',
+  /** Bordillo de granito. */
+  kerb: '#c4bdb0',
 
-  cobble: '#5b4f48',
-  water: '#22394a',
-  waterLit: '#3d6478',
-  ballast: '#2a2c33',
-  sleeper: '#3d3a38',
+  cobble: '#8c7a69',
+  water: '#2e5668',
+  waterLit: '#5b8fa2',
+  ballast: '#4b4a4e',
+  sleeper: '#5c4b3d',
 
-  plaza: '#4c4856',
-  plazaLit: '#565162',
+  plaza: '#b3a791',
+  plazaLit: '#c0b59f',
 
-  grass: '#2f4a39',
-  grassLit: '#3a5a44',
-  grassDark: '#273d30',
+  grass: '#5c7c3e',
+  grassLit: '#6e8f4a',
+  grassDark: '#4a6732',
 
-  roofA: '#2f2a3a',
-  roofALit: '#3a3446',
-  roofB: '#3a3140',
-  roofBLit: '#463b4d',
+  roofA: '#9b5a44',
+  roofALit: '#ad6b52',
+  roofB: '#737078',
+  roofBLit: '#827f87',
 
-  wall: '#443c4d',
-  wallLit: '#51475b',
-  wallDark: '#332d3b',
+  wall: '#c9ad85',
+  wallLit: '#d8c09b',
+  wallDark: '#a98f6b',
+  /** Muros interiores vistos desde arriba: la cabeza oscura separa estancias; la cara, clara. */
+  wallTop: '#4a4350',
+  wallFace: '#d9d3c7',
 
-  stone: '#565b6b',
-  stoneLit: '#636979',
-  brick: '#6a4740',
-  brickLit: '#7a544c',
+  stone: '#a8a194',
+  stoneLit: '#b9b2a5',
+  brick: '#a45640',
+  brickLit: '#b5654d',
 
-  glass: '#26424e',
-  glassLit: '#6fd0c6',
+  glass: '#3d5f6b',
+  glassLit: '#8fd6cd',
   amber: '#f0b46a',
-  amberDim: '#a8743e',
+  amberDim: '#b88046',
 
-  wood: '#5d4733',
-  woodLit: '#6d5540',
-  woodDark: '#473527',
+  wood: '#7b5a3d',
+  woodLit: '#8e6b4b',
+  woodDark: '#5d432e',
 
-  rug: '#79454f',
-  rugLit: '#8b525d',
+  rug: '#8e4a50',
+  rugLit: '#a15a60',
 
-  tile: '#525a67',
-  tileLit: '#5e6774',
+  tile: '#a2a6ab',
+  tileLit: '#b1b5ba',
 
-  leaf: '#38644a',
-  leafLit: '#487a59',
-  trunk: '#453427',
+  leaf: '#4f7d3a',
+  leafLit: '#6a9a4a',
+  trunk: '#5b4332',
 
-  metal: '#555c6d',
-  metalLit: '#68707f',
+  metal: '#5e6571',
+  metalLit: '#7b838f',
+  /** Hierro de farolas y bolardos madrileños: verde casi negro. */
+  iron: '#2b3530',
 
   skin: '#d3a17c',
   skinDark: '#b0815f',
   hair: '#2a2430',
-  white: '#e8e3da',
+  white: '#efe9df',
 } as const;

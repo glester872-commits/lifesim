@@ -6,8 +6,9 @@ import { POPULATION_PROFILES, type PlanStep, type PopulationProfile, type StaffR
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
 import { between, hashSeed, seededRng, weekIndex, type Rng } from './MetroDaily.ts';
-import { isOpen, type PlaceInfo } from './Places.ts';
+import { isOpen, openingDay, type PlaceInfo } from './Places.ts';
 import { tilePath } from './Navigation.ts';
+import { besideTile, identity, nextCustomer } from './Service.ts';
 
 export interface Clock {
   day: number;
@@ -23,11 +24,12 @@ export function profileFor(placeId: string): PopulationProfile | undefined {
 
 /** Nivel de afluencia a esa hora de ese día, o null si está cerrado. */
 export function levelAt(place: PlaceInfo, profile: PopulationProfile, clock: Clock): Level | null {
-  if (!isOpen(place, clock.hour, clock.minute)) return null;
+  if (!isOpen(place, clock.day, clock.hour, clock.minute)) return null;
   const t = clock.hour + clock.minute / 60;
   const band = profile.bands.find(([from, to]) => t >= from && t < to);
   const base = LEVELS.indexOf(band ? band[2] : 'VERY_LOW');
-  const shifted = base + profile.weekday[weekIndex(clock.day)];
+  // La madrugada del sábado cuenta como noche del viernes.
+  const shifted = base + profile.weekday[weekIndex(openingDay(place, clock.day, clock.hour, clock.minute))];
   return LEVELS[Math.max(0, Math.min(LEVELS.length - 1, shifted))];
 }
 
@@ -79,6 +81,20 @@ export interface Agent {
   leaveSoon: boolean;
   leaving: boolean;
   staffRole?: StaffRole;
+  /** Uniforme del personal anónimo (id en UNIFORM_LOOKS), sacado de su oficio. */
+  uniform?: string;
+  /** Viene con alguien: le sigue a su mesa y se va con él. */
+  leader?: Agent;
+  /** Cómo se le ve moverse: corriendo (un corredor del parque). Sólo lo usa quien lo pinta. */
+  gait?: 'jog';
+  /** Punto del que lleva el grupo al que ya ha respondido. */
+  following?: string;
+  /** Prefijos del paso en curso: el grupo busca sitio del mismo tipo, al lado. */
+  stepPoints?: readonly string[];
+  /** Acompañantes que todavía no han cruzado la puerta. */
+  pendingParty?: number;
+  /** Al llegar, se gira hacia aquí: el camarero, hacia el cliente. */
+  face?: TilePoint;
 }
 
 export interface CrowdStats {
@@ -120,14 +136,34 @@ export class Crowd {
     const exit = loc.portals.find((p) => p.to.location !== loc.id);
     if (!exit) throw new Error(`[${loc.id}] sin puerta de salida para la gente`);
     this.door = { tx: exit.tx, ty: exit.ty };
-    for (const step of [...profile.visitors.flatMap((v) => v.plan), ...profile.staff]) {
-      if (this.pointsMatching(step.points).length === 0) throw new Error(`[${loc.id}] ningún punto para ${step.points.join(', ')}`);
+    const prefixes = [...profile.visitors.flatMap((v) => v.plan.map((s) => s.points)), ...profile.staff.flatMap((s) => [s.points, s.serves ?? []])];
+    for (const points of prefixes) {
+      if (points.length > 0 && this.pointsMatching(points).length === 0) throw new Error(`[${loc.id}] ningún punto para ${points.join(', ')}`);
     }
   }
 
   get summary(): CrowdStats {
     return this.stats;
   }
+
+  /**
+   * Puntos donde está un personaje con nombre: nadie más los coge, y quien ya
+   * estaba ahí sentado se levanta y sigue con lo suyo.
+   */
+  claim(points: ReadonlySet<string>): void {
+    this.claimed = points;
+    for (const a of this.agents) {
+      if (a.point && points.has(a.point) && a.path.length === 0 && !a.leaving) {
+        this.release(a);
+        a.timer = 0;
+      }
+    }
+  }
+  private claimed: ReadonlySet<string> = new Set();
+  /** Ms desde que el jugador entró: el reloj del personal que sirve mesas. */
+  private elapsed = 0;
+  /** Cliente → ms en que alguien le atendió por última vez. */
+  private readonly served = new Map<number, number>();
 
   // ------------------------------------------------------------- llegada
 
@@ -149,7 +185,8 @@ export class Crowd {
       if (point) this.addStaff(role, point);
     }
     const target = targetAt(this.place, this.profile, clock);
-    for (let i = 0; i < target; i++) {
+    let placed = 0;
+    for (let tries = 0; placed < target && tries < target * 2; tries++) {
       const role = this.pickRole(clock);
       if (!role) break;
       const plan = this.buildPlan(role);
@@ -166,8 +203,20 @@ export class Crowd {
       const step = plan[skip];
       const agent = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(point));
       agent.plan = plan.slice(skip + 1);
+      agent.stepPoints = step.points;
       this.occupy(agent, point, step.state);
       agent.timer = this.duration(step) * (0.2 + this.rng() * 0.8);
+      placed++;
+      // Su grupo, ya sentado a su lado.
+      for (let k = 1; k < this.partySize(role, target - placed + 1); k++) {
+        const near = this.freePointNear(step.points, this.pointAt(point), far);
+        if (!near) break;
+        const mate = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(near));
+        mate.leader = agent;
+        mate.following = point;
+        this.occupy(mate, near, step.state);
+        placed++;
+      }
     }
     this.rng = this.baseRng;
     this.refresh(clock);
@@ -176,6 +225,7 @@ export class Crowd {
   // --------------------------------------------------------------- tiempo
 
   update(deltaMs: number, clock: Clock, player: TilePoint): void {
+    this.elapsed += deltaMs;
     this.tick -= deltaMs;
     if (this.tick <= 0) {
       this.tick = between(this.rng, ...POPULATION.tickEvery);
@@ -202,17 +252,31 @@ export class Crowd {
     }
 
     this.refresh(clock);
+    // Cerrado: nadie acaba la canción. Primero salen los clientes; el personal, cuando ya no queda nadie.
+    if (!this.stats.open) {
+      const visitors = this.agents.some((a) => a.kind === 'visitor');
+      for (const a of this.agents) {
+        if (a.leaving || (a.kind === 'staff' && visitors)) continue;
+        a.leaveSoon = true;
+        a.timer = Math.min(a.timer, between(this.rng, ...POPULATION.reaction));
+      }
+    }
     const active = this.agents.filter((a) => a.kind === 'visitor' && !a.leaving && !a.leaveSoon);
     const diff = this.stats.target - active.length;
     const changes = Math.min(Math.abs(diff), Math.abs(diff) > 4 ? POPULATION.maxChangesPerTick : 1);
-    // Por la puerta entra una persona cada vez; salir, pueden varias.
-    if (diff > 0 && doorClear && this.agents.length < this.place.capacity) {
+    // Por la puerta entra una persona cada vez: primero el resto de un grupo que ya está dentro.
+    const party = this.agents.find((a) => (a.pendingParty ?? 0) > 0 && !a.leaving && !a.leaveSoon);
+    if (party && doorClear && this.agents.length < this.place.capacity) {
+      party.pendingParty!--;
+      const mate = this.newAgent('visitor', party.role, party.label, party.line, this.door);
+      mate.leader = party;
+    } else if (diff > 0 && doorClear && this.agents.length < this.place.capacity) {
       const role = this.pickRole(clock);
-      if (role) this.enterVisitor(role);
+      if (role) this.enterVisitor(role, diff);
     } else if (diff < 0) {
-      // Se van primero los que menos plan les queda: los que ya estaban acabando.
-      active.sort((a, b) => a.plan.length - b.plan.length);
-      for (const a of active.slice(0, changes)) a.leaveSoon = true;
+      // Se van primero los que menos plan les queda; un grupo se va entero con quien lo lleva.
+      const leaders = active.filter((a) => !a.leader).sort((a, b) => a.plan.length - b.plan.length);
+      for (const a of leaders.slice(0, changes)) a.leaveSoon = true;
     }
     this.refresh(clock);
   }
@@ -238,10 +302,28 @@ export class Crowd {
     }
     a.moving = false;
     if (a.leaving) return;
+    if (a.leader && !a.leaveSoon) {
+      this.followParty(a);
+      return;
+    }
     a.timer -= deltaMs;
     if (a.timer > 0) return;
     if (a.kind === 'staff') this.nextStaffMove(a);
     else this.nextVisitorStep(a);
+  }
+
+  /** Quien viene en grupo no decide: cuando quien lo lleva cambia de sitio, se sienta a su lado; cuando se va, se va. */
+  private followParty(a: Agent): void {
+    const lead = a.leader!;
+    if (lead.leaving || !this.agents.includes(lead)) {
+      a.leaveSoon = true;
+      a.timer = between(this.rng, ...POPULATION.reaction);
+      return;
+    }
+    if (!lead.point || lead.point === a.following || !lead.stepPoints) return;
+    a.following = lead.point;
+    const near = this.freePointNear(lead.stepPoints, this.pointAt(lead.point), (id) => id !== a.point);
+    if (near) this.goTo(a, near, lead.state);
   }
 
   private walk(a: Agent, deltaMs: number): void {
@@ -260,6 +342,8 @@ export class Crowd {
         a.moving = false;
         const facing = a.point ? this.loc.points?.[a.point]?.facing : undefined;
         if (facing) a.dir = facing;
+        else if (a.face) a.dir = facingTo(target, a.face);
+        a.face = undefined;
       }
       return;
     }
@@ -290,19 +374,67 @@ export class Crowd {
     }
     a.plan.shift();
     this.goTo(a, point, step.state);
+    a.stepPoints = step.points;
     a.timer = this.duration(step) + between(this.rng, ...POPULATION.reaction);
   }
 
+  /**
+   * El personal trabaja según su oficio (data/services.ts): en su puesto, de
+   * ronda entre sus puntos o sirviendo mesas. El que sirve va junto al cliente
+   * sentado que lleva más rato sin que nadie pase, le atiende y vuelve.
+   */
   private nextStaffMove(a: Agent): void {
     const role = a.staffRole!;
     if (a.leaveSoon) {
       this.leave(a);
       return;
     }
-    // Un puesto fijo se queda; el personal de sala da vueltas entre sus puntos.
-    const point = this.pointsMatching(role.points).length > 1 ? this.freePoint(role.points, (id) => id !== a.point) : null;
+    const how = identity(role).activity;
+    if (how === 'serve' && role.serves && a.state !== 'SERVE') {
+      const seated = this.agents.filter((c) => c.kind === 'visitor' && !c.moving && !c.leaving && c.path.length === 0 && c.point && role.serves!.some((p) => c.point!.startsWith(p)));
+      const customer = nextCustomer(seated.map((c) => ({ id: c.id, x: c.x, y: c.y })), this.served, this.elapsed);
+      const tile = customer && besideTile(this.loc, { tx: customer.x, ty: customer.y }, this.takenTiles());
+      if (customer && tile) {
+        this.served.set(customer.id, this.elapsed);
+        this.release(a);
+        a.state = 'SERVE';
+        a.face = { tx: customer.x, ty: customer.y };
+        a.path = this.route(a, tile);
+        a.timer = between(this.rng, 2_500, 4_500);
+        return;
+      }
+    }
+    if (how === 'serve' && a.state === 'SERVE') {
+      // Vuelve a la barra o a su sitio de sala.
+      const home = this.freePoint(role.points, () => true);
+      if (home) this.goTo(a, home, 'WORK');
+      a.timer = between(this.rng, 3_000, 8_000);
+      return;
+    }
+    // Un puesto fijo se queda; las rondas (y el camarero sin mesas que atender) cambian de punto.
+    const point = how !== 'post' && this.pointsMatching(role.points).length > 1 ? this.freePoint(role.points, (id) => id !== a.point) : null;
     if (point) this.goTo(a, point, 'WORK');
-    a.timer = between(this.rng, 8_000, 20_000);
+    a.timer = how === 'serve' ? between(this.rng, 4_000, 9_000) : between(this.rng, 8_000, 20_000);
+  }
+
+  /** Tamaño del grupo que entra, sin pasar de lo que cabe. */
+  private partySize(role: VisitorRole, room: number): number {
+    const [lo, hi] = role.party ?? [1, 1];
+    return Math.max(1, Math.min(room, lo + Math.floor(this.rng() * (hi - lo + 1))));
+  }
+
+  /** Tiles con alguien encima o a donde va alguien: ahí no se pone el camarero. */
+  private takenTiles(): Set<string> {
+    const taken = new Set<string>();
+    for (const a of this.agents) {
+      const end = a.path[a.path.length - 1] ?? { tx: Math.round(a.x), ty: Math.round(a.y) };
+      taken.add(`${end.tx},${end.ty}`);
+    }
+    for (const id of this.reserved.keys()) {
+      const p = this.pointAt(id);
+      taken.add(`${p.tx},${p.ty}`);
+    }
+    return taken;
   }
 
   private buildPlan(role: VisitorRole): PlanStep[] {
@@ -349,9 +481,11 @@ export class Crowd {
   }
 
   private addStaff(role: StaffRole, point: string): Agent {
-    const agent = this.newAgent('staff', role.role, role.label ?? '', role.line ?? '', this.pointAt(point));
+    const who = identity(role);
+    const agent = this.newAgent('staff', role.service, who.label, who.line, this.pointAt(point));
     agent.npc = role.npc;
     agent.staffRole = role;
+    agent.uniform = who.look;
     this.occupy(agent, point, 'WORK');
     agent.timer = between(this.rng, 8_000, 20_000);
     return agent;
@@ -360,17 +494,21 @@ export class Crowd {
   private enterStaff(role: StaffRole): void {
     const point = this.freePoint(role.points, () => true);
     if (!point) return;
-    const agent = this.newAgent('staff', role.role, role.label ?? '', role.line ?? '', this.door);
+    const who = identity(role);
+    const agent = this.newAgent('staff', role.service, who.label, who.line, this.door);
     agent.npc = role.npc;
     agent.staffRole = role;
+    agent.uniform = who.look;
     this.goTo(agent, point, 'ENTER');
     agent.timer = between(this.rng, 8_000, 20_000);
   }
 
-  private enterVisitor(role: VisitorRole): void {
+  /** Entra por la puerta; si viene en grupo, los demás cruzan detrás, de uno en uno. */
+  private enterVisitor(role: VisitorRole, room: number): void {
     const agent = this.newAgent('visitor', role.role, role.label, role.line, this.door);
     agent.plan = this.buildPlan(role);
     agent.timer = between(this.rng, ...POPULATION.reaction);
+    agent.pendingParty = this.partySize(role, room) - 1;
   }
 
   private leave(a: Agent): void {
@@ -423,8 +561,26 @@ export class Crowd {
   }
 
   private freePoint(prefixes: readonly string[], ok: (id: string) => boolean): string | undefined {
-    const free = this.pointsMatching(prefixes).filter((id) => !this.reserved.has(id) && ok(id));
+    const free = this.freePoints(prefixes, ok);
     return free.length === 0 ? undefined : free[Math.floor(this.rng() * free.length)];
+  }
+
+  private freePoints(prefixes: readonly string[], ok: (id: string) => boolean): string[] {
+    return this.pointsMatching(prefixes).filter((id) => !this.reserved.has(id) && !this.claimed.has(id) && ok(id));
+  }
+
+  /** El sitio libre más cercano: la silla de al lado, la mesa contigua. */
+  private freePointNear(prefixes: readonly string[], near: TilePoint, ok: (id: string) => boolean): string | undefined {
+    let best: string | undefined;
+    let bestD = Infinity;
+    for (const id of this.freePoints(prefixes, ok)) {
+      const d = this.distance(this.pointAt(id), near);
+      if (d < bestD) {
+        best = id;
+        bestD = d;
+      }
+    }
+    return best;
   }
 
   private pointAt(id: string): TilePoint {
@@ -440,4 +596,10 @@ export class Crowd {
   private distance(a: TilePoint, b: TilePoint): number {
     return Math.hypot(a.tx - b.tx, a.ty - b.ty);
   }
+}
+
+function facingTo(from: TilePoint, to: TilePoint): Facing {
+  const dx = to.tx - from.tx;
+  const dy = to.ty - from.ty;
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
 }

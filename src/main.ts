@@ -17,6 +17,7 @@ import { TargetHint } from './ui/TargetHint';
 import { MetroDebug } from './ui/MetroDebug';
 import { Announcer } from './ui/Announcer';
 import { PlaceBanner } from './ui/PlaceBanner';
+import { Menu } from './ui/Menu';
 import { METRO_CONFIG } from './config/metro';
 import type { Services } from './services';
 
@@ -46,6 +47,7 @@ const services: Services = {
   announcer: new Announcer(requireEl('#announce')),
   place: new PlaceBanner(requireEl('#place')),
   metroEvents: new MetroEventManager(state),
+  menu: new Menu(requireEl('#menu')),
 };
 
 // La paleta vive en TypeScript; el CSS la consume desde aquí para no duplicarla.
@@ -59,6 +61,21 @@ css.setProperty('--accent', PALETTE.glassLit);
 new HUD(requireEl('#hud'), state);
 new DialogueBox(requireEl('#dialogue'), services.dialogue);
 
+/**
+ * El lienzo va a la resolución física de la pantalla y el CSS lo estira a la
+ * ventana (style.css). Con RESIZE iría en px CSS y el navegador lo escalaría
+ * por el devicePixelRatio: a 125 % o 150 % los píxeles del juego salen de dos
+ * anchos distintos y la imagen tiembla al caminar. Así el zoom entero de la
+ * cámara (WorldScene.fitCamera) es entero en píxeles de verdad.
+ */
+const stage = requireEl('#game');
+// El tamaño del contenedor, no window.innerWidth: en móvil éste va un paso por detrás del viewport.
+const deviceSize = (): [number, number] => [
+  Math.max(1, Math.round(stage.clientWidth * window.devicePixelRatio)),
+  Math.max(1, Math.round(stage.clientHeight * window.devicePixelRatio)),
+];
+const [deviceWidth, deviceHeight] = deviceSize();
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -66,8 +83,10 @@ const game = new Phaser.Game({
   pixelArt: true,
   roundPixels: true,
   scale: {
-    mode: Phaser.Scale.RESIZE,
+    mode: Phaser.Scale.NONE,
     autoCenter: Phaser.Scale.NO_CENTER,
+    width: deviceWidth,
+    height: deviceHeight,
   },
   physics: {
     default: 'arcade',
@@ -75,6 +94,16 @@ const game = new Phaser.Game({
   },
   scene: [new BootScene(services), new WorldScene(services)],
 });
+
+// Girar el móvil, cambiar de monitor o hacer zoom en el navegador cambia el tamaño físico.
+// El observador además recoge el tamaño definitivo: en móvil, al arrancar el
+// módulo el viewport aún no se ha asentado y ningún `resize` lo corrige.
+const fitCanvas = (): void => {
+  const [w, h] = deviceSize();
+  if (w !== game.scale.width || h !== game.scale.height) game.scale.resize(w, h);
+};
+new ResizeObserver(fitCanvas).observe(stage);
+window.addEventListener('resize', fitCanvas);
 
 // Gancho de desarrollo para inspeccionar la partida desde la consola.
 // Vite lo elimina del bundle de produccion.

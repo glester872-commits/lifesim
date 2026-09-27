@@ -10,14 +10,57 @@ import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
 
 // ---------------------------------------------------------------- terreno
 
-/** Paso de cebra: bandas en el sentido del tráfico, sobre asfalto. */
-function drawCrosswalk(ctx: Ctx): void {
-  px(ctx, PALETTE.asphalt, 0, 0, TILE, TILE);
-  sprinkle(ctx, PALETTE.asphaltLit, TILE, TILE, 7, 10);
-  for (const y of [1, 9]) {
-    px(ctx, shade(PALETTE.white, -0.08), 1, y, 14, 5);
-    px(ctx, PALETTE.white, 1, y, 14, 1);
-    sprinkle(ctx, shade(PALETTE.white, -0.2), 14, 5, 40 + y, 4);
+const NEON_PINK = '#ff6ab8';
+const NEON_CYAN = '#8ff0ff';
+
+/** Pista de baile: losas oscuras con reflejos de los focos, sin rejilla que se lea a lunares. */
+function drawDanceFloor(ctx: Ctx, variant: number): void {
+  const base = '#241d33';
+  px(ctx, base, 0, 0, TILE, TILE);
+  px(ctx, shade(base, 0.06), 0, 0, TILE, 1);
+  px(ctx, shade(base, 0.06), 0, 0, 1, TILE);
+  sprinkle(ctx, shade(base, 0.08), TILE, TILE, 91 + variant, 14);
+  sprinkle(ctx, shade(NEON_PINK, -0.45), TILE, TILE, 17 + variant * 5, 3);
+  sprinkle(ctx, shade(NEON_CYAN, -0.5), TILE, TILE, 29 + variant * 7, 2);
+}
+
+/** Cabina del DJ: tres tiles de mesa con platos y una franja de luz al frente. */
+function drawDjBooth(ctx: Ctx): void {
+  const w = TILE * 3;
+  px(ctx, 'rgba(0,0,0,0.35)', 1, 13, w - 2, 3);
+  px(ctx, PALETTE.ink, 0, 3, w, 11);
+  px(ctx, shade(PALETTE.night, 0.12), 0, 3, w, 3);
+  for (const x of [5, 31]) {
+    px(ctx, PALETTE.metal, x, 3, 9, 3);
+    px(ctx, PALETTE.ink, x + 3, 4, 3, 1);
+  }
+  px(ctx, PALETTE.metalLit, 20, 3, 8, 3);
+  px(ctx, NEON_PINK, 2, 9, w - 4, 1);
+  px(ctx, shade(NEON_PINK, -0.4), 2, 10, w - 4, 1);
+}
+
+/** Altavoz de pie: dos conos en una caja negra. */
+function drawSpeaker(ctx: Ctx): void {
+  px(ctx, 'rgba(0,0,0,0.35)', 2, 29, 12, 3);
+  px(ctx, PALETTE.ink, 2, 8, 12, 22);
+  px(ctx, shade(PALETTE.night, 0.1), 2, 8, 12, 1);
+  for (const [y, r] of [[14, 3], [23, 4]] as const) {
+    px(ctx, PALETTE.metal, 8 - r, y - r, r * 2, r * 2);
+    px(ctx, PALETTE.ink, 7, y - 1, 2, 2);
+  }
+}
+
+/** Botellero de pared: dos baldas con botellas de colores a contraluz. */
+function drawBottles(ctx: Ctx): void {
+  const colors = [PALETTE.leafLit, PALETTE.amber, PALETTE.glassLit, '#c0493f', PALETTE.white, NEON_PINK];
+  for (const y of [5, 12]) {
+    px(ctx, PALETTE.woodLit, 1, y + 2, 30, 1);
+    for (let x = 2, i = y; x < 29; x += 3, i++) {
+      const c = colors[(i * 7) % colors.length];
+      px(ctx, shade(c, -0.25), x, y - 3, 2, 5);
+      px(ctx, c, x, y - 3, 1, 3);
+      px(ctx, shade(c, -0.4), x, y - 5, 1, 2);
+    }
   }
 }
 
@@ -34,14 +77,6 @@ function drawCourt(ctx: Ctx, variant: number): void {
   px(ctx, base, 0, 0, TILE, TILE);
   sprinkle(ctx, shade(base, 0.04), TILE, TILE, 9 + variant, 10);
   if (variant === 1) px(ctx, shade(PALETTE.white, -0.15), 0, 8, TILE, 1);
-}
-
-/** Línea central continua en el borde inferior: la fila siguiente es el otro sentido. */
-function drawAsphaltCentre(ctx: Ctx): void {
-  px(ctx, PALETTE.asphalt, 0, 0, TILE, TILE);
-  sprinkle(ctx, PALETTE.asphaltLit, TILE, TILE, 21, 13);
-  sprinkle(ctx, PALETTE.ink, TILE, TILE, 57, 7);
-  px(ctx, PALETTE.roadLine, 0, 14, TILE, 2);
 }
 
 /** Moqueta de oficina: pizarra con trama fina, nada de alfombra de casa. */
@@ -95,6 +130,13 @@ function drawBusStop(ctx: Ctx): void {
   px(ctx, PALETTE.white, 33, 15, 4, 1);
   px(ctx, PALETTE.wood, 5, 24, 20, 3);
   px(ctx, PALETTE.woodLit, 5, 24, 20, 1);
+}
+
+/** Taxi: el blanco de siempre con la franja roja y la luz verde de libre en el techo. */
+function drawTaxi(ctx: Ctx): void {
+  drawCar(ctx, PALETTE.white);
+  px(ctx, '#c0493f', 1, 9, TILE * 2 - 2, 1);
+  px(ctx, PALETTE.leafLit, 15, 2, 2, 1);
 }
 
 function drawCar(ctx: Ctx, body: string): void {
@@ -154,6 +196,22 @@ function drawVending(ctx: Ctx): void {
   px(ctx, PALETTE.glassLit, 12, 8, 2, 4);
   px(ctx, PALETTE.ink, 3, 24, 8, 4);
   glow(ctx, 7, 14, 7, 0.12, PALETTE.glassLit);
+}
+
+/** Máquina de billetes del metro: pantalla, ranura de tarjeta y el azul de la línea. */
+function drawTicketMachine(ctx: Ctx): void {
+  px(ctx, 'rgba(0,0,0,0.35)', 2, 29, 12, 3);
+  px(ctx, PALETTE.metal, 2, 5, 12, 25);
+  px(ctx, PALETTE.metalLit, 2, 5, 12, 1);
+  px(ctx, '#3f5fa8', 2, 6, 12, 3);
+  px(ctx, PALETTE.ink, 4, 11, 8, 7);
+  px(ctx, PALETTE.glassLit, 5, 12, 6, 1);
+  px(ctx, shade(PALETTE.glassLit, -0.3), 5, 14, 4, 1);
+  px(ctx, shade(PALETTE.glassLit, -0.3), 5, 16, 5, 1);
+  px(ctx, PALETTE.ink, 5, 21, 6, 1);
+  px(ctx, PALETTE.amber, 10, 21, 1, 1);
+  px(ctx, PALETTE.ink, 5, 25, 6, 2);
+  glow(ctx, 8, 14, 6, 0.12, PALETTE.glassLit);
 }
 
 function drawProduce(ctx: Ctx): void {
@@ -355,14 +413,161 @@ function drawCooler(ctx: Ctx): void {
   px(ctx, PALETTE.white, 6, 6, 1, 8);
 }
 
+// ------------------------------------------------ pared, barra y techo
+
+/** Ventana de interior sobre la cara del muro: marco, cielo y visillos. */
+function drawWindow(ctx: Ctx): void {
+  px(ctx, PALETTE.woodDark, 2, 2, 28, 13);
+  px(ctx, '#9cc3d6', 4, 4, 24, 9);
+  px(ctx, '#bcd8e4', 4, 4, 24, 3);
+  px(ctx, PALETTE.woodDark, 15, 4, 2, 9);
+  px(ctx, PALETTE.white, 4, 4, 4, 9);
+  px(ctx, PALETTE.white, 24, 4, 4, 9);
+  px(ctx, shade(PALETTE.white, -0.08), 7, 4, 1, 9);
+  px(ctx, shade(PALETTE.white, -0.08), 24, 4, 1, 9);
+  px(ctx, PALETTE.woodLit, 1, 14, 30, 2);
+}
+
+function drawPainting(ctx: Ctx): void {
+  px(ctx, PALETTE.woodDark, 2, 3, 12, 10);
+  px(ctx, '#e7d8b4', 3, 4, 10, 8);
+  px(ctx, '#7aa0b8', 3, 4, 10, 4);
+  px(ctx, PALETTE.leaf, 3, 8, 10, 4);
+  px(ctx, PALETTE.amber, 9, 5, 2, 2);
+}
+
+function drawClock(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 5, 3, 6, 8);
+  px(ctx, PALETTE.ink, 4, 4, 8, 6);
+  px(ctx, PALETTE.white, 5, 4, 6, 6);
+  px(ctx, PALETTE.ink, 8, 5, 1, 3);
+  px(ctx, PALETTE.ink, 8, 7, 2, 1);
+}
+
+/** Pizarra de carta en la pared: tiza blanca y un precio en ámbar. */
+function drawChalkboard(ctx: Ctx): void {
+  px(ctx, PALETTE.woodDark, 1, 2, 30, 13);
+  px(ctx, '#27302b', 2, 3, 28, 11);
+  for (let y = 5; y < 13; y += 2) {
+    px(ctx, shade(PALETTE.white, -0.2), 4, y, 12 + ((y * 3) % 7), 1);
+    px(ctx, PALETTE.amber, 24, y, 3, 1);
+  }
+  px(ctx, PALETTE.white, 4, 4, 9, 1);
+}
+
+/** Rótulo de neón del gimnasio: dos trazos que brillan con luz propia. */
+function drawNeon(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 1, 4, 30, 9);
+  px(ctx, '#8ff0ff', 4, 6, 10, 1);
+  px(ctx, '#8ff0ff', 4, 6, 1, 5);
+  px(ctx, '#8ff0ff', 4, 8, 7, 1);
+  px(ctx, '#ff7ab8', 17, 6, 1, 5);
+  px(ctx, '#ff7ab8', 17, 10, 11, 1);
+  px(ctx, '#ff7ab8', 27, 6, 1, 5);
+}
+
+/** Balda de pared con ropa doblada por colores. */
+function drawWallShelf(ctx: Ctx): void {
+  const piles = ['#c9743f', '#3f6f78', PALETTE.white, '#8c5a6e', '#2a2430', '#b98a52', '#5c7c3e'];
+  for (const y of [5, 12]) {
+    px(ctx, PALETTE.woodLit, 1, y + 2, 30, 1);
+    px(ctx, PALETTE.woodDark, 1, y + 3, 30, 1);
+    piles.forEach((c, i) => {
+      px(ctx, c, 2 + i * 4, y - 1, 3, 3);
+      px(ctx, shade(c, 0.12), 2 + i * 4, y - 1, 3, 1);
+    });
+  }
+}
+
+/** Cafetera de barra: cuerpo de acero, dos grupos y tazas encima. */
+function drawEspresso(ctx: Ctx): void {
+  px(ctx, PALETTE.metal, 2, 2, 12, 7);
+  px(ctx, PALETTE.metalLit, 2, 2, 12, 1);
+  px(ctx, PALETTE.ink, 4, 6, 2, 2);
+  px(ctx, PALETTE.ink, 10, 6, 2, 2);
+  px(ctx, '#c0493f', 7, 4, 2, 1);
+  px(ctx, PALETTE.white, 3, 0, 2, 2);
+  px(ctx, PALETTE.white, 11, 0, 2, 2);
+}
+
+/** Vitrina de dulces: cristal sobre bandejas de colores. */
+function drawPastryCase(ctx: Ctx): void {
+  px(ctx, shade(PALETTE.glass, 0.25), 1, 1, 14, 8);
+  px(ctx, '#bcd8e4', 1, 1, 14, 1);
+  for (let x = 2; x < 14; x += 3) {
+    px(ctx, PALETTE.amber, x, 4, 2, 2);
+    px(ctx, '#8c5a3a', x, 7, 2, 1);
+  }
+  px(ctx, PALETTE.metal, 1, 9, 14, 1);
+}
+
+/** Lámpara colgante: cable y pantalla una baldosa por encima de su base. */
+function drawPendant(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 7, 0, 1, 10);
+  px(ctx, PALETTE.woodDark, 4, 10, 8, 2);
+  px(ctx, PALETTE.amberDim, 3, 12, 10, 3);
+  px(ctx, '#f6e2b0', 5, 15, 6, 1);
+}
+
+/** Tubo fluorescente: una regleta larga y fría. */
+function drawTubeLight(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 7, 0, 1, 8);
+  px(ctx, PALETTE.ink, 24, 0, 1, 8);
+  px(ctx, PALETTE.metal, 3, 8, 26, 3);
+  px(ctx, '#eaf6ff', 4, 10, 24, 2);
+}
+
+/** Lámpara de pie: pie de hierro y pantalla de tela encendida por dentro. */
+function drawFloorLamp(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 4, 29, 8, 2);
+  px(ctx, PALETTE.metal, 7, 11, 2, 18);
+  px(ctx, PALETTE.metalLit, 7, 11, 1, 18);
+  px(ctx, PALETTE.amberDim, 3, 3, 10, 8);
+  px(ctx, PALETTE.amber, 4, 3, 4, 7);
+  px(ctx, '#f6e2b0', 4, 10, 8, 1);
+}
+
+/** Mesa baja de tienda: madera y montones de ropa doblada, cada uno de su color y altura. */
+function drawDisplayTable(ctx: Ctx): void {
+  const w = TILE * 2;
+  px(ctx, PALETTE.woodDark, 1, 6, w - 2, 9);
+  px(ctx, PALETTE.wood, 2, 6, w - 4, 6);
+  px(ctx, PALETTE.woodLit, 2, 6, w - 4, 1);
+  const folds = [PALETTE.white, '#5c6fa8', '#b8423a', '#8aa05a', '#2a2830'];
+  folds.forEach((color, i) => {
+    const h = 2 + ((i * 2) % 3);
+    const x = 4 + i * 5;
+    px(ctx, color, x, 10 - h, 4, h);
+    px(ctx, shade(color, 0.12), x, 10 - h, 4, 1);
+    px(ctx, shade(color, -0.18), x, 10, 4, 1);
+  });
+}
+
 export function buildPropTextures(scene: Phaser.Scene): void {
-  make(scene, 'tile-crosswalk-0', TILE, TILE, drawCrosswalk);
-  make(scene, 'tile-asphalt-centre-0', TILE, TILE, drawAsphaltCentre);
+  make(scene, 'prop-floor-lamp', TILE, TILE * 2, drawFloorLamp);
+  make(scene, 'prop-display-table', TILE * 2, TILE, drawDisplayTable);
+  make(scene, 'prop-window', TILE * 2, TILE, drawWindow);
+  make(scene, 'prop-painting', TILE, TILE, drawPainting);
+  make(scene, 'prop-clock', TILE, TILE, drawClock);
+  make(scene, 'prop-chalkboard', TILE * 2, TILE, drawChalkboard);
+  make(scene, 'prop-neon', TILE * 2, TILE, drawNeon);
+  make(scene, 'prop-wall-shelf', TILE * 2, TILE, drawWallShelf);
+  make(scene, 'prop-espresso', TILE, TILE, drawEspresso);
+  make(scene, 'prop-pastry-case', TILE, TILE, drawPastryCase);
+  make(scene, 'prop-pendant', TILE, TILE * 2, drawPendant);
+  make(scene, 'prop-tube-light', TILE * 2, TILE * 2, drawTubeLight);
+
   for (let v = 0; v < 2; v++) {
     make(scene, `tile-gym-floor-${v}`, TILE, TILE, (ctx) => drawGymFloor(ctx, v));
     make(scene, `tile-court-${v}`, TILE, TILE, (ctx) => drawCourt(ctx, v));
     make(scene, `tile-office-carpet-${v}`, TILE, TILE, (ctx) => drawOfficeCarpet(ctx, v));
   }
+  for (let v = 0; v < 3; v++) make(scene, `tile-dance-floor-${v}`, TILE, TILE, (ctx) => drawDanceFloor(ctx, v));
+  make(scene, 'prop-dj-booth', TILE * 3, TILE, drawDjBooth);
+  make(scene, 'prop-speaker', TILE, TILE * 2, drawSpeaker);
+  make(scene, 'prop-bottles', TILE * 2, TILE, drawBottles);
+  make(scene, 'prop-car-taxi', TILE * 2, TILE, drawTaxi);
+  make(scene, 'prop-ticket-machine', TILE, TILE * 2, drawTicketMachine);
 
   make(scene, 'prop-fountain', TILE * 3, TILE * 2, drawFountain);
   make(scene, 'prop-kiosk', TILE * 2, TILE * 2, drawKiosk);

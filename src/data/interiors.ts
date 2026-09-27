@@ -47,7 +47,8 @@ export const GYM: LocationDef = {
   // Suelo de caucho en la zona de entrenamiento; baldosa en recepción y vestuario.
   ground: room(22, 14, 10, (x, y) => (y <= 8 && x <= 13 ? 'm' : 't')),
   props: [
-    ...many('mirror', [[2, 1], [5, 1], [8, 1]]),
+    // Pared de espejo corrida sobre la zona de cintas y pesas.
+    ...many('mirror', [[1, 1], [3, 1], [5, 1], [7, 1], [9, 1]]),
     ...many('treadmill', [[2, 4], [4, 4], [6, 4]]),
     ...many('weights', [[11, 3], [12, 3]]),
     ...many('weight-bench', [[3, 7], [7, 7], [11, 7]]),
@@ -55,7 +56,13 @@ export const GYM: LocationDef = {
     ...many('counter', [[15, 10], [16, 10], [17, 10]]),
     at('cooler', 20, 10),
     ...many('plant', [[20, 3], [1, 11]]),
+    // Neón de la casa, reloj de sala y tubos fluorescentes: luz fría de gimnasio.
+    at('neon', 14, 1),
+    at('clock', 18, 1),
+    at('window', 11, 1),
+    ...many('tube-light', [[2, 6], [7, 6], [12, 6], [16, 9]]),
   ],
+  ambient: '#e2ebff',
   ...exitTo('gym-door', 10, 14),
   // Nadie colocado a mano: la gente la pone data/population.ts según la hora.
   npcs: [],
@@ -100,7 +107,14 @@ export const FASHION: LocationDef = {
     at('register', 16, 5),
     ...many('mannequin', [[2, 9], [17, 9]]),
     ...many('plant', [[18, 2], [18, 10]]),
+    // Baldas con ropa doblada en la pared y focos cálidos sobre los percheros.
+    ...many('wall-shelf', [[10, 1], [13, 1], [16, 1]]),
+    at('painting', 4, 1),
+    ...many('pendant', [[8, 5], [12, 5], [8, 9], [12, 9], [16, 6]]),
+    // Mesa de novedades en mitad de la alfombra.
+    at('display-table', 9, 6),
   ],
+  ambient: '#fff3e2',
   ...exitTo('fashion-door', 9, 13),
   npcs: [],
   inspects: [
@@ -146,8 +160,12 @@ export const SUPERMARKET: LocationDef = {
     at('register', 8, 10),
     at('counter', 9, 10),
     at('plant', 20, 11),
+    // Luz de súper: tubos fríos sobre los pasillos y la caja.
+    ...many('tube-light', [[7, 6], [12, 6], [17, 6], [2, 9], [8, 9]]),
   ],
+  ambient: '#eef3f6',
   ...exitTo('super-door', 5, 14),
+  terminals: [{ tx: 8, ty: 10, name: 'Caja · Súper Rosales', catalog: 'supermarket-till' }],
   npcs: [],
   points: {
     SUPERMARKET_EXIT: p(5, 11, 'exit', 'up'),
@@ -186,8 +204,13 @@ export const RESTAURANT: LocationDef = {
     ...many('counter', [[2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4], [8, 4]]),
     ...many('table', TABLES),
     ...many('plant', [[1, 10], [18, 10]]),
+    // Una lámpara cálida sobre cada mesa y dos sobre la barra.
+    ...many('pendant', [...TABLES, [3, 5], [7, 5]]),
   ],
+  ambient: '#ffe8cc',
   ...exitTo('restaurant-door', 10, 13),
+  // Se pide en la barra: menú del día a mediodía, carta por la noche.
+  spots: [{ tx: 5, ty: 4, name: 'Barra · Casa Tomás', activities: ['restaurant-lunch', 'restaurant-dinner'] }],
   npcs: [],
   points: {
     RESTAURANT_EXIT: p(10, 10, 'exit', 'up'),
@@ -240,5 +263,101 @@ export const OFFICE: LocationDef = {
     ...Object.fromEntries(
       DESKS.map(([x, y], i) => [`OFFICE_DESK_${String(i + 1).padStart(2, '0')}`, p(x, y + 1, 'work', 'up')]),
     ),
+  },
+};
+
+// ------------------------------------------------------------- discoteca
+
+/** Sitios para bailar: la pista entera, apretada, con el pasillo de la puerta libre. */
+const DANCE: [number, number][] = [
+  [9, 5], [11, 5], [13, 5], [15, 5], [10, 6], [12, 6], [14, 6], [9, 7],
+  [11, 7], [13, 7], [15, 7], [10, 8], [12, 8], [14, 8], [11, 9], [13, 9],
+];
+const TWO = (i: number): string => String(i + 1).padStart(2, '0');
+
+export const CLUB: LocationDef = {
+  id: 'club',
+  name: 'Sala Órbita',
+  kind: 'interior',
+  // Barra con baldosa, pista de baile en el centro y caucho oscuro alrededor.
+  ground: room(24, 15, 12, (x, y) => (x >= 9 && x <= 15 && y >= 5 && y <= 9 ? 'n' : x <= 8 && y <= 6 ? 't' : 'm')),
+  props: [
+    // Barra: botellero en la pared, mostrador corrido y dos colgantes cálidos.
+    ...many('bottles', [[2, 1], [5, 1]]),
+    ...many('counter', [[2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4]]),
+    ...many('pendant', [[3, 5], [6, 5]]),
+    // Cabina del DJ entre dos altavoces, con neones detrás.
+    at('dj-booth', 11, 3),
+    ...many('speaker', [[9, 3], [15, 3]]),
+    ...many('neon', [[9, 1], [14, 1]]),
+    // Zona de estar: mesas bajas, mesas altas para quedarse de pie y sofás contra la pared.
+    ...many('table', [[19, 4], [19, 8]]),
+    ...many('cafe-table', [[21, 6], [5, 9]]),
+    ...many('sofa', [[18, 2], [21, 2]]),
+    at('painting', 20, 1),
+    ...many('plant', [[1, 11], [22, 11]]),
+  ],
+  ambient: '#a894d0',
+  strobe: { tx: 9, ty: 5, w: 7, h: 5 },
+  ...exitTo('club-door', 12, 15),
+  npcs: [],
+  points: {
+    CLUB_EXIT: p(12, 12, 'exit', 'up'),
+    CLUB_DOOR: p(14, 11, 'work', 'left'),
+    CLUB_DJ: p(12, 2, 'work', 'down'),
+    CLUB_BARTENDER_01: p(3, 3, 'work', 'down'),
+    CLUB_BARTENDER_02: p(6, 3, 'work', 'down'),
+    ...Object.fromEntries([2, 3, 4, 5, 6, 7].map((x, i) => [`CLUB_BAR_${TWO(i)}`, p(x, 5, 'interact', 'up')])),
+    ...Object.fromEntries(DANCE.map(([x, y], i) => [`CLUB_DANCE_${TWO(i)}`, p(x, y, 'meet', 'up')])),
+    CLUB_SEAT_01: p(19, 5, 'seat', 'up'),
+    CLUB_SEAT_02: p(20, 4, 'seat', 'left'),
+    CLUB_SEAT_03: p(19, 9, 'seat', 'up'),
+    CLUB_SEAT_04: p(20, 8, 'seat', 'left'),
+    CLUB_STAND_01: p(20, 6, 'meet', 'right'),
+    CLUB_STAND_02: p(21, 7, 'meet', 'up'),
+    CLUB_STAND_03: p(22, 6, 'meet', 'left'),
+    CLUB_STAND_04: p(4, 9, 'meet', 'right'),
+    CLUB_STAND_05: p(6, 9, 'meet', 'left'),
+    CLUB_STAND_06: p(5, 10, 'meet', 'up'),
+  },
+};
+
+// -------------------------------------------------------------- farmacia
+
+/**
+ * Farmacia de barrio: mostrador de dispensación con la farmacéutica detrás,
+ * baldas de medicamentos al fondo, dos expositores de parafarmacia a los lados
+ * y luz fría de tubo. Se viene a por algo que quite el cansancio cuando no da
+ * tiempo a dormir (data/catalogs.ts, 'pharmacy-counter').
+ */
+export const PHARMACY: LocationDef = {
+  id: 'pharmacy',
+  name: 'Farmacia',
+  kind: 'interior',
+  ground: room(12, 10, 6, () => 't'),
+  props: [
+    ...many('shelf', [[2, 2], [4, 2], [7, 2], [9, 2]]),
+    ...many('counter', [[4, 4], [5, 4], [6, 4], [7, 4]]),
+    at('register', 6, 4),
+    ...many('gondola', [[1, 5], [1, 6], [10, 5], [10, 6]]),
+    at('plant', 10, 7),
+    at('clock', 6, 1),
+    ...many('window', [[1, 1], [9, 1]]),
+    ...many('tube-light', [[2, 4], [7, 4]]),
+  ],
+  ambient: '#eef6f2',
+  ...exitTo('pharmacy', 6, 10),
+  terminals: [{ tx: 5, ty: 4, name: 'Mostrador · Farmacia', catalog: 'pharmacy-counter' }],
+  npcs: [],
+  points: {
+    PHARMACY_EXIT: p(6, 7, 'exit', 'up'),
+    PHARMACY_STAFF: p(5, 3, 'work', 'down'),
+    PHARMACY_COUNTER: p(5, 5, 'interact', 'up'),
+    PHARMACY_QUEUE_01: p(5, 6, 'wait', 'up'),
+    PHARMACY_QUEUE_02: p(4, 7, 'wait', 'up'),
+    PHARMACY_SHELF_01: p(2, 5, 'interact', 'left'),
+    PHARMACY_SHELF_02: p(9, 5, 'interact', 'right'),
+    PHARMACY_SHELF_03: p(2, 6, 'interact', 'left'),
+    PHARMACY_SHELF_04: p(9, 6, 'interact', 'right'),
   },
 };

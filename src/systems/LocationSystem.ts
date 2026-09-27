@@ -14,6 +14,7 @@ import { LOCATIONS } from '../data/locations.ts';
 import { TILE } from '../config/constants.ts';
 import { PROPS, TILES } from '../world/tiles.ts';
 import { getNpc } from '../data/npcs.ts';
+import { getCatalog } from '../data/catalogs.ts';
 
 // ------------------------------------------------------------- edificios
 
@@ -71,6 +72,7 @@ export function solidMask(loc: LocationDef): boolean[][] {
     if (b.doorX !== undefined && b.front) set(b.doorX, doorRow(b), false);
   }
   for (const p of loc.props) {
+    if (PROPS[p.kind].overhead || PROPS[p.kind].flat) continue; // cuelga del techo o está pintado en el suelo: se pasa
     const w = PROPS[p.kind].tilesWide ?? 1;
     for (let x = p.tx; x < p.tx + w; x++) set(x, p.ty, true);
   }
@@ -146,6 +148,10 @@ function validate(loc: LocationDef): void {
     if (!lineClear(loc, pa, pb)) throw new Error(`[${loc.id}] tramo ${a}–${b} atraviesa algo sólido`);
   }
   if (loc.metro) validateMetro(loc, loc.metro);
+  for (const t of loc.terminals ?? []) {
+    getCatalog(t.catalog);
+    if (!loc.ground[t.ty]?.[t.tx]) throw new Error(`[${loc.id}] ${t.name} fuera del mapa en ${t.tx},${t.ty}`);
+  }
 }
 
 function validateBuildings(loc: LocationDef, width: number): void {

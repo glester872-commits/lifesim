@@ -21,13 +21,13 @@ export interface PortalDef {
   ty: number;
   label: string;
   to: { location: string; spawn: string };
-  /** Billete en euros. Sin fare el paso es gratuito. */
-  fare?: number;
-  /** Minutos de reloj que consume el trayecto. */
+  /** Minutos de reloj que consume el paso. */
   minutes?: number;
   /**
    * Subir al tren. Sólo es usable con las puertas abiertas y se ofrece en cada
    * puerta del tren: la x sale del tren; ty marca la fila del borde del andén.
+   * El destino, el precio y la duración no son del portal: se eligen al subir
+   * (data/transit.ts) y se pagan con la tarjeta (systems/Commerce.ts).
    */
   train?: boolean;
 }
@@ -81,7 +81,50 @@ export type PropKind =
   | 'fridge'
   | 'gondola'
   | 'cooler'
-  | 'meeting-table';
+  | 'meeting-table'
+  | 'ticket-machine'
+  // Visual V2 (design/ART_BIBLE.md): mobiliario de la plazuela del metro
+  | 'plane-tree'
+  | 'plaza-bench'
+  | 'street-lamp'
+  | 'bike-rack'
+  | 'planter-box'
+  | 'metro-totem'
+  | 'info-board'
+  // planos: se hornean con el suelo
+  | 'manhole'
+  | 'drain'
+  | 'leaves'
+  | 'dj-booth'
+  | 'speaker'
+  // en la pared (sobre muro, que ya es sólido)
+  | 'window'
+  | 'painting'
+  | 'clock'
+  | 'chalkboard'
+  | 'neon'
+  | 'wall-shelf'
+  | 'bottles'
+  // sobre el mostrador
+  | 'espresso'
+  | 'pastry-case'
+  // del techo: no pisan el suelo
+  | 'pendant'
+  | 'floor-lamp'
+  | 'display-table'
+  // micromobiliario (systems/Dressing.ts)
+  | 'container'
+  | 'mailbox'
+  | 'bollard'
+  | 'parking-sign'
+  | 'street-sign'
+  | 'utility-box'
+  | 'scooter'
+  | 'ad-panel'
+  | 'barrier'
+  | 'skip'
+  | 'debris'
+  | 'tube-light';
 
 export interface PropPlacement {
   kind: PropKind;
@@ -150,7 +193,7 @@ export type BuildingStyle =
   | 'pharmacy'
   | 'hair'
   | 'bank'
-  | 'to-let'
+  | 'club'
   | 'fruit'
   | 'hardware'
   | 'laundry'
@@ -186,6 +229,29 @@ export interface BuildingDef {
   inspect?: readonly string[];
 }
 
+/** Donde se compra algo con E: máquina expendedora, taquilla, mostrador. */
+export interface TerminalDef {
+  tx: number;
+  ty: number;
+  name: string;
+  /** Id en data/catalogs.ts. */
+  catalog: string;
+}
+
+/**
+ * Donde se hace algo que lleva un rato: dormir en la cama, cocinar, sentarse a
+ * cortarse el pelo. Pulsar E ofrece sus actividades; cada una adelanta el
+ * reloj de verdad (systems/Activities.ts). Un sitio nuevo con algo que hacer
+ * es un spot más en los datos.
+ */
+export interface SpotDef {
+  tx: number;
+  ty: number;
+  name: string;
+  /** Ids en data/activities.ts. */
+  activities: readonly string[];
+}
+
 /** Algo que se puede mirar con E: un cartel, una fuente, un escaparate. */
 export interface InspectDef {
   tx: number;
@@ -197,7 +263,26 @@ export interface InspectDef {
 /** Carriles con tráfico ambiental: coches que cruzan el mapa y ceden a los peatones. */
 export interface TrafficDef {
   lanes: readonly { row: number; dir: 1 | -1 }[];
+  /** Máximo por carril; el primero de cada carril es un taxi. */
   carsPerLane: number;
+  /** [desde, hasta, coches por carril] en horas; fuera de las franjas, carsPerLane. */
+  hourly?: readonly (readonly [number, number, number])[];
+}
+
+/**
+ * Un paso de peatones con semáforo sobre una calzada que va de este a oeste:
+ * el rectángulo de las bandas en tiles (los peatones lo cruzan de norte a sur).
+ * Semáforo de coches a cada lado y de peatones en cada bordillo. Uno nuevo es
+ * una entrada de datos.
+ */
+export interface SignalDef {
+  id: string;
+  tx: number;
+  ty: number;
+  w: number;
+  h: number;
+  /** Desfase en ms dentro del ciclo: dos cruces de la misma avenida no cambian a la vez. */
+  offset?: number;
 }
 
 /**
@@ -240,6 +325,16 @@ export interface LocationDef {
   links?: readonly (readonly [string, string])[];
   inspects?: readonly InspectDef[];
   traffic?: TrafficDef;
+  /** Pasos de peatones con semáforo (systems/Signals.ts): los respetan peatones, personajes y coches. */
+  signals?: readonly SignalDef[];
+  /** Interiores: color de la luz del local (#rrggbb), que tiñe la sala. Las lámparas se encienden siempre. */
+  ambient?: string;
+  /** Máquinas y mostradores donde se compra: un catálogo de data/catalogs.ts en un tile. */
+  terminals?: readonly TerminalDef[];
+  /** Sitios donde se hace algo que lleva un rato: la cama, la cocina, la silla de la peluquería (data/activities.ts). */
+  spots?: readonly SpotDef[];
+  /** Interiores: focos de colores que barren esta zona en tiles (la pista de baile), al ritmo de la música. */
+  strobe?: { tx: number; ty: number; w: number; h: number };
 }
 
 /** Colores de ropa y pelo; alimentan el generador de texturas. */
@@ -248,6 +343,18 @@ export interface NpcLook {
   cloth: string;
   clothDark: string;
   hair: string;
+  /** Opcionales: sin ellos, el aspecto de siempre. */
+  skin?: string;
+  /** Brazos al aire (tirantes) o manga de otro color. */
+  sleeves?: string;
+  trousers?: string;
+  /** Manchas sobre el pantalón (leopardo). */
+  spots?: string;
+  longHair?: boolean;
+  earrings?: string;
+  /** Bolso en bandolera y gorra (color): sobre todo para los anónimos. */
+  bag?: string;
+  cap?: string;
 }
 
 export interface NpcDef extends NpcLook {
@@ -265,6 +372,10 @@ export interface GameStateData {
   position: Vec2;
   facing: Facing;
   events: EventMemory;
+  /** Lo que lleva encima: id de objeto (data/items.ts) → unidades. */
+  inventory: Record<string, number>;
+  /** Tarjetas con saldo: id de tarjeta (data/items.ts, kind 'card') → euros cargados. Sin clave, no la tiene. */
+  cards: Record<string, number>;
 }
 
 export interface SaveFile {

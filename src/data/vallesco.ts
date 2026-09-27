@@ -1,4 +1,5 @@
 import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from '../types/game.ts';
+import { dress } from '../systems/Dressing.ts';
 
 /**
  * Barrio Vallesco (dirección A, design/barrio/direccion-a.html): la Calle
@@ -37,7 +38,8 @@ const GROUND = paint('g', [
   ['z', 24, 31, 3, 4], // paso de cebra oeste
   ['z', 52, 31, 3, 4], // paso de cebra este
   [',', 0, 35, W, 2], // acera sur
-  ['~', 25, 37, 12, 9], // Plazuela del Metro
+  ['P', 25, 37, 12, 9], // Plazuela del Metro: adoquín de granito (Visual V2)
+  ['T', 29, 41, 3, 1], // franja podotáctil delante de la escalera del metro
   ['.', 22, 37, 3, 9], // Calle Tintoreros, tramo con coches
   ['c', 56, 37, 2, 9], // Pasaje del Reloj
   [',', 0, 46, W, 1], // Calle del Olmo
@@ -75,11 +77,12 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('office-door', 'Edificio Atalaya', 'office', [57, 19, 17, 8], 's', 65, { floors: 2, enter: into('office'), point: 'OFFICE_ENTRANCE' }),
   // Ambientales: puerta dibujada, sin afordancia. El punto de entrada queda para los NPC.
   b('hair', 'Peluquería', 'hair', [12, 10, 5, 6], 's', 14, { floors: 2, point: 'HAIR_SALON_ENTRANCE', inspect: ['Peluquería Nati. Sin cita, pero con paciencia.'] }),
-  b('pharmacy', 'Farmacia', 'pharmacy', [17, 9, 5, 7], 's', 19, { floors: 2, point: 'PHARMACY_ENTRANCE', inspect: ['Farmacia de barrio. Esta noche la de guardia es la de Ribera Norte.'] }),
+  b('pharmacy', 'Farmacia', 'pharmacy', [17, 9, 5, 7], 's', 19, { floors: 2, enter: into('pharmacy'), point: 'PHARMACY_ENTRANCE' }),
   b('res-mayor-3', 'Mayor 3', 'res-brick', [22, 5, 7, 11], 's', 25, { floors: 2, point: 'RES_MAYOR_3_ENTRANCE', inspect: ['Portero automático. Nueve timbres, dos con el nombre tachado.'] }),
   b('bank', 'Banco', 'bank', [62, 9, 6, 7], 's', 64, { floors: 2, point: 'BANK_ENTRANCE', inspect: ['El cajero pide la tarjeta antes de decir buenos días.'] }),
   b('res-mayor-9', 'Mayor 9', 'res-stone', [68, 3, 6, 13], 's', 71, { floors: 2, point: 'RES_MAYOR_9_ENTRANCE', inspect: ['Un buzón rebosa de publicidad. Alguien no ha pasado por aquí en semanas.'] }),
-  b('to-let', 'Local en alquiler', 'to-let', [12, 19, 5, 6], 'n', 14, { point: 'MAYOR_12_ENTRANCE', inspect: ['«Se alquila. Razón: 3.º B.» El cartel lleva ahí más tiempo que la persiana.'] }),
+  // El antiguo local en alquiler: ahora abre de noche (horario en data/places.ts).
+  b('club-door', 'Sala Órbita', 'club', [12, 19, 5, 6], 'n', 14, { enter: into('club'), point: 'CLUB_ENTRANCE' }),
   b('fruit', 'Frutería', 'fruit', [17, 19, 5, 6], 'n', 19, { point: 'FRUIT_SHOP_ENTRANCE', inspect: ['Cajas de naranjas en la acera y una pizarra: «Hoy, nísperos».'] }),
   b('hardware', 'Ferretería', 'hardware', [25, 25, 9, 4], 's', 29, { point: 'HARDWARE_ENTRANCE', inspect: ['Ferretería. Tienen de todo, pero hay que saber pedirlo.'] }),
   b('study', 'Centro de estudios', 'study', [34, 19, 16, 9], 'n', 41, { point: 'STUDY_CENTER_ENTRANCE', inspect: ['Centro de estudios Vallesco. Un cartel anuncia cursos de tarde; la matrícula, en ventanilla.'] }),
@@ -136,10 +139,15 @@ const PROPS: readonly PropPlacement[] = [
   at('car', 5, 31), at('car-b', 11, 31), at('car-c', 64, 31), at('car-b', 40, 34), at('car', 46, 34),
   ...row('tree', 35, [4, 19, 48, 60, 72]),
 
-  // Plazuela del Metro
-  at('metro-sign', 29, 37),
-  at('bench', 34, 43), at('bench', 35, 43), at('bench', 26, 40),
-  at('lamp', 35, 38), at('tree', 25, 44), at('bike', 27, 44), at('bike', 28, 44), at('bin', 35, 40),
+  // Plazuela del Metro: escena de referencia de Visual V2 (design/ART_BIBLE.md). El rótulo METRO
+  // va en la marquesina de la boca. Islas de árbol y banco a los lados, farolas en tres esquinas, tótem
+  // y plano junto a la escalera; las líneas del grafo (plazuela-1 → -2 → boca → banco → Olmo) quedan libres.
+  at('plane-tree', 25, 44), at('plane-tree', 36, 43),
+  at('plaza-bench', 25, 40), at('plaza-bench', 34, 43),
+  at('street-lamp', 25, 38), at('street-lamp', 35, 38), at('street-lamp', 32, 45),
+  at('metro-totem', 32, 40), at('info-board', 28, 38),
+  at('bike-rack', 27, 44), at('planter-box', 34, 45), at('bin', 36, 41),
+  at('manhole', 33, 39), at('drain', 30, 45), at('leaves', 26, 45), at('leaves', 35, 44), at('leaves', 33, 44),
 
   // Calle del Olmo
   at('car', 8, 47), at('car-c', 60, 48),
@@ -169,10 +177,28 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   PLAZA_BENCH_03: p(35, 12, 'seat', 'down'), PLAZA_BENCH_04: p(44, 12, 'seat', 'down'),
   NEWS_KIOSK: p(46, 12, 'interact', 'up'),
   CAFE_TERRACE_01: p(54, 17, 'seat', 'up'), CAFE_TERRACE_02: p(60, 17, 'seat', 'up'),
+  // La mesa de fuera de Casa Tomás, junto a la pizarra del menú.
+  RESTAURANT_TERRACE_01: p(27, 18, 'seat', 'left'),
+  // Donde espera el camarero de cada terraza: al lado de la puerta, no en ella.
+  CAFE_TERRACE_WAITER: p(57, 16, 'work', 'down'), RESTAURANT_TERRACE_WAITER: p(28, 18, 'work', 'left'),
   BUS_STOP: p(39, 30, 'wait', 'up'),
   METRO_PLAZUELA_BENCH: p(33, 42, 'wait', 'down'),
   PARK_BENCH_01: p(44, 52, 'seat', 'up'), PARK_BENCH_02: p(52, 52, 'seat', 'up'),
   PARK_COURT: p(63, 52, 'meet'),
+  // El otro sitio de cada banco, dos corros junto a las farolas y alguien esperando bajo el árbol de la entrada.
+  PARK_BENCH_03: p(45, 52, 'seat', 'up'), PARK_BENCH_04: p(53, 52, 'seat', 'up'),
+  PARK_TALK_01: p(49, 53, 'meet', 'right'), PARK_TALK_02: p(57, 53, 'meet', 'left'),
+  PARK_WAIT_01: p(38, 51, 'wait', 'down'),
+  // Escaparates de la Calle Mayor: quien pasea se para a mirar (norte, mirando arriba; sur, abajo).
+  FASHION_WINDOW_01: p(3, 16, 'interact', 'up'), FASHION_WINDOW_02: p(9, 16, 'interact', 'up'),
+  HAIR_WINDOW: p(13, 16, 'interact', 'up'), PHARMACY_WINDOW: p(20, 16, 'interact', 'up'),
+  BANK_WINDOW: p(66, 16, 'interact', 'up'), SUPER_WINDOW: p(5, 18, 'interact', 'down'),
+  FRUIT_WINDOW: p(21, 18, 'interact', 'down'), LAUNDRY_WINDOW: p(55, 18, 'interact', 'down'),
+  // Delante del metro: quien ha quedado con alguien que llega en el próximo tren.
+  METRO_MEET_01: p(27, 42, 'wait', 'right'), METRO_MEET_02: p(33, 41, 'wait', 'left'),
+  // Puerta de la Sala Órbita: cola junto a la fachada y corrillo al otro lado de la calle.
+  CLUB_QUEUE_01: p(15, 18, 'wait', 'left'), CLUB_QUEUE_02: p(16, 18, 'wait', 'left'), CLUB_QUEUE_03: p(17, 18, 'wait', 'left'),
+  CLUB_SMOKE_01: p(15, 16, 'meet', 'down'), CLUB_SMOKE_02: p(18, 16, 'meet', 'down'),
 
   // Nodos de paso del grafo
   'mayor-06': p(6, 17, 'path'), 'mayor-14': p(14, 17, 'path'), 'mayor-19': p(19, 17, 'path'),
@@ -201,9 +227,11 @@ const LINKS: readonly Link[] = [
   ...chain('EDGE_MAYOR_W', 'mayor-06', 'mayor-14', 'mayor-19', 'mayor-23', 'mayor-25', 'mayor-29', 'mayor-40',
     'mayor-50', 'mayor-53', 'CAFE_TERRACE_01', 'mayor-56', 'CAFE_TERRACE_02', 'mayor-64', 'mayor-71', 'EDGE_MAYOR_E'),
   ['CLOTHING_STORE_ENTRANCE', 'mayor-06'], ['SUPERMARKET_ENTRANCE', 'mayor-06'],
-  ['HAIR_SALON_ENTRANCE', 'mayor-14'], ['MAYOR_12_ENTRANCE', 'mayor-14'],
+  ['HAIR_SALON_ENTRANCE', 'mayor-14'], ['CLUB_ENTRANCE', 'mayor-14'],
+  ...chain('mayor-14', 'CLUB_QUEUE_01', 'CLUB_QUEUE_02', 'CLUB_QUEUE_03'),
+  ['CLUB_SMOKE_01', 'mayor-14'], ['CLUB_SMOKE_02', 'mayor-19'],
   ['PHARMACY_ENTRANCE', 'mayor-19'], ['FRUIT_SHOP_ENTRANCE', 'mayor-19'],
-  ['RES_MAYOR_3_ENTRANCE', 'mayor-25'], ['RESTAURANT_ENTRANCE', 'mayor-29'],
+  ['RES_MAYOR_3_ENTRANCE', 'mayor-25'], ['RESTAURANT_ENTRANCE', 'mayor-29'], ['RESTAURANT_TERRACE_01', 'mayor-29'],
   ['STUDY_CENTER_ENTRANCE', 'mayor-40'], ['LAUNDRY_ENTRANCE', 'mayor-53'],
   ['CAFE_ENTRANCE', 'mayor-56'], ['BANK_ENTRANCE', 'mayor-64'], ['RES_MAYOR_9_ENTRANCE', 'mayor-71'],
 
@@ -238,9 +266,15 @@ const LINKS: readonly Link[] = [
   ['olmo-40', 'olmo-s40'],
   ...chain('EDGE_OLMO_SW', 'CIVIC_ENTRANCE', 'RES_OLMO_6_ENTRANCE', 'olmo-s40'),
   ...chain('olmo-s40', 'park-w', 'PARK_BENCH_01', 'PARK_BENCH_02', 'PARK_COURT', 'park-e', 'olmo-s70', 'EDGE_OLMO_SE'),
+  ['PARK_BENCH_03', 'PARK_BENCH_01'], ['PARK_BENCH_04', 'PARK_BENCH_02'],
+  ['PARK_TALK_01', 'PARK_BENCH_02'], ['PARK_TALK_02', 'PARK_BENCH_02'], ['PARK_WAIT_01', 'park-w'],
+  ['FASHION_WINDOW_01', 'mayor-06'], ['FASHION_WINDOW_02', 'mayor-06'], ['SUPER_WINDOW', 'mayor-06'],
+  ['HAIR_WINDOW', 'mayor-14'], ['PHARMACY_WINDOW', 'mayor-19'], ['FRUIT_WINDOW', 'mayor-23'],
+  ['LAUNDRY_WINDOW', 'mayor-56'], ['BANK_WINDOW', 'mayor-64'],
+  ['METRO_MEET_01', 'plazuela-2'], ['METRO_MEET_02', 'METRO_PLAZUELA_BENCH'],
 ];
 
-export const VALLESCO: LocationDef = {
+const BASE: LocationDef = {
   id: 'district',
   name: 'Barrio Vallesco',
   kind: 'exterior',
@@ -250,7 +284,6 @@ export const VALLESCO: LocationDef = {
   portals: [],
   npcs: [
     { id: 'vera', tx: 37, ty: 9, facing: 'left' },
-    { id: 'ada', tx: 44, ty: 18, facing: 'up' },
   ],
   spawns: {
     start: { tx: 41, ty: 46, facing: 'down' },
@@ -258,14 +291,28 @@ export const VALLESCO: LocationDef = {
   points: POINTS,
   links: LINKS,
   // Carriles de circulación; los de los bordes (31 y 34) son de aparcamiento.
-  traffic: { lanes: [{ row: 32, dir: -1 }, { row: 33, dir: 1 }], carsPerLane: 2 },
+  // De madrugada sólo pasa el taxi; en hora punta, tres coches por carril.
+  traffic: {
+    lanes: [{ row: 32, dir: -1 }, { row: 33, dir: 1 }],
+    carsPerLane: 3,
+    hourly: [[0, 1, 2], [1, 6.5, 1], [6.5, 7.5, 2], [7.5, 21, 3], [21, 24, 2]],
+  },
+  // Los dos pasos de cebra de la avenida, con semáforo; el segundo, desfasado: no cambian a la vez.
+  signals: [
+    { id: 'avenida-oeste', tx: 24, ty: 31, w: 3, h: 4 },
+    { id: 'avenida-este', tx: 52, ty: 31, w: 3, h: 4, offset: 9_000 },
+  ],
   // Cosas que se miran: responden con una línea, no abren nada.
   inspects: [
     { tx: 40, ty: 11, name: 'Fuente', lines: ['El agua sale fría hasta en agosto. Alguien ha dejado una moneda en el fondo.'] },
     { tx: 46, ty: 11, name: 'Quiosco', lines: ['Periódicos de hoy, revistas de hace un mes y cromos que ya nadie colecciona.'] },
     { tx: 39, ty: 29, name: 'Marquesina', lines: ['Línea 27, hacia el centro. La pantalla dice «8 min» desde hace un buen rato.'] },
-    { tx: 29, ty: 16, name: 'Máquina', lines: ['Refrescos a un euro con veinte. La de naranja lleva agotada toda la semana.'] },
     { tx: 31, ty: 18, name: 'Pizarra', lines: ['Menú del día: lentejas, merluza o pollo, postre y pan. Once euros.'] },
     { tx: 31, ty: 50, name: 'Obra', lines: ['«Rehabilitación de fachada. Fin de obra: marzo.» No dice de qué año.'] },
   ],
+  // Donde se compra: la máquina de la Calle Mayor.
+  terminals: [{ tx: 29, ty: 16, name: 'Máquina expendedora', catalog: 'vending' }],
 };
+
+// El micromobiliario (contenedores, coches aparcados, bolardos, buzón...) sale de reglas de contexto: systems/Dressing.ts.
+export const VALLESCO: LocationDef = { ...BASE, props: [...BASE.props, ...dress(BASE)] };

@@ -5,20 +5,34 @@ import {
   CAMERA_ZOOM,
   INTERACT_RADIUS,
   MAX_CAMERA_ZOOM,
+  VIEW_HEIGHT,
+  VIEW_WIDTH,
   PALETTE,
   TILE,
   TRANSITION_MS,
 } from '../config/constants';
-import type { Facing, NpcDef, PortalDef, Vec2 } from '../types/game';
+import type { Facing, NpcDef, PortalDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
 import { Ambience } from '../world/Ambience';
+import { Lighting } from '../world/Lighting';
 import { MetroSystem } from '../systems/MetroSystem';
 import { METRO_CONFIG } from '../config/metro';
 import { buildLocation } from '../world/LocationBuilder';
 import { Player } from '../entities/Player';
 import { NPC } from '../entities/NPC';
 import { getNpc } from '../data/npcs';
+import { CHARACTERS, type CharacterDef } from '../data/characters';
+import { whereabouts, type Whereabouts } from '../systems/Characters';
+import { Character, activityAt } from '../entities/Character';
+import { Crowd, profileFor, type Clock } from '../systems/Crowd';
+import { StreetLife, streetProfileFor } from '../systems/StreetLife';
+import { hoursLabel, isOpen, placeForInterior } from '../systems/Places';
+import { stopAtStation } from '../systems/Transit';
+import { Menus } from './Menus';
+import { CrowdView } from '../world/CrowdView';
+import { WildlifeView } from '../world/WildlifeView';
+import { SignalView } from '../world/SignalView';
 import { PLAYER_H } from '../world/TextureFactory';
 import type { Services } from '../services';
 
@@ -38,20 +52,22 @@ export interface WorldSceneData {
  * Los NPC se leen en vivo: el vigilante camina y su punto de interacción con él.
  */
 type Interactable =
-  | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef }
+  | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
-  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] };
+  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] }
+  | { kind: 'terminal'; x: number; y: number; name: string; catalog: string }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[] };
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
 }
 
 type Keys = Record<string, Phaser.Input.Keyboard.Key>;
+const DIGITS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'] as const;
 
-/** A dónde lleva un portal y, si cuesta algo, cuánto: se ve antes de pagarlo. */
+/** A dónde lleva un portal y, si lleva un rato, cuánto: se ve antes de cruzarlo. */
 function describePortal(portal: PortalDef): string {
   const parts: string[] = [];
-  if (portal.fare) parts.push(`€${portal.fare}`);
   if (portal.minutes) parts.push(`${portal.minutes} min`);
   return parts.length === 0 ? portal.label : `${portal.label} (${parts.join(', ')})`;
 }
@@ -72,8 +88,22 @@ export class WorldScene extends Phaser.Scene {
   private mapHeight = 0;
   private metro: MetroSystem | null = null;
   private ambience: Ambience | null = null;
-  /** Pies de quien camina por la calle; hoy sólo el jugador. */
-  private readonly pedestrians: Vec2[] = [{ x: 0, y: 0 }];
+  /** Pies de quien camina por aquí (jugador, personajes y gente): los coches frenan y las puertas se abren. */
+  private readonly pedestrians: Vec2[] = [];
+  /** Personajes que van de un sitio a otro según la hora; se ven sólo si están aquí. */
+  private characters: { def: CharacterDef; sprite: Character; now: Whereabouts | null }[] = [];
+  /** Gente del local (data/population.ts), sólo en interiores con perfil y mientras el jugador está dentro. */
+  private crowd: Crowd | null = null;
+  /** Gente de la calle (data/streets.ts), sólo en exteriores con perfil. */
+  private street: StreetLife | null = null;
+  /** Perros y palomas de la calle (sólo donde hay calle con gente). */
+  private wildlife: WildlifeView | null = null;
+  private signals: SignalView | null = null;
+  private crowdViews: CrowdView[] = [];
+  /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
+  private crowdTargets = new WeakMap<Character, Interactable>();
+  /** Compras, bolsa, destino del tren y sitios sin mapa. */
+  private menus!: Menus;
 
   private readonly services: Services;
 
@@ -90,6 +120,13 @@ export class WorldScene extends Phaser.Scene {
     this.leaving = false;
     this.activeTarget = null;
     this.interactables = [];
+    this.characters = CHARACTERS.map((c, i) => {
+      const entry = { def: c, sprite: new Character(this, getNpc(c.npc), i), now: null as Whereabouts | null };
+      // Lo que dice depende de dónde está o a dónde va.
+      const lines = (): readonly string[] => (entry.now?.moving ? entry.now.stop.going : entry.now?.stop.lines) ?? entry.sprite.def.lines;
+      this.interactables.push({ kind: 'npc', sprite: entry.sprite, def: entry.sprite.def, lines });
+      return entry;
+    });
 
     let position: Vec2;
     let facing: Facing;
@@ -156,9 +193,42 @@ export class WorldScene extends Phaser.Scene {
       if (!b.inspect || b.doorX === undefined) continue;
       this.interactables.push({ kind: 'inspect', x: b.doorX * TILE + TILE / 2, y: doorRow(b) * TILE + TILE / 2, name: b.name, lines: b.inspect });
     }
+    // Donde se compra: máquinas y mostradores, cada uno con su catálogo.
+    for (const t of def.terminals ?? []) {
+      this.interactables.push({ kind: 'terminal', x: t.tx * TILE + TILE / 2, y: t.ty * TILE + TILE / 2, name: t.name, catalog: t.catalog });
+    }
+    // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
+    for (const s of def.spots ?? []) {
+      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities });
+    }
+    this.menus = new Menus(this.services, {
+      persist: () => this.persist(),
+      arriveByTrain: (locationId) => this.arriveByTrain(locationId),
+      fadeOut: () => this.cameras.main.fadeOut(TRANSITION_MS, 0, 0, 0),
+    });
 
     this.physics.add.collider(this.player, built.solids);
-    this.ambience = new Ambience(this, def, built.widthPx, () => this.pedestrians);
+
+    // Al entrar, la gente ya está a mitad de lo suyo: Crowd la reconstruye desde la hora.
+    const place = placeForInterior(def.id);
+    const profile = place ? profileFor(place.id) : undefined;
+    this.crowd = place && profile ? new Crowd(def, place, profile) : null;
+    const streetProfile = streetProfileFor(def.id);
+    this.street = streetProfile ? new StreetLife(def, streetProfile) : null;
+    // Los personajes, primero: nadie de la gente anónima aparece sentado en su sitio.
+    this.placeCharacters();
+    this.crowd?.populate(this.clockNow(), this.playerTile());
+    this.street?.populate(this.clockNow(), this.playerTile());
+    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c));
+    const now = this.clockNow();
+    this.wildlife = this.street ? new WildlifeView(this, def, this.street, now.day, now.hour + now.minute / 60, this.playerTile()) : null;
+    this.crowdTargets = new WeakMap();
+
+    // La hora con la fracción del minuto en curso: los semáforos cambian a su segundo, no a saltos de minuto.
+    this.ambience = new Ambience(this, def, built.widthPx, () => this.pedestrians, () => this.services.clock.minuteOfDay / 60);
+    this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
+    // La hora se ve en la calle; dentro manda la luz del local.
+    new Lighting(this, def, built, state);
 
     const camera = this.cameras.main;
     camera.setBackgroundColor(PALETTE.ink);
@@ -203,7 +273,23 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    const { clock, dialogue } = this.services;
+    const { clock, dialogue, menu } = this.services;
+
+    // Un menú abierto para el mundo como un diálogo: se elige con W/S y E, o con 1–9.
+    if (menu.isOpen && !dialogue.isOpen) {
+      this.player.halt();
+      this.prompt.setVisible(false);
+      this.services.hint.hide();
+      if (this.pressedAny(['up', 'upAlt'])) menu.move(-1);
+      else if (this.pressedAny(['down', 'downAlt'])) menu.move(1);
+      else if (this.pressedAny(['interact', 'advance', 'advanceAlt'])) menu.confirm();
+      else if (this.pressedAny(['cancel', 'cancelAlt'])) menu.cancel();
+      else {
+        const digit = DIGITS.findIndex((name) => this.pressedAny([name]));
+        if (digit >= 0) menu.confirm(digit);
+      }
+      return;
+    }
 
     if (dialogue.isOpen) {
       this.player.halt();
@@ -217,9 +303,15 @@ export class WorldScene extends Phaser.Scene {
 
     clock.update(delta);
     this.metro?.update(delta, time);
-    this.pedestrians[0].x = this.player.x;
-    this.pedestrians[0].y = this.player.y;
+    this.placeCharacters();
+    this.crowd?.update(delta, this.clockNow(), this.playerTile());
+    this.street?.update(delta, this.clockNow(), this.playerTile());
+    for (const view of this.crowdViews) view.sync(time);
+    const { hour, minute } = this.services.state;
+    this.wildlife?.update(delta, time, hour + minute / 60, this.playerTile(), (this.player.body as Phaser.Physics.Arcade.Body).speed > 1);
+    this.gatherPedestrians();
     this.ambience?.update(delta);
+    this.signals?.update(time);
 
     this.player.move({
       up: this.held('up') || this.held('upAlt'),
@@ -235,20 +327,23 @@ export class WorldScene extends Phaser.Scene {
 
     if (target && Phaser.Input.Keyboard.JustDown(this.keys.interact)) {
       this.interact(target);
+    } else if (this.pressedAny(['bag'])) {
+      this.player.halt();
+      this.menus.openBag();
     }
   }
 
   /**
-   * El zoom sube en enteros hasta cubrir la ventana, con tope para que el pixel
-   * art no se vuelva gigante en interiores pequeños. Si aun asi el mapa no llena
-   * el viewport, se ensanchan los limites de camara para que quede centrado en
+   * Un píxel del juego mide lo mismo en todas partes: el zoom sale de la
+   * ventana (en enteros de píxel físico, al menos VIEW_WIDTH × VIEW_HEIGHT de mundo), no del sitio. Así
+   * nadie cambia de tamaño al cruzar una puerta. Si el mapa no llena el
+   * viewport, se ensanchan los límites de cámara para que quede centrado en
    * lugar de pegado a una esquina.
    */
   private fitCamera(): void {
     const camera = this.cameras.main;
     const { width, height } = this.scale.gameSize;
-    const needed = Math.max(width / this.mapWidth, height / this.mapHeight);
-    const zoom = Phaser.Math.Clamp(Math.ceil(needed), CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+    const zoom = Phaser.Math.Clamp(Math.round(Math.min(width / VIEW_WIDTH, height / VIEW_HEIGHT)), CAMERA_ZOOM, MAX_CAMERA_ZOOM);
     camera.setZoom(zoom);
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);
@@ -279,6 +374,15 @@ export class WorldScene extends Phaser.Scene {
       one: Phaser.Input.Keyboard.KeyCodes.ONE,
       two: Phaser.Input.Keyboard.KeyCodes.TWO,
       three: Phaser.Input.Keyboard.KeyCodes.THREE,
+      four: Phaser.Input.Keyboard.KeyCodes.FOUR,
+      five: Phaser.Input.Keyboard.KeyCodes.FIVE,
+      six: Phaser.Input.Keyboard.KeyCodes.SIX,
+      seven: Phaser.Input.Keyboard.KeyCodes.SEVEN,
+      eight: Phaser.Input.Keyboard.KeyCodes.EIGHT,
+      nine: Phaser.Input.Keyboard.KeyCodes.NINE,
+      cancel: Phaser.Input.Keyboard.KeyCodes.ESC,
+      cancelAlt: Phaser.Input.Keyboard.KeyCodes.Q,
+      bag: Phaser.Input.Keyboard.KeyCodes.I,
     }) as Keys;
   }
 
@@ -290,6 +394,61 @@ export class WorldScene extends Phaser.Scene {
     return names.some((name) => {
       const key = this.keys[name];
       return key ? Phaser.Input.Keyboard.JustDown(key) : false;
+    });
+  }
+
+  /**
+   * Cada personaje con nombre, donde le toca a esta hora: aquí se ve; en otro
+   * sitio o en casa, no. El sitio donde está parado es suyo: la gente del local
+   * y de la calle no se sienta encima.
+   */
+  private placeCharacters(): void {
+    const { day } = this.services.state;
+    const minute = (day - 1) * 24 * 60 + this.services.clock.minuteOfDay;
+    const here = this.services.state.locationId;
+    const claimed = new Set<string>();
+    for (const c of this.characters) {
+      const w = whereabouts(c.def, minute);
+      c.now = w;
+      const visible = w.location === here && !w.inside;
+      if (visible && !w.moving) claimed.add(w.stop.point);
+      // Parado en un semáforo: de pie, sin la actividad del sitio al que va.
+      c.sprite.place(visible ? { ...w, moving: w.moving && !w.waiting, activity: w.waiting ? 'idle' : activityAt(w.stop.point, undefined, 0) } : null, this.time.now);
+    }
+    this.crowd?.claim(claimed);
+    this.street?.claim(claimed);
+  }
+
+  /** Pies de todo el que anda por aquí: los coches frenan por ellos igual que por el jugador. */
+  private gatherPedestrians(): void {
+    const feet = this.pedestrians;
+    feet.length = 0;
+    feet.push({ x: this.player.x, y: this.player.y });
+    for (const c of this.characters) if (c.sprite.visible) feet.push({ x: c.sprite.x, y: c.sprite.y });
+    for (const view of this.crowdViews) for (const p of view.people) feet.push({ x: p.x, y: p.y });
+  }
+
+  private clockNow(): Clock {
+    const { day, hour, minute } = this.services.state;
+    return { day, hour, minute };
+  }
+
+  /** Tile de los pies del jugador: Crowd no aparece encima de él ni le tapa la puerta. */
+  private playerTile(): TilePoint {
+    return { tx: Math.floor(this.player.x / TILE), ty: Math.floor((this.player.y - 1) / TILE) };
+  }
+
+  /** Personas del local a las que se puede hablar, con su interactuable de siempre. */
+  private crowdInteractables(): Interactable[] {
+    return this.crowdViews.flatMap((view) => view.people).map((sprite) => {
+      let item = this.crowdTargets.get(sprite);
+      if (!item) {
+        item = { kind: 'npc', sprite, def: sprite.def };
+        this.crowdTargets.set(sprite, item);
+      }
+      // El sprite sale de un pozo: hoy es una persona y mañana otra.
+      if (item.kind === 'npc') item.def = sprite.def;
+      return item;
     });
   }
 
@@ -306,8 +465,9 @@ export class WorldScene extends Phaser.Scene {
     let best: Interactable | null = null;
     let bestDistance = INTERACT_RADIUS;
 
-    for (const item of this.interactables) {
+    for (const item of [...this.interactables, ...this.crowdInteractables()]) {
       if (item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) continue;
+      if (item.kind === 'npc' && !item.sprite.visible) continue;
       const { x, y } = anchor(item);
       const distance = Phaser.Math.Distance.Between(originX, originY, x, y);
       if (distance < bestDistance) {
@@ -326,7 +486,10 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
-    const toll = target.kind === 'portal' ? describePortal(target.portal) : '';
+    const toll =
+      target.kind === 'portal' ? describePortal(target.portal) + (this.closedPlace(target.portal) ? ' · cerrado' : '')
+      : target.kind === 'terminal' || target.kind === 'spot' ? target.name
+      : '';
     if (toll) this.services.hint.show(toll);
     else this.services.hint.hide();
 
@@ -353,7 +516,9 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.player.halt();
-    if (target.kind === 'npc') this.openDialogue(target.def.name, target.def.lines);
+    if (target.kind === 'terminal') this.menus.openCatalog(target.name, target.catalog);
+    else if (target.kind === 'spot') this.menus.openSpot(target.name, target.activities);
+    else if (target.kind === 'npc') this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
     else this.openDialogue(target.name, target.lines);
   }
 
@@ -364,33 +529,42 @@ export class WorldScene extends Phaser.Scene {
 
   private travel(portal: PortalDef): void {
     if (this.leaving) return;
+    this.player.halt();
 
-    const { state, clock, hint } = this.services;
-    const fare = portal.fare ?? 0;
-
-    if (state.money < fare) {
-      this.player.halt();
-      this.openDialogue('Torniquete', [
-        `El billete cuesta €${fare} y ahora mismo no te llega.`,
-        'Vuelve cuando lo tengas.',
-      ]);
+    // Subir al tren: se elige destino y paga la tarjeta (scenes/Menus.ts, systems/Transit.ts).
+    if (portal.train) {
+      const stop = stopAtStation(this.services.state.locationId);
+      if (stop) this.menus.board(stop);
       return;
     }
 
+    // Fuera de horario, la puerta está cerrada: se dice cuándo abre y no se entra.
+    const closed = this.closedPlace(portal);
+    if (closed) {
+      this.openDialogue(closed.name, ['Está cerrado.', hoursLabel(closed)]);
+      return;
+    }
+    if (portal.minutes) this.services.clock.advanceMinutes(portal.minutes);
+    this.go(portal.to.location, portal.to.spawn, false);
+  }
+
+  /** Llega en tren a un andén: el tren sigue en la vía al bajar y el trayecto cuenta su evento. */
+  private arriveByTrain(locationId: string): void {
+    this.go(locationId, 'train', true);
+  }
+
+  /** Cambia de localización: guarda, funde a negro y rehace la Scene a la hora que sea ya. */
+  private go(locationId: string, spawnId: string, byTrain: boolean): void {
+    if (this.leaving) return;
+    const { state, hint } = this.services;
     this.leaving = true;
     this.player.halt();
     this.prompt.setVisible(false);
     hint.hide();
 
-    if (fare > 0) state.money -= fare;
-    // El evento se decide al salir, con la hora de salida; se cuenta al llegar.
-    if (portal.train) this.services.metroEvents.onRide({ ...this.rideContext(), to: portal.to.location });
-    if (portal.minutes) clock.advanceMinutes(portal.minutes);
-
-    const target = getLocation(portal.to.location);
-    const spawn = getSpawn(target, portal.to.spawn);
+    const target = getLocation(locationId);
+    const spawn = getSpawn(target, spawnId);
     const position = spawnToWorld(spawn);
-
     state.locationId = target.id;
     state.position.x = position.x;
     state.position.y = position.y;
@@ -398,10 +572,22 @@ export class WorldScene extends Phaser.Scene {
     this.persist();
 
     const camera = this.cameras.main;
-    camera.fadeOut(TRANSITION_MS, 0, 0, 0);
-    camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-      this.scene.restart({ locationId: target.id, spawnId: portal.to.spawn, byTrain: portal.train });
-    });
+    const restart = (): void => {
+      this.scene.restart({ locationId: target.id, spawnId, byTrain });
+    };
+    // Si ya está a negro (volviendo de un sitio sin mapa), no hay fundido que esperar.
+    if (camera.fadeEffect.isComplete && camera.fadeEffect.direction === false) restart();
+    else {
+      camera.fadeOut(TRANSITION_MS, 0, 0, 0);
+      camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, restart);
+    }
+  }
+
+  /** Lugar al que lleva el portal si ahora está cerrado. Salir siempre se puede. */
+  private closedPlace(portal: PortalDef) {
+    const place = placeForInterior(portal.to.location);
+    const { day, hour, minute } = this.services.state;
+    return place && !isOpen(place, day, hour, minute) ? place : undefined;
   }
 
   private rideContext(): RideContext {

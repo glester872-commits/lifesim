@@ -1,59 +1,19 @@
 import Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import { FACINGS, type Facing } from '../types/game';
-import { NPC_DEFS, PASSENGER_LOOKS } from '../data/npcs';
-import { blob, drawWord, glow, make, px, shade, sprinkle, type Ctx } from './paint';
+import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
+import { blob, drawWord, make, px, shade, sprinkle, type Ctx } from './paint';
 import { buildBuildingTextures } from './BuildingArt';
 import { buildPropTextures } from './PropArt';
+import { buildUrbanTextures } from './UrbanArt';
+import { buildVegetationTextures } from './Vegetation';
+import { buildStreetTextures } from './StreetArt';
+import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
 
 export const PLAYER_W = 16;
 export const PLAYER_H = 24;
 
 // ---------------------------------------------------------------- terreno
-
-function drawGrass(ctx: Ctx, variant: number): void {
-  px(ctx, PALETTE.grass, 0, 0, TILE, TILE);
-  sprinkle(ctx, PALETTE.grassDark, TILE, TILE, 11 + variant, 14);
-  sprinkle(ctx, PALETTE.grassLit, TILE, TILE, 77 + variant, 9);
-  if (variant === 1) {
-    px(ctx, PALETTE.grassLit, 4, 5, 1, 3);
-    px(ctx, PALETTE.grassLit, 11, 10, 1, 3);
-  }
-  if (variant === 2) {
-    px(ctx, PALETTE.grassDark, 8, 3, 4, 2);
-    px(ctx, PALETTE.grassLit, 2, 12, 3, 1);
-  }
-}
-
-function drawPavement(ctx: Ctx, variant: number): void {
-  px(ctx, PALETTE.pavement, 0, 0, TILE, TILE);
-  px(ctx, PALETTE.pavementSeam, 0, 0, TILE, 1);
-  px(ctx, PALETTE.pavementSeam, 0, 8, TILE, 1);
-  const seamX = variant === 0 ? [0, 8] : [4, 12];
-  for (const x of seamX) px(ctx, PALETTE.pavementSeam, x, 0, 1, TILE);
-  sprinkle(ctx, PALETTE.pavementLit, TILE, TILE, 31 + variant, 6);
-}
-
-function drawAsphalt(ctx: Ctx, variant: number): void {
-  px(ctx, PALETTE.asphalt, 0, 0, TILE, TILE);
-  sprinkle(ctx, PALETTE.asphaltLit, TILE, TILE, 5 + variant, 13);
-  sprinkle(ctx, PALETTE.ink, TILE, TILE, 91 + variant, 7);
-}
-
-function drawAsphaltLine(ctx: Ctx): void {
-  drawAsphalt(ctx, 0);
-  px(ctx, PALETTE.roadLine, 0, 7, TILE, 2);
-  px(ctx, shade(PALETTE.roadLine, -0.12), 0, 9, TILE, 1);
-}
-
-function drawPlaza(ctx: Ctx, variant: number): void {
-  px(ctx, PALETTE.plaza, 0, 0, TILE, TILE);
-  const seam = shade(PALETTE.plaza, -0.06);
-  const offset = variant * 4;
-  for (let y = 0; y < TILE; y += 8) px(ctx, seam, 0, (y + offset) % TILE, TILE, 1);
-  for (let x = 0; x < TILE; x += 8) px(ctx, seam, x, 0, 1, TILE);
-  sprinkle(ctx, PALETTE.plazaLit, TILE, TILE, 44 + variant, 5);
-}
 
 function drawRoof(ctx: Ctx, base: string, lit: string, variant: number): void {
   const seam = shade(base, -0.05);
@@ -96,53 +56,17 @@ function drawDoor(ctx: Ctx): void {
   px(ctx, PALETTE.pavementLit, 0, 14, TILE, 1);
 }
 
+/** Cabeza del muro vista desde arriba; su cara hacia la sala la pinta LocationBuilder donde toca suelo. */
 function drawWall(ctx: Ctx, variant: number): void {
-  px(ctx, PALETTE.wall, 0, 0, TILE, TILE);
-  px(ctx, PALETTE.wallLit, 0, 0, TILE, 2);
-  px(ctx, PALETTE.wallDark, 0, 13, TILE, 3);
-  px(ctx, shade(PALETTE.wall, -0.04), 0, variant === 0 ? 6 : 9, TILE, 1);
-  sprinkle(ctx, shade(PALETTE.wall, 0.03), TILE, TILE, 23 + variant, 7);
-  sprinkle(ctx, PALETTE.wallDark, TILE, TILE, 99 + variant, 4);
-}
-
-function drawWoodFloor(ctx: Ctx, variant: number): void {
-  const seam = shade(PALETTE.wood, -0.05);
-  px(ctx, PALETTE.wood, 0, 0, TILE, TILE);
-  px(ctx, seam, 0, 0, TILE, 1);
-  px(ctx, seam, 0, 8, TILE, 1);
-  if (variant === 1) px(ctx, seam, 9, 8, 1, 8);
-  sprinkle(ctx, shade(PALETTE.wood, 0.03), TILE, TILE, 7 + variant, 6);
-  sprinkle(ctx, seam, TILE, TILE, 41 + variant, 4);
-}
-
-function drawStoneFloor(ctx: Ctx, variant: number): void {
-  px(ctx, PALETTE.tile, 0, 0, TILE, TILE);
-  const seam = shade(PALETTE.tile, -0.07);
-  px(ctx, seam, 0, 0, TILE, 1);
-  px(ctx, seam, 0, 8, TILE, 1);
-  px(ctx, seam, variant === 0 ? 0 : 4, 0, 1, 8);
-  px(ctx, seam, variant === 0 ? 8 : 12, 8, 1, 8);
-  sprinkle(ctx, PALETTE.tileLit, TILE, TILE, 53 + variant, 5);
+  px(ctx, PALETTE.wallTop, 0, 0, TILE, TILE);
+  px(ctx, shade(PALETTE.wallTop, 0.05), 0, variant === 0 ? 7 : 3, TILE, 1);
+  px(ctx, shade(PALETTE.wallTop, -0.04), variant === 0 ? 5 : 11, 0, 1, TILE);
 }
 
 function drawRug(ctx: Ctx, variant: number): void {
   px(ctx, PALETTE.rug, 0, 0, TILE, TILE);
   for (let y = variant; y < TILE; y += 4) px(ctx, PALETTE.rugLit, 0, y, TILE, 1);
   sprinkle(ctx, shade(PALETTE.rug, -0.06), TILE, TILE, 67 + variant, 8);
-}
-
-function drawCobble(ctx: Ctx, variant: number): void {
-  const base = PALETTE.cobble;
-  px(ctx, shade(base, -0.08), 0, 0, TILE, TILE);
-  const offset = variant * 4;
-  for (let y = 0; y < TILE; y += 4) {
-    for (let x = 0; x < TILE; x += 4) {
-      const shift = (y / 4) % 2 === 0 ? offset : 0;
-      px(ctx, base, (x + shift) % TILE, y, 3, 3);
-    }
-  }
-  sprinkle(ctx, shade(base, 0.05), TILE, TILE, 71 + variant, 7);
-  sprinkle(ctx, shade(base, -0.06), TILE, TILE, 19 + variant, 5);
 }
 
 function drawWater(ctx: Ctx, variant: number): void {
@@ -282,28 +206,10 @@ function drawStall(ctx: Ctx): void {
 }
 
 
-const TREE_CANOPY: readonly [number, number][] = [
-  [5, 6], [3, 10], [2, 12], [1, 14], [1, 14], [0, 16], [0, 16], [0, 16],
-  [0, 16], [1, 14], [1, 14], [1, 14], [2, 12], [2, 12], [3, 10], [4, 8],
-  [5, 6], [6, 4],
-];
-
 const BUSH_BODY: readonly [number, number][] = [
   [5, 6], [3, 10], [2, 12], [1, 14], [1, 14], [1, 14], [2, 12], [2, 12],
   [3, 10], [5, 6],
 ];
-
-function drawTree(ctx: Ctx): void {
-  const dark = shade(PALETTE.leaf, -0.08);
-  px(ctx, PALETTE.trunk, 7, 18, 3, 14);
-  px(ctx, shade(PALETTE.trunk, -0.07), 7, 18, 1, 14);
-  blob(ctx, dark, 2, TREE_CANOPY);
-  blob(ctx, PALETTE.leaf, 1, TREE_CANOPY.slice(0, 15));
-  px(ctx, PALETTE.leafLit, 3, 5, 5, 4);
-  px(ctx, PALETTE.leafLit, 8, 9, 3, 3);
-  px(ctx, dark, 4, 15, 8, 2);
-  sprinkle(ctx, dark, TILE, 18, 17, 6);
-}
 
 function drawBush(ctx: Ctx): void {
   const dark = shade(PALETTE.leaf, -0.08);
@@ -322,15 +228,33 @@ function drawBench(ctx: Ctx): void {
   px(ctx, PALETTE.woodDark, 0, 10, TILE, 1);
 }
 
+/**
+ * Farola fernandina: hierro verde casi negro, basa moldurada, anillos en el
+ * fuste y farol de cuatro caras. De día el cristal está apagado; la luz la
+ * enciende world/Lighting al anochecer.
+ */
 function drawLamp(ctx: Ctx): void {
-  px(ctx, PALETTE.metal, 7, 8, 2, 22);
-  px(ctx, PALETTE.metalLit, 7, 8, 1, 22);
-  px(ctx, PALETTE.metal, 5, 28, 6, 3);
-  px(ctx, PALETTE.metal, 5, 3, 6, 3);
-  glow(ctx, 8, 7, 8, 0.16);
-  glow(ctx, 8, 7, 5, 0.22);
-  px(ctx, PALETTE.amber, 6, 5, 4, 3);
-  px(ctx, shade(PALETTE.amber, 0.15), 7, 5, 2, 2);
+  const iron = PALETTE.iron;
+  const lit = shade(iron, 0.12);
+  px(ctx, iron, 7, 10, 2, 18);
+  px(ctx, lit, 7, 10, 1, 18);
+  px(ctx, iron, 6, 14, 4, 1);
+  px(ctx, iron, 6, 21, 4, 1);
+  px(ctx, iron, 6, 26, 4, 2);
+  px(ctx, iron, 5, 28, 6, 4);
+  px(ctx, lit, 5, 28, 6, 1);
+  px(ctx, lit, 5, 29, 1, 3);
+  // Farol: sombrerete, cristal y copa.
+  px(ctx, iron, 7, 0, 2, 1);
+  px(ctx, iron, 6, 1, 4, 1);
+  px(ctx, iron, 5, 2, 6, 1);
+  px(ctx, iron, 5, 3, 1, 5);
+  px(ctx, iron, 10, 3, 1, 5);
+  px(ctx, '#dcd2b0', 6, 3, 4, 5);
+  px(ctx, '#efe7c9', 6, 3, 2, 3);
+  px(ctx, iron, 8, 3, 1, 5);
+  px(ctx, iron, 5, 8, 6, 1);
+  px(ctx, iron, 6, 9, 4, 1);
 }
 
 function drawSign(ctx: Ctx): void {
@@ -493,65 +417,13 @@ function drawDoorLight(ctx: Ctx): void {
 
 // ------------------------------------------------------------- personajes
 
-interface HumanColors {
-  cloth: string;
-  clothDark: string;
-  hair: string;
-  skin: string;
-  trousers: string;
-  shoes: string;
-}
-
-/**
- * Figura de 16x24 con los pies en la base. El frame 1 abre las piernas: a esta
- * escala lee como un paso sin necesitar un set de animación completo.
- */
-function drawHuman(ctx: Ctx, facing: Facing, frame: number, c: HumanColors): void {
-  const spread = frame === 1 ? 1 : 0;
-
-  px(ctx, c.skin, 4, 2, 8, 8);
-  px(ctx, shade(c.skin, -0.07), 4, 9, 8, 1);
-
-  if (facing === 'up') {
-    px(ctx, c.hair, 4, 1, 8, 7);
-  } else if (facing === 'down') {
-    px(ctx, c.hair, 4, 1, 8, 4);
-    px(ctx, c.hair, 4, 5, 1, 2);
-    px(ctx, c.hair, 11, 5, 1, 2);
-    px(ctx, PALETTE.ink, 6, 6, 1, 2);
-    px(ctx, PALETTE.ink, 9, 6, 1, 2);
-  } else {
-    const back = facing === 'right' ? 4 : 10;
-    px(ctx, c.hair, 4, 1, 8, 4);
-    px(ctx, c.hair, back, 4, 2, 4);
-    px(ctx, PALETTE.ink, facing === 'right' ? 9 : 6, 6, 1, 2);
-  }
-
-  px(ctx, c.cloth, 4, 10, 8, 7);
-  px(ctx, c.clothDark, 4, 16, 8, 1);
-  px(ctx, shade(c.cloth, 0.05), 5, 10, 6, 1);
-
-  if (facing === 'left' || facing === 'right') {
-    const armX = facing === 'right' ? 10 : 4;
-    px(ctx, c.clothDark, armX, 11, 2, 6);
-    px(ctx, c.skin, armX, 17, 2, 1);
-  } else {
-    px(ctx, c.cloth, 3, 11, 1, 6);
-    px(ctx, c.cloth, 12, 11, 1, 6);
-    px(ctx, c.skin, 3, 17, 1, 1);
-    px(ctx, c.skin, 12, 17, 1, 1);
-  }
-
-  px(ctx, c.trousers, 4 - spread, 17, 3, 5);
-  px(ctx, c.trousers, 9 + spread, 17, 3, 5);
-  px(ctx, c.shoes, 4 - spread, 22, 3, 2);
-  px(ctx, c.shoes, 9 + spread, 22, 3, 2);
-}
-
+/** Sombra de contacto bajo los pies: núcleo más oscuro y borde suave, en dos tonos (ART_BIBLE §5). */
 function drawShadow(ctx: Ctx): void {
-  ctx.globalAlpha = 0.28;
-  px(ctx, PALETTE.ink, 1, 0, 10, 3);
-  px(ctx, PALETTE.ink, 0, 1, 12, 1);
+  ctx.globalAlpha = 0.2;
+  px(ctx, PALETTE.ink, 2, 0, 10, 5);
+  px(ctx, PALETTE.ink, 0, 1, 14, 3);
+  ctx.globalAlpha = 0.22;
+  px(ctx, PALETTE.ink, 3, 1, 8, 3);
   ctx.globalAlpha = 1;
 }
 
@@ -574,22 +446,57 @@ const PLAYER_COLORS: HumanColors = {
   skin: PALETTE.skin,
   trousers: '#3c4152',
   shoes: '#23262f',
+  hairStyle: 'short',
 };
+
+/** Clave de la textura de una pose del jugador. */
+export const humanKey = (prefix: string, facing: Facing, pose: Pose): string => `${prefix}-${facing}-${pose}`;
+
+/**
+ * Toda la gente que no es el jugador (personajes, uniformes, anónimos) vive en
+ * una sola textura: la calle llena se pinta sin cambiar de textura entre una
+ * persona y otra. Una fila por aspecto, una celda por dirección y pose.
+ */
+export const PEOPLE = 'people';
+export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
+
+function buildPeople(scene: Phaser.Scene): void {
+  if (scene.textures.exists(PEOPLE)) return;
+  const looks = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS];
+  const atlas = scene.textures.createCanvas(PEOPLE, FACINGS.length * POSES.length * PLAYER_W, looks.length * PLAYER_H);
+  if (!atlas) return;
+  const ctx = atlas.getContext();
+  ctx.imageSmoothingEnabled = false;
+  // Cada pose se dibuja sola en un lienzo suelto: el contorno de una no invade la celda de al lado.
+  const cell = document.createElement('canvas');
+  cell.width = PLAYER_W;
+  cell.height = PLAYER_H;
+  const c = cell.getContext('2d', { willReadFrequently: true });
+  if (!c) return;
+  looks.forEach((look, row) => {
+    const colors = colorsOf(look);
+    FACINGS.forEach((facing, f) =>
+      POSES.forEach((pose, i) => {
+        c.clearRect(0, 0, PLAYER_W, PLAYER_H);
+        drawHuman(c, facing, pose, colors);
+        const x = (f * POSES.length + i) * PLAYER_W;
+        const y = row * PLAYER_H;
+        ctx.drawImage(cell, x, y);
+        atlas.add(personFrame(look.id, facing, pose), 0, x, y, PLAYER_W, PLAYER_H);
+      }),
+    );
+  });
+  atlas.refresh();
+}
 
 export function buildTextures(scene: Phaser.Scene): void {
   const tile = (key: string, draw: (ctx: Ctx) => void): void => make(scene, key, TILE, TILE, draw);
 
-  for (let v = 0; v < 3; v++) tile(`tile-grass-${v}`, (ctx) => drawGrass(ctx, v));
 
   for (let v = 0; v < 2; v++) {
-    tile(`tile-pavement-${v}`, (ctx) => drawPavement(ctx, v));
-    tile(`tile-asphalt-${v}`, (ctx) => drawAsphalt(ctx, v));
-    tile(`tile-plaza-${v}`, (ctx) => drawPlaza(ctx, v));
     tile(`tile-roof-a-${v}`, (ctx) => drawRoof(ctx, PALETTE.roofA, PALETTE.roofALit, v));
     tile(`tile-roof-b-${v}`, (ctx) => drawRoof(ctx, PALETTE.roofB, PALETTE.roofBLit, v));
     tile(`tile-wall-${v}`, (ctx) => drawWall(ctx, v));
-    tile(`tile-floor-wood-${v}`, (ctx) => drawWoodFloor(ctx, v));
-    tile(`tile-floor-stone-${v}`, (ctx) => drawStoneFloor(ctx, v));
     tile(`tile-rug-${v}`, (ctx) => drawRug(ctx, v));
 
     tile(`tile-facade-office-${v}`, (ctx) =>
@@ -632,7 +539,6 @@ export function buildTextures(scene: Phaser.Scene): void {
       }
       px(ctx, shade(PALETTE.amberDim, -0.2), 0, 4, TILE, 1);
     });
-    tile(`tile-cobble-${v}`, (ctx) => drawCobble(ctx, v));
     tile(`tile-water-${v}`, (ctx) => drawWater(ctx, v));
     tile(`tile-quay-${v}`, (ctx) => drawQuay(ctx, v));
     tile(`tile-rail-${v}`, (ctx) => drawRail(ctx, v));
@@ -640,10 +546,8 @@ export function buildTextures(scene: Phaser.Scene): void {
   }
 
   tile('tile-platform-edge-0', drawPlatformEdge);
-  tile('tile-asphalt-line-0', drawAsphaltLine);
   tile('tile-door-0', drawDoor);
 
-  make(scene, 'prop-tree', TILE, TILE * 2, drawTree);
   make(scene, 'prop-bush', TILE, TILE, drawBush);
   make(scene, 'prop-bench', TILE, TILE, drawBench);
   make(scene, 'prop-lamp', TILE, TILE * 2, drawLamp);
@@ -663,10 +567,8 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-cafe-table', TILE, TILE, drawCafeTable);
 
   for (const facing of FACINGS) {
-    for (let frame = 0; frame < 2; frame++) {
-      make(scene, `player-${facing}-${frame}`, PLAYER_W, PLAYER_H, (ctx) =>
-        drawHuman(ctx, facing, frame, PLAYER_COLORS),
-      );
+    for (const pose of POSES) {
+      make(scene, humanKey('player', facing, pose), PLAYER_W, PLAYER_H, (ctx) => drawHuman(ctx, facing, pose, PLAYER_COLORS));
     }
   }
 
@@ -676,25 +578,36 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'train-door-leaf', DOOR_LEAF_W, DOOR_H, drawDoorLeaf);
   make(scene, 'train-door-light', 6, 2, drawDoorLight);
 
-  // Frame 0 conserva la clave de siempre (NPC estáticos); frame 1 es el paso.
-  for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS]) {
-    for (const facing of FACINGS) {
-      for (let frame = 0; frame < 2; frame++) {
-        const key = frame === 0 ? `npc-${npc.id}-${facing}` : `npc-${npc.id}-${facing}-1`;
-        make(scene, key, PLAYER_W, PLAYER_H, (ctx) =>
-          drawHuman(ctx, facing, frame, {
-            cloth: npc.cloth,
-            clothDark: npc.clothDark,
-            hair: npc.hair,
-            skin: PALETTE.skin,
-            trousers: '#33374a',
-            shoes: '#20232c',
-          }),
-        );
+  buildPeople(scene);
+
+  // Charco de luz: anillos escalonados, sin degradado suave. Blanco: world/Lighting lo tiñe (farola cálida, tubo frío).
+  make(scene, 'fx-light', 56, 56, (ctx) => {
+    for (let y = 0; y < 56; y++) {
+      for (let x = 0; x < 56; x++) {
+        const d = Math.hypot(x - 27.5, y - 27.5);
+        const a = d < 5 ? 0.4 : d < 11 ? 0.26 : d < 19 ? 0.13 : d < 27 ? 0.05 : 0;
+        if (a === 0) continue;
+        ctx.globalAlpha = a;
+        px(ctx, '#ffffff', x, y);
       }
     }
-  }
+    ctx.globalAlpha = 1;
+  });
 
+  // Sobre la mesa: una taza con su plato y un plato con comida.
+  make(scene, 'fx-cup', 5, 5, (ctx) => {
+    px(ctx, PALETTE.white, 0, 3, 5, 1);
+    px(ctx, PALETTE.white, 1, 0, 3, 3);
+    px(ctx, PALETTE.woodDark, 1, 0, 3, 1);
+    px(ctx, PALETTE.white, 4, 1, 1, 1);
+  });
+  make(scene, 'fx-plate', 7, 4, (ctx) => {
+    px(ctx, PALETTE.white, 0, 1, 7, 2);
+    px(ctx, shade(PALETTE.white, -0.15), 1, 3, 5, 1);
+    px(ctx, PALETTE.amber, 2, 1, 2, 1);
+    px(ctx, PALETTE.leafLit, 4, 1, 1, 1);
+    px(ctx, '#c0493f', 3, 0, 2, 1);
+  });
   // Móvil: una pantalla que brilla en la mano. Charla: un bocadillo de tres puntos.
   make(scene, 'fx-phone', 3, 4, (ctx) => {
     px(ctx, PALETTE.ink, 0, 0, 3, 4);
@@ -709,35 +622,43 @@ export function buildTextures(scene: Phaser.Scene): void {
     px(ctx, PALETTE.ink, 2, 5, 2, 1);
     px(ctx, PALETTE.ink, 2, 6, 1, 1);
   });
-  make(scene, 'fx-shadow', 12, 3, drawShadow);
+  // Un libro abierto: tapas de color y las dos páginas.
+  make(scene, 'fx-book', 6, 4, (ctx) => {
+    px(ctx, '#8e4a50', 0, 0, 6, 4);
+    px(ctx, PALETTE.white, 0, 0, 3, 3);
+    px(ctx, shade(PALETTE.white, -0.1), 3, 0, 3, 3);
+    px(ctx, shade(PALETTE.white, -0.3), 1, 1, 1, 1);
+    px(ctx, shade(PALETTE.white, -0.3), 4, 1, 1, 1);
+  });
+  make(scene, 'fx-shadow', 14, 5, drawShadow);
   make(scene, 'ui-prompt', TILE, TILE, drawPrompt);
 
   buildPropTextures(scene);
+  buildUrbanTextures(scene);
+  buildVegetationTextures(scene);
+  buildStreetTextures(scene);
   buildBuildingTextures(scene);
 }
 
-export function registerAnimations(scene: Phaser.Scene): void {
+/**
+ * Paso en cuatro tiempos (pie, paso, pie, paso) y respiración en reposo: el
+ * tronco baja un píxel cada par de segundos. Mismo ritmo para todos.
+ */
+function humanAnims(scene: Phaser.Scene, prefix: string, at: (facing: Facing, pose: Pose) => Phaser.Types.Animations.AnimationFrame): void {
   for (const facing of FACINGS) {
-    const key = `player-walk-${facing}`;
-    if (scene.anims.exists(key)) continue;
-    scene.anims.create({
-      key,
-      frames: [{ key: `player-${facing}-0` }, { key: `player-${facing}-1` }],
-      frameRate: 6,
-      repeat: -1,
-    });
-  }
-
-  for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS]) {
-    for (const facing of FACINGS) {
-      const key = `npc-${npc.id}-walk-${facing}`;
-      if (scene.anims.exists(key)) continue;
-      scene.anims.create({
-        key,
-        frames: [{ key: `npc-${npc.id}-${facing}` }, { key: `npc-${npc.id}-${facing}-1` }],
-        frameRate: 5,
-        repeat: -1,
-      });
+    const frame = (pose: Pose): Phaser.Types.Animations.AnimationFrame => at(facing, pose);
+    if (!scene.anims.exists(`${prefix}-walk-${facing}`)) {
+      scene.anims.create({ key: `${prefix}-walk-${facing}`, frames: [frame(1), frame(0), frame(2), frame(0)], frameRate: 8, repeat: -1 });
     }
+    if (!scene.anims.exists(`${prefix}-idle-${facing}`)) {
+      scene.anims.create({ key: `${prefix}-idle-${facing}`, frames: [{ ...frame(0), duration: 1100 }, frame(3)], frameRate: 2, repeat: -1 });
+    }
+  }
+}
+
+export function registerAnimations(scene: Phaser.Scene): void {
+  humanAnims(scene, 'player', (facing, pose) => ({ key: humanKey('player', facing, pose) }));
+  for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS]) {
+    humanAnims(scene, `npc-${npc.id}`, (facing, pose) => ({ key: PEOPLE, frame: personFrame(npc.id, facing, pose) }));
   }
 }

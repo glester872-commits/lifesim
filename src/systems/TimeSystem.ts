@@ -20,11 +20,19 @@ export class TimeSystem {
 
   setPaused(value: boolean): void {
     this.paused = value;
-    if (value) this.carry = 0;
   }
 
   get isPaused(): boolean {
     return this.paused;
+  }
+
+  /**
+   * Minuto del día con la fracción en curso: quien camina según el reloj se
+   * mueve suave y no a saltos de minuto. La pausa conserva la fracción para
+   * que nadie retroceda al abrir un diálogo.
+   */
+  get minuteOfDay(): number {
+    return this.state.hour * 60 + this.state.minute + this.carry;
   }
 
   update(deltaMs: number): void {

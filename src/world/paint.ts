@@ -81,25 +81,3 @@ export function drawWord(ctx: Ctx, word: string, x: number, y: number, color: st
     cursor += 7;
   }
 }
-
-/**
- * Fuente de 3x5 para carteles de local. A zoom de juego sale a 9x15 px de
- * pantalla: se lee una palabra corta, no una frase. Sólo las letras que se usan.
- */
-const MICRO: Readonly<Record<string, string>> = {
-  S: 'XXXX..XXX..XXXX', E: 'XXXX..XXXX..XXX', A: '.X.X.XXXXX.XX.X', L: 'X..X..X..X..XXX',
-  Q: '.X.X.XX.XXXX.XX', U: 'X.XX.XX.XX.XXXX', I: 'XXX.X..X..X.XXX',
-};
-
-export function drawMicro(ctx: Ctx, text: string, x: number, y: number, color: string): void {
-  let cursor = x;
-  for (const ch of text) {
-    const glyph = MICRO[ch];
-    if (glyph) {
-      for (let i = 0; i < 15; i++) if (glyph[i] === 'X') px(ctx, color, cursor + (i % 3), y + Math.floor(i / 3));
-    }
-    cursor += 4;
-  }
-}
-
-export const microWidth = (text: string): number => text.length * 4 - 1;

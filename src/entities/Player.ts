@@ -61,8 +61,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   halt(): void {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-    this.anims.stop();
-    this.setTexture(`player-${this.dir}-0`);
+    // Quieto no es congelado: respira.
+    this.anims.play(`player-idle-${this.dir}`, true);
     this.sync();
   }
 

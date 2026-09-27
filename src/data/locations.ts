@@ -1,7 +1,6 @@
 import type { LocationDef, MetroDef } from '../types/game.ts';
-import { METRO_FARE, METRO_MINUTES } from '../config/constants.ts';
 import { VALLESCO } from './vallesco.ts';
-import { FASHION, GYM, OFFICE, RESTAURANT, SUPERMARKET } from './interiors.ts';
+import { CLUB, FASHION, GYM, OFFICE, PHARMACY, RESTAURANT, SUPERMARKET } from './interiors.ts';
 
 /**
  * Leyenda del terreno (ver TILES en world/tiles.ts):
@@ -52,6 +51,27 @@ const HOME: LocationDef = {
     { kind: 'plant', tx: 20, ty: 12 },
     { kind: 'wardrobe', tx: 16, ty: 3 },
     { kind: 'sofa', tx: 6, ty: 11 },
+    // Lo que hace de un piso un sitio donde se vive: luz por las ventanas, la cafetera, la nevera.
+    { kind: 'window', tx: 9, ty: 1 },
+    { kind: 'window', tx: 13, ty: 1 },
+    { kind: 'painting', tx: 19, ty: 1 },
+    { kind: 'clock', tx: 7, ty: 1 },
+    { kind: 'espresso', tx: 2, ty: 3 },
+    { kind: 'fridge', tx: 6, ty: 3 },
+    { kind: 'pendant', tx: 3, ty: 6 },
+    { kind: 'pendant', tx: 11, ty: 9 },
+    { kind: 'pendant', tx: 15, ty: 7 },
+    // Luz de casa: una lámpara de pie junto al sofá y otra de lectura al lado de la cama; un cuadro más.
+    { kind: 'floor-lamp', tx: 8, ty: 11 },
+    { kind: 'floor-lamp', tx: 20, ty: 3 },
+    { kind: 'painting', tx: 3, ty: 1 },
+    { kind: 'wall-shelf', tx: 15, ty: 1 },
+  ],
+  ambient: '#ffe6c8',
+  // Lo que se hace en casa: dormir y cocinar (data/activities.ts).
+  spots: [
+    { tx: 2, ty: 3, name: 'Cocina', activities: ['cook'] },
+    { tx: 19, ty: 4, name: 'Cama', activities: ['nap', 'sleep'] },
   ],
   portals: [
     { id: 'exit', tx: 10, ty: 14, label: 'Salir a la calle', to: { location: 'district', spawn: 'home-door' } },
@@ -106,10 +126,30 @@ const CAFE: LocationDef = {
     { kind: 'plant', tx: 16, ty: 10 },
     { kind: 'plant', tx: 1, ty: 10 },
     { kind: 'table', tx: 15, ty: 8 },
+    // Barra con cafetera y vitrina, carta en pizarra, ventanales y una lámpara sobre cada mesa.
+    { kind: 'espresso', tx: 3, ty: 6 },
+    { kind: 'pastry-case', tx: 6, ty: 6 },
+    { kind: 'chalkboard', tx: 4, ty: 1 },
+    { kind: 'clock', tx: 7, ty: 1 },
+    { kind: 'window', tx: 9, ty: 1 },
+    { kind: 'window', tx: 12, ty: 1 },
+    { kind: 'window', tx: 15, ty: 1 },
+    { kind: 'pendant', tx: 4, ty: 6 },
+    { kind: 'pendant', tx: 13, ty: 4 },
+    { kind: 'pendant', tx: 12, ty: 8 },
+    { kind: 'pendant', tx: 15, ty: 8 },
+    { kind: 'pendant', tx: 3, ty: 9 },
+    // Tazas en la balda de detrás de la barra, otra lámpara sobre la vitrina y mesita para el sitio de la ventana.
+    { kind: 'wall-shelf', tx: 1, ty: 1 },
+    { kind: 'pendant', tx: 6, ty: 6 },
+    { kind: 'cafe-table', tx: 10, ty: 2 },
   ],
+  ambient: '#ffe2c0',
   portals: [
     { id: 'exit', tx: 8, ty: 11, label: 'Salir a la calle', to: { location: 'district', spawn: 'cafe-door' } },
   ],
+  // Se pide en la barra, delante de Nilo.
+  terminals: [{ tx: 5, ty: 6, name: 'Barra · Pausa', catalog: 'cafe-counter' }],
   // Nilo y la clientela los pone data/population.ts según la hora.
   npcs: [],
   spawns: {
@@ -186,7 +226,10 @@ function platform(
       { kind: 'turnstile', tx: 12, ty: 10 },
       { kind: 'sign', tx: 6, ty: 12 },
       { kind: 'poster', tx: 15, ty: 12 },
+      { kind: 'ticket-machine', tx: 14, ty: 11 },
     ],
+    // Sin tarjeta no se sube al tren: se compra y se recarga aquí.
+    terminals: [{ tx: 14, ty: 11, name: 'Máquina de billetes', catalog: 'transport-machine' }],
     portals: [
       { id: 'exit', tx: 11, ty: 13, label: 'Salir a la calle', to: exit },
       {
@@ -195,8 +238,6 @@ function platform(
         ty: 5,
         label: line.label,
         to: { location: line.location, spawn: 'train' },
-        fare: METRO_FARE,
-        minutes: METRO_MINUTES,
         train: true,
       },
     ],
@@ -264,7 +305,7 @@ const VALLESCO_STATION = platform(
   'vallesco-station',
   'Metro · Vallesco',
   { location: 'district', spawn: 'metro-door' },
-  { label: 'Línea 2 → Ribera Norte', location: 'ribera-station' },
+  { label: 'Línea 2 · subir al tren', location: 'ribera-station' },
   [
     { id: 'paula', tx: 5, ty: 7, facing: 'up' },
     { id: 'kike', tx: 8, ty: 8, facing: 'up' },
@@ -288,7 +329,7 @@ const RIBERA_STATION = platform(
   'ribera-station',
   'Metro · Ribera Norte',
   { location: 'ribera', spawn: 'metro-door' },
-  { label: 'Línea 2 → Vallesco', location: 'vallesco-station' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
   [
     { id: 'ines', tx: 14, ty: 7, facing: 'up' },
     { id: 'dani', tx: 6, ty: 8, facing: 'right' },
@@ -440,7 +481,18 @@ const BAR: LocationDef = {
     { kind: 'table', tx: 11, ty: 8 },
     { kind: 'plant', tx: 16, ty: 2 },
     { kind: 'plant', tx: 1, ty: 9 },
+    // Botellero en la pared, luz baja sobre barra y mesas, ventanas a la calle.
+    { kind: 'bottles', tx: 2, ty: 1 },
+    { kind: 'bottles', tx: 4, ty: 1 },
+    { kind: 'window', tx: 11, ty: 1 },
+    { kind: 'window', tx: 14, ty: 1 },
+    { kind: 'pendant', tx: 3, ty: 6 },
+    { kind: 'pendant', tx: 5, ty: 6 },
+    { kind: 'pendant', tx: 12, ty: 4 },
+    { kind: 'pendant', tx: 15, ty: 7 },
+    { kind: 'pendant', tx: 11, ty: 8 },
   ],
+  ambient: '#ffdcb4',
   portals: [
     { id: 'exit', tx: 8, ty: 10, label: 'Salir a la calle', to: { location: 'ribera', spawn: 'bar-door' } },
   ],
@@ -459,10 +511,12 @@ export const LOCATIONS: readonly LocationDef[] = [
   SUPERMARKET,
   RESTAURANT,
   OFFICE,
+  CLUB,
   VALLESCO_STATION,
   RIBERA,
   RIBERA_STATION,
   BAR,
+  PHARMACY,
 ];
 
 export const START_LOCATION = VALLESCO.id;

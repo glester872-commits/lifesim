@@ -1,6 +1,7 @@
-import { SAVE_KEY, SAVE_VERSION } from '../config/constants';
-import type { EventMemory, Facing, GameStateData, SaveFile } from '../types/game';
-import { emptyMemory } from './MetroEventManager';
+// Sin Phaser: lo usan main.ts y scripts/check-economy.ts (partidas antiguas).
+import { SAVE_KEY, SAVE_VERSION } from '../config/constants.ts';
+import type { EventMemory, Facing, GameStateData, SaveFile } from '../types/game.ts';
+import { emptyMemory } from './MetroEventManager.ts';
 
 /**
  * Backend de persistencia. localStorage es sólo la implementación actual:
@@ -98,7 +99,18 @@ function parseState(value: unknown): GameStateData | null {
     position: { x: pos.x, y: pos.y },
     facing: s.facing as Facing,
     events: parseEvents(s.events),
+    inventory: parseCounts(s.inventory),
+    cards: parseCounts(s.cards),
   };
+}
+
+/**
+ * Objetos y saldos: id → número. Partidas anteriores no los tienen y cargan
+ * con los bolsillos vacíos; una entrada mal formada se descarta sola.
+ */
+function parseCounts(value: unknown): Record<string, number> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter((e): e is [string, number] => isNumber(e[1]) && e[1] >= 0));
 }
 
 export class SaveSystem {

@@ -151,4 +151,54 @@ for (const n of gymWeek) assert.ok(n >= POPULATION.levels.HIGH[0] && n <= profil
   assert.ok(targetAt(place, profile, at(2, '07:30')) > 0);
 }
 
-console.log('\nOK: horarios, afluencia, aforo, personal, entradas y salidas, rutas y variación semanal.');
+// Restaurante un sábado por la noche: grupos en la misma mesa, camareros de uniforme que van a las mesas.
+{
+  const { crowd } = setup('restaurant', 21);
+  const player = { tx: 1, ty: 2 };
+  crowd.populate(at(6, '21:30'), player);
+  const mates = crowd.agents.filter((a) => a.leader);
+  assert.ok(mates.length > 0, 'nadie viene acompañado al restaurante un sábado');
+  for (const m of mates) assert.ok(Math.hypot(m.x - m.leader!.x, m.y - m.leader!.y) <= 3.2, 'un grupo sentado lejos de los suyos');
+  let visits = 0;
+  let wasServing = new Set<number>();
+  for (let ms = 0; ms < 90_000; ms += STEP_MS) {
+    crowd.update(STEP_MS, at(6, '21:40'), player);
+    const serving = new Set(
+      crowd.agents
+        .filter((w) => w.kind === 'staff' && w.state === 'SERVE' && w.path.length === 0)
+        .filter((w) => crowd.agents.some((c) => c.kind === 'visitor' && !c.moving && Math.hypot(c.x - w.x, c.y - w.y) <= 1.01))
+        .map((w) => w.id),
+    );
+    for (const id of serving) if (!wasServing.has(id)) visits++;
+    wasServing = serving;
+  }
+  const waiters = crowd.agents.filter((a) => a.role === 'waiter');
+  console.log(`\nrestaurante sábado 21:30: ${mates.length} acompañantes, ${waiters.length} camareros, ${visits} visitas a mesas en 90 s`);
+  assert.ok(visits >= 3, 'los camareros no van a las mesas');
+  for (const w of waiters) assert.equal(w.uniform, 'uniforme-sala', 'un camarero sin uniforme');
+  assert.equal(crowd.pathFailures, 0);
+}
+
+// La discoteca: se llena poco a poco por la noche, pico de madrugada, se vacía al cerrar.
+{
+  const FRIDAY = 5;
+  const night: [number, string][] = [[FRIDAY, '21:30'], [FRIDAY, '23:30'], [FRIDAY + 1, '00:45'], [FRIDAY + 1, '02:15'], [FRIDAY + 1, '04:15'], [FRIDAY + 1, '05:40']];
+  const levels = night.map(([d, t]) => LEVEL(level('nightclub', d, t)));
+  const people = night.map(([d, t]) => run('nightclub', at(d, t), 15, hashSeed('club', d, t)));
+  console.log(`\ndiscoteca, noche del viernes: ${night.map(([, t], i) => `${t} ${people[i].initial.visitors}→${people[i].final.visitors}`).join(' · ')}`);
+  for (let i = 1; i <= 3; i++) assert.ok(levels[i] >= levels[i - 1], `la discoteca debería llenarse poco a poco (${night[i][1]})`);
+  assert.ok(levels[3] > levels[5], 'la discoteca debería vaciarse al acercarse el cierre');
+  assert.ok(people[3].initial.visitors >= 14, 'a las 02:15 la discoteca debería estar llena');
+  assert.ok(people[0].initial.visitors <= 2, 'a las 21:30 la discoteca debería estar casi vacía');
+  // El sábado a las 03:00 sigue siendo la noche del viernes; el martes, cerrada; el jueves, más floja.
+  assert.ok(level('nightclub', 6, '03:00') !== null, 'la madrugada del sábado debería contar como noche del viernes');
+  assert.equal(level('nightclub', 2, '23:30'), null, 'la discoteca abre el martes');
+  assert.equal(level('nightclub', 1, '02:00'), null, 'la madrugada del lunes es noche de domingo: cerrada');
+  assert.ok(LEVEL(level('nightclub', 4, '23:59')) < LEVEL(level('nightclub', 5, '23:59')), 'el jueves debería ser más flojo que el viernes');
+  // Al cerrar, fuera todo el mundo.
+  const closing = run('nightclub', at(FRIDAY + 1, '05:40'), 80, 3);
+  console.log(`discoteca 05:40 → ${hhmm(closing.clock)}: ${closing.final.visitors} visitantes, ${closing.final.staff} personal`);
+  assert.equal(closing.final.visitors + closing.final.staff, 0, 'la discoteca cerrada sigue con gente');
+}
+
+console.log('\nOK: horarios, afluencia, aforo, personal, entradas y salidas, rutas, variación semanal y la noche de la discoteca.');

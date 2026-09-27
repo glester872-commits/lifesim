@@ -6,6 +6,13 @@ const MONEY = new Intl.NumberFormat('es-ES', {
   useGrouping: true,
   maximumFractionDigits: 0,
 });
+// Con céntimos sólo cuando los hay: €1.200, pero €1.198,80 tras un refresco.
+const CENTS = new Intl.NumberFormat('es-ES', {
+  useGrouping: true,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const money = (n: number): string => `€${(Number.isInteger(n) ? MONEY : CENTS).format(n)}`;
 
 /**
  * HUD en DOM, no en canvas: el texto queda nítido a cualquier zoom y las
@@ -16,6 +23,8 @@ export class HUD {
   private readonly moneyEl: HTMLElement;
   private readonly energyEl: HTMLElement;
   private readonly savedEl: HTMLElement;
+  /** Saldo de la tarjeta de transporte; no se ve hasta tenerla. */
+  private readonly cardEl: HTMLElement;
   private savedTimer: number | undefined;
 
   private readonly state: GameState;
@@ -26,6 +35,7 @@ export class HUD {
       <p class="hud__mark">LIFE<i>//</i>SIM</p>
       <p class="hud__clock"></p>
       <p class="hud__vitals"><span class="hud__money"></span><span class="hud__energy"></span></p>
+      <p class="hud__card"></p>
       <p class="hud__saved">partida guardada</p>
     `;
 
@@ -33,6 +43,7 @@ export class HUD {
     this.moneyEl = this.pick(root, '.hud__money');
     this.energyEl = this.pick(root, '.hud__energy');
     this.savedEl = this.pick(root, '.hud__saved');
+    this.cardEl = this.pick(root, '.hud__card');
 
     state.on('change', () => this.render());
     state.on('saved', () => this.flashSaved());
@@ -46,10 +57,13 @@ export class HUD {
   }
 
   private render(): void {
-    const { day, hour, minute, money, energy } = this.state;
+    const { day, hour, minute, money: cash, energy } = this.state;
     this.clockEl.textContent = formatClock(day, hour, minute);
-    this.moneyEl.textContent = `€${MONEY.format(money)}`;
+    this.moneyEl.textContent = money(cash);
     this.energyEl.textContent = `⚡ ${energy}`;
+    const card = this.state.wallet.cards.transport;
+    this.cardEl.textContent = card === undefined ? '' : `tarjeta · ${money(card)}`;
+    this.cardEl.hidden = card === undefined;
   }
 
   private flashSaved(): void {

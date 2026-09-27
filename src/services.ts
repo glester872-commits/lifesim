@@ -7,6 +7,7 @@ import type { MetroDebug } from './ui/MetroDebug';
 import type { Announcer } from './ui/Announcer';
 import type { PlaceBanner } from './ui/PlaceBanner';
 import type { MetroEventManager } from './systems/MetroEventManager';
+import type { Menu } from './ui/Menu';
 
 /** Sistemas compartidos; se inyectan en las Scenes por constructor. */
 export interface Services {
@@ -20,4 +21,6 @@ export interface Services {
   announcer: Announcer;
   place: PlaceBanner;
   metroEvents: MetroEventManager;
+  /** Menú de opciones: compras, destinos, actividades y bolsa. */
+  menu: Menu;
 }

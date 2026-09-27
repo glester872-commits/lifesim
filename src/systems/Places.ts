@@ -3,6 +3,7 @@ import type { PointKind } from '../types/game.ts';
 import { PLACES, type PlaceDef, type PlaceType } from '../data/places.ts';
 import { allLocations, getLocation } from './LocationSystem.ts';
 import { findPoint } from './Navigation.ts';
+import { weekday, weekIndex } from './MetroDaily.ts';
 
 /**
  * Lo que un sistema de personajes necesita saber de un lugar, resuelto a partir
@@ -83,12 +84,34 @@ export function placeOfPoint(pointId: string): PlaceInfo | undefined {
   );
 }
 
-/** ¿Está abierto a esa hora? Sin horario, siempre. Un cierre de 24 es medianoche. */
-export function isOpen(place: PlaceInfo, hour: number, minute = 0): boolean {
+/** ¿El horario pasa de medianoche (una discoteca de 21 a 6)? */
+const overnight = (place: PlaceInfo): boolean => !!place.hours && place.hours[0] > place.hours[1];
+
+/**
+ * Día al que pertenece ese momento para el lugar: las 02:00 del sábado son
+ * todavía la noche del viernes si abrió el viernes.
+ */
+export function openingDay(place: PlaceInfo, day: number, hour: number, minute = 0): number {
+  return overnight(place) && hour + minute / 60 < place.hours![1] ? day - 1 : day;
+}
+
+/** ¿Está abierto a esa hora de ese día? Sin horario, siempre. Un cierre de 24 es medianoche. */
+export function isOpen(place: PlaceInfo, day: number, hour: number, minute = 0): boolean {
   if (!place.hours) return true;
   const t = hour + minute / 60;
   const [open, close] = place.hours;
-  return t >= open && t < close;
+  const inHours = overnight(place) ? t >= open || t < close : t >= open && t < close;
+  if (!inHours) return false;
+  return !place.days || place.days.includes(weekIndex(openingDay(place, day, hour, minute)));
+}
+
+/** Lo que dice la puerta cerrada: «Abre jueves, viernes, sábado, de 21:00 a 06:00». */
+export function hoursLabel(place: PlaceInfo): string {
+  if (!place.hours) return 'Abierto siempre.';
+  const hh = (h: number): string => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+  // El día 1 es lunes: weekday(i + 1) nombra el índice i.
+  const days = place.days ? ` ${place.days.map((d) => weekday(d + 1)).join(', ')},` : '';
+  return `Abre${days} de ${hh(place.hours[0])} a ${hh(place.hours[1])}.`;
 }
 
 /** Lugar cuyo interior es esta localización (el gimnasio para 'gym'), si alguno. */

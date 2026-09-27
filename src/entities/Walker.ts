@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
+import { PEOPLE, personFrame } from '../world/TextureFactory';
 
 export type WalkerIcon = 'phone' | 'talk' | null;
 
@@ -20,7 +21,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   private dir: Facing;
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
-    super(scene, 0, 0, `npc-${look.id}-${facing}`);
+    super(scene, 0, 0, PEOPLE, personFrame(look.id, facing));
     this.currentLook = look;
     this.dir = facing;
 
@@ -93,12 +94,12 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.path = [];
     (this.body as Phaser.Physics.Arcade.Body).stop();
     this.anims.stop();
-    this.setTexture(`npc-${this.currentLook.id}-${this.dir}`);
+    this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir));
   }
 
   face(facing: Facing): void {
     this.dir = facing;
-    if (!this.moving) this.setTexture(`npc-${this.currentLook.id}-${facing}`);
+    if (!this.moving) this.setTexture(PEOPLE, personFrame(this.currentLook.id, facing));
     this.sync();
   }
 
@@ -125,7 +126,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       this.sync();
       if (this.path.length > 0) return false;
       this.anims.stop();
-      this.setTexture(`npc-${this.currentLook.id}-${this.dir}`);
+      this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir));
       return true;
     }
 

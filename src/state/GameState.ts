@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { EventMemory, Facing, GameStateData } from '../types/game';
 import { emptyMemory } from '../systems/MetroEventManager';
+import type { Wallet } from '../systems/Commerce';
 import { INITIAL_CLOCK, INITIAL_ENERGY, INITIAL_MONEY, TILE } from '../config/constants';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations';
 
@@ -23,6 +24,8 @@ export class GameState extends Phaser.Events.EventEmitter {
   facing: Facing;
   /** Memoria narrativa; la escribe MetroEventManager y no se muestra en el HUD. */
   events: EventMemory;
+  private _inventory: Record<string, number>;
+  private _cards: Record<string, number>;
 
   constructor(initial: GameStateData) {
     super();
@@ -35,6 +38,23 @@ export class GameState extends Phaser.Events.EventEmitter {
     this.position = { x: initial.position.x, y: initial.position.y };
     this.facing = initial.facing;
     this.events = initial.events;
+    this._inventory = { ...initial.inventory };
+    this._cards = { ...initial.cards };
+  }
+
+  /**
+   * Dinero, objetos y tarjetas juntos: lo que toca una compra. systems/Commerce.ts
+   * trabaja sobre una copia y devuelve la nueva; aquí sólo se aplica y se avisa.
+   */
+  get wallet(): Wallet {
+    return { money: this._money, inventory: { ...this._inventory }, cards: { ...this._cards } };
+  }
+
+  set wallet(w: Wallet) {
+    this._money = w.money;
+    this._inventory = { ...w.inventory };
+    this._cards = { ...w.cards };
+    this.emit('change');
   }
 
   get money(): number {
@@ -89,6 +109,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       position: { x: this.position.x, y: this.position.y },
       facing: this.facing,
       events: structuredClone(this.events),
+      inventory: { ...this._inventory },
+      cards: { ...this._cards },
     };
   }
 }
@@ -109,5 +131,8 @@ export function createInitialState(): GameStateData {
     position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE },
     facing: spawn.facing,
     events: emptyMemory(),
+    // Se empieza sin tarjeta de transporte: se compra en la máquina del metro.
+    inventory: {},
+    cards: {},
   };
 }
