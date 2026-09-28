@@ -193,6 +193,8 @@ function platform(
     id,
     name,
     kind: 'interior',
+    // Tubo fluorescente de andén: blanco frío y funcional, nada que ver con la luz de una casa o de un bar.
+    ambient: '#dbe7f2',
     ground: [
       'WWWWWWWWWWWWWWWWWWWWWW',
       'WWWWWWWWWWWWWWWWWWWWWW',

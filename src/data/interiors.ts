@@ -238,6 +238,8 @@ export const OFFICE: LocationDef = {
   id: 'office',
   name: 'Edificio Atalaya · planta 3',
   kind: 'interior',
+  // Oficina de techo de placas: blanco neutro, un punto frío.
+  ambient: '#eef2f7',
   // Moqueta en la zona de puestos; el resto, vestíbulo.
   ground: room(22, 14, 4, (x, y) => (y <= 8 && x <= 13 ? 'o' : 't')),
   props: [

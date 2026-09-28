@@ -61,6 +61,7 @@ npm run preview  # sirve dist/
 |---|---|
 | `W` `A` `S` `D` o flechas | Caminar |
 | `E` | Interactuar (hablar, entrar, salir) y avanzar diálogo |
+| `M` | Abrir y cerrar el mapa (también `Esc` para cerrar, o el botón **Mapa** arriba a la derecha) |
 | `Espacio` / `Intro` | Avanzar diálogo |
 
 Cuando algo es interactuable aparece un indicador `E` sobre la cabeza del
@@ -251,6 +252,24 @@ ni acceso global al estado.
   mostrador y del techo (`overhead`: colgantes y tubos, que ni colisionan ni
   hacen sombra). `ambient` en la localización tiñe la sala y sus lámparas se
   encienden siempre.
+- **Mapa** — M o el botón **Mapa** (pensado también para el dedo) abren el mapa
+  del barrio. No es una captura: `systems/WorldMap.ts` lo saca del mundo (el suelo
+  de la localización clasificado en calzada, carril bici, pasos, aceras, plazas,
+  zonas verdes, agua y vía; la huella de cada edificio; los lugares de
+  `data/places.ts` en su puerta, con icono por categoría; y los nombres de calle
+  que declara la localización en `areas`). Un exterior sin lugares todavía
+  (Ribera) enseña sus puertas con el nombre del portal. La conversión mundo →
+  mapa es una sola función (`worldToMap`: tiles con decimales, anclado a los pies
+  como los sprites) y la de mapa → pantalla, la clase `MapViewport` (zoom con
+  límites, arrastrar y pellizcar sin perder el mapa, centrar). «Estás aquí» sale
+  de la posición real del jugador, con flecha hacia donde mira; dentro de un
+  interior o un andén se pone en la puerta de su edificio y dice dónde estás.
+  Ratón encima o toque en un icono: nombre, tipo y si está abierto ahora.
+  Abierto, el mapa para el mundo como un menú (ni reloj, ni gente, ni teclas al
+  jugador); no se recarga nada al cerrarlo. `ui/MapScreen.ts` hornea el suelo una
+  vez por mapa y sólo lo reescala al moverse. `npm run check` lo comprueba
+  (`scripts/check-map.ts`): cada lugar en su puerta, cada interior en su barrio y
+  la vista dentro del mapa.
 - **Diálogo** — conversación lineal que no sabe nada de cómo se pinta. Bloquea
   el movimiento y pausa el reloj mientras está abierto.
 - **Cartelería** — las bocas de metro llevan el rótulo `METRO` dibujado con una
@@ -349,11 +368,27 @@ ni acceso global al estado.
   personaje a partir de la paleta de `config/constants.ts`. Cambiar la dirección
   cromática del juego es cambiar ese objeto. La paleta es de día (granito,
   revoco ocre, ladrillo visto, teja árabe); la noche no está en ella.
-- **Luz y hora** — `world/Lighting.ts`, sólo en exteriores: una capa que
-  multiplica la escena con el color del cielo según la hora (amanecer, día,
-  hora dorada, anochecer, noche) y, encima, las farolas que declaran `light` en
-  su `PropDef` y una parte fija de los cristales de fachada que devuelve
-  `bakeBuildings()`. Charcos de luz escalonados, sin bloom.
+- **Luz y hora** — `world/Lighting.ts`. Fuera, un mapa de luz a media resolución
+  multiplica la escena: el color del cielo de la hora (amanecer, día, hora
+  dorada, anochecer, noche); las sombras del sol (`sunAt`), que salen de la huella
+  de cada edificio y de todo lo alto y cambian de lado y de largo con la hora
+  (largas al oeste al amanecer, cortas a mediodía, largas al este al atardecer,
+  ninguna de noche); y encima, de noche, las luces. Los tejados se quedan con el
+  cielo: ni el sol les pone la sombra del vecino ni una farola los alumbra. Quien
+  pasa por una sombra o bajo una farola se oscurece o se ilumina con ella. La
+  sombra de contacto (el pie de cada edificio y de cada prop, la de las
+  personas) no depende del sol y va horneada.
+  La luz cuenta **el estado de cada sitio**: el escaparate de un local se enciende
+  sólo si su lugar (`data/places.ts`) está abierto, en el color de su fachada
+  (`Look.lit`: ámbar de café, blanco de oficina y farmacia, rosa de la Órbita), con
+  su charco en la acera y en la puerta; su rótulo brilla sólo abierto. Las
+  ventanas de casa siguen la hora (`homeLightsAt`): cada una tiene su número fijo
+  y el barrio se va apagando de madrugada. Dentro, la luz es la del local (el
+  andén y la oficina, fluorescente fría) y un local cerrado se queda a oscuras,
+  lámparas apagadas. Coches y bicis llevan faros, pilotos y freno de noche.
+  Se repinta sólo cuando cambia algo que se ve (cielo, sol a pasos de diez
+  minutos, locales abiertos, casas con luz): menos de un milisegundo de CPU cada
+  varios segundos, y nada por frame. Sin bloom sobre los sprites.
 - **Visual V2: la plazuela del metro como referencia** — `design/ART_BIBLE.md` fija
   la resolución, la escala (1 px ≈ 7 cm), la perspectiva, el orden de dibujo, las
   sombras, la paleta y la luz. La plazuela es la primera zona hecha con ese
@@ -413,6 +448,7 @@ src/
     LocationSystem.ts     registro, validación, edificios -> portales, máscara de colisión
     Navigation.ts         destinos con nombre, rutas por el grafo y entre puertas (puro)
     Places.ts             lugares resueltos: entradas, salidas, destinos, horario (puro)
+    WorldMap.ts           el mapa sacado del mundo: suelo, edificios, lugares, dónde estás, vista (puro)
     Retail.ts             tiendas de ropa: comprar, ponerse, quitarse, escaparate (puro)
     Appearance.ts         aspecto de hoy: peinado, ropa, tatuajes que se ven; corte y tatuaje (puro)
     TrainSystem.ts        tren: estados, horario y puertas (sin Phaser)
@@ -448,6 +484,7 @@ src/
     MetroDebug.ts         panel de depuración de la estación
     Announcer.ts          megafonía
     PlaceBanner.ts        nombre del sitio al llegar
+    MapScreen.ts          el mapa (M): lo dibuja, lo encuadra y responde a ratón y dedos
   data/
     locations.ts          registro: 2 distritos, 2 andenes y los interiores
     vallesco.ts           el barrio (con la Calle del Carmen): suelo, edificios, mobiliario, puntos y grafo

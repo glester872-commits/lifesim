@@ -6,6 +6,7 @@ import { POPULATION_PROFILES, type PlanStep, type PopulationProfile, type StaffR
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
 import { between, hashSeed, seededRng, weekIndex, type Rng } from './MetroDaily.ts';
+import { outdoorAppeal, weatherAt } from './Weather.ts';
 import { isOpen, openingDay, type PlaceInfo } from './Places.ts';
 import { tilePath } from './Navigation.ts';
 import { besideTile, identity, nextCustomer } from './Service.ts';
@@ -48,7 +49,10 @@ export function targetAt(place: PlaceInfo, profile: PopulationProfile, clock: Cl
   const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
   const rng = seededRng(hashSeed('crowd', place.id, clock.day, slot));
   const staff = profile.staff.filter((r) => onShift(r, level)).length;
-  const wanted = lo + Math.floor(rng() * (hi - lo + 1));
+  // Con mal tiempo, los sitios a cubierto (bares, tiendas, la discoteca) se llenan un poco más.
+  const sheltered = place.tags.some((t) => t === 'food' || t === 'nightlife' || t === 'shop' || t === 'social');
+  const shelter = sheltered ? 1 + Math.max(0, 1 - outdoorAppeal(weatherAt(clock.day, clock.hour + clock.minute / 60))) * 0.35 : 1;
+  const wanted = Math.round((lo + Math.floor(rng() * (hi - lo + 1))) * shelter);
   return Math.max(0, Math.min(wanted, profile.maxVisitors, place.capacity - staff));
 }
 

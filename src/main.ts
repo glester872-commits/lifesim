@@ -8,6 +8,7 @@ import { SaveSystem } from './systems/SaveSystem';
 import { hasLocation, safePosition } from './systems/LocationSystem';
 import { findPoint, pointsOfKind, route, worldRoute } from './systems/Navigation';
 import { placeInfo, placesOfType } from './systems/Places';
+import { forceWeather, weatherAt } from './systems/Weather';
 import { MetroEventManager } from './systems/MetroEventManager';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
@@ -18,6 +19,7 @@ import { MetroDebug } from './ui/MetroDebug';
 import { Announcer } from './ui/Announcer';
 import { PlaceBanner } from './ui/PlaceBanner';
 import { Menu } from './ui/Menu';
+import { MapScreen } from './ui/MapScreen';
 import { METRO_CONFIG } from './config/metro';
 import type { Services } from './services';
 
@@ -37,17 +39,21 @@ const initial =
     : createInitialState();
 
 const state = new GameState(initial);
+const dialogue = new DialogueSystem();
+const menu = new Menu(requireEl('#menu'));
 const services: Services = {
   state,
   clock: new TimeSystem(state),
-  dialogue: new DialogueSystem(),
+  dialogue,
   save,
   hint: new TargetHint(requireEl('#hint')),
   metroDebug: METRO_CONFIG.debug ? new MetroDebug(requireEl('#metro-debug')) : null,
   announcer: new Announcer(requireEl('#announce')),
   place: new PlaceBanner(requireEl('#place')),
   metroEvents: new MetroEventManager(state),
-  menu: new Menu(requireEl('#menu')),
+  menu,
+  // No se abre encima de un diálogo o un menú: primero se termina lo que se estaba haciendo.
+  map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen),
 };
 
 // La paleta vive en TypeScript; el CSS la consume desde aquí para no duplicarla.
@@ -126,6 +132,11 @@ if (import.meta.env.DEV) {
       worldRoute,
       placeInfo,
       placesOfType,
+      // El tiempo: lifesim.weather.now() y, para probar, lifesim.weather.force({ rain: 0.9, celsius: 5 }) (null: el del calendario).
+      weather: {
+        now: () => weatherAt(state.day, state.hour + state.minute / 60),
+        force: (w: Parameters<typeof forceWeather>[0]) => forceWeather(w),
+      },
     },
   });
 }

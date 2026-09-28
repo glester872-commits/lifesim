@@ -9,9 +9,11 @@ import { buildUrbanTextures } from './UrbanArt';
 import { buildVegetationTextures } from './Vegetation';
 import { buildStreetTextures } from './StreetArt';
 import { buildVehicleTextures } from './VehicleArt';
+import { buildWeatherTextures } from './WeatherView';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
+import { WEATHER_LOOKS } from './WeatherLooks';
 
 export const PLAYER_W = 16;
 export const PLAYER_H = 24;
@@ -508,7 +510,8 @@ export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string 
 
 function buildPeople(scene: Phaser.Scene): void {
   if (scene.textures.exists(PEOPLE)) return;
-  const looks = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS];
+  // Con las versiones de abrigo, verano y capucha de cada cara (world/WeatherLooks): se hornean una vez.
+  const looks = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS];
   const atlas = scene.textures.createCanvas(PEOPLE, FACINGS.length * POSES.length * PLAYER_W, looks.length * PLAYER_H);
   if (!atlas) return;
   const ctx = atlas.getContext();
@@ -685,6 +688,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   buildStreetTextures(scene);
   buildBuildingTextures(scene);
   buildVehicleTextures(scene);
+  buildWeatherTextures(scene);
 }
 
 /**
@@ -705,7 +709,7 @@ function humanAnims(scene: Phaser.Scene, prefix: string, at: (facing: Facing, po
 
 export function registerAnimations(scene: Phaser.Scene): void {
   humanAnims(scene, 'player', (facing, pose) => ({ key: humanKey('player', facing, pose) }));
-  for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS]) {
+  for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS]) {
     humanAnims(scene, `npc-${npc.id}`, (facing, pose) => ({ key: PEOPLE, frame: personFrame(npc.id, facing, pose) }));
   }
 }

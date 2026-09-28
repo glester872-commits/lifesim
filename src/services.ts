@@ -8,6 +8,7 @@ import type { Announcer } from './ui/Announcer';
 import type { PlaceBanner } from './ui/PlaceBanner';
 import type { MetroEventManager } from './systems/MetroEventManager';
 import type { Menu } from './ui/Menu';
+import type { MapScreen } from './ui/MapScreen';
 
 /** Sistemas compartidos; se inyectan en las Scenes por constructor. */
 export interface Services {
@@ -23,4 +24,6 @@ export interface Services {
   metroEvents: MetroEventManager;
   /** Menú de opciones: compras, destinos, actividades y bolsa. */
   menu: Menu;
+  /** Mapa del barrio (tecla M o su botón): abierto, el mundo se para como con un menú. */
+  map: MapScreen;
 }

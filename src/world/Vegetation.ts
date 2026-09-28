@@ -50,7 +50,8 @@ interface Cluster {
   r: number;
 }
 
-function drawTree(ctx: Ctx, sp: Species, seed: number): void {
+/** `sway`: px que se desplaza la copa (el tronco no): el fotograma de racha de viento. */
+function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
   const { w, h } = sp;
   let s = (seed * 2654435761) >>> 0 || 1;
   const rnd = (): number => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
@@ -95,9 +96,9 @@ function drawTree(ctx: Ctx, sp: Species, seed: number): void {
   for (let i = 0; i < n; i++) {
     const a = rnd() * Math.PI * 2;
     const d = Math.sqrt(rnd()) * 0.86;
-    clusters.push({ x: cx + Math.cos(a) * rx * d, y: canopyCy + Math.sin(a) * ry * d, r: (5.5 + rnd() * 4.5) * Math.max(0.8, k) });
+    clusters.push({ x: cx + sway + Math.cos(a) * rx * d, y: canopyCy + Math.sin(a) * ry * d, r: (5.5 + rnd() * 4.5) * Math.max(0.8, k) });
   }
-  clusters.push({ x: cx, y: canopyCy, r: 10 * k + 3 });
+  clusters.push({ x: cx + sway, y: canopyCy, r: 10 * k + 3 });
   clusters.sort((p, q) => p.y - q.y);
   const front = (x: number, y: number): number => {
     for (let i = clusters.length - 1; i >= 0; i--) {
@@ -153,6 +154,10 @@ function drawTree(ctx: Ctx, sp: Species, seed: number): void {
 
 export function buildVegetationTextures(scene: Phaser.Scene): void {
   for (const sp of [TREE, PLANE_TREE]) {
-    for (let v = 0; v < sp.variants; v++) make(scene, `${sp.key}-${v}`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w));
+    for (let v = 0; v < sp.variants; v++) {
+      make(scene, `${sp.key}-${v}`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w));
+      // La misma copa un píxel a sotavento: world/Ambience alterna los dos con las rachas.
+      make(scene, `${sp.key}-${v}-gust`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 1));
+    }
   }
 }

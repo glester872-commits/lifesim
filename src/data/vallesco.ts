@@ -47,6 +47,7 @@ const GROUND = paint('g', [
   ['P', 25, 37, 12, 9], // Plazuela del Metro: adoquín de granito (Visual V2)
   ['T', 29, 41, 3, 1], // franja podotáctil delante de la escalera del metro
   ['.', 22, 37, 3, 9], // Calle Tintoreros, tramo con coches
+  [',', 22, 37, 1, 9], // su acera, junto a Olmo 3: por aquí se baja andando, no por la calzada
   ['c', 56, 37, 2, 9], // Pasaje del Reloj
   [',', 0, 46, W, 1], // Calle del Olmo
   ['.', 0, 47, W, 2],
@@ -269,7 +270,7 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   'av-50': p(50, 30, 'path'), 'av-53': p(53, 30, 'path'), 'av-65': p(65, 30, 'path'),
   'avs-23': p(23, 36, 'path'), 'avs-25': p(25, 36, 'path'), 'avs-30': p(30, 36, 'path'),
   'avs-53': p(53, 36, 'path'), 'avs-56': p(56, 36, 'path'),
-  'tintoreros-s': p(23, 41, 'path'), 'plazuela-1': p(26, 37, 'path'), 'plazuela-2': p(28, 42, 'path'),
+  'tintoreros-s': p(22, 41, 'path'), 'tintoreros-sn': p(22, 36, 'path'), 'tintoreros-ss': p(22, 46, 'path'), 'plazuela-1': p(26, 37, 'path'), 'plazuela-2': p(28, 42, 'path'),
   'plazuela-4': p(33, 37, 'path'), pasaje: p(56, 41, 'path'),
   'olmo-23': p(23, 46, 'path'), 'olmo-30': p(30, 46, 'path'), 'olmo-40': p(40, 46, 'path'), 'olmo-56': p(56, 46, 'path'),
   'olmo-s40': p(40, 49, 'path'), 'olmo-s70': p(70, 49, 'path'),
@@ -320,7 +321,7 @@ const LINKS: readonly Link[] = [
     'RES_AVENIDA_20_ENTRANCE', 'avs-75', 'EDGE_AVENIDA_SE'),
 
   // Del sur de la avenida a la Calle del Olmo: Tintoreros, la plazuela y el pasaje
-  ...chain('avs-23', 'tintoreros-s', 'olmo-23'),
+  ...chain('avs-23', 'tintoreros-sn', 'tintoreros-s', 'tintoreros-ss', 'olmo-23'),
   ...chain('avs-30', 'plazuela-1', 'plazuela-2', 'METRO_ENTRANCE', 'METRO_PLAZUELA_BENCH'),
   ...chain('avs-30', 'plazuela-4', 'METRO_PLAZUELA_BENCH', 'olmo-30'),
   ['plazuela-2', 'olmo-30'],
@@ -386,6 +387,8 @@ const BASE: LocationDef = {
       road: 'avenue',
       perLane: 2,
       hourly: [[0, 6.5, 1], [6.5, 22, 2], [22, 24, 1]],
+      // Con chaparrón casi nadie saca la bici.
+      rainShy: 0.75,
     },
   },
   // Los dos pasos de cebra de la avenida, con semáforo; el segundo, desfasado: no cambian a la vez.
@@ -402,6 +405,17 @@ const BASE: LocationDef = {
     { tx: 80, ty: 46, name: 'Columna de carteles', lines: ['Conciertos en la Órbita, un mercadillo de discos el domingo y clases de serigrafía. Todo impreso enfrente.'] },
     { tx: 95, ty: 50, name: 'Columna de carteles', lines: ['Encima de un cartel de hace un año, uno de la semana pasada. Encima, pegatinas.'] },
     { tx: 96, ty: 44, name: 'Terraza del Molinillo', lines: ['Dos mesas y una sombrilla. Se sirve fuera cuando el café está abierto.'] },
+  ],
+  // Nombres para el mapa (tecla M): calles y zonas, sobre el suelo que ya las dibuja.
+  areas: [
+    { name: 'Calle Mayor', tx: 62, ty: 17 },
+    { name: 'Plaza de la Fuente', tx: 40, ty: 7 },
+    { name: 'Avenida de Vallesco', tx: 12, ty: 32 },
+    { name: 'Calle Tintoreros', tx: 23, ty: 22 },
+    { name: 'Plazuela del Metro', tx: 30, ty: 44 },
+    { name: 'Calle del Olmo', tx: 12, ty: 47 },
+    { name: 'Parque del Olmo', tx: 48, ty: 53 },
+    { name: 'Calle del Carmen', tx: 99, ty: 47 },
   ],
   // Donde se compra: la máquina de la Calle Mayor.
   terminals: [{ tx: 29, ty: 16, name: 'Máquina expendedora', catalog: 'vending' }],

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import type { LocationDef } from '../types/game';
 import { PROPS, propKey, TILES, variantKey } from './tiles';
+import { LAYER, seat, standing } from './Layers';
 import { solidMask } from '../systems/LocationSystem';
 import { bakeBuildings, type GlowSpot, type WindowSpot } from './BuildingArt';
 import { painted, paintSurfaces } from './Surfaces';
@@ -67,13 +68,14 @@ const SHADOW = 0x140f1c;
 /** Pavimentos de plaza con cenefa donde tocan otro suelo (ART_BIBLE §8); la franja podotáctil no la corta. */
 const BORDERED = new Set(['P', '~']);
 const BORDER_OK = new Set(['P', '~', 'T']);
-const OVERHEAD_DEPTH = 800_000;
 
 /**
  * Lo que da volumen al suelo, horneado con él: bordillo de granito donde la
- * acera toca la calzada (los pasos de cebra quedan rebajados), sombra de los
- * edificios hacia el sureste (luz del noroeste) y una sombra al pie de cada
- * prop. Una vez por visita; en cada frame no cuesta nada.
+ * acera toca la calzada (los pasos de cebra quedan rebajados) y la sombra de
+ * contacto al pie de cada edificio y de cada prop. La sombra que echa el sol
+ * (larga al amanecer, corta a mediodía, hacia el otro lado al atardecer) no se
+ * hornea: la pinta world/Lighting en el mapa de luz según la hora. Una vez por
+ * visita; en cada frame no cuesta nada.
  */
 function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderTexture, def: LocationDef): void {
   const g = scene.make.graphics({}, false);
@@ -132,11 +134,12 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
     }
   });
 
+  // Contacto: la línea oscura donde la fachada toca la acera y, debajo, la penumbra del alero que se
+  // desvanece en cuatro filas (oclusión ambiental: no depende del sol, que va aparte en Lighting).
   for (const b of def.buildings ?? []) {
-    g.fillStyle(SHADOW, 0.2);
-    g.fillRect((b.tx + b.w) * TILE, b.ty * TILE + 6, 5, b.h * TILE - 3);
-    g.fillRect(b.tx * TILE + 5, (b.ty + b.h) * TILE, b.w * TILE, 3);
-    g.fillStyle(SHADOW, 0.3).fillRect(b.tx * TILE, (b.ty + b.h) * TILE, b.w * TILE, 1);
+    const y = (b.ty + b.h) * TILE;
+    g.fillStyle(SHADOW, 0.3).fillRect(b.tx * TILE, y, b.w * TILE, 1);
+    [0.16, 0.11, 0.07, 0.035].forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(b.tx * TILE, y + 1 + i, b.w * TILE, 1));
   }
 
   for (const p of def.props) {
@@ -144,15 +147,10 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
     // Lo que cuelga del techo o de la pared no toca el suelo; lo plano ya es suelo.
     if (prop.overhead || prop.flat || at(p.tx, p.ty) === 'W') continue;
     const width = (prop.tilesWide ?? 1) * TILE;
-    // Lo alto proyecta una franja hacia el sureste (luz del noroeste) y, si tiene copa, su mancha al final.
-    if (prop.cast) {
-      const bx = p.tx * TILE + width / 2;
-      const by = (p.ty + 1) * TILE - 2;
-      const dx = prop.cast * 0.85;
-      const dy = prop.cast * 0.4;
-      g.fillStyle(SHADOW, 0.16).fillPoints([new Phaser.Math.Vector2(bx - 2, by), new Phaser.Math.Vector2(bx + 2, by), new Phaser.Math.Vector2(bx + 2 + dx, by + dy), new Phaser.Math.Vector2(bx - 1 + dx, by + dy)], true);
-      if (prop.castBlob) g.fillStyle(SHADOW, 0.15).fillEllipse(bx + dx, by + dy - 2, prop.castBlob[0], prop.castBlob[1]);
-    }
+    // Lo alto echa además la sombra del sol, que cambia con la hora: la pinta Lighting.
+    // Aquí sólo el contacto con el suelo, que no depende del sol.
+    // Bajo una copa siempre hay penumbra, haga sol o no: el árbol no parece pegado encima del suelo.
+    if (prop.castBlob) g.fillStyle(SHADOW, 0.1).fillEllipse(p.tx * TILE + width / 2, (p.ty + 1) * TILE - 5, prop.castBlob[0] * 0.75, prop.castBlob[1] * 0.8);
     const [w, h] = prop.shadow ?? [width - 4, 4];
     g.fillStyle(SHADOW, 0.24).fillEllipse(p.tx * TILE + width / 2 + (prop.shadow ? 2 : 0), (p.ty + 1) * TILE - 2, w, h);
   }
@@ -201,7 +199,21 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const width = (prop.tilesWide ?? 1) * TILE;
     const baseY = placement.ty * TILE + TILE;
     // Lo del techo, por encima de la gente (y por debajo de la luz de world/Lighting).
-    scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? OVERHEAD_DEPTH : prop.seat ? baseY - 1 : baseY);
+    scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.seat ? seat(baseY) : standing(baseY));
+  }
+
+  // Dentro, el muro de delante (el que queda al sur de la sala) va por delante de la gente: su canto
+  // tapa los pies de quien se arrima, como en una habitación vista desde arriba. La puerta, no.
+  if (def.kind === 'interior') {
+    const lip = scene.add.graphics().setDepth(LAYER.overhead);
+    const top = Phaser.Display.Color.HexStringToColor(PALETTE.wallTop).color;
+    def.ground.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) {
+        if (row[x] !== 'W' || !TILES[def.ground[y - 1]?.[x]] || TILES[def.ground[y - 1][x]].solid) continue;
+        lip.fillStyle(top, 1).fillRect(x * TILE, y * TILE - 3, TILE, 4);
+        lip.fillStyle(0xffffff, 0.08).fillRect(x * TILE, y * TILE - 3, TILE, 1);
+      }
+    });
   }
 
   for (const r of solidRects(solidMask(def))) addSolid(scene, solids, r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE);

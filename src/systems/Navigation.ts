@@ -1,6 +1,7 @@
 // Sin Phaser: lo usan el juego (depuración) y scripts/check-world.ts.
 import type { LocationDef, PointDef, PointKind, TilePoint } from '../types/game.ts';
 import { allLocations, getLocation, isWalkable } from './LocationSystem.ts';
+import { PROPS } from '../world/tiles.ts';
 
 /**
  * Destinos del mundo para los NPC que vendrán. Un personaje no lleva rutas
@@ -82,10 +83,14 @@ function graphRoute(loc: LocationDef, fromId: string, toId: string): TilePoint[]
   return path;
 }
 
-/** Anchura primero por tiles transitables; los NPC quietos cuentan como muebles. */
+/**
+ * Anchura primero por tiles transitables; los NPC quietos cuentan como muebles, y
+ * los asientos (sillón de barbero, camilla de tatuaje) también: no colisionan
+ * porque alguien se sienta encima, pero de camino a otra parte se rodean.
+ */
 function gridRoute(loc: LocationDef, a: TilePoint, b: TilePoint): TilePoint[] | null {
   const key = (p: TilePoint): string => `${p.tx},${p.ty}`;
-  const blocked = new Set(loc.npcs.map(key));
+  const blocked = new Set([...loc.npcs.map(key), ...loc.props.filter((p) => PROPS[p.kind].seat).map(key)]);
   const goal = key(b);
   const prev = new Map<string, TilePoint | null>([[key(a), null]]);
   const queue: TilePoint[] = [a];

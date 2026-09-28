@@ -14,6 +14,37 @@ import { ROADWAY, isWalkable } from './LocationSystem.ts';
 import { levelAt, profileFor, type Agent, type Clock } from './Crowd.ts';
 import { DOG_LOOKS } from '../data/wildlife.ts';
 import { crossingOf, signalAt, waitSpots } from './Signals.ts';
+import { HEAVY_RAIN, outdoorAppeal, weatherAt, type Weather } from './Weather.ts';
+
+/**
+ * El tiempo en la calle: con lluvia o frío hay menos gente (quien puede, se
+ * queda dentro); con calor, algo más. Chaparrón: menos de dos tercios.
+ */
+export function streetWeatherScale(w: Weather): number {
+  const rain = w.rain > HEAVY_RAIN ? 0.6 : w.rain > 0.08 ? 0.8 : 1;
+  return rain * (w.temp === 'cold' ? 0.85 : w.temp === 'warm' ? 1.1 : 1);
+}
+
+/** Viaje de estar fuera: sentarse en una terraza o un banco, pasear, correr, mirar escaparates. */
+const outdoorLeisure = (rule: TripRule): boolean => (!!rule.stay && !!rule.to.points) || rule.pace !== undefined;
+/** Viaje a cubierto: un bar, una tienda, la discoteca, el metro. */
+const toShelter = (rule: TripRule): boolean =>
+  !!rule.to.tags?.some((t) => t === 'food' || t === 'nightlife' || t === 'shop') ||
+  !!rule.to.types?.includes('transit') ||
+  // Un viaje a la puerta de un sitio (el restaurante, el café, el gimnasio) también es meterse dentro.
+  !!rule.to.points?.some((p) => p.endsWith('_ENTRANCE'));
+
+/**
+ * Cuánto pesa un viaje con este tiempo: lo de estar fuera sigue a las ganas de
+ * estar fuera (poca terraza con lluvia, mucha con calor); lo de meterse en
+ * algún sitio, al revés. Lo demás (ir a trabajar, volver a casa) no cambia.
+ */
+export function weatherBias(rule: TripRule, w: Weather): number {
+  const appeal = outdoorAppeal(w);
+  if (outdoorLeisure(rule)) return appeal;
+  if (toShelter(rule)) return 1 + Math.max(0, 1 - appeal) * 0.8;
+  return 1;
+}
 
 const MS_PER_GAME_MINUTE = 1000 / GAME_MINUTES_PER_REAL_SECOND;
 /** Hasta las 6 la madrugada es de la noche anterior: el sábado a las 3 sigue siendo viernes. */
@@ -70,6 +101,7 @@ export function streetTargetAt(profile: StreetProfile, clock: Clock): number {
     const levels = place ? Math.round(pull(place, clock) * 3) : 0;
     wanted += levels * d.perLevel;
   }
+  wanted = Math.round(wanted * streetWeatherScale(weatherAt(clock.day, clock.hour + clock.minute / 60)));
   return Math.min(wanted, profile.maxWalkers);
 }
 
@@ -138,6 +170,8 @@ export class StreetLife {
   private claimed: ReadonlySet<string> = new Set();
   private nextId = 1;
   private tick = 0;
+  /** El tiempo de ahora: decide qué viajes apetecen y a qué paso se va. */
+  private weather: Weather = weatherAt(1, 12);
   private stats: StreetStats = { level: 'VERY_LOW', target: 0, walkers: 0, staying: 0 };
   /** Ms desde que el jugador llegó: el reloj del camarero de la terraza. */
   private elapsed = 0;
@@ -184,6 +218,7 @@ export class StreetLife {
 
   /** Al entrar el jugador: la gente ya está a mitad de camino o sentada. Mismo minuto, misma calle. */
   populate(clock: Clock, player: TilePoint): void {
+    this.weather = weatherAt(clock.day, clock.hour + clock.minute / 60);
     this.tickSignals(clock, 0);
     const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
     this.rng = seededRng(hashSeed('street-populate', this.loc.id, clock.day, slot));
@@ -197,6 +232,7 @@ export class StreetLife {
   // --------------------------------------------------------------- tiempo
 
   update(deltaMs: number, clock: Clock, player: TilePoint): void {
+    this.weather = weatherAt(clock.day, clock.hour + clock.minute / 60);
     this.tickSignals(clock, deltaMs);
     this.metroWaves(deltaMs, clock, player);
     this.elapsed += deltaMs;
@@ -632,7 +668,7 @@ export class StreetLife {
       if (fromPoint && !from.some((c) => c.id === fromPoint)) continue;
       const to = this.candidates(rule.to, clock, true);
       if (from.length === 0 || to.length === 0) continue;
-      weighted.push([rule, rule.weight * mean(from) * mean(to)]);
+      weighted.push([rule, rule.weight * mean(from) * mean(to) * weatherBias(rule, this.weather)]);
     }
     return pick(this.rng, weighted);
   }
@@ -675,7 +711,8 @@ export class StreetLife {
     const walker: Walker = {
       id: this.nextId++, kind: 'visitor', role: rule?.role ?? '', label: rule?.label ?? '', line: rule?.line ?? '', look,
       x: at.tx, y: at.ty, dir: 'down', moving: false, state: 'WALK',
-      speed: between(this.rng, ...POPULATION.walkSpeed), path, timer: 0, plan: [], leaveSoon: false, leaving: false,
+      // Con lluvia se aprieta el paso.
+      speed: between(this.rng, ...POPULATION.walkSpeed) * (this.weather.rain > 0.08 ? 1.2 : 1), path, timer: 0, plan: [], leaveSoon: false, leaving: false,
       rule, staying: false, vanish: false, delay: 0, settled: false, pauseAt: -1,
     };
     this.agents.push(walker);

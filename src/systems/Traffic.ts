@@ -4,6 +4,7 @@ import { bandAt, type MoverType } from '../data/vehicles.ts';
 import type { LaneFlow, SignalDef, Vec2 } from '../types/game.ts';
 import { between, weekIndex, type Rng } from './MetroDaily.ts';
 import { signalAt } from './Signals.ts';
+import { weatherAt } from './Weather.ts';
 
 /** px/s de un turismo. Despacio: es una calle de barrio, no una autopista. */
 const CRUISE = 46;
@@ -93,15 +94,17 @@ export class Traffic<T extends MoverType = MoverType> {
     this.spawnIn = def.lanes.map(() => between(rng, ...SPAWN_EVERY));
   }
 
-  /** Cuántos por carril a esta hora (LaneFlow.hourly); sin franja, perLane. */
-  target(hour: number): number {
+  /** Cuántos por carril a esta hora (LaneFlow.hourly); sin franja, perLane. Con lluvia, menos si el flujo la nota. */
+  target(hour: number, day?: number): number {
     const band = this.def.hourly?.find(([from, to]) => hour >= from && hour < to);
-    return band ? band[2] : this.def.perLane;
+    const base = band ? band[2] : this.def.perLane;
+    if (!this.def.rainShy || day === undefined) return base;
+    return Math.round(base * (1 - this.def.rainShy * weatherAt(day, hour).rain));
   }
 
   /** Al entrar en el sitio, el tráfico ya está a mitad de camino: repartido por cada carril. */
   populate(clock: TrafficClock): void {
-    const n = this.target(clock.minuteOfDay / 60);
+    const n = this.target(clock.minuteOfDay / 60, clock.day);
     this.def.lanes.forEach((lane, i) => {
       for (let k = 0; k < n; k++) {
         const x = ((k + 0.5) / n) * this.widthPx + (i % 2) * TILE * 3;
@@ -112,7 +115,7 @@ export class Traffic<T extends MoverType = MoverType> {
 
   update(deltaMs: number, clock: TrafficClock, pedestrians: readonly Vec2[]): void {
     const dt = Math.min(deltaMs, 100) / 1000;
-    const target = this.target(clock.minuteOfDay / 60);
+    const target = this.target(clock.minuteOfDay / 60, clock.day);
 
     this.def.lanes.forEach((lane, i) => {
       this.spawnIn[i] -= deltaMs;

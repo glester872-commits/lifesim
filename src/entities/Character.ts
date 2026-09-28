@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { every } from '../world/Motion';
 import { TILE } from '../config/constants';
 import type { Facing, NpcDef } from '../types/game';
 import { findPoint } from '../systems/Navigation';
@@ -68,6 +69,10 @@ export class Character extends Phaser.GameObjects.Sprite {
   talkingTo: Facing | null = null;
   private readonly shadow: Phaser.GameObjects.Image;
   private readonly icon: Phaser.GameObjects.Image;
+  /** Paraguas abierto (world/WeatherView lo dibuja; world/CrowdView decide quién lo lleva). */
+  private readonly umbrellaImg: Phaser.GameObjects.Image;
+  /** Qué paraguas lleva abierto ahora, o null. */
+  umbrella: number | null = null;
   private seed: number;
 
   constructor(scene: Phaser.Scene, def: NpcDef, seed = 0) {
@@ -78,9 +83,11 @@ export class Character extends Phaser.GameObjects.Sprite {
     this.setOrigin(0.5, 1);
     this.shadow = scene.add.image(0, 0, 'fx-shadow').setOrigin(0.5, 0.5);
     this.icon = scene.add.image(0, 0, 'fx-phone').setOrigin(0.5, 1).setVisible(false);
+    this.umbrellaImg = scene.add.image(0, 0, 'fx-umbrella-0').setOrigin(0.5, 1).setVisible(false);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       this.shadow.destroy();
       this.icon.destroy();
+      this.umbrellaImg.destroy();
     });
   }
 
@@ -89,6 +96,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     this.def = def;
     this.seed = seed;
     this.talkingTo = null;
+    this.umbrella = null;
     this.anims.stop();
   }
 
@@ -105,6 +113,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     this.shadow.setVisible(where !== null);
     if (!where) {
       this.icon.setVisible(false);
+      this.umbrellaImg.setVisible(false);
       this.anims.stop();
       return;
     }
@@ -116,6 +125,10 @@ export class Character extends Phaser.GameObjects.Sprite {
     const y = where.ty * TILE + TILE;
     this.setPosition(x, y).setDepth(y);
     this.shadow.setPosition(x, y - 1).setDepth(y - 1);
+    // El paraguas va por encima de la cabeza, andando o de pie; sentado en una mesa, cerrado.
+    const seated = SEATED.has(where.activity ?? 'idle') && !where.moving;
+    if (this.umbrella !== null && !seated) this.umbrellaImg.setTexture(`fx-umbrella-${this.umbrella}`).setPosition(x, y - 19).setDepth(y + 2).setVisible(true);
+    else this.umbrellaImg.setVisible(false);
 
     const id = this.def.id;
     // Andando se le ve andar; si corre (un corredor del parque), correr.
@@ -147,7 +160,13 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.anims.stop();
       const up = Math.floor((time + this.seed * 431) / LIFT_MS) % 2 === 0;
       this.setTexture(PEOPLE, personFrame(id, where.dir, up ? 6 : 0));
+    } else if (activity === 'idle' && !this.talkingTo && every(time, this.seed, 6500 + (this.seed % 5) * 1100, 1100)) {
+      // De pie sin nada que hacer, de vez en cuando mira a un lado: el personal, a la estantería; la gente, a la calle.
+      const side = where.dir === 'up' || where.dir === 'down' ? (this.seed % 2 ? 'left' : 'right') : 'down';
+      this.loop(`npc-${id}-idle-${side}`);
     } else this.loop(`npc-${id}-idle-${where.dir}`);
+    // Hablando contigo asiente de vez en cuando: un píxel, a su compás.
+    if (this.talkingTo && every(time, this.seed, 2300, 240)) this.setY(y - 1);
 
     // El móvil, en la mano; la charla, a ratos y cada uno a su compás.
     const talking = activity === 'talk' && Math.floor((time + this.seed * 700) / 1800) % 3 === 0;

@@ -52,7 +52,9 @@ export class TrafficView {
       const bottom = v.row * TILE + TILE;
       const left = Math.round(v.x - L / 2);
       const top = bottom - v.type.height;
-      p.body.setPosition(left, top).setDepth(bottom).setVisible(true);
+      // Un turismo cabecea al frenar; un autobús o un camión, más pesados, no se inmutan.
+      const dip = v.braking && v.speed > 6 && L < 48 ? 1 : 0;
+      p.body.setPosition(left, top + dip).setDepth(bottom).setVisible(true);
 
       // Luces: en px del sprite mirando a la derecha; hacia el oeste, en espejo.
       const lamps = lampsOf(v.type);

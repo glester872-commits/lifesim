@@ -510,12 +510,21 @@ const DECO_BY_STYLE: Partial<Record<BuildingStyle, readonly Deco[]>> = {
  * planta baja con puerta, rótulo y cosas en el tejado. Horneado una vez por
  * visita; en cada frame no cuesta nada.
  */
-/** Hueco acristalado de una fachada, en px de mundo: world/Lighting lo enciende de noche. */
+/**
+ * Hueco acristalado de una fachada, en px de mundo: world/Lighting decide si se
+ * enciende. El escaparate de la planta baja es del local (luz si está abierto);
+ * las ventanas de arriba son de casas (luz si hay alguien, según la hora).
+ */
 export interface WindowSpot {
   x: number;
   y: number;
   w: number;
   h: number;
+  building: string;
+  /** Escaparate o cristal de la planta baja: el local. */
+  shop: boolean;
+  /** Color de la luz de dentro (Look.lit): ámbar de café, blanco de oficina, rosa de discoteca. */
+  tone: number;
 }
 
 /** Dónde está el cristal de cada pieza de fachada, en px dentro del tile (ver drawFront y drawUpper). */
@@ -537,12 +546,15 @@ export interface GlowSpot {
   key: string;
   x: number;
   y: number;
+  /** Rótulo de un local: sólo brilla con el local abierto. Sin él, siempre (la boca de metro). */
+  building?: string;
 }
 
 export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: readonly BuildingDef[], glows: GlowSpot[] = []): WindowSpot[] {
   const windows: WindowSpot[] = [];
-  const pane = (p: readonly [number, number, number, number] | undefined, tx: number, ty: number): void => {
-    if (p) windows.push({ x: tx * TILE + p[0], y: ty * TILE + p[1], w: p[2], h: p[3] });
+  const pane = (b: BuildingDef, shop: boolean, p: readonly [number, number, number, number] | undefined, tx: number, ty: number): void => {
+    const tone = Number.parseInt(LOOKS[b.style].lit.slice(1), 16);
+    if (p) windows.push({ x: tx * TILE + p[0], y: ty * TILE + p[1], w: p[2], h: p[3], building: b.id, shop, tone });
   };
   for (const b of buildings) {
     // Boca de metro de 3 × 3 (Visual V2, world/UrbanArt): marquesina, rótulo y escalera en una pieza.
@@ -576,7 +588,8 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
             else if (b.style === 'home') v = i % 2 === 1 ? 1 : 0;
             else v = i % 2 === 1 ? (r === 3 ? 2 : 1) : 0;
             draw(`bs-${b.style}-front-${v}`, x, y);
-            if (v !== 0) pane(SHOP_PANE[look.shop], x, y);
+            // En un portal de vecinos la planta baja también es casa.
+            if (v !== 0) pane(b, !b.style.startsWith('res-') && b.style !== 'home' && b.style !== 'backdrop', SHOP_PANE[look.shop], x, y);
           }
         } else if (y === upperRow) {
           let v: number;
@@ -584,7 +597,8 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
           else if (b.style === 'home') v = i % 2 === 1 ? 2 : 0;
           else v = i % 2 === 1 ? (r & 1 ? 1 : 2) : 0;
           draw(`bs-${b.style}-upper-${v}`, x, y);
-          if (v !== 0 || look.upper === 'glass' || look.upper === 'band') pane(UPPER_PANE[look.upper], x, y);
+          // Arriba, casas; salvo el cristal corrido (oficina, gimnasio), que es del mismo local.
+          if (v !== 0 || look.upper === 'glass' || look.upper === 'band') pane(b, look.upper === 'glass' || look.upper === 'band', UPPER_PANE[look.upper], x, y);
         }
       }
     }
@@ -602,11 +616,10 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
 
     // Rótulo: sobre la puerta si hay planta alta, junto a ella si no.
     if (look.sign && b.doorX !== undefined) {
-      if (upperRow >= 0) draw(`bs-sign-${look.sign}`, b.doorX, upperRow);
-      else {
-        const side = b.doorX + 1 < b.tx + b.w ? b.doorX + 1 : b.doorX - 1;
-        draw(`bs-sign-${look.sign}`, side, frontRow);
-      }
+      const [sx, sy] = upperRow >= 0 ? [b.doorX, upperRow] : [b.doorX + 1 < b.tx + b.w ? b.doorX + 1 : b.doorX - 1, frontRow];
+      draw(`bs-sign-${look.sign}`, sx, sy);
+      // De noche, el rótulo de un local abierto se enciende: la misma placa, encima de la oscuridad.
+      glows.push({ key: `bs-sign-${look.sign}`, x: sx * TILE, y: sy * TILE, building: b.id });
     }
     if (b.style === 'bank' && b.doorX !== undefined && b.doorX - 1 >= b.tx) draw('bs-atm', b.doorX - 1, frontRow);
 

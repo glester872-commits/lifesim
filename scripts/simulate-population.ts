@@ -5,6 +5,7 @@ import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
 import { placeInfo } from '../src/systems/Places.ts';
 import { Crowd, levelAt, profileFor, targetAt, type Clock } from '../src/systems/Crowd.ts';
 import { POPULATION } from '../src/config/population.ts';
+import { POPULATION_PROFILES } from '../src/data/population.ts';
 import { hashSeed, seededRng, weekday } from '../src/systems/MetroDaily.ts';
 import type { TilePoint } from '../src/types/game.ts';
 
@@ -79,6 +80,13 @@ const CASES: [string, string[]][] = [
   ['hair-salon', ['10:30', '13:00', '18:30', '21:00']],
   ['wine-bar', ['17:30', '19:00', '22:30', '00:30']],
 ];
+// Cualquier local con perfil de gente entra solo: media hora dentro de cada franja y una hora después del cierre.
+// Así un local nuevo (la Calle del Carmen, la discoteca) no se queda sin simular por no estar en la lista.
+const clockLabel = (h: number): string => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+for (const p of POPULATION_PROFILES) {
+  if (CASES.some(([id]) => id === p.place)) continue;
+  CASES.push([p.place, [...p.bands.map(([from]) => clockLabel(from + 0.5)), clockLabel((placeInfo(p.place)!.hours?.[1] ?? 0) + 1)]]);
+}
 const DAYS = [1, 6, 7]; // lunes, sábado, domingo
 
 console.log('lugar            día        hora   nivel      objetivo  al entrar → 20 min después   personal  entran/salen');

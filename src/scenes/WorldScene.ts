@@ -40,6 +40,9 @@ import { hoursLabel, isOpen, placeForInterior } from '../systems/Places';
 import { stopAtStation } from '../systems/Transit';
 import { Menus } from './Menus';
 import { CrowdView } from '../world/CrowdView';
+import { WeatherView } from '../world/WeatherView';
+import { Occlusion } from '../world/Occlusion';
+import { weatherAt } from '../systems/Weather';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
 import { PLAYER_H } from '../world/TextureFactory';
@@ -131,6 +134,10 @@ export class WorldScene extends Phaser.Scene {
   /** Perros y palomas de la calle (sólo donde hay calle con gente). */
   private wildlife: WildlifeView | null = null;
   private signals: SignalView | null = null;
+  /** Lluvia, charcos y vaho: sólo fuera. */
+  private weatherView: WeatherView | null = null;
+  /** Lo alto que tapa al jugador se aclara mientras le tapa. */
+  private occlusion: Occlusion | null = null;
   private crowdViews: CrowdView[] = [];
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
@@ -152,6 +159,8 @@ export class WorldScene extends Phaser.Scene {
     this.leaving = false;
     this.activeTarget = null;
     this.endTalk = null;
+    // Un mapa abierto es del sitio de antes: al llegar a otro, cerrado (se vuelve a abrir con M).
+    this.services.map.close();
     this.interactables = [];
     this.characters = CHARACTERS.map((c, i) => {
       const entry = { def: c, sprite: new Character(this, getNpc(c.npc), i), now: null as Whereabouts | null, heldAt: null as number | null, lag: 0 };
@@ -252,7 +261,8 @@ export class WorldScene extends Phaser.Scene {
     this.placeCharacters();
     this.crowd?.populate(this.clockNow(), this.playerTile());
     this.street?.populate(this.clockNow(), this.playerTile());
-    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c));
+    const weather = (): ReturnType<typeof weatherAt> => weatherAt(this.services.state.day, this.services.state.hour + this.services.state.minute / 60);
+    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street));
     const now = this.clockNow();
     this.wildlife = this.street ? new WildlifeView(this, def, this.street, now.day, now.hour + now.minute / 60, this.playerTile()) : null;
     this.crowdTargets = new WeakMap();
@@ -267,6 +277,11 @@ export class WorldScene extends Phaser.Scene {
     this.bikes?.populate(this.trafficClock());
     this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
+    this.occlusion = new Occlusion(this);
+    // Dentro no llueve: al entrar en un local el tiempo se queda en la calle, y el mundo sigue.
+    this.weatherView = def.kind === 'exterior'
+      ? new WeatherView(this, def, () => weatherAt(state.day, state.hour + state.minute / 60), () => state.hour + state.minute / 60, () => [...this.crowdViews.flatMap((v) => v.people), ...this.characters.map((c) => c.sprite)])
+      : null;
     // La hora se ve en la calle; dentro manda la luz del local.
     new Lighting(this, def, built, state);
 
@@ -317,7 +332,22 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    const { clock, dialogue, menu } = this.services;
+    const { clock, dialogue, menu, map } = this.services;
+
+    // El mapa es un modo de interfaz, como el menú: el jugador se para, nada responde a la E y el
+    // mundo espera (ni reloj ni gente) hasta cerrarlo. M o Esc lo cierran; su botón, también.
+    if (map.isOpen) {
+      this.player.halt();
+      this.prompt.setVisible(false);
+      this.services.hint.hide();
+      if (this.pressedAny(['map', 'cancel'])) map.close();
+      return;
+    }
+    if (!menu.isOpen && !dialogue.isOpen && this.pressedAny(['map'])) {
+      this.player.halt();
+      map.open();
+      return;
+    }
 
     // Un menú abierto para el mundo como un diálogo: se elige con W/S y E, o con 1–9.
     if (menu.isOpen && !dialogue.isOpen) {
@@ -361,6 +391,8 @@ export class WorldScene extends Phaser.Scene {
     this.bikes?.update(delta, this.trafficClock(), this.pedestrians);
     this.cyclistView?.sync();
     this.signals?.update(time);
+    this.weatherView?.update(delta);
+    this.occlusion?.update(this.player, delta);
     if (talking) return;
 
     this.player.move({
@@ -436,6 +468,7 @@ export class WorldScene extends Phaser.Scene {
       cancel: Phaser.Input.Keyboard.KeyCodes.ESC,
       cancelAlt: Phaser.Input.Keyboard.KeyCodes.Q,
       bag: Phaser.Input.Keyboard.KeyCodes.I,
+      map: Phaser.Input.Keyboard.KeyCodes.M,
     }) as Keys;
   }
 

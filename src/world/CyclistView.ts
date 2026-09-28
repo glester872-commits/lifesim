@@ -62,7 +62,9 @@ export class CyclistView {
       const left = Math.round(v.x - RIDER_W / 2);
       const top = bottom - RIDER_H;
       const frame = v.speed < 0.5 ? RIDER_STOPPED : Math.floor(Math.abs(v.x) / STROKE_PX) % 4;
-      p.body.setFrame(frame).setPosition(left, top).setDepth(bottom).setVisible(true);
+      // Al pedalear el cuerpo sube y baja un píxel con cada pedalada; parado, quieto.
+      const bob = frame !== RIDER_STOPPED && frame % 2 === 1 ? 1 : 0;
+      p.body.setFrame(frame).setPosition(left, top + bob).setDepth(bottom).setVisible(true);
       const at = ([lx, ly]: readonly [number, number]): [number, number] => [left + (flip ? RIDER_W - 1 - lx : lx), top + ly];
       p.head.setPosition(...at(RIDER_LAMPS.head)).setVisible(lit);
       p.tail.setPosition(...at(RIDER_LAMPS.tail)).setVisible(lit || v.braking).setAlpha(v.braking ? 1 : 0.7);

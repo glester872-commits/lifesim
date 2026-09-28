@@ -3,6 +3,7 @@ import { TILE } from '../config/constants';
 import type { LocationDef, Vec2 } from '../types/game';
 import { PROPS } from './tiles';
 import { doorRow } from '../systems/LocationSystem';
+import { gust } from './Motion';
 
 /**
  * Lo poco que se mueve solo en un sitio y no es gente ni tráfico: el agua de
@@ -25,11 +26,21 @@ export class Ambience {
   /** Pies de quien anda por aquí: las puertas se abren para cualquiera. */
   private readonly pedestrians: () => readonly Vec2[];
   private readonly doors: AutoDoor[] = [];
+  /** Árboles con fotograma de racha: la copa se mece cuando pasa el viento. */
+  private readonly trees: { img: Phaser.GameObjects.Image; still: string; windy: string }[] = [];
 
   constructor(scene: Phaser.Scene, def: LocationDef, pedestrians: () => readonly Vec2[]) {
     this.scene = scene;
     this.pedestrians = pedestrians;
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    // Copas: cada árbol ya colocado que tenga fotograma de racha. Con movimiento reducido, quietos.
+    if (!calm) {
+      for (const o of scene.children.list) {
+        if (!(o instanceof Phaser.GameObjects.Image)) continue;
+        const key = o.texture.key;
+        if (/^prop-(plane-)?tree-\d+$/.test(key) && scene.textures.exists(`${key}-gust`)) this.trees.push({ img: o, still: key, windy: `${key}-gust` });
+      }
+    }
 
     // El agua: un chorro que respira despacio. Con movimiento reducido, quieto.
     for (const p of def.props) {
@@ -53,6 +64,11 @@ export class Ambience {
   }
 
   update(): void {
+    const now = this.scene.time.now;
+    for (const t of this.trees) {
+      const key = gust(now, t.img.x) ? t.windy : t.still;
+      if (t.img.texture.key !== key) t.img.setTexture(key);
+    }
     if (this.doors.length === 0) return;
     const people = this.pedestrians();
     for (const door of this.doors) {

@@ -296,6 +296,8 @@ export interface LaneFlow {
   perLane: number;
   /** [desde, hasta, cuántos por carril] en horas; fuera de las franjas, perLane. */
   hourly?: readonly (readonly [number, number, number])[];
+  /** Cuánto se nota la lluvia (0–1): con 0,7, un chaparrón deja menos de un tercio. Las bicis, sí; los coches, no. */
+  rainShy?: number;
 }
 
 /** Tráfico de una calle: los coches y, si la calle tiene carril bici (tile `b`), las bicis. */
@@ -367,6 +369,8 @@ export interface LocationDef {
   terminals?: readonly TerminalDef[];
   /** Sitios donde se hace algo que lleva un rato: la cama, la cocina, la silla de la peluquería (data/activities.ts). */
   spots?: readonly SpotDef[];
+  /** Nombres de calles y zonas para el mapa (systems/WorldMap.ts): sólo la etiqueta y dónde va; la forma sale del suelo. */
+  areas?: readonly { name: string; tx: number; ty: number }[];
   /** Interiores: focos de colores que barren esta zona en tiles (la pista de baile), al ritmo de la música. */
   strobe?: { tx: number; ty: number; w: number; h: number };
 }
@@ -389,6 +393,11 @@ export interface NpcLook {
   /** Bolso en bandolera y gorra (color): sobre todo para los anónimos. */
   bag?: string;
   cap?: string;
+  /** Ropa de abrigo o de verano (world/WeatherLooks): bufanda, capucha, manga corta y el peinado de su original. */
+  scarf?: string;
+  hood?: string;
+  sleeveLen?: number;
+  hairStyle?: import('../data/appearance.ts').HairStyle;
   /** Tatuajes de fábrica que se ven (el brazo de quien tatúa): world/HumanArt.ts los pinta sobre la piel. */
   ink?: readonly { spot: import('../data/tattoos.ts').InkSpot; color: string }[];
 }

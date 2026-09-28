@@ -442,3 +442,323 @@ body {
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------------ mapa */
+
+/* Botón del mapa: el mismo material que el HUD, arriba a la derecha; en móvil, del tamaño de un dedo. */
+#map-button {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 8px;
+  border: 2px solid rgba(232, 227, 218, 0.14);
+  background: rgba(14, 15, 22, 0.8);
+  color: var(--white);
+  font: 700 11px var(--ui-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#map-button:hover,
+#map-button:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+#map-button.is-hidden {
+  visibility: hidden;
+}
+
+.map-button__key {
+  padding: 1px 5px;
+  border: 1px solid rgba(232, 227, 218, 0.35);
+  color: var(--amber);
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  /* Encima de todo lo demás del overlay: el rótulo del sitio o un aviso no se cuelan sobre el mapa. */
+  z-index: 10;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: rgba(14, 15, 22, 0.6);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms ease;
+}
+
+#map.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.map__frame {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgba(232, 227, 218, 0.16);
+  background: rgba(14, 15, 22, 0.96);
+}
+
+.map__head,
+.map__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 10px 14px;
+}
+
+.map__head p,
+.map__foot p {
+  margin: 0;
+}
+
+.map__title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.map__where {
+  font-size: 14px;
+}
+
+.map__keys {
+  font-family: var(--ui-mono);
+  font-size: 11px;
+  color: rgba(232, 227, 218, 0.55);
+}
+
+.map__controls {
+  display: flex;
+  gap: 6px;
+}
+
+.map__controls button {
+  min-width: 36px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 2px solid rgba(232, 227, 218, 0.16);
+  background: var(--night);
+  color: var(--white);
+  font: 700 12px var(--ui-mono);
+  cursor: pointer;
+}
+
+.map__controls button:hover,
+.map__controls button:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+.map__stage {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  border-top: 2px solid rgba(232, 227, 218, 0.08);
+  border-bottom: 2px solid rgba(232, 227, 218, 0.08);
+}
+
+.map__stage:active {
+  cursor: grabbing;
+}
+
+.map__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.map__layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.map__area,
+.map__poi,
+.map__you,
+.map__tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* Nombres de calle: discretos, por debajo de los iconos. */
+.map__area {
+  font: 700 10px var(--ui-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(232, 227, 218, 0.72);
+  text-shadow: 0 1px 0 var(--ink), 0 0 3px var(--ink);
+}
+
+.map__poi {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  background: var(--poi);
+  color: var(--ink);
+  font: 700 11px/1 var(--ui-mono);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.map__poi:hover,
+.map__poi:focus-visible {
+  outline: 2px solid var(--white);
+  outline-offset: 1px;
+}
+
+/* Tú: lo primero que se ve. Punto blanco con aro ámbar que late, flecha hacia donde miras y rótulo. */
+.map__you {
+  z-index: 2;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.map__you-dot {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border: 4px solid var(--amber);
+  background: var(--white);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.map__you-dot::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border: 2px solid var(--amber);
+  animation: map-pulse 1.4s ease-out infinite;
+}
+
+.map__you-arrow {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(var(--facing)) translateY(-15px);
+}
+
+.map__you-arrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 9px solid var(--amber);
+}
+
+.map__you.is-inside .map__you-arrow {
+  display: none;
+}
+
+.map__you-label {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  background: var(--amber);
+  color: var(--ink);
+  font: 700 10px var(--ui-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@keyframes map-pulse {
+  from {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+.map__tip {
+  z-index: 3;
+  display: grid;
+  gap: 2px;
+  max-width: 240px;
+  padding: 6px 10px 7px;
+  border: 2px solid rgba(232, 227, 218, 0.2);
+  background: rgba(14, 15, 22, 0.96);
+  pointer-events: none;
+}
+
+/* display: grid pisa al atributo hidden: sin esto, la placa vacía se queda en una esquina. */
+.map__tip[hidden],
+.map__area[hidden] {
+  display: none;
+}
+
+.map__tip strong {
+  font-size: 13px;
+}
+
+.map__tip span {
+  font: 11px var(--ui-mono);
+  color: rgba(232, 227, 218, 0.7);
+}
+
+@media (max-width: 520px), (max-height: 480px) {
+  #map-button {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  #map {
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+  }
+
+  .map__keys {
+    display: none;
+  }
+
+  .map__controls button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .map__poi {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map__you-dot::after {
+    animation: none;
+  }
+}

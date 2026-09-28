@@ -3,6 +3,8 @@ import type { Agent } from '../systems/Crowd';
 import { Character, activityAt } from '../entities/Character';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import type { NpcDef } from '../types/game';
+import type { Weather } from '../systems/Weather';
+import { dressedLook, umbrellaFor } from './WeatherLooks';
 
 /** Margen en px alrededor de la cámara dentro del cual la gente ya tiene sprite. */
 const MARGIN = 96;
@@ -23,10 +25,16 @@ export class CrowdView {
   private readonly crowd: { readonly agents: readonly Agent[] };
   private readonly sprites = new Map<number, Character>();
   private readonly pool: Character[] = [];
+  /** El tiempo que hace: la ropa de quien aparece y, fuera, quién abre el paraguas. */
+  private readonly weather: () => Weather;
+  /** En la calle: con lluvia, paraguas. Dentro de un local, nadie lo lleva abierto. */
+  private readonly outdoor: boolean;
 
-  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }) {
+  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean) {
     this.scene = scene;
     this.crowd = crowd;
+    this.weather = weather;
+    this.outdoor = outdoor;
     this.sync(0);
   }
 
@@ -43,6 +51,7 @@ export class CrowdView {
 
   sync(time: number): void {
     const here = new Set<number>();
+    const w = this.weather();
     const view = this.scene.cameras.main.worldView;
     for (const a of this.crowd.agents) {
       const px = a.x * 16 + 8;
@@ -52,8 +61,8 @@ export class CrowdView {
       let sprite = this.sprites.get(a.id);
       if (!sprite) {
         sprite = this.pool.pop();
-        if (sprite) sprite.reuse(defOf(a), a.id);
-        else sprite = new Character(this.scene, defOf(a), a.id);
+        if (sprite) sprite.reuse(defOf(a, w), a.id);
+        else sprite = new Character(this.scene, defOf(a, w), a.id);
         this.sprites.set(a.id, sprite);
       }
       // Sólo quien ha llegado a su sitio hace algo; entrando o saliendo, camina.
@@ -61,6 +70,8 @@ export class CrowdView {
       // Esperando (un semáforo, una pausa): el móvil, casi siempre; quien corre, sigue trotando en el sitio.
       const waiting = !a.moving && a.state === 'WAIT';
       const activity = settled ? activityAt(a.point, a.state, a.id) : a.gait === 'jog' ? 'run' : waiting ? activityAt(undefined, 'WAIT', a.id) : 'idle';
+      // El paraguas se abre al empezar a llover y se cierra al parar; la capucha no lleva paraguas.
+      sprite.umbrella = this.outdoor && !a.staffRole ? umbrellaFor(a.id, w, sprite.def.id.endsWith('~hood')) : null;
       sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity }, time);
     }
     for (const [id, sprite] of this.sprites) {
@@ -72,10 +83,13 @@ export class CrowdView {
   }
 }
 
-/** Personal con nombre: su personaje; personal anónimo: su uniforme; clientes: una cara de la lista. */
-function defOf(a: Agent): NpcDef {
+/**
+ * Personal con nombre: su personaje; personal anónimo: su uniforme; clientes y
+ * gente de la calle: una cara de la lista, vestida para el tiempo que hace.
+ */
+function defOf(a: Agent, w: Weather): NpcDef {
   if (a.npc) return getNpc(a.npc);
   const uniform = a.uniform ? UNIFORM_LOOKS.find((l) => l.id === a.uniform) : undefined;
-  const look = uniform ?? PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
+  const look = uniform ?? dressedLook(PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length], a.id, w);
   return { ...look, name: a.label, lines: [a.line] };
 }

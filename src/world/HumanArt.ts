@@ -35,6 +35,9 @@ export interface HumanColors {
   /** Bolso en bandolera y gorra: variedad para los anónimos. */
   bag?: string;
   cap?: string;
+  /** Con frío: bufanda al cuello. Con lluvia sin paraguas: la capucha puesta. */
+  scarf?: string;
+  hood?: string;
 }
 
 /** Tinta en ese sitio, si se ve. */
@@ -86,7 +89,7 @@ export function colorsOf(look: NpcLook): HumanColors {
     skin: look.skin ?? SKINS[h % SKINS.length],
     trousers: look.trousers ?? TROUSERS[(h >>> 4) % TROUSERS.length],
     shoes: SHOES[(h >>> 8) % SHOES.length],
-    hairStyle: look.longHair ? 'long' : STYLES[(h >>> 12) % STYLES.length],
+    hairStyle: look.hairStyle ?? (look.longHair ? 'long' : STYLES[(h >>> 12) % STYLES.length]),
   };
 }
 
@@ -165,6 +168,25 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, shade(c.skin, -0.14), 7, 7 + b, 2, 1); // boca, apenas
   }
   hairFront(ctx, back, b, c);
+  if (c.hood) {
+    // Capucha: la tela cubre la coronilla y los lados; de frente queda el hueco de la cara.
+    const lit = shade(c.hood, 0.1);
+    px(ctx, c.hood, 4, b, 8, 3);
+    px(ctx, lit, 5, b, 3, 1);
+    px(ctx, c.hood, 3, 2 + b, 1, 7);
+    px(ctx, shade(c.hood, -0.12), 12, 2 + b, 1, 7);
+    if (back) px(ctx, c.hood, 4, 3 + b, 8, 6);
+    else {
+      px(ctx, c.hood, 4, 3 + b, 1, 5);
+      px(ctx, c.hood, 11, 3 + b, 1, 5);
+    }
+  }
+  if (c.scarf) {
+    // Bufanda: dos vueltas al cuello, con una punta que cuelga por delante.
+    px(ctx, c.scarf, 5, 9 + b, 6, 2);
+    px(ctx, shade(c.scarf, 0.12), 5, 9 + b, 3, 1);
+    if (!back) px(ctx, shade(c.scarf, -0.1), 9, 11 + b, 1, 3);
+  }
   if (c.earrings && !back) {
     px(ctx, c.earrings, 4, 7 + b, 1, 1);
     px(ctx, c.earrings, 11, 7 + b, 1, 1);
@@ -304,7 +326,17 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, shade(c.cap, 0.12), 6, b, 2, 1);
     px(ctx, shade(c.cap, -0.2), 11, 2 + b, 3, 1); // visera hacia delante
   }
-  if (c.earrings) px(ctx, c.earrings, 7, 7 + b, 1, 1);
+  if (c.hood) {
+    px(ctx, c.hood, 5, b, 7, 3);
+    px(ctx, shade(c.hood, 0.1), 6, b, 3, 1);
+    px(ctx, c.hood, 4, 2 + b, 4, 7);
+    px(ctx, shade(c.hood, -0.12), 11, 2 + b, 1, 3);
+  }
+  if (c.scarf) {
+    px(ctx, c.scarf, 6, 9 + b, 5, 2);
+    px(ctx, shade(c.scarf, 0.12), 6, 9 + b, 2, 1);
+  }
+  if (c.earrings && !c.hood) px(ctx, c.earrings, 7, 7 + b, 1, 1);
   if (c.bag) {
     // Correa cruzando el pecho y el bolso a la espalda, a la altura de la cadera.
     px(ctx, shade(c.bag, -0.2), 8, 10 + b, 1, 5);

@@ -2,7 +2,7 @@
 // Importar LocationSystem ya valida cada localización; aquí se comprueba además
 // que todo lo que importa se alcanza a pie y que el grafo de peatones conecta.
 import assert from 'node:assert/strict';
-import { allLocations, isWalkable } from '../src/systems/LocationSystem.ts';
+import { allLocations, isWalkable, ROADWAY } from '../src/systems/LocationSystem.ts';
 import { findPoint, pointsOfKind, route, worldRoute } from '../src/systems/Navigation.ts';
 import { isOpen, placeInfo, placeOfPoint, placesOfType } from '../src/systems/Places.ts';
 import type { LocationDef, TilePoint } from '../src/types/game.ts';
@@ -132,4 +132,24 @@ for (const [who, steps] of Object.entries(ROUTINES)) {
 }
 if (lateness.length > 0) console.log(`\nhorarios más cortos que el paseo:\n${lateness.join('\n')}`);
 assert.ok(placeInfo('cafe')?.npcDestinations.includes('CAFE_TERRACE_01'), 'la terraza es del café');
-console.log('\nOK: todo alcanzable, grafo conectado, lugares resueltos, rutinas posibles.');
+// El grafo de peatones no pisa calzada salvo en un paso de peatones: quien lo sigue (vecinos, personajes,
+// gente de la calle) no camina por el asfalto ni por el carril bici.
+for (const loc of allLocations()) {
+  const pts = loc.points ?? {};
+  for (const [a, b] of loc.links ?? []) {
+    const pa = pts[a];
+    const pb = pts[b];
+    const steps = Math.max(1, Math.ceil(Math.hypot(pb.tx - pa.tx, pb.ty - pa.ty) * 4));
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.floor(pa.tx + 0.5 + ((pb.tx - pa.tx) * i) / steps);
+      const y = Math.floor(pa.ty + 0.5 + ((pb.ty - pa.ty) * i) / steps);
+      const ch = loc.ground[y][x];
+      assert.ok(!ROADWAY.has(ch) || ch === 'z', `[${loc.id}] el tramo ${a}–${b} va por la calzada en ${x},${y} («${ch}»)`);
+    }
+  }
+  for (const [id, p] of Object.entries(pts)) {
+    if (p.kind !== 'path') assert.ok(!ROADWAY.has(loc.ground[p.ty][p.tx]), `[${loc.id}] ${id} (${p.kind}) está en la calzada`);
+  }
+}
+
+console.log('\nOK: todo alcanzable, grafo conectado y por la acera, lugares resueltos, rutinas posibles.');
