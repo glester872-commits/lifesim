@@ -1,6 +1,8 @@
 import type Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
+import { getVehicle } from '../data/vehicles';
+import { drawVehicle } from './VehicleArt';
 
 /**
  * Terreno y props del barrio y de los interiores nuevos. Mismo idioma que
@@ -48,6 +50,189 @@ function drawSpeaker(ctx: Ctx): void {
     px(ctx, PALETTE.metal, 8 - r, y - r, r * 2, r * 2);
     px(ctx, PALETTE.ink, 7, y - 1, 2, 2);
   }
+}
+
+/**
+ * Sillón de barbero visto por detrás (quien se sienta mira al espejo): respaldo
+ * de cuero con reposacabezas, reposabrazos cromados, columna hidráulica y el
+ * plato redondo del suelo. Quien lo ocupa se pinta delante y tapa el centro.
+ */
+function drawBarberChair(ctx: Ctx): void {
+  const leather = '#6e2f2c';
+  const chrome = shade(PALETTE.metal, 0.35);
+  px(ctx, 'rgba(0,0,0,0.3)', 2, 29, 13, 3);
+  // Plato y columna.
+  px(ctx, PALETTE.outline, 2, 28, 12, 3);
+  px(ctx, chrome, 3, 28, 10, 2);
+  px(ctx, shade(chrome, 0.2), 4, 28, 5, 1);
+  px(ctx, PALETTE.outline, 6, 21, 4, 7);
+  px(ctx, chrome, 7, 21, 2, 7);
+  // Asiento y reposabrazos.
+  px(ctx, PALETTE.outline, 1, 17, 14, 5);
+  px(ctx, shade(leather, -0.15), 2, 18, 12, 3);
+  px(ctx, chrome, 1, 16, 2, 2);
+  px(ctx, chrome, 13, 16, 2, 2);
+  // Respaldo y reposacabezas.
+  px(ctx, PALETTE.outline, 3, 5, 10, 13);
+  px(ctx, leather, 4, 6, 8, 11);
+  px(ctx, shade(leather, 0.15), 4, 6, 8, 1);
+  for (const y of [9, 12, 15]) px(ctx, shade(leather, -0.2), 5, y, 6, 1);
+  px(ctx, PALETTE.outline, 5, 1, 6, 4);
+  px(ctx, leather, 6, 2, 4, 2);
+  px(ctx, shade(leather, 0.15), 6, 2, 4, 1);
+}
+
+// ------------------------------------------------ Calle del Carmen
+
+/**
+ * Camilla de tatuaje vista desde los pies: respaldo reclinado de skai negro,
+ * reposabrazos a un lado para apoyar el antebrazo y la base de pistón. Quien
+ * se tatúa se sienta encima.
+ */
+function drawTattooChair(ctx: Ctx): void {
+  const vinyl = '#26242c';
+  const chrome = shade(PALETTE.metal, 0.3);
+  px(ctx, 'rgba(0,0,0,0.3)', 1, 29, 14, 3);
+  px(ctx, PALETTE.outline, 5, 22, 6, 8);
+  px(ctx, chrome, 6, 22, 4, 7);
+  px(ctx, PALETTE.outline, 1, 14, 14, 9);
+  px(ctx, vinyl, 2, 15, 12, 7);
+  px(ctx, shade(vinyl, 0.12), 2, 15, 12, 1);
+  px(ctx, PALETTE.outline, 3, 2, 10, 13);
+  px(ctx, vinyl, 4, 3, 8, 11);
+  px(ctx, shade(vinyl, 0.14), 4, 3, 8, 1);
+  for (const y of [6, 9, 12]) px(ctx, shade(vinyl, -0.1), 5, y, 6, 1);
+  // Reposabrazos acolchado para el antebrazo.
+  px(ctx, PALETTE.outline, 12, 11, 4, 4);
+  px(ctx, vinyl, 13, 12, 3, 2);
+  px(ctx, chrome, 13, 15, 1, 5);
+}
+
+/** Carrito del tatuador: bandejas de acero, la máquina, tintas de colores y un flexo encendido. */
+function drawTattooCart(ctx: Ctx): void {
+  const steel = shade(PALETTE.metal, 0.2);
+  px(ctx, 'rgba(0,0,0,0.3)', 2, 29, 12, 3);
+  px(ctx, PALETTE.outline, 3, 14, 10, 15);
+  px(ctx, steel, 4, 15, 8, 13);
+  for (const y of [19, 24]) px(ctx, shade(steel, -0.2), 4, y, 8, 1);
+  // Tintas en fila y la máquina encima.
+  [PALETTE.ink, '#b8423a', '#2f4a8c', '#c8d84a', PALETTE.amber].forEach((c, i) => px(ctx, c, 4 + i * 2 - (i > 3 ? 1 : 0), 16, 1, 2));
+  px(ctx, PALETTE.ink, 7, 21, 4, 2);
+  px(ctx, steel, 10, 22, 2, 1);
+  // Flexo.
+  px(ctx, PALETTE.ink, 11, 4, 1, 11);
+  px(ctx, PALETTE.ink, 7, 3, 5, 1);
+  px(ctx, PALETTE.outline, 5, 3, 4, 3);
+  px(ctx, PALETTE.white, 6, 5, 2, 1);
+  glow(ctx, 7, 7, 5, 0.18, PALETTE.white);
+  // Ruedas.
+  px(ctx, PALETTE.ink, 3, 28, 2, 2);
+  px(ctx, PALETTE.ink, 11, 28, 2, 2);
+}
+
+/** Pared de flash: láminas de diseños tradicionales clavadas en fila (golondrina, rosa, corazón, ancla). */
+function drawFlashWall(ctx: Ctx): void {
+  const sheets = ['#e6dcc0', PALETTE.white, '#e6dcc0', PALETTE.white];
+  sheets.forEach((c, i) => {
+    const x = 1 + i * 8;
+    const y = 2 + (i % 2);
+    px(ctx, 'rgba(0,0,0,0.3)', x + 1, y + 1, 6, 10);
+    px(ctx, c, x, y, 6, 10);
+    px(ctx, PALETTE.ink, x + 2, y, 2, 1); // la chincheta
+    const ink = [['#2f4a8c', PALETTE.ink], ['#b8423a', '#4f7d3a'], ['#b8423a', PALETTE.amber], [PALETTE.ink, '#2f4a8c']][i];
+    px(ctx, ink[0], x + 1, y + 3, 4, 3);
+    px(ctx, ink[1], x + 2, y + 6, 2, 2);
+    px(ctx, PALETTE.ink, x + 1, y + 8, 4, 1);
+  });
+}
+
+/** Pared de zapatillas: baldas con pares de colores a contraluz, las de colección arriba. */
+function drawSneakerWall(ctx: Ctx): void {
+  const colors = [PALETTE.white, NEON_CYAN, '#c8d84a', '#b8423a', PALETTE.ink, '#e6dcc0'];
+  for (const [row, y] of [[0, 4], [1, 11]] as const) {
+    px(ctx, PALETTE.metalLit, 1, y + 3, 30, 1);
+    for (let i = 0; i < 5; i++) {
+      const c = colors[(i * 5 + row * 3) % colors.length];
+      const x = 2 + i * 6;
+      px(ctx, c, x, y, 4, 3);
+      px(ctx, shade(c, -0.25), x, y + 2, 4, 1);
+      px(ctx, PALETTE.white, x, y + 2, 4, 1);
+    }
+  }
+  glow(ctx, 16, 8, 12, 0.08, NEON_CYAN);
+}
+
+/** Cajón del ropero al peso: un montón de ropa revuelta en un cajón de madera, con su cartel. */
+function drawBargainBin(ctx: Ctx): void {
+  const w = TILE * 2;
+  px(ctx, 'rgba(0,0,0,0.3)', 1, 13, w - 2, 3);
+  px(ctx, PALETTE.outline, 0, 5, w, 10);
+  px(ctx, PALETTE.woodDark, 1, 8, w - 2, 6);
+  px(ctx, PALETTE.wood, 1, 8, w - 2, 1);
+  const cloth = ['#8c3f3f', '#5c6fa8', '#8aa05a', '#e6e0d4', '#b8923f', '#4f6a8c', '#7b5a3d'];
+  for (let i = 0; i < 12; i++) px(ctx, cloth[(i * 5) % cloth.length], 1 + ((i * 7) % 27), 3 + (i % 3), 4, 4);
+  // Cartel de precio clavado en el borde.
+  px(ctx, PALETTE.white, 24, 9, 6, 4);
+  px(ctx, '#b8423a', 25, 10, 4, 1);
+  px(ctx, PALETTE.ink, 25, 12, 3, 1);
+}
+
+/**
+ * Columna de carteles: cilindro de hierro verde con capas de carteles pegados
+ * unos encima de otros y pegatinas abajo, donde llega la mano. Sombra hacia el
+ * sureste, como todo lo alto de la calle.
+ */
+function drawPosterColumn(ctx: Ctx): void {
+  const iron = '#2f4a3a';
+  px(ctx, PALETTE.outline, 2, 2, 12, 45);
+  px(ctx, iron, 3, 3, 10, 43);
+  // Remate y base.
+  px(ctx, shade(iron, 0.1), 2, 1, 12, 3);
+  px(ctx, shade(iron, 0.2), 4, 0, 8, 2);
+  px(ctx, shade(iron, -0.1), 2, 42, 12, 5);
+  // Carteles: papel de colores, luz a la izquierda, curvatura a la derecha.
+  const papers = [PALETTE.white, NEON_PINK, '#e6dcc0', PALETTE.amber, '#c8d84a', NEON_CYAN, '#b8423a'];
+  let y = 6;
+  for (let i = 0; y < 36; i++) {
+    const h = 5 + ((i * 3) % 4);
+    const c = papers[(i * 3) % papers.length];
+    px(ctx, c, 3, y, 10, h - 1);
+    px(ctx, shade(c, -0.18), 11, y, 2, h - 1);
+    px(ctx, PALETTE.ink, 4, y + 1, 4 + (i % 3), 1);
+    if (h > 5) px(ctx, shade(c, -0.35), 4, y + 3, 5, 1);
+    y += h;
+  }
+  // Pegatinas a la altura de la mano.
+  [[4, 37, NEON_PINK], [8, 38, PALETTE.white], [6, 40, '#c8d84a'], [10, 39, NEON_CYAN]].forEach(([x, yy, c]) => px(ctx, c as string, x as number, yy as number, 2, 2));
+}
+
+/** Botellero de vinoteca: celosía de madera en rombos con botellas acostadas, verdes y granates. */
+function drawWineRack(ctx: Ctx): void {
+  const wood = shade(PALETTE.wood, -0.1);
+  px(ctx, PALETTE.outline, 0, 0, 16, 32);
+  px(ctx, shade(wood, -0.35), 1, 1, 14, 30);
+  const bottles = ['#2f4a2e', '#5a1f2a', '#3a5a3a', '#6e2433', '#24361f'];
+  for (let y = 0; y < 7; y++) {
+    for (let x = 0; x < 3; x++) {
+      const cx = 2 + x * 5 + (y % 2 ? 2 : 0);
+      const cy = 2 + y * 4;
+      if (cx > 12) continue;
+      // El culo de la botella asomando, con un brillo arriba a la izquierda.
+      const c = bottles[(x * 3 + y * 7) % bottles.length];
+      px(ctx, c, cx, cy + 1, 3, 2);
+      px(ctx, shade(c, 0.35), cx, cy + 1, 1, 1);
+    }
+  }
+  // La celosía por encima: diagonales de madera.
+  for (let i = -16; i < 32; i += 5) {
+    for (let t = 0; t < 32; t++) {
+      const a = i + t;
+      const b = i + 16 - t;
+      if (a >= 1 && a < 15 && t >= 1 && t < 31) px(ctx, wood, a, t);
+      if (b >= 1 && b < 15 && t >= 1 && t < 31) px(ctx, shade(wood, 0.12), b, t);
+    }
+  }
+  px(ctx, PALETTE.woodLit, 1, 1, 14, 1);
 }
 
 /** Botellero de pared: dos baldas con botellas de colores a contraluz. */
@@ -132,26 +317,16 @@ function drawBusStop(ctx: Ctx): void {
   px(ctx, PALETTE.woodLit, 5, 24, 20, 1);
 }
 
-/** Taxi: el blanco de siempre con la franja roja y la luz verde de libre en el techo. */
-function drawTaxi(ctx: Ctx): void {
-  drawCar(ctx, PALETTE.white);
-  px(ctx, '#c0493f', 1, 9, TILE * 2 - 2, 1);
-  px(ctx, PALETTE.leafLit, 15, 2, 2, 1);
-}
-
-function drawCar(ctx: Ctx, body: string): void {
-  const w = TILE * 2;
-  px(ctx, 'rgba(0,0,0,0.35)', 2, 13, w - 3, 3);
-  px(ctx, shade(body, -0.12), 1, 4, w - 2, 10);
-  px(ctx, body, 1, 3, w - 2, 9);
-  px(ctx, shade(body, 0.1), 2, 3, w - 4, 1);
-  px(ctx, PALETTE.glass, 9, 4, 12, 6);
-  px(ctx, PALETTE.glassLit, 9, 4, 12, 1);
-  px(ctx, shade(body, -0.05), 14, 4, 1, 6);
-  px(ctx, PALETTE.ink, 4, 12, 4, 3);
-  px(ctx, PALETTE.ink, w - 8, 12, 4, 3);
-  px(ctx, PALETTE.amber, w - 2, 5, 1, 2);
-  px(ctx, '#c0493f', 1, 5, 1, 2);
+/**
+ * Coche aparcado: el mismo dibujo que los que circulan (world/VehicleArt.ts),
+ * centrado en sus 2 tiles y con las ruedas en el borde de abajo.
+ */
+function drawParked(ctx: Ctx, id: string, color: number): void {
+  const t = getVehicle(id);
+  ctx.save();
+  ctx.translate(Math.round((TILE * 2 - t.length) / 2), TILE - t.height);
+  drawVehicle(ctx, t, t.colors[color]);
+  ctx.restore();
 }
 
 function drawVan(ctx: Ctx): void {
@@ -566,15 +741,23 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-dj-booth', TILE * 3, TILE, drawDjBooth);
   make(scene, 'prop-speaker', TILE, TILE * 2, drawSpeaker);
   make(scene, 'prop-bottles', TILE * 2, TILE, drawBottles);
-  make(scene, 'prop-car-taxi', TILE * 2, TILE, drawTaxi);
+  make(scene, 'prop-wine-rack', TILE, TILE * 2, drawWineRack);
+  make(scene, 'prop-barber-chair', TILE, TILE * 2, drawBarberChair);
+  make(scene, 'prop-tattoo-chair', TILE, TILE * 2, drawTattooChair);
+  make(scene, 'prop-tattoo-cart', TILE, TILE * 2, drawTattooCart);
+  make(scene, 'prop-flash-wall', TILE * 2, TILE, drawFlashWall);
+  make(scene, 'prop-sneaker-wall', TILE * 2, TILE, drawSneakerWall);
+  make(scene, 'prop-bargain-bin', TILE * 2, TILE, drawBargainBin);
+  make(scene, 'prop-poster-column', TILE, TILE * 3, drawPosterColumn);
+  make(scene, 'prop-car-taxi', TILE * 2, TILE, (ctx) => drawParked(ctx, 'taxi', 0));
   make(scene, 'prop-ticket-machine', TILE, TILE * 2, drawTicketMachine);
 
   make(scene, 'prop-fountain', TILE * 3, TILE * 2, drawFountain);
   make(scene, 'prop-kiosk', TILE * 2, TILE * 2, drawKiosk);
   make(scene, 'prop-bus-stop', TILE * 3, TILE * 2, drawBusStop);
-  make(scene, 'prop-car', TILE * 2, TILE, (ctx) => drawCar(ctx, '#7a4a52'));
-  make(scene, 'prop-car-b', TILE * 2, TILE, (ctx) => drawCar(ctx, PALETTE.stoneLit));
-  make(scene, 'prop-car-c', TILE * 2, TILE, (ctx) => drawCar(ctx, '#3f6f78'));
+  make(scene, 'prop-car', TILE * 2, TILE, (ctx) => drawParked(ctx, 'sedan', 0));
+  make(scene, 'prop-car-b', TILE * 2, TILE, (ctx) => drawParked(ctx, 'sedan', 1));
+  make(scene, 'prop-car-c', TILE * 2, TILE, (ctx) => drawParked(ctx, 'compact', 1));
   make(scene, 'prop-van', TILE * 3, TILE * 2, drawVan);
   make(scene, 'prop-bike', TILE, TILE, drawBike);
   make(scene, 'prop-bin', TILE, TILE, drawBin);

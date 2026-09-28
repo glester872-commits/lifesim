@@ -264,6 +264,27 @@ export function whereabouts(def: CharacterDef, absMinute: number): Whereabouts {
   return locate(tripsOf(routine), def.speed, absMinute, routine.id);
 }
 
+/** Minutos de retraso que recupera por minuto de juego mientras está parado. */
+const CATCH_UP = 3;
+
+/**
+ * Tras pararse a hablar, un personaje va `lag` minutos por detrás de su
+ * horario. Lo recupera acortando la parada en la que está, nunca andando más
+ * deprisa ni apareciendo en otro sitio: si al recortar ya tendría que estar en
+ * otra parte, sale tarde y lo intenta en la siguiente. Donde no se le ve (fuera
+ * de `here` o dentro de casa), se pone al día de golpe. Devuelve el retraso que
+ * le queda tras `minutes` de juego.
+ */
+export function catchUp(def: CharacterDef, now: number, lag: number, minutes: number, here: string): number {
+  const seen = (w: Whereabouts): boolean => w.location === here && !w.inside;
+  const was = whereabouts(def, now - lag);
+  if (seen(was) && was.moving) return lag;
+  const still = (w: Whereabouts): boolean => (seen(w) ? !w.moving && seen(was) && w.stop.point === was.stop.point : !seen(was));
+  if (still(whereabouts(def, now))) return 0;
+  const next = Math.max(0, lag - CATCH_UP * minutes);
+  return still(whereabouts(def, now - next)) ? next : lag;
+}
+
 /** Lo mismo, con la rutina fijada: para probar cada rutina aunque su día no salga. */
 export function whereaboutsIn(def: CharacterDef, routine: Routine, minuteOfDay: number): Whereabouts {
   return locate(tripsOf(routine), def.speed, minuteOfDay, routine.id);

@@ -102,6 +102,9 @@ const HOMES_OR_CITY: Ends = { types: ['residence'], edge: true };
 const TRANSIT: Ends = { types: ['transit'] };
 const ANYWHERE_HOME: Ends = { types: ['residence', 'transit'], edge: true };
 const NIGHT_OUT: Ends = { tags: ['nightlife'] };
+/** Lo que se mira en la Calle del Carmen: tiendas, estudio y discos. */
+const CARMEN_WINDOWS: Ends = { points: ['TINTA_WINDOW', 'RETALES_WINDOW', 'RECORDS_WINDOW', 'ARCHIVO_WINDOW', 'VUELTA_WINDOW'] };
+const CARMEN: Ends = { tags: ['carmen'] };
 const WINDOWS: Ends = { points: ['FASHION_WINDOW_', 'HAIR_WINDOW', 'PHARMACY_WINDOW', 'BANK_WINDOW', 'SUPER_WINDOW', 'FRUIT_WINDOW', 'LAUNDRY_WINDOW'] };
 
 export const STREET_PROFILES: readonly StreetProfile[] = [
@@ -115,12 +118,14 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     // El domingo, más tranquilo.
     weekday: [0, 0, 0, 0, 0, 0, -1],
     scale: 1.4,
-    maxWalkers: 36,
+    // El barrio creció hacia el este (Calle del Carmen): más calle, algo más de gente.
+    maxWalkers: 46,
     // El metro: en hora punta un tren cada pocos minutos de juego, y de cada uno salen unos cuantos.
     bursts: [{ point: 'METRO_ENTRANCE', every: [[6.5, 7, 16], [7, 10, 6], [10, 17, 14], [17, 20.5, 6], [20.5, 24, 16], [0, 1.5, 24]], size: [1, 3] }],
     draws: [{ place: 'nightclub', perLevel: 2 }],
     staff: [
       { service: 'waiter', place: 'cafe', base: 'CAFE_TERRACE_WAITER', serves: ['CAFE_TERRACE_'], label: 'Camarero de la terraza' },
+      { service: 'waiter', place: 'coffee-molinillo', base: 'MOLINILLO_TERRACE_WAITER', serves: ['MOLINILLO_TERRACE_'], label: 'Camarera del Molinillo', line: 'Fuera sólo café y bollos, ¿eh?' },
       { service: 'waiter', place: 'restaurant', base: 'RESTAURANT_TERRACE_WAITER', serves: ['RESTAURANT_TERRACE_'], minLevel: 'MEDIUM', line: '¿Os pongo algo más fuera?' },
     ],
     trips: [
@@ -157,6 +162,15 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       // Escaparates: se para a mirar; a veces entra después.
       { role: 'window-shopper', label: 'Alguien mirando escaparates', line: 'Sólo miro. De verdad.', weight: 3, hours: [10, 21], days: 'weekday', from: HOMES_OR_CITY, to: WINDOWS, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['shop'], types: ['residence'], edge: true }, group: [1, 2], max: 5 },
       { role: 'window-shopper', label: 'Alguien mirando escaparates', line: 'Este me lo pruebo. O no.', weight: 5, hours: [10, 21], days: 'weekend', from: HOMES_OR_CITY, to: WINDOWS, stay: [1, 5], stayState: 'BROWSE', then: { tags: ['shop'], types: ['residence'], edge: true }, group: [1, 3], max: 7 },
+      // Calle del Carmen: escaparates, cola en la puerta de Archivo, parejas y pandillas de paseo, la terraza y el banco.
+      { role: 'carmen-browse', label: 'Alguien mirando escaparates', line: 'Aquí siempre encuentro algo que no buscaba.', weight: 3, hours: [11, 21], from: HOMES_OR_CITY, to: CARMEN_WINDOWS, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['carmen', 'shop'], types: ['residence'], edge: true }, group: [1, 3], max: 5 },
+      { role: 'carmen-browse', label: 'Gente de tiendas', line: 'Una vuelta por el Carmen y a casa. Eso decimos siempre.', weight: 4, hours: [11, 21], days: 'weekend', from: HOMES_OR_CITY, to: CARMEN_WINDOWS, stay: [2, 5], stayState: 'BROWSE', then: CARMEN, group: [2, 3], max: 6 },
+      { role: 'carmen-wait', label: 'Alguien esperando en la puerta', line: 'Abren a las doce. Llevo aquí desde las once y media.', weight: 2, hours: [11, 20], from: HOMES_OR_CITY, to: { points: ['CARMEN_WAIT_'] }, stay: [5, 15], stayState: 'PHONE', then: CARMEN, group: [1, 2], max: 4 },
+      { role: 'carmen-couple', label: 'Una pareja paseando', line: 'Íbamos a mirar sólo una tienda.', weight: 2, hours: [11, 22], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['carmen-75', 'carmen-106'], pace: 'stroll', group: [2, 2] },
+      { role: 'carmen-friends', label: 'Gente charlando', line: '¿Has visto lo que ha sacado Archivo? Ni de broma lo pago.', weight: 2, hours: [16, 22.5], from: HOMES_OR_CITY, to: { points: ['CARMEN_TALK_'] }, stay: [8, 20], stayState: 'TALK', group: [2, 3], max: 3 },
+      { role: 'carmen-bench', label: 'Alguien sentado', line: 'Se está bien aquí. Pasa gente interesante.', weight: 1, hours: [10, 21], from: HOMES_OR_CITY, to: { points: ['CARMEN_BENCH_'] }, stay: [10, 30], stayState: 'READ' },
+      { role: 'terrace', label: 'Alguien en la terraza del Molinillo', line: 'El mejor café del barrio. No se lo digas a Nilo.', weight: 2, hours: [9, 19.5], from: HOMES_OR_CITY, to: { points: ['MOLINILLO_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2] },
+      { role: 'tattoo-client', label: 'Alguien con cita en el estudio', line: 'Tengo cita a y media. Estoy tranquilo. Muy tranquilo.', weight: 1, hours: [12, 20], days: 'weekday', from: HOMES_OR_CITY, to: { points: ['TINTA_ENTRANCE'] } },
       // El metro: quien sale de un tren y quien espera a alguien que llega en el siguiente.
       { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Qué agobio de vagón.', weight: 2, hours: [6.5, 1.5], from: TRANSIT, to: { types: ['residence'], tags: ['shop', 'work'], edge: true } },
       { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Me ha dicho que ya sale del metro.', weight: 2, hours: [8, 23], from: HOMES_OR_CITY, to: { points: ['METRO_MEET_'] }, stay: [4, 12], stayState: 'PHONE', then: TRANSIT, max: 2 },

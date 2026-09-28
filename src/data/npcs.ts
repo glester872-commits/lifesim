@@ -214,6 +214,64 @@ const DEFS: readonly NpcDef[] = [
     ],
   },
   {
+    // Barbería Nati: lleva el local desde hace veinte años y corta ella.
+    id: 'nati',
+    name: 'Nati',
+    cloth: '#2b2d33',
+    clothDark: '#1c1e24',
+    sleeves: '#e6e2d8',
+    hair: '#8a8078',
+    earrings: '#c8c0b0',
+    lines: [
+      'Veinte años cortando en esta calle. Conozco cada remolino del barrio.',
+      'Aquí no se pide cita: se espera, se charla y se sale guapo.',
+    ],
+  },
+  {
+    // Tinta Carmen: tatúa desde hace doce años; los dos brazos, a la vista.
+    id: 'lia',
+    name: 'Lía',
+    cloth: '#1c1a22',
+    clothDark: '#121016',
+    hair: '#b8423a',
+    skin: '#e3b692',
+    sleeves: '#e3b692',
+    trousers: '#232329',
+    earrings: '#c8c0b0',
+    ink: [{ spot: 'arm-r', color: '#2f4a8c' }, { spot: 'arm-l', color: '#121016' }, { spot: 'neck', color: '#b8423a' }],
+    lines: [
+      'Aquí se tatúa con cita o con paciencia. Hoy, con paciencia.',
+      'Lo que te hagas, que sea porque te lo quieres ver dentro de veinte años.',
+    ],
+  },
+  {
+    // Retales: vintage de una sola pieza, escogido prenda a prenda.
+    id: 'gus',
+    name: 'Gus',
+    cloth: '#9a6a3f',
+    clothDark: '#74502f',
+    hair: '#8a8078',
+    trousers: '#3f5a8c',
+    cap: '#3f6f5a',
+    lines: [
+      'Todo lo de aquí ha vivido antes. Por eso dura.',
+      'Los sábados vengo con lo del rastro. Llega pronto.',
+    ],
+  },
+  {
+    // La Cepa: la vinoteca que abrió donde estaba la obra.
+    id: 'bruno',
+    name: 'Bruno',
+    cloth: '#5a2a30',
+    clothDark: '#431f24',
+    hair: '#2b2622',
+    lines: [
+      'Tres años de obra para esto. Ha merecido la pena.',
+      'El tinto de la casa es de un pueblo de Toledo. Pregunta y te cuento.',
+      'Aquí se viene a hablar bajito. Para gritar, la Órbita.',
+    ],
+  },
+  {
     // Camina por el barrio según la hora: rutina y frases en data/characters.ts.
     id: 'sara',
     name: 'Sara',
@@ -251,6 +309,12 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'uniforme-super', cloth: '#4f7d3a', clothDark: '#3b5e2b', hair: '#241d16', trousers: '#33374a' },
   { id: 'uniforme-noche', cloth: '#1c1a22', clothDark: '#121016', hair: '#1a1614', trousers: '#1c1a22' },
   { id: 'dj', cloth: '#ff6ab8', clothDark: '#b84a86', hair: '#8ff0ff', trousers: '#1c1a22' },
+  { id: 'uniforme-barbero', cloth: '#2b2d33', clothDark: '#1c1e24', hair: '#241d16', trousers: '#3a3a44', sleeves: '#e6e2d8' },
+  // Estudio de tatuaje: negro, brazos al aire y tinta a la vista.
+  { id: 'uniforme-tatuaje', cloth: '#232329', clothDark: '#18181c', hair: '#1f1a15', skin: '#d3a17c', sleeves: '#d3a17c', trousers: '#2b2d33', ink: [{ spot: 'arm-r', color: '#121016' }, { spot: 'arm-l', color: '#2f4a8c' }] },
+  // Tiendas de la Calle del Carmen: cada una con su gente detrás de la caja.
+  { id: 'uniforme-archivo', cloth: '#e6e0d4', clothDark: '#c4bdb0', hair: '#1f1a15', trousers: '#2b2d33', cap: '#232329' },
+  { id: 'uniforme-vuelta', cloth: '#4f7d3a', clothDark: '#3b5e2b', hair: '#6b5a3f', trousers: '#4f6a8c' },
 ];
 
 /**

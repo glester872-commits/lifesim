@@ -19,6 +19,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   private path: Vec2[] = [];
   private speed = 0;
   private dir: Facing;
+  /** Hablando con el jugador: hacia dónde miraría si no. Su IA sigue mandando; se aplica al despedirse. */
+  private resumeDir: Facing | null = null;
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
     super(scene, 0, 0, PEOPLE, personFrame(look.id, facing));
@@ -97,7 +99,28 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir));
   }
 
+  /** Se para y mira a quien le habla, respirando. La ruta no se pierde: sigue al despedirse. */
+  talkTo(facing: Facing): void {
+    this.resumeDir ??= this.dir;
+    (this.body as Phaser.Physics.Arcade.Body).stop();
+    this.dir = facing;
+    this.anims.play(`npc-${this.currentLook.id}-idle-${facing}`, true);
+    this.sync();
+  }
+
+  endTalk(): void {
+    if (this.resumeDir === null) return;
+    const dir = this.resumeDir;
+    this.resumeDir = null;
+    this.anims.stop();
+    this.face(dir);
+  }
+
   face(facing: Facing): void {
+    if (this.resumeDir !== null) {
+      this.resumeDir = facing;
+      return;
+    }
     this.dir = facing;
     if (!this.moving) this.setTexture(PEOPLE, personFrame(this.currentLook.id, facing));
     this.sync();
@@ -114,7 +137,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   step(deltaMs: number): boolean {
     const body = this.body as Phaser.Physics.Arcade.Body;
     const target = this.path[0];
-    if (!target) return false;
+    if (!target || this.resumeDir !== null) return false;
 
     const dx = target.x - this.x;
     const dy = target.y - this.y;

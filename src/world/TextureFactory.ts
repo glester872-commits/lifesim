@@ -8,7 +8,10 @@ import { buildPropTextures } from './PropArt';
 import { buildUrbanTextures } from './UrbanArt';
 import { buildVegetationTextures } from './Vegetation';
 import { buildStreetTextures } from './StreetArt';
+import { buildVehicleTextures } from './VehicleArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
+import type { Appearance } from '../data/appearance';
+import { withAppearance } from '../systems/Appearance';
 
 export const PLAYER_W = 16;
 export const PLAYER_H = 24;
@@ -439,7 +442,8 @@ function drawPrompt(ctx: Ctx): void {
 
 // ----------------------------------------------------------------- registro
 
-const PLAYER_COLORS: HumanColors = {
+/** El jugador de fábrica; lo que cambie (el peinado) va encima, desde GameState.appearance. */
+export const PLAYER_COLORS: HumanColors = {
   cloth: '#c9743f',
   clothDark: '#9d5730',
   hair: PALETTE.hair,
@@ -451,6 +455,48 @@ const PLAYER_COLORS: HumanColors = {
 
 /** Clave de la textura de una pose del jugador. */
 export const humanKey = (prefix: string, facing: Facing, pose: Pose): string => `${prefix}-${facing}-${pose}`;
+
+/**
+ * Vuelve a pintar a alguien que persiste con su aspecto de hoy: el jugador
+ * ('player') en sus texturas, o un personaje con nombre en su fila del atlas de
+ * gente. Se pinta encima de lo que había, así que sus animaciones siguen
+ * valiendo. La gente anónima no persiste y no se repinta nunca.
+ */
+export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearance): void {
+  if (id === 'player') {
+    const colors = withAppearance(PLAYER_COLORS, changes);
+    for (const facing of FACINGS) {
+      for (const pose of POSES) {
+        const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;
+        const ctx = tex.getContext();
+        ctx.clearRect(0, 0, PLAYER_W, PLAYER_H);
+        drawHuman(ctx, facing, pose, colors);
+        tex.refresh();
+      }
+    }
+    return;
+  }
+  const look = NPC_DEFS.find((n) => n.id === id);
+  if (!look || !scene.textures.exists(PEOPLE)) return;
+  const atlas = scene.textures.get(PEOPLE) as Phaser.Textures.CanvasTexture;
+  const ctx = atlas.getContext();
+  const cell = document.createElement('canvas');
+  cell.width = PLAYER_W;
+  cell.height = PLAYER_H;
+  const c = cell.getContext('2d', { willReadFrequently: true });
+  if (!c) return;
+  const colors = withAppearance(colorsOf(look), changes);
+  for (const facing of FACINGS) {
+    for (const pose of POSES) {
+      const frame = atlas.get(personFrame(id, facing, pose));
+      c.clearRect(0, 0, PLAYER_W, PLAYER_H);
+      drawHuman(c, facing, pose, colors);
+      ctx.clearRect(frame.cutX, frame.cutY, PLAYER_W, PLAYER_H);
+      ctx.drawImage(cell, frame.cutX, frame.cutY);
+    }
+  }
+  atlas.refresh();
+}
 
 /**
  * Toda la gente que no es el jugador (personajes, uniformes, anónimos) vive en
@@ -638,6 +684,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   buildVegetationTextures(scene);
   buildStreetTextures(scene);
   buildBuildingTextures(scene);
+  buildVehicleTextures(scene);
 }
 
 /**

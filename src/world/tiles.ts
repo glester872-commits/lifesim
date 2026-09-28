@@ -34,6 +34,8 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   m: { key: 'tile-gym-floor', solid: false, variants: 2 },
   k: { key: 'tile-court', solid: false, variants: 2 },
   '=': { key: 'tile-asphalt-centre', solid: false, variants: 1 },
+  // Carril bici pintado en la calzada, junto al bordillo: lo pinta world/Surfaces con el asfalto.
+  b: { key: 'tile-asphalt', solid: false, variants: 2 },
   o: { key: 'tile-office-carpet', solid: false, variants: 2 },
   n: { key: 'tile-dance-floor', solid: false, variants: 3 },
   // Visual V2: adoquín de granito de plaza (con cenefa donde toca otro suelo) y franja podotáctil.
@@ -68,6 +70,8 @@ export interface PropDef {
   shadow?: readonly [number, number];
   /** Cuelga del techo: no pisa el suelo (ni colisiona ni hace sombra) y pasa por encima de la gente. */
   overhead?: true;
+  /** Asiento en el que alguien se sienta encima (sillón de barbero): no colisiona y se pinta detrás de quien lo ocupa. */
+  seat?: true;
   /** Plano en el suelo (alcantarilla, hojas): se hornea con él, no colisiona ni tapa a nadie. */
   flat?: true;
   /** Sombra proyectada hacia el sureste, en px de largo: lo alto (farolas, troncos). ART_BIBLE §5. */
@@ -150,6 +154,18 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   neon: { key: 'prop-neon', tilesHigh: 1, tilesWide: 2, light: { dy: 8, cool: true } },
   'wall-shelf': { key: 'prop-wall-shelf', tilesHigh: 1, tilesWide: 2 },
   bottles: { key: 'prop-bottles', tilesHigh: 1, tilesWide: 2 },
+  // Botellero de vinoteca: rombos de madera con botellas acostadas, del suelo al techo.
+  'wine-rack': { key: 'prop-wine-rack', tilesHigh: 2 },
+  // Sillón de barbero: alguien se sienta encima.
+  'barber-chair': { key: 'prop-barber-chair', tilesHigh: 2, seat: true },
+  // Estudio de tatuaje y tiendas de la Calle del Carmen.
+  'tattoo-chair': { key: 'prop-tattoo-chair', tilesHigh: 2, seat: true },
+  'tattoo-cart': { key: 'prop-tattoo-cart', tilesHigh: 2, light: { dy: 24 }, shadow: [10, 3] },
+  'flash-wall': { key: 'prop-flash-wall', tilesHigh: 1, tilesWide: 2 },
+  'sneaker-wall': { key: 'prop-sneaker-wall', tilesHigh: 1, tilesWide: 2, light: { dy: 8, cool: true } },
+  'bargain-bin': { key: 'prop-bargain-bin', tilesHigh: 1, tilesWide: 2 },
+  // Columna de carteles de la calle: alta y estrecha, con su sombra al sureste.
+  'poster-column': { key: 'prop-poster-column', tilesHigh: 3, shadow: [12, 4], cast: 16 },
   // Sobre un mostrador: comparten tile con él.
   espresso: { key: 'prop-espresso', tilesHigh: 1 },
   'pastry-case': { key: 'prop-pastry-case', tilesHigh: 1 },

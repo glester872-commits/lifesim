@@ -109,6 +109,39 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     effects: { energy: 36 },
     lines: ['Croquetas, pulpo y una tarta de queso que no sabías que necesitabas.'],
   },
+  // Barras de noche (data/services.ts, ofertas 'club-bar' y 'wine-bar'): se piden a quien atiende.
+  {
+    id: 'club-drink',
+    name: 'Una copa en la barra (15 min)',
+    minutes: 15,
+    cost: 9,
+    effects: { energy: 4 },
+    lines: ['Hielo, limón y el bajo retumbando en el vaso. La pista se ve distinta con algo en la mano.'],
+  },
+  {
+    id: 'club-water',
+    name: 'Un agua, que queda noche (5 min)',
+    minutes: 5,
+    cost: 2,
+    effects: { energy: 2 },
+    lines: ['Te la sirven sin mirarte. Fría, que es lo que importa.'],
+  },
+  {
+    id: 'wine-glass',
+    name: 'Una copa de tinto de la casa (30 min)',
+    minutes: 30,
+    cost: 4.5,
+    effects: { energy: 6 },
+    lines: ['Bruno te sirve el de Toledo y te cuenta de qué ladera es. La tarde se alarga sola.'],
+  },
+  {
+    id: 'wine-board',
+    name: 'Tabla de quesos y dos vinos (1 h)',
+    minutes: 60,
+    cost: 16,
+    effects: { energy: 16 },
+    lines: ['Manchego, un azul que pica y un blanco para empezar. Nadie tiene prisa en esta mesa.'],
+  },
 ];
 
 export const OFF_MAP_PLACES: readonly OffMapPlace[] = [

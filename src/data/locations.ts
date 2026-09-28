@@ -1,6 +1,6 @@
 import type { LocationDef, MetroDef } from '../types/game.ts';
 import { VALLESCO } from './vallesco.ts';
-import { CLUB, FASHION, GYM, OFFICE, PHARMACY, RESTAURANT, SUPERMARKET } from './interiors.ts';
+import { ARCHIVO, BARBERSHOP, CLUB, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
 /**
  * Leyenda del terreno (ver TILES en world/tiles.ts):
@@ -10,7 +10,7 @@ import { CLUB, FASHION, GYM, OFFICE, PHARMACY, RESTAURANT, SUPERMARKET } from '.
  *   H fachada vivienda  C fachada cafetería
  *   W muro interior   f suelo de madera   t suelo de baldosa   r alfombra
  *   c adoquín   a agua   q muelle   R vía   y borde de andén   M quiosco de metro
- *   z paso de cebra   m suelo de gimnasio   k pista deportiva
+ *   z paso de cebra   b carril bici   m suelo de gimnasio   k pista deportiva
  *
  * Los edificios del barrio Vallesco no están en la rejilla: son BuildingDef
  * (data/vallesco.ts), que generan su fachada, su puerta y su spawn.
@@ -72,6 +72,7 @@ const HOME: LocationDef = {
   spots: [
     { tx: 2, ty: 3, name: 'Cocina', activities: ['cook'] },
     { tx: 19, ty: 4, name: 'Cama', activities: ['nap', 'sleep'] },
+    { tx: 16, ty: 3, name: 'Armario', activities: [], wardrobe: true },
   ],
   portals: [
     { id: 'exit', tx: 10, ty: 14, label: 'Salir a la calle', to: { location: 'district', spawn: 'home-door' } },
@@ -517,6 +518,13 @@ export const LOCATIONS: readonly LocationDef[] = [
   RIBERA_STATION,
   BAR,
   PHARMACY,
+  BARBERSHOP,
+  RETALES,
+  ARCHIVO,
+  VUELTA,
+  TINTA,
+  MOLINILLO,
+  WINE_BAR,
 ];
 
 export const START_LOCATION = VALLESCO.id;

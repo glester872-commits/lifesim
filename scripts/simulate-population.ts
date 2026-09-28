@@ -76,6 +76,8 @@ const CASES: [string, string[]][] = [
   ['office', ['08:30', '14:00', '19:30', '22:00']],
   ['supermarket', ['10:00', '19:00']],
   ['restaurant', ['13:00', '21:30']],
+  ['hair-salon', ['10:30', '13:00', '18:30', '21:00']],
+  ['wine-bar', ['17:30', '19:00', '22:30', '00:30']],
 ];
 const DAYS = [1, 6, 7]; // lunes, sábado, domingo
 
@@ -190,6 +192,15 @@ for (const n of gymWeek) assert.ok(n >= POPULATION.levels.HIGH[0] && n <= profil
   assert.ok(levels[3] > levels[5], 'la discoteca debería vaciarse al acercarse el cierre');
   assert.ok(people[3].initial.visitors >= 14, 'a las 02:15 la discoteca debería estar llena');
   assert.ok(people[0].initial.visitors <= 2, 'a las 21:30 la discoteca debería estar casi vacía');
+  // Y cada fase trae su gente: al abrir se pide y se charla; de madrugada se baila, se pide y se habla a la vez.
+  const count = (states: string[], s: string): number => states.filter((x) => x === s).length;
+  const mix = (states: string[]): string => ['ORDER', 'DRINK', 'DANCE', 'TALK'].map((s) => `${s} ${count(states, s)}`).join(', ');
+  const early = run('nightclub', at(FRIDAY, '22:30'), 25, 41);
+  const peak = people[3];
+  console.log(`discoteca 22:30: ${mix(early.states)} · 02:15: ${mix(peak.states)}`);
+  assert.ok(count(early.states, 'DANCE') <= Math.max(1, early.states.length / 3), 'a las 22:30 ya está todo el mundo bailando');
+  assert.ok(count(peak.states, 'DANCE') > count(early.states, 'DANCE'), 'de madrugada no se baila más que al abrir');
+  assert.ok(new Set(peak.states.filter((s) => s !== 'WORK')).size >= 3, 'de madrugada todo el mundo hace lo mismo');
   // El sábado a las 03:00 sigue siendo la noche del viernes; el martes, cerrada; el jueves, más floja.
   assert.ok(level('nightclub', 6, '03:00') !== null, 'la madrugada del sábado debería contar como noche del viernes');
   assert.equal(level('nightclub', 2, '23:30'), null, 'la discoteca abre el martes');
@@ -201,4 +212,10 @@ for (const n of gymWeek) assert.ok(n >= POPULATION.levels.HIGH[0] && n <= profil
   assert.equal(closing.final.visitors + closing.final.staff, 0, 'la discoteca cerrada sigue con gente');
 }
 
-console.log('\nOK: horarios, afluencia, aforo, personal, entradas y salidas, rutas, variación semanal y la noche de la discoteca.');
+// La vinoteca: tranquila al abrir, llena a la hora de cenar, cerrada el lunes. La barbería, cerrada de noche y el domingo.
+assert.ok(target('wine-bar', 4, '22:30') > target('wine-bar', 4, '18:30'), 'la vinoteca no se llena a la hora de cenar');
+assert.equal(level('wine-bar', 1, '21:00'), null, 'la vinoteca abre los lunes');
+assert.equal(level('hair-salon', 2, '21:30'), null, 'la barbería abierta de noche');
+assert.equal(level('hair-salon', 7, '12:00'), null, 'la barbería abierta el domingo');
+
+console.log('\nOK: horarios, afluencia, aforo, personal, entradas y salidas, rutas, variación semanal, la noche de la discoteca, la vinoteca y la barbería.');

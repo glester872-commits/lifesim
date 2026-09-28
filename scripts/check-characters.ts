@@ -2,7 +2,7 @@
 // luego ocho semanas seguidas: `npm run check`. Falla si algo no se cumple.
 import assert from 'node:assert/strict';
 import { CHARACTERS, OUTINGS } from '../src/data/characters.ts';
-import { DAY_STARTS, routineFor, tripsOf, whereabouts, whereaboutsIn, type Whereabouts } from '../src/systems/Characters.ts';
+import { DAY_STARTS, catchUp, routineFor, tripsOf, whereabouts, whereaboutsIn, type Whereabouts } from '../src/systems/Characters.ts';
 import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
 import { isOpen, placeOfPoint } from '../src/systems/Places.ts';
 import { weekday } from '../src/systems/MetroDaily.ts';
@@ -93,4 +93,21 @@ for (const def of CHARACTERS) {
   const distinct = new Set(Array.from({ length: WEEKS }, (_, w) => week(w))).size;
   assert.ok(distinct > WEEKS / 2, `${def.npc}: sólo ${distinct} semanas distintas de ${WEEKS}`);
 }
-console.log('\nOK: rutinas, horarios, lugares abiertos, paso continuo entre días, planes compartidos y variedad.');
+// Tras una charla, ponerse al día nunca le mueve de sitio a la vista: sólo acorta paradas.
+let recovered = 0;
+for (const def of CHARACTERS) {
+  for (let now = DAY; now < 3 * DAY; now += 1) {
+    for (const lag of [5, 60]) {
+      const was = whereabouts(def, now - lag);
+      const left = catchUp(def, now, lag, 1 / 30, was.location);
+      assert.ok(left >= 0 && left <= lag, `${def.npc} ${hhmm(now)}: retraso ${left} fuera de [0, ${lag}]`);
+      if (left === lag || was.inside) continue;
+      recovered++;
+      const is = whereabouts(def, now - left);
+      assert.ok(is.location === was.location && is.tx === was.tx && is.ty === was.ty, `${def.npc} ${hhmm(now)}: se pone al día saltando de sitio`);
+    }
+  }
+}
+assert.ok(recovered > 0, 'nadie recupera nunca el retraso de una charla');
+
+console.log('\nOK: rutinas, horarios, lugares abiertos, paso continuo entre días, planes compartidos, variedad y vuelta tras una charla sin saltos.');

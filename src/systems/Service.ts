@@ -1,5 +1,5 @@
 // Sin Phaser: lo usan Crowd (dentro), StreetLife (terrazas) y CrowdView.
-import { SERVICE_ROLES, type ServiceActivity, type ServiceId } from '../data/services.ts';
+import { SERVICE_ROLES, type OfferId, type ServiceActivity, type ServiceId } from '../data/services.ts';
 import type { LocationDef, TilePoint } from '../types/game.ts';
 import { isWalkable } from './LocationSystem.ts';
 
@@ -15,6 +15,7 @@ export interface Post {
   label?: string;
   line?: string;
   look?: string;
+  offers?: OfferId;
 }
 
 export interface StaffIdentity {
@@ -23,11 +24,14 @@ export interface StaffIdentity {
   /** Id en UNIFORM_LOOKS. */
   look: string;
   activity: ServiceActivity;
+  /** Lo que ofrece si el jugador le habla (data/services.ts): el del puesto o, si no, el del oficio. */
+  offers?: OfferId;
 }
 
 export function identity(post: Post): StaffIdentity {
   const role = SERVICE_ROLES[post.service];
-  return { label: post.label ?? role.label, line: post.line ?? role.line, look: post.look ?? role.uniform, activity: role.activity };
+  const offers: OfferId | undefined = post.offers ?? ('offers' in role ? role.offers : undefined);
+  return { label: post.label ?? role.label, line: post.line ?? role.line, look: post.look ?? role.uniform, activity: role.activity, offers };
 }
 
 /** Un cliente sentado al que se puede atender. */

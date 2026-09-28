@@ -54,7 +54,7 @@ class Site {
     this.def = def;
     this.w = def.ground[0].length;
     this.h = def.ground.length;
-    this.trafficRows = new Set((def.traffic?.lanes ?? []).map((l) => l.row));
+    this.trafficRows = new Set([...(def.traffic?.lanes ?? []), ...(def.traffic?.bikes?.lanes ?? [])].map((l) => l.row));
     this.solid = def.ground.map((row) => [...row].map((ch) => TILES[ch]?.solid ?? true));
     for (const b of def.buildings ?? []) {
       for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) this.setSolid(x, y);

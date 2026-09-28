@@ -57,6 +57,8 @@ export const PALETTE = {
   asphalt: '#3b3e47',
   asphaltLit: '#464a54',
   roadLine: '#d6d0bf',
+  /** Carril bici: asfalto teñido de rojo teja, como el de Madrid. */
+  bikeLane: '#7d4638',
 
   pavement: '#a39c90',
   pavementLit: '#b2ab9f',

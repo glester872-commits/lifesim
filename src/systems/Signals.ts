@@ -2,7 +2,7 @@
 // world/SignalView y scripts/check-signals.ts, con el mismo reloj.
 import { GAME_MINUTES_PER_REAL_SECOND } from '../config/constants.ts';
 import type { LocationDef, SignalDef, TilePoint } from '../types/game.ts';
-import { isWalkable } from './LocationSystem.ts';
+import { ROADWAY, isWalkable } from './LocationSystem.ts';
 
 /**
  * Semáforos de los pasos de peatones. El estado es una función del minuto del
@@ -90,7 +90,6 @@ export function crossingOf(signals: readonly SignalDef[], a: TilePoint, b: TileP
   return undefined;
 }
 
-const ROAD = new Set(['.', '=', ':', 'z']);
 
 /**
  * Sitios de espera en el bordillo de un lado (dir +1: el norte, de donde se
@@ -105,5 +104,5 @@ export function waitSpots(loc: LocationDef, sig: SignalDef, dir: 1 | -1): TilePo
   for (let x = sig.tx - 1; x <= sig.tx + sig.w; x++) spots.push({ tx: x, ty: back });
   // Con mucha gente, se abren a los lados: en el bordillo, pasados los postes; detrás, un poco más.
   spots.push({ tx: sig.tx - 2, ty: curb }, { tx: sig.tx + sig.w + 1, ty: curb }, { tx: sig.tx - 2, ty: back }, { tx: sig.tx + sig.w + 1, ty: back });
-  return spots.filter((p) => isWalkable(loc, p.tx, p.ty) && !ROAD.has(loc.ground[p.ty]?.[p.tx] ?? ''));
+  return spots.filter((p) => isWalkable(loc, p.tx, p.ty) && !ROADWAY.has(loc.ground[p.ty]?.[p.tx] ?? ''));
 }

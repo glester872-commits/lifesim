@@ -72,7 +72,7 @@ export function solidMask(loc: LocationDef): boolean[][] {
     if (b.doorX !== undefined && b.front) set(b.doorX, doorRow(b), false);
   }
   for (const p of loc.props) {
-    if (PROPS[p.kind].overhead || PROPS[p.kind].flat) continue; // cuelga del techo o está pintado en el suelo: se pasa
+    if (PROPS[p.kind].overhead || PROPS[p.kind].flat || PROPS[p.kind].seat) continue; // cuelga, está pintado o es un asiento: se pasa
     const w = PROPS[p.kind].tilesWide ?? 1;
     for (let x = p.tx; x < p.tx + w; x++) set(x, p.ty, true);
   }
@@ -85,6 +85,12 @@ function maskOf(loc: LocationDef): boolean[][] {
   if (!m) masks.set(loc.id, (m = solidMask(loc)));
   return m;
 }
+
+/**
+ * Calzada: por donde van coches y bicis (carriles, línea central, pasos de
+ * cebra y carril bici). Se pisa, pero nadie se para ahí a esperar ni a posarse.
+ */
+export const ROADWAY: ReadonlySet<string> = new Set(['.', '=', ':', 'z', 'b']);
 
 export function isWalkable(loc: LocationDef, tx: number, ty: number): boolean {
   return maskOf(loc)[ty]?.[tx] === false;

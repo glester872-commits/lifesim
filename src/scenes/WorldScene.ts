@@ -3,6 +3,7 @@ import {
   AUTOSAVE_INTERVAL_MS,
   CAMERA_LERP,
   CAMERA_ZOOM,
+  GAME_MINUTES_PER_REAL_SECOND,
   INTERACT_RADIUS,
   MAX_CAMERA_ZOOM,
   VIEW_HEIGHT,
@@ -15,15 +16,23 @@ import type { Facing, NpcDef, PortalDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
 import { Ambience } from '../world/Ambience';
+import { Traffic } from '../systems/Traffic';
+import { TrafficView } from '../world/TrafficView';
+import { CyclistView } from '../world/CyclistView';
+import { VEHICLES, type VehicleType } from '../data/vehicles';
+import { BIKES, type BikeType } from '../data/bikes';
+import type { OfferId } from '../data/services';
+import { identity } from '../systems/Service';
 import { Lighting } from '../world/Lighting';
 import { MetroSystem } from '../systems/MetroSystem';
 import { METRO_CONFIG } from '../config/metro';
 import { buildLocation } from '../world/LocationBuilder';
 import { Player } from '../entities/Player';
 import { NPC } from '../entities/NPC';
+import { Walker } from '../entities/Walker';
 import { getNpc } from '../data/npcs';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
-import { whereabouts, type Whereabouts } from '../systems/Characters';
+import { catchUp, whereabouts, type Whereabouts } from '../systems/Characters';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Clock } from '../systems/Crowd';
 import { StreetLife, streetProfileFor } from '../systems/StreetLife';
@@ -56,10 +65,17 @@ type Interactable =
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[] };
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true };
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
+}
+
+/** Hacia dónde mira quien está en `from` para ver a quien está en `to`. */
+function facingTo(from: Vec2, to: Vec2): Facing {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
 }
 
 type Keys = Record<string, Phaser.Input.Keyboard.Key>;
@@ -88,10 +104,26 @@ export class WorldScene extends Phaser.Scene {
   private mapHeight = 0;
   private metro: MetroSystem | null = null;
   private ambience: Ambience | null = null;
+  /** Coches, furgonetas y autobuses de la calle (TrafficDef), y quien los pinta. */
+  private traffic: Traffic<VehicleType> | null = null;
+  private trafficView: TrafficView | null = null;
+  /** Bicis del carril bici (TrafficDef.bikes): la misma lógica de carril, otro catálogo. */
+  private bikes: Traffic<BikeType> | null = null;
+  private cyclistView: CyclistView | null = null;
   /** Pies de quien camina por aquí (jugador, personajes y gente): los coches frenan y las puertas se abren. */
   private readonly pedestrians: Vec2[] = [];
   /** Personajes que van de un sitio a otro según la hora; se ven sólo si están aquí. */
-  private characters: { def: CharacterDef; sprite: Character; now: Whereabouts | null }[] = [];
+  private characters: {
+    def: CharacterDef;
+    sprite: Character;
+    now: Whereabouts | null;
+    /** Minuto de su horario en que se paró a hablar: mientras dura la charla, no pasa de ahí. */
+    heldAt: number | null;
+    /** Minutos que va por detrás de su horario desde la última charla. */
+    lag: number;
+  }[] = [];
+  /** Suelta a quien atiende al jugador: al cerrar el diálogo vuelve a lo suyo. */
+  private endTalk: (() => void) | null = null;
   /** Gente del local (data/population.ts), sólo en interiores con perfil y mientras el jugador está dentro. */
   private crowd: Crowd | null = null;
   /** Gente de la calle (data/streets.ts), sólo en exteriores con perfil. */
@@ -119,9 +151,10 @@ export class WorldScene extends Phaser.Scene {
 
     this.leaving = false;
     this.activeTarget = null;
+    this.endTalk = null;
     this.interactables = [];
     this.characters = CHARACTERS.map((c, i) => {
-      const entry = { def: c, sprite: new Character(this, getNpc(c.npc), i), now: null as Whereabouts | null };
+      const entry = { def: c, sprite: new Character(this, getNpc(c.npc), i), now: null as Whereabouts | null, heldAt: null as number | null, lag: 0 };
       // Lo que dice depende de dónde está o a dónde va.
       const lines = (): readonly string[] => (entry.now?.moving ? entry.now.stop.going : entry.now?.stop.lines) ?? entry.sprite.def.lines;
       this.interactables.push({ kind: 'npc', sprite: entry.sprite, def: entry.sprite.def, lines });
@@ -199,7 +232,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
-      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities });
+      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe });
     }
     this.menus = new Menus(this.services, {
       persist: () => this.persist(),
@@ -225,7 +258,14 @@ export class WorldScene extends Phaser.Scene {
     this.crowdTargets = new WeakMap();
 
     // La hora con la fracción del minuto en curso: los semáforos cambian a su segundo, no a saltos de minuto.
-    this.ambience = new Ambience(this, def, built.widthPx, () => this.pedestrians, () => this.services.clock.minuteOfDay / 60);
+    this.ambience = new Ambience(this, def, () => this.pedestrians);
+    const hour = (): number => this.services.clock.minuteOfDay / 60;
+    this.traffic = def.traffic ? new Traffic(def.traffic, VEHICLES, def.signals ?? [], built.widthPx) : null;
+    this.traffic?.populate(this.trafficClock());
+    this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour) : null;
+    this.bikes = def.traffic?.bikes ? new Traffic(def.traffic.bikes, BIKES, def.signals ?? [], built.widthPx) : null;
+    this.bikes?.populate(this.trafficClock());
+    this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
     // La hora se ve en la calle; dentro manda la luz del local.
     new Lighting(this, def, built, state);
@@ -253,7 +293,11 @@ export class WorldScene extends Phaser.Scene {
     clock.setPaused(false);
     this.services.place.show(def.name);
 
-    const onDialogueClose = (): void => clock.setPaused(false);
+    // Hablar no para el mundo: sólo a quien atiende, que vuelve a lo suyo al despedirse.
+    const onDialogueClose = (): void => {
+      this.endTalk?.();
+      this.endTalk = null;
+    };
     dialogue.on('close', onDialogueClose);
 
     const autosave = this.time.addEvent({
@@ -291,27 +335,33 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
-    if (dialogue.isOpen) {
+    // Con un diálogo abierto el jugador escucha, quieto; el resto del mundo sigue a lo suyo.
+    const talking = dialogue.isOpen;
+    if (talking) {
       this.player.halt();
       this.prompt.setVisible(false);
       this.services.hint.hide();
       const picked = ['one', 'two', 'three'].findIndex((name) => this.pressedAny([name]));
       if (picked >= 0) dialogue.choose(picked);
       else if (this.pressedAny(['interact', 'advance', 'advanceAlt'])) dialogue.advance();
-      return;
     }
 
     clock.update(delta);
     this.metro?.update(delta, time);
-    this.placeCharacters();
+    this.placeCharacters(delta);
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
     this.street?.update(delta, this.clockNow(), this.playerTile());
     for (const view of this.crowdViews) view.sync(time);
     const { hour, minute } = this.services.state;
     this.wildlife?.update(delta, time, hour + minute / 60, this.playerTile(), (this.player.body as Phaser.Physics.Arcade.Body).speed > 1);
     this.gatherPedestrians();
-    this.ambience?.update(delta);
+    this.ambience?.update();
+    this.traffic?.update(delta, this.trafficClock(), this.pedestrians);
+    this.trafficView?.sync(time);
+    this.bikes?.update(delta, this.trafficClock(), this.pedestrians);
+    this.cyclistView?.sync();
     this.signals?.update(time);
+    if (talking) return;
 
     this.player.move({
       up: this.held('up') || this.held('upAlt'),
@@ -343,7 +393,10 @@ export class WorldScene extends Phaser.Scene {
   private fitCamera(): void {
     const camera = this.cameras.main;
     const { width, height } = this.scale.gameSize;
-    const zoom = Phaser.Math.Clamp(Math.round(Math.min(width / VIEW_WIDTH, height / VIEW_HEIGHT)), CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+    // En vertical el encuadre gira: el lado largo de la pantalla lleva el lado
+    // largo del encuadre. Si no, un móvil de pie ve el triple de mundo y la gente sale diminuta.
+    const [long, short] = width >= height ? [width, height] : [height, width];
+    const zoom = Phaser.Math.Clamp(Math.round(Math.min(long / VIEW_WIDTH, short / VIEW_HEIGHT)), CAMERA_ZOOM, MAX_CAMERA_ZOOM);
     camera.setZoom(zoom);
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);
@@ -402,13 +455,13 @@ export class WorldScene extends Phaser.Scene {
    * sitio o en casa, no. El sitio donde está parado es suyo: la gente del local
    * y de la calle no se sienta encima.
    */
-  private placeCharacters(): void {
-    const { day } = this.services.state;
-    const minute = (day - 1) * 24 * 60 + this.services.clock.minuteOfDay;
+  private placeCharacters(deltaMs = 0): void {
+    const now = this.absMinute();
     const here = this.services.state.locationId;
     const claimed = new Set<string>();
     for (const c of this.characters) {
-      const w = whereabouts(c.def, minute);
+      if (c.heldAt === null && c.lag > 0) c.lag = catchUp(c.def, now, c.lag, (GAME_MINUTES_PER_REAL_SECOND * deltaMs) / 1000, here);
+      const w = whereabouts(c.def, c.heldAt ?? now - c.lag);
       c.now = w;
       const visible = w.location === here && !w.inside;
       if (visible && !w.moving) claimed.add(w.stop.point);
@@ -417,6 +470,47 @@ export class WorldScene extends Phaser.Scene {
     }
     this.crowd?.claim(claimed);
     this.street?.claim(claimed);
+  }
+
+  /** Día y minuto con la fracción en curso: el semáforo cambia a su segundo, no a saltos de minuto. */
+  private trafficClock(): { day: number; minuteOfDay: number } {
+    return { day: this.services.state.day, minuteOfDay: this.services.clock.minuteOfDay };
+  }
+
+  /** Minuto absoluto de la partida, con la fracción en curso: el que lee el horario de los personajes. */
+  private absMinute(): number {
+    return (this.services.state.day - 1) * 24 * 60 + this.services.clock.minuteOfDay;
+  }
+
+  /**
+   * Quien atiende al jugador se para y le mira; el resto del mundo, no. Cada
+   * clase de persona se para a su manera y `endTalk` la devuelve a lo suyo
+   * desde donde está: la ruta que llevaba, o la que su sistema decida ahora.
+   */
+  private startTalk(sprite: Phaser.GameObjects.Sprite): void {
+    this.endTalk?.();
+    const dir = facingTo(sprite, this.player);
+    if (sprite instanceof NPC) {
+      sprite.look(dir);
+      this.endTalk = () => sprite.look();
+    } else if (sprite instanceof Walker) {
+      sprite.talkTo(dir);
+      this.endTalk = () => sprite.endTalk();
+    } else if (sprite instanceof Character) {
+      const named = this.characters.find((c) => c.sprite === sprite);
+      const agent = named ? undefined : this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
+      sprite.talkingTo = dir;
+      if (named) named.heldAt ??= this.absMinute() - named.lag;
+      if (agent) agent.talking = true;
+      this.endTalk = () => {
+        sprite.talkingTo = null;
+        if (agent) agent.talking = false;
+        if (named && named.heldAt !== null) {
+          named.lag = this.absMinute() - named.heldAt;
+          named.heldAt = null;
+        }
+      };
+    }
   }
 
   /** Pies de todo el que anda por aquí: los coches frenan por ellos igual que por el jugador. */
@@ -517,13 +611,30 @@ export class WorldScene extends Phaser.Scene {
     }
     this.player.halt();
     if (target.kind === 'terminal') this.menus.openCatalog(target.name, target.catalog);
-    else if (target.kind === 'spot') this.menus.openSpot(target.name, target.activities);
-    else if (target.kind === 'npc') this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
+    else if (target.kind === 'spot') {
+      if (target.wardrobe) this.menus.openWardrobe();
+      else this.menus.openSpot(target.name, target.activities);
+    }
+    else if (target.kind === 'npc') {
+      // Personal con algo que ofrecer (la barbera, la barra): se le pide; el resto, se charla.
+      const offer = this.offerOf(target.sprite);
+      if (offer) this.menus.openOffer(offer, target.def.name);
+      else {
+        this.startTalk(target.sprite);
+        this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
+      }
+    }
     else this.openDialogue(target.name, target.lines);
   }
 
+  /** Lo que ofrece esta persona si es personal de un local con servicio (data/services.ts). */
+  private offerOf(sprite: Phaser.GameObjects.Sprite): OfferId | undefined {
+    if (!(sprite instanceof Character)) return undefined;
+    const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
+    return agent?.staffRole ? identity(agent.staffRole).offers : undefined;
+  }
+
   private openDialogue(speaker: string, lines: readonly string[]): void {
-    this.services.clock.setPaused(true);
     this.services.dialogue.start(speaker, lines);
   }
 
@@ -616,7 +727,6 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     const choices = ev.choices;
-    this.services.clock.setPaused(true);
     dialogue.ask(speaker, ev.lines, choices.map((c) => c.label), (i) => settle(choices[i].id));
   }
 

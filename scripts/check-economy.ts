@@ -14,6 +14,9 @@ import { placeInfo } from '../src/systems/Places.ts';
 import { SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
 import { SAVE_KEY } from '../src/config/constants.ts';
 import { getItem } from '../src/data/items.ts';
+import { haircut, tattoo, visibleTattoos, withAppearance } from '../src/systems/Appearance.ts';
+import { buyGarment, stockOf, takeOff, wear } from '../src/systems/Retail.ts';
+import { STORES } from '../src/data/retail.ts';
 
 const empty = (money: number): Wallet => ({ money, inventory: {}, cards: {} });
 const product = (catalog: string, id: string): Product => getCatalog(catalog).products.find((p) => p.id === id)!;
@@ -157,6 +160,106 @@ for (const c of CATALOGS) {
   save.save({ ...loaded, inventory: { water: 2 }, cards: { transport: 8.5 } });
   const again = save.load()!;
   assert.deepEqual([again.inventory, again.cards], [{ water: 2 }, { transport: 8.5 }]);
+  // Una partida de antes del aspecto: carga con el de siempre.
+  assert.deepEqual(loaded.appearance, {});
+  // El corte se guarda y vuelve igual: el jugador y un personaje con nombre; un peinado que no existe se olvida.
+  save.save({ ...again, appearance: { player: { hair: 'buzz' }, nati: { hair: 'bob' }, bruno: { hair: 'crest' as never } } });
+  assert.deepEqual(save.load()!.appearance, { player: { hair: 'buzz' }, nati: { hair: 'bob' } });
 }
 
-console.log('\nOK: compras, céntimos, tarjeta y recargas, destinos, actividades, salto de tiempo y partidas.');
+// ------------------------------------------------------------ barbería
+
+{
+  // Cortarse el pelo: cobra el corte, cambia el peinado y no toca nada más.
+  const wallet: Wallet = { money: 30, inventory: { water: 1 }, cards: { transport: 5 } };
+  const cut = haircut(wallet, {}, 'short', 'buzz');
+  assert.ok(cut.ok, cut.message);
+  assert.deepEqual([cut.wallet.money, cut.wallet.inventory, cut.wallet.cards, cut.appearance], [20, { water: 1 }, { transport: 5 }, { hair: 'buzz' }]);
+  assert.equal(wallet.money, 30, 'la cartera de antes no se toca: es pura');
+  // Lo que ya lleva, lo que no se hace en una barbería y lo que no se puede pagar: no.
+  assert.ok(!haircut(wallet, {}, 'short', 'short').ok, 'cortar lo mismo que ya lleva');
+  assert.ok(!haircut(wallet, {}, 'short', 'long').ok, 'una melena no se corta');
+  const broke = haircut(empty(5), {}, 'short', 'curly');
+  assert.ok(!broke.ok && broke.wallet.money === 5 && broke.appearance.hair === undefined, 'sin dinero no hay corte');
+  // El aspecto guardado va encima del de fábrica; sin cambios, sale el de siempre.
+  assert.equal(withAppearance({ hairStyle: 'short' as const }, { hair: 'bun' }).hairStyle, 'bun');
+  assert.equal(withAppearance({ hairStyle: 'short' as const }, undefined).hairStyle, 'short');
+  // La barbería sólo tiene gente en su horario: cerrada, nadie; abierta, alguien.
+  const salon = placeInfo('hair-salon');
+  assert.equal(levelAt(salon, profileFor('hair-salon')!, { day: 1, hour: 22, minute: 0 }), null, 'la barbería abierta de noche');
+  assert.notEqual(levelAt(salon, profileFor('hair-salon')!, { day: 1, hour: 18, minute: 0 }), null, 'la barbería cerrada por la tarde');
+  assert.equal(levelAt(salon, profileFor('hair-salon')!, { day: 7, hour: 12, minute: 0 }), null, 'la barbería abierta en domingo');
+}
+
+// ------------------------------------------------------ tiendas de ropa
+
+{
+  // Una tienda cobra su precio, guarda la prenda en el armario y te la pone; la cartera de antes no se toca.
+  const wallet: Wallet = { money: 100, inventory: { water: 1 }, cards: { transport: 5 } };
+  const bought = buyGarment(wallet, [], {}, 'vuelta', 'camiseta-grafica');
+  assert.ok(bought.ok, bought.message);
+  assert.deepEqual([bought.wallet.money, bought.wallet.inventory, bought.wallet.cards], [94, { water: 1 }, { transport: 5 }]);
+  assert.deepEqual([bought.wardrobe, bought.appearance], [['camiseta-grafica'], { top: 'camiseta-grafica' }]);
+  assert.equal(wallet.money, 100, 'pura');
+  // La misma prenda cuesta distinto según la tienda.
+  const archivo = buyGarment(wallet, [], {}, 'archivo', 'camiseta-grafica');
+  assert.equal(archivo.wallet.money, 70, 'precio de la tienda, no de la prenda');
+  // Lo que ya tienes no se vuelve a vender (y la pieza única ya no está); lo que no hay, tampoco; sin dinero, no.
+  assert.ok(!buyGarment(bought.wallet, bought.wardrobe, bought.appearance, 'archivo', 'camiseta-grafica').ok, 'dos veces la misma');
+  const unique = buyGarment(empty(200), [], {}, 'retales', 'cazadora-ante');
+  assert.ok(unique.ok && !buyGarment(unique.wallet, unique.wardrobe, unique.appearance, 'retales', 'cazadora-ante').ok, 'la pieza única se vende una vez');
+  assert.ok(!buyGarment(wallet, [], {}, 'hilo', 'cargo-negro').ok, 'lo que la tienda no tiene');
+  assert.ok(!buyGarment(empty(10), [], {}, 'archivo', 'anorak-neon').ok, 'sin dinero');
+  // El escaparate sabe lo que es tuyo y lo que llevas puesto.
+  const view = stockOf('vuelta', bought.wardrobe, bought.appearance).find((l) => l.garment === 'camiseta-grafica')!;
+  assert.ok(view.owned && view.wearing);
+  // Cambiarse: cada prenda en su hueco; quitársela vuelve a la ropa de siempre.
+  const outfit = wear(wear({ hair: 'bob' }, 'cargo-negro'), 'jersey-rombos');
+  assert.deepEqual(outfit, { hair: 'bob', bottom: 'cargo-negro', top: 'jersey-rombos' });
+  assert.deepEqual(takeOff(outfit, 'top'), { hair: 'bob', bottom: 'cargo-negro' });
+  for (const s of STORES) assert.ok(s.stock.length > 0 && s.stock.every((l) => l.price > 0), `${s.id}: género y precios`);
+}
+
+// ------------------------------------------------------------- tatuajes
+
+{
+  const base = { cloth: '#000000', clothDark: '#000000', hair: '#000000', skin: '#e3b692', trousers: '#000000', shoes: '#000000' };
+  const done = tattoo(empty(200), {}, 'forearm-r', 'golondrina');
+  assert.ok(done.ok, done.message);
+  assert.deepEqual([done.wallet.money, done.appearance.tattoos], [110, [{ zone: 'forearm-r', design: 'golondrina' }]]);
+  // Una zona, un tatuaje; un diseño que no cabe ahí, no; sin dinero, no.
+  assert.ok(!tattoo(done.wallet, done.appearance, 'forearm-r', 'luna').ok, 'encima de otro');
+  assert.ok(!tattoo(empty(500), {}, 'hand-r', 'rosa').ok, 'una rosa no cabe en la mano');
+  assert.ok(!tattoo(empty(10), {}, 'neck', 'luna').ok, 'sin dinero');
+  // Se ve según la ropa: con la manga larga de fábrica no; con manga corta, sí; el pecho, nunca.
+  assert.equal(visibleTattoos(base, done.appearance).length, 0, 'manga larga lo tapa');
+  const shortSleeve = { ...done.appearance, top: 'camisa-hawai' };
+  assert.deepEqual(visibleTattoos(base, shortSleeve), [{ spot: 'arm-r', color: '#2f4a8c' }]);
+  assert.equal(visibleTattoos(base, { tattoos: [{ zone: 'chest', design: 'rosa' }], top: 'camiseta-tirantes' }).length, 0, 'el pecho va bajo la ropa');
+  assert.equal(visibleTattoos(base, { tattoos: [{ zone: 'neck', design: 'luna' }] }).length, 1, 'el cuello siempre se ve');
+  // Lo que pinta HumanArt: la manga corta deja dos píxeles de manga y la tinta que se ve.
+  const painted = withAppearance(base, shortSleeve);
+  assert.deepEqual([painted.cloth, painted.sleeveLen, painted.ink?.length], ['#3f8c86', 2, 1]);
+}
+
+// ---------------------------------------------------- armario y partida
+
+{
+  const store = new Map<string, string>();
+  const save = new SaveSystem({ read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) });
+  const state = {
+    money: 50, energy: 80, day: 2, hour: 11, minute: 0, locationId: 'district', position: { x: 10, y: 10 }, facing: 'down' as const,
+    events: undefined as never, inventory: {}, cards: {},
+    appearance: { player: { hair: 'bob' as const, top: 'camisa-hawai', bottom: 'vaquero-70', tattoos: [{ zone: 'forearm-r' as const, design: 'golondrina' }] } },
+    wardrobe: ['camisa-hawai', 'vaquero-70'],
+  };
+  save.save(state);
+  const loaded = save.load()!;
+  assert.deepEqual([loaded.appearance, loaded.wardrobe], [state.appearance, state.wardrobe], 'ropa, armario y tatuajes vuelven igual');
+  // Lo que ya no existe se olvida sin romper la carga; una prenda en el hueco equivocado, también.
+  save.save({ ...state, wardrobe: ['camisa-hawai', 'capa-invisible'], appearance: { player: { top: 'vaquero-70', tattoos: [{ zone: 'forehead' as never, design: 'luna' }] } } });
+  const odd = save.load()!;
+  assert.deepEqual([odd.wardrobe, odd.appearance], [['camisa-hawai'], {}]);
+}
+
+console.log('\nOK: compras, céntimos, tarjeta y recargas, destinos, actividades, salto de tiempo, partidas, barbería, tiendas de ropa, tatuajes y armario.');

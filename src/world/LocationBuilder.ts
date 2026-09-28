@@ -62,7 +62,7 @@ export function solidRects(mask: readonly (readonly boolean[])[]): Rect[] {
 
 /** Aceras y calzada, por carácter de la rejilla: donde se tocan hay bordillo. */
 const WALKWAY = new Set([',', '~', 'c', 'P', 'T']);
-const ROADWAY = new Set(['.', ':', '=']);
+const ROADWAY = new Set(['.', ':', '=', 'b']);
 const SHADOW = 0x140f1c;
 /** Pavimentos de plaza con cenefa donde tocan otro suelo (ART_BIBLE §8); la franja podotáctil no la corta. */
 const BORDERED = new Set(['P', '~']);
@@ -201,7 +201,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const width = (prop.tilesWide ?? 1) * TILE;
     const baseY = placement.ty * TILE + TILE;
     // Lo del techo, por encima de la gente (y por debajo de la luz de world/Lighting).
-    scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? OVERHEAD_DEPTH : baseY);
+    scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? OVERHEAD_DEPTH : prop.seat ? baseY - 1 : baseY);
   }
 
   for (const r of solidRects(solidMask(def))) addSolid(scene, solids, r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE);

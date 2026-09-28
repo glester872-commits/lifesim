@@ -12,7 +12,10 @@ import { px, shade, type Ctx } from './paint';
  * pueden desentonar entre sí.
  */
 
-export type HairStyle = 'short' | 'bob' | 'curly' | 'bun' | 'buzz' | 'long';
+// El catálogo de peinados es de data/appearance.ts; aquí se dibujan.
+import type { HairStyle } from '../data/appearance';
+import type { InkSpot } from '../data/tattoos';
+export type { HairStyle };
 
 export interface HumanColors {
   cloth: string;
@@ -22,12 +25,33 @@ export interface HumanColors {
   trousers: string;
   shoes: string;
   sleeves?: string;
+  /** Píxeles de brazo que tapa la manga (0–5); por debajo, piel. Sin él, todo el brazo. */
+  sleeveLen?: number;
+  /** Tatuajes que se ven con la ropa de hoy (systems/Appearance.ts decide cuáles): dónde y de qué tinta. */
+  ink?: readonly { spot: InkSpot; color: string }[];
   spots?: string;
   hairStyle?: HairStyle;
   earrings?: string;
   /** Bolso en bandolera y gorra: variedad para los anónimos. */
   bag?: string;
   cap?: string;
+}
+
+/** Tinta en ese sitio, si se ve. */
+const inkAt = (c: HumanColors, spot: InkSpot): string | undefined => c.ink?.find((i) => i.spot === spot)?.color;
+
+/**
+ * Brazo: manga arriba, piel debajo y la mano; el tatuaje del antebrazo o de la
+ * mano, encima de la piel. `len` es lo que mide sin la mano.
+ */
+function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w: number, len: number, sleeve: string, skin: string): void {
+  const covered = Math.min(len, c.sleeveLen ?? len);
+  px(ctx, sleeve, x, y, w, covered);
+  px(ctx, skin, x, y + covered, w, len + 1 - covered);
+  const fore = inkAt(c, side === 'r' ? 'arm-r' : 'arm-l');
+  if (fore && covered < len - 1) px(ctx, fore, x, y + len - 2, 1, 1);
+  const hand = side === 'r' ? inkAt(c, 'hand-r') : undefined;
+  if (hand) px(ctx, hand, x, y + len, 1, 1);
 }
 
 /**
@@ -71,9 +95,9 @@ export function drawHuman(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors):
     ctx.save();
     ctx.translate(16, 0);
     ctx.scale(-1, 1);
-    drawSide(ctx, pose, c);
+    drawSide(ctx, pose, c, 'l');
     ctx.restore();
-  } else if (facing === 'right') drawSide(ctx, pose, c);
+  } else if (facing === 'right') drawSide(ctx, pose, c, 'r');
   else drawFrontBack(ctx, facing === 'up', pose, c);
   outline(ctx);
 }
@@ -114,10 +138,9 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, sleeve, 3, 11, 1, 3);
     px(ctx, sleeveDark, 12, 11, 1, 3);
   } else {
-    px(ctx, sleeve, 3, armL, 1, 5);
-    px(ctx, c.skin, 3, armL + 5, 1, 1);
-    px(ctx, sleeveDark, 12, armR, 1, 5);
-    px(ctx, shade(c.skin, -0.08), 12, armR + 5, 1, 1);
+    // De frente, el brazo derecho queda a la izquierda de la imagen; de espaldas, al revés.
+    arm(ctx, c, back ? 'l' : 'r', 3, armL, 1, 5, sleeve, c.skin);
+    arm(ctx, c, back ? 'r' : 'l', 12, armR, 1, 5, sleeveDark, shade(c.skin, -0.08));
   }
 
   // Tronco: hombros, luz a la izquierda, cintura oscura.
@@ -129,6 +152,8 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
 
   // Cuello y cabeza redondeada.
   px(ctx, shade(c.skin, -0.1), 7, 9 + b, 2, 1);
+  const neck = inkAt(c, 'neck');
+  if (neck) px(ctx, neck, back ? 7 : 8, 9 + b, 1, 1);
   px(ctx, c.skin, 5, 2 + b, 6, 7);
   px(ctx, c.skin, 4, 3 + b, 8, 5);
   px(ctx, shade(c.skin, -0.07), 10, 3 + b, 2, 5);
@@ -216,7 +241,8 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
   }
 }
 
-function drawSide(ctx: Ctx, pose: Pose, c: HumanColors): void {
+/** De perfil se ve el brazo cercano: el derecho mirando a la derecha; el izquierdo, en espejo. */
+function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   const b = drop(pose);
   const far = shade(c.trousers, -0.12);
   const step = pose === 1 || pose === 2;
@@ -247,6 +273,8 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors): void {
 
   // Cabeza de perfil: nuca, oreja, ojo y nariz hacia delante.
   px(ctx, shade(c.skin, -0.1), 7, 9 + b, 2, 1);
+  const nape = inkAt(c, 'neck');
+  if (nape) px(ctx, nape, 7, 9 + b, 1, 1);
   px(ctx, c.skin, 5, 2 + b, 7, 7);
   px(ctx, c.skin, 12, 5 + b, 1, 2);
   px(ctx, PALETTE.outline, 10, 5 + b, 1, 2);
@@ -302,14 +330,11 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors): void {
     px(ctx, PALETTE.ink, 6, 0, 4, 2);
     px(ctx, PALETTE.metal, 7, 0, 2, 1);
   } else if (pose === 1) {
-    px(ctx, sleeve, 5, 11 + b, 2, 4);
-    px(ctx, c.skin, 5, 15 + b, 2, 1);
+    arm(ctx, c, near, 5, 11 + b, 2, 4, sleeve, c.skin);
   } else if (pose === 2) {
-    px(ctx, sleeve, 9, 11 + b, 2, 4);
-    px(ctx, c.skin, 10, 15 + b, 1, 1);
+    arm(ctx, c, near, 9, 11 + b, 2, 4, sleeve, c.skin);
   } else {
-    px(ctx, sleeve, 7, 11 + b, 2, 5);
-    px(ctx, c.skin, 7, 16 + b, 2, 1);
+    arm(ctx, c, near, 7, 11 + b, 2, 5, sleeve, c.skin);
   }
 }
 

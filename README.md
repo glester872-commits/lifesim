@@ -13,7 +13,9 @@ Dos distritos conectados por la Línea 2: **Vallesco**, el primer barrio complet
 **Ribera Norte** (barrio viejo junto al canal, con plaza de mercado y un bar con
 mesas fuera). En Vallesco se puede pasar un día entero: tu piso, el metro, un
 gimnasio, la cafetería, una tienda de ropa, un súper, un restaurante y una planta
-de oficinas, rodeados de comercios y bloques de vecinos.
+de oficinas, rodeados de comercios y bloques de vecinos. Al este, la **Calle del
+Carmen**: ropa vintage, de archivo y de segunda mano, un estudio de tatuaje y un
+café con terraza.
 
 A largo plazo la idea es que tiempo, dinero, energía y atención sean recursos
 limitados, de modo que cada decisión tenga coste de oportunidad y cada partida
@@ -115,8 +117,52 @@ ni acceso global al estado.
   `direction-approved.md`): Calle Mayor peatonal y comercial al norte, una
   avenida con tráfico que sólo se cruza por dos pasos de cebra, la parte
   residencial al sur y la plazuela del metro a diez pasos de casa; la plaza con
-  fuente y el gimnasio detrás; un parque con pista junto a la vía. 76×56 tiles:
-  cruzarlo a pie son unos 16 s reales (32 min de juego).
+  fuente y el gimnasio detrás; un parque con pista junto a la vía. 110×56 tiles:
+  cruzarlo a pie son unos 23 s reales (46 min de juego).
+- **Calle del Carmen** — el tramo este del barrio (x 74–109). La Calle del Olmo,
+  a diez pasos de tu portal, se estrecha y sigue como Calle del Carmen: un solo
+  carril, para bicis (fila 47, hacia el oeste, sigue por el Olmo), entre dos
+  aceras de granito de tres filas (escaparates y terraza · paso · bordillo con
+  farolas, plátanos, aparcabicis y columnas de carteles) y un paso de peatones en
+  medio. El Pasaje del Carmen baja de la avenida; la Mayor y la avenida siguen
+  hasta el nuevo borde. Norte: **Tinta Carmen** (tatuajes), **Retales** (vintage
+  escogido), **Café Molinillo** (con terraza y camarera), Discos Surco y un portal
+  de vecinos. Sur: **Archivo** (streetwear y archivo), **Segunda Vuelta** (al
+  peso), Serigrafía Chapa y otro portal. Cada fachada tiene su estilo y su icono
+  (`BuildingArt`: vestido, gorra, etiqueta, corazón, vinilo); el grafiti es un
+  mural encargado en los paños ciegos del estudio y de la tienda de discos, y los
+  carteles pegados son de la serigrafía y del ropero (`Look.wallArt`). Discos y
+  serigrafía no tienen interior: puerta dibujada y una línea al mirarla.
+- **Tiendas de ropa** — un solo sistema para todas (`data/retail.ts` +
+  `systems/Retail.ts`). Una prenda existe una vez en el mundo (hueco arriba o
+  abajo, color, manga, pieza única); cada tienda dice qué tiene y a qué precio,
+  así que la misma camiseta cuesta 6 € al peso y 30 € en Archivo. Se compra
+  hablando con quien cobra: su puesto ofrece la tienda (`data/services.ts`, oferta
+  `retail`), igual que la barbera ofrece cortes. Lo comprado entra en el armario
+  (`GameStateData.wardrobe`) y sales con ello puesto; lo que ya es tuyo se pone
+  gratis y una pieza única no se vuelve a vender. Hilo, la tienda de la Mayor, usa
+  el mismo sistema: una tienda nueva es una entrada en `STORES` y un puesto.
+- **Armario y ropa puesta** — lo que llevas es aspecto (`data/appearance.ts`:
+  `top`, `bottom`), guardado con la partida y pintado por `world/HumanArt.ts`
+  (color, sombra y largo de manga: larga, corta o tirantes). En casa, el armario
+  cambia la ropa con lo comprado o vuelve a la de siempre en cada hueco.
+- **Tatuajes** — `data/tattoos.ts`: siete zonas (antebrazos, mano, cuello,
+  pecho, espalda, gemelo) y diseños con estilo (tradicional, línea fina,
+  blackwork, letras), tinta, precio y duración. En el estudio se habla con Lía:
+  primero la zona (libre u ocupada, y si se verá con lo que llevas), luego el
+  diseño; `tattoo()` cobra, el reloj avanza lo que dura y la marca queda en el
+  aspecto para siempre. Que se vea lo decide la ropa (`visibleTattoos`): la manga
+  larga tapa el antebrazo, el cuello y la mano siempre se ven y pecho, espalda y
+  gemelo van bajo la ropa. Lía y la otra tatuadora llevan su tinta de fábrica
+  (`NpcLook.ink`).
+- **Gente del Carmen** — cada tienda, el estudio y el café tienen personal con
+  nombre o de uniforme y clientela por hora y día (`data/population.ts`): quien
+  rebusca en los cajones, quien se prueba algo, quien mira el flash, quien se
+  tatúa en la camilla y paga. En la calle (`data/streets.ts`): escaparates,
+  gente esperando en la puerta, parejas de paseo, corrillos, el banco, la terraza
+  del Molinillo con su camarera y las bicis del carril. Sara pasa algún miércoles
+  y sábado por el Molinillo, Retales, Archivo y el flash de Tinta; Ada, algún
+  sábado, por Segunda Vuelta, el café y el banco del Carmen.
 - **Edificios** — los del barrio son `BuildingDef` (`data/vallesco.ts`), no
   caracteres de rejilla: estilo, huella, fachada norte o sur, una o dos plantas
   y puerta. Si tiene interior, `LocationSystem` genera su portal y el spawn de
@@ -337,8 +383,10 @@ Autoguardado cada 10 segundos, al cambiar de localización y al cerrar la
 pestaña. El HUD muestra un `PARTIDA GUARDADA` discreto al escribir.
 
 Persiste día, hora, minuto, dinero, energía, localización, posición,
-orientación y la memoria de eventos de viaje (una partida anterior sin ella
-carga con la memoria vacía). Si un mapa cambió y la posición guardada cae
+orientación, la memoria de eventos de viaje (una partida anterior sin ella
+carga con la memoria vacía), el aspecto (peinado, ropa puesta y tatuajes) y el
+armario. Una prenda, un tatuaje o un peinado que ya no existe se olvida al cargar
+sin romper la partida. Si un mapa cambió y la posición guardada cae
 dentro de algo, se aparece en la entrada de esa localización. Al cargar, el archivo se valida campo a campo: si la versión no
 coincide o la forma es incorrecta, se descarta y empieza partida nueva en lugar
 de arrancar con datos corruptos.
@@ -365,6 +413,8 @@ src/
     LocationSystem.ts     registro, validación, edificios -> portales, máscara de colisión
     Navigation.ts         destinos con nombre, rutas por el grafo y entre puertas (puro)
     Places.ts             lugares resueltos: entradas, salidas, destinos, horario (puro)
+    Retail.ts             tiendas de ropa: comprar, ponerse, quitarse, escaparate (puro)
+    Appearance.ts         aspecto de hoy: peinado, ropa, tatuajes que se ven; corte y tatuaje (puro)
     TrainSystem.ts        tren: estados, horario y puertas (sin Phaser)
     MetroSystem.ts        estación viva: coordina tren, pasajeros, vigilancia y microeventos
     MetroDaily.ts         estado diario con semilla, franjas, arquetipos, retrasos (puro)
@@ -399,9 +449,12 @@ src/
     Announcer.ts          megafonía
     PlaceBanner.ts        nombre del sitio al llegar
   data/
-    locations.ts          registro: 13 localizaciones (2 distritos, 2 andenes, 9 interiores)
-    vallesco.ts           el barrio: suelo, 27 edificios, mobiliario, puntos y grafo
-    interiors.ts          gimnasio, tienda de ropa, súper, restaurante, oficinas y discoteca
+    locations.ts          registro: 2 distritos, 2 andenes y los interiores
+    vallesco.ts           el barrio (con la Calle del Carmen): suelo, edificios, mobiliario, puntos y grafo
+    interiors.ts          gimnasio, tiendas, súper, restaurante, oficinas, discoteca, barbería, estudio, cafés
+    retail.ts             prendas y tiendas de ropa: qué tiene cada una y a qué precio
+    tattoos.ts            zonas, diseños y estilos de tatuaje; qué ropa tapa qué zona
+    appearance.ts         peinados y huecos del aspecto
     places.ts             lugares con id estable: viviendas, negocios, transporte, plaza y parque
     npcs.ts               dieciocho personajes (Marco, Iker y Rocío vigilan) + 12 aspectos de pasajero
     announcements.ts      textos de megafonía por contexto
@@ -418,11 +471,18 @@ Conocidas y deliberadas:
 
 - **El gráfico es provisional.** Original y coherente, pero placeholder; la
   lógica no depende de ningún sprite concreto.
-- **Los interiores nuevos se recorren y se habla; nada más.** Gimnasio, tienda,
-  súper, restaurante y oficinas tienen mobiliario, un personaje y sus puntos
-  (`GYM_TREADMILL_01`, `CLOTHING_STORE_TILL`, `HOME_WARDROBE`…), pero no hay
-  entrenar, comprar ni trabajar, y por eso ningún botón lo finge. El centro de
-  estudios y los comercios del barrio sólo tienen fachada.
+- **Algunos interiores sólo se recorren.** Gimnasio y oficinas tienen mobiliario,
+  personal y sus puntos, pero no hay entrenar ni trabajar, y por eso ningún botón
+  lo finge. El centro de estudios, los discos y la serigrafía sólo tienen fachada.
+- **La ropa no se prueba antes de comprarla.** El probador es un sitio de los
+  clientes; comprar te la pone y en casa te cambias. No hay tallas, existencias
+  por tienda (salvo las piezas únicas), rebajas, vender ropa usada ni ropa para
+  los personajes con nombre: `Appearance` ya lo admite (`setAppearance('sara', …)`),
+  falta quién lo decida.
+- **Los tatuajes son un píxel de tinta.** A 16 px por persona, el diseño se lee
+  por el color y el sitio, no por el dibujo. Pecho, espalda y gemelo nunca se ven
+  porque no existe ropa que los deje al aire (ni pantalón corto ni ir sin
+  camiseta); la regla ya lo contempla. No se borran ni se retocan.
 - **La calle sólo tiene gente en Vallesco.** Ribera Norte no tiene perfil en
   `data/streets.ts` todavía. El metro circula las 24 horas; cerrarlo de
   madrugada cambiaría cómo vuelve el jugador a casa, y no está decidido.
@@ -454,8 +514,9 @@ Conocidas y deliberadas:
 - **Los NPC con nombre no tienen memoria.** Cada conversación empieza de cero.
   Los habituales del andén (Paula, Kike, Inés, Dani) siguen quietos; los que se
   mueven son los pasajeros anónimos y Marco.
-- **Un mapa por barrio, sin trocear.** Vallesco (76×56) va a 60 fps con 144
-  cuerpos y ~250 objetos. Con varias veces ese tamaño tocaría trocear en zonas o
+- **Un mapa por barrio, sin trocear.** Vallesco (110×56, con la Calle del Carmen)
+  va a 55–59 fps en la calle y a 60 dentro (Chrome de escritorio, sábado a las
+  18:00), con ~220 cuerpos estáticos y ~630 objetos. Con varias veces ese tamaño tocaría trocear en zonas o
   descartar props fuera de cámara.
 - **Sin audio, sin controles táctiles, sin menús.**
 - El objetivo es escritorio; el canvas se adapta a la ventana, pero no hay

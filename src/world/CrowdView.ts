@@ -35,6 +35,12 @@ export class CrowdView {
     return [...this.sprites.values()];
   }
 
+  /** El agente que pinta este sprite ahora mismo: con él se habla. */
+  agentOf(sprite: Character): Agent | undefined {
+    for (const [id, s] of this.sprites) if (s === sprite) return this.crowd.agents.find((a) => a.id === id);
+    return undefined;
+  }
+
   sync(time: number): void {
     const here = new Set<number>();
     const view = this.scene.cameras.main.worldView;

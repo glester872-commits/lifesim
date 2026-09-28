@@ -2,6 +2,9 @@
 import { SAVE_KEY, SAVE_VERSION } from '../config/constants.ts';
 import type { EventMemory, Facing, GameStateData, SaveFile } from '../types/game.ts';
 import { emptyMemory } from './MetroEventManager.ts';
+import { HAIR_IDS, type Appearance, type HairStyle, type TattooMark } from '../data/appearance.ts';
+import { GARMENT_IDS, getGarment } from '../data/retail.ts';
+import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
 
 /**
  * Backend de persistencia. localStorage es sólo la implementación actual:
@@ -101,7 +104,38 @@ function parseState(value: unknown): GameStateData | null {
     events: parseEvents(s.events),
     inventory: parseCounts(s.inventory),
     cards: parseCounts(s.cards),
+    appearance: parseAppearance(s.appearance),
+    wardrobe: Array.isArray(s.wardrobe) ? [...new Set(s.wardrobe.filter((g): g is string => typeof g === 'string' && GARMENT_IDS.has(g)))] : [],
   };
+}
+
+/** Prenda puesta en ese hueco, si existe y es de ese hueco. */
+const garmentFor = (value: unknown, slot: 'top' | 'bottom'): string | undefined =>
+  typeof value === 'string' && GARMENT_IDS.has(value) && getGarment(value).slot === slot ? value : undefined;
+
+/**
+ * Aspecto de quien persiste. Partidas anteriores no lo tienen y cargan con el
+ * aspecto de siempre; un peinado, una prenda o un tatuaje que ya no existe se
+ * olvida, no rompe la carga.
+ */
+function parseAppearance(value: unknown): Record<string, Appearance> {
+  if (!isRecord(value)) return {};
+  const out: Record<string, Appearance> = {};
+  for (const [id, a] of Object.entries(value)) {
+    if (!isRecord(a)) continue;
+    const parsed: Appearance = {};
+    if (typeof a.hair === 'string' && HAIR_IDS.has(a.hair)) parsed.hair = a.hair as HairStyle;
+    const top = garmentFor(a.top, 'top');
+    const bottom = garmentFor(a.bottom, 'bottom');
+    if (top) parsed.top = top;
+    if (bottom) parsed.bottom = bottom;
+    const tattoos = Array.isArray(a.tattoos)
+      ? a.tattoos.filter((t): t is TattooMark => isRecord(t) && typeof t.zone === 'string' && ZONE_IDS.has(t.zone) && typeof t.design === 'string' && DESIGN_IDS.has(t.design))
+      : [];
+    if (tattoos.length > 0) parsed.tattoos = tattoos.map((t) => ({ zone: t.zone, design: t.design }));
+    if (Object.keys(parsed).length > 0) out[id] = parsed;
+  }
+  return out;
 }
 
 /**

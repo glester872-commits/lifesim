@@ -116,8 +116,8 @@ export class SignalView {
       for (let x = sig.tx; x < sig.tx + sig.w; x++) {
         for (const y of [north, south]) scene.add.image(x * TILE, y * TILE, 'tile-tactile-0').setOrigin(0, 0).setDepth(-9);
       }
-      // Línea de detención de cada carril, blanca y gastada, antes de las bandas.
-      for (const lane of def.traffic?.lanes ?? []) {
+      // Línea de detención de cada carril (también el bici), blanca y gastada, antes de las bandas.
+      for (const lane of [...(def.traffic?.lanes ?? []), ...(def.traffic?.bikes?.lanes ?? [])]) {
         if (lane.row < sig.ty || lane.row >= sig.ty + sig.h) continue;
         const x = lane.dir > 0 ? sig.tx * TILE - 5 : (sig.tx + sig.w) * TILE + 3;
         for (let y = lane.row * TILE + 1; y < (lane.row + 1) * TILE - 1; y++) {

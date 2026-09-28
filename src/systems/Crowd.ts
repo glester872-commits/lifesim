@@ -95,6 +95,8 @@ export interface Agent {
   pendingParty?: number;
   /** Al llegar, se gira hacia aquí: el camarero, hacia el cliente. */
   face?: TilePoint;
+  /** Hablando con el jugador: no da un paso ni pasa a lo siguiente hasta despedirse. */
+  talking?: boolean;
 }
 
 export interface CrowdStats {
@@ -235,7 +237,7 @@ export class Crowd {
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
       // Sale por la puerta. Si no encontró camino (cuenta en pathFailures), se va igual: nadie se queda atascado.
-      if (a.leaving && a.path.length === 0) this.remove(i);
+      if (a.leaving && a.path.length === 0 && !a.talking) this.remove(i);
     }
   }
 
@@ -296,6 +298,10 @@ export class Crowd {
   }
 
   private advance(a: Agent, deltaMs: number): void {
+    if (a.talking) {
+      a.moving = false;
+      return;
+    }
     if (a.path.length > 0) {
       this.walk(a, deltaMs);
       return;
@@ -450,7 +456,9 @@ export class Crowd {
 
   private pickRole(clock: Clock): VisitorRole | undefined {
     const t = clock.hour + clock.minute / 60;
-    const roles = this.profile.visitors.filter((r) => !r.hours || (t >= r.hours[0] && t < r.hours[1]));
+    // Una franja que pasa de medianoche ([23, 5]) vale a ambos lados.
+    const inHours = ([from, to]: readonly [number, number]): boolean => (from <= to ? t >= from && t < to : t >= from || t < to);
+    const roles = this.profile.visitors.filter((r) => !r.hours || inHours(r.hours));
     const total = roles.reduce((s, r) => s + r.weight, 0);
     let roll = this.rng() * total;
     for (const r of roles) {

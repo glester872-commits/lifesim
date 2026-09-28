@@ -5,6 +5,8 @@ import { PEOPLE, personFrame } from '../world/TextureFactory';
 export class NPC extends Phaser.Physics.Arcade.Sprite {
   readonly def: NpcDef;
   private readonly shadow: Phaser.GameObjects.Image;
+  /** Hacia dónde mira en su puesto. */
+  private readonly post: Facing;
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: NpcDef, facing: Facing) {
     super(scene, x, y, PEOPLE, personFrame(def.id, facing));
@@ -26,5 +28,11 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
     // Respira, cada uno a su compás: una fila de gente idéntica en sincronía se nota.
     this.anims.play(`npc-${def.id}-idle-${facing}`);
     this.anims.setProgress(Math.random());
+    this.post = facing;
+  }
+
+  /** Mira a quien le habla sin dejar de respirar; sin argumento, vuelve a mirar hacia su puesto. */
+  look(facing: Facing = this.post): void {
+    this.anims.play(`npc-${this.def.id}-idle-${facing}`, true);
   }
 }

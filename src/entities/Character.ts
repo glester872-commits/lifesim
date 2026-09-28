@@ -8,7 +8,7 @@ import { PEOPLE, personFrame } from '../world/TextureFactory';
  * Lo que se ve hacer a alguien parado. No es IA: sale del sitio donde está
  * (una silla, una cinta) y de lo que su sistema ya dice que hace.
  */
-export type Activity = 'idle' | 'sit' | 'read' | 'run' | 'lift' | 'phone' | 'talk' | 'dance' | 'eat' | 'drink';
+export type Activity = 'idle' | 'sit' | 'read' | 'run' | 'lift' | 'phone' | 'talk' | 'dance' | 'eat' | 'drink' | 'sip';
 
 /** La música de la sala: 120 pulsaciones. Todos bailan al mismo compás, cada uno a su manera. */
 const BEAT_MS = 500;
@@ -29,8 +29,9 @@ export interface Placement {
 /** Dónde queda la mesa según hacia dónde mira quien está sentado, en px desde sus pies. */
 const TABLE_OFFSET: Readonly<Record<Facing, readonly [number, number]>> = { up: [0, -TILE - 3], down: [0, TILE - 7], left: [-TILE, -7], right: [TILE, -7] };
 
+const SEATED: ReadonlySet<Activity> = new Set(['sit', 'read', 'eat', 'drink']);
 const WAITING = new Set(['WAIT', 'QUEUE', 'REST', 'BREAK']);
-const TALKING = new Set(['MEETING', 'ORDER', 'CHECK_IN', 'CHECKOUT', 'DRINK', 'TALK']);
+const TALKING = new Set(['MEETING', 'ORDER', 'CHECK_IN', 'CHECKOUT', 'TALK']);
 
 /**
  * Actividad visible en un punto: en un asiento o un puesto de mesa, sentado;
@@ -43,6 +44,8 @@ export function activityAt(point: string | undefined, state: string | undefined,
   // Sentado a la mesa: con plato si come, con taza o vaso si bebe.
   if (state === 'PHONE') return 'phone';
   if (p?.kind === 'seat' || point?.includes('_DESK_')) return state === 'EAT' ? 'eat' : state === 'DRINK' ? 'drink' : state === 'READ' ? 'read' : 'sit';
+  // Bebiendo de pie (en un corro, en la barra): con la copa en la mano.
+  if (state === 'DRINK') return 'sip';
   if (point?.includes('TREADMILL')) return 'run';
   if (point && /^GYM_(WEIGHTS|BENCH)/.test(point)) return 'lift';
   if (p?.kind === 'meet' || (state && TALKING.has(state))) return 'talk';
@@ -58,6 +61,11 @@ export function activityAt(point: string | undefined, state: string | undefined,
  */
 export class Character extends Phaser.GameObjects.Sprite {
   def: NpcDef;
+  /**
+   * Hacia dónde está el jugador mientras hablan. Sólo cambia cómo se le ve:
+   * quien lo mueve (Crowd, StreetLife, WorldScene) es quien lo tiene quieto.
+   */
+  talkingTo: Facing | null = null;
   private readonly shadow: Phaser.GameObjects.Image;
   private readonly icon: Phaser.GameObjects.Image;
   private seed: number;
@@ -80,6 +88,7 @@ export class Character extends Phaser.GameObjects.Sprite {
   reuse(def: NpcDef, seed: number): void {
     this.def = def;
     this.seed = seed;
+    this.talkingTo = null;
     this.anims.stop();
   }
 
@@ -99,6 +108,10 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.anims.stop();
       return;
     }
+    // Hablando: de pie y de cara; sentado, sigue sentado y mirando a su mesa.
+    if (this.talkingTo && !(SEATED.has(where.activity ?? 'idle') && !where.moving)) {
+      where = { ...where, moving: false, activity: 'idle', dir: this.talkingTo };
+    }
     const x = where.tx * TILE + TILE / 2;
     const y = where.ty * TILE + TILE;
     this.setPosition(x, y).setDepth(y);
@@ -114,12 +127,17 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.anims.stop();
       this.setTexture(PEOPLE, personFrame(id, where.dir, 4));
     } else if (activity === 'dance') {
-      // Un paso por pulso y un giro cada dos; medio pulso arriba, medio abajo.
-      const beat = Math.floor(time / BEAT_MS);
-      const dir = DANCE_TURNS[(Math.floor(beat / 2) + this.seed) % DANCE_TURNS.length];
+      // La misma música para todos, pero cada uno la baila a su manera: unos a cada
+      // pulso, otros a medio tiempo y otros a contratiempo; y cada uno gira cuando le da.
+      const style = this.seed % 3;
+      const t = style === 2 ? time + BEAT_MS / 2 : time;
+      const step = BEAT_MS * (style === 1 ? 2 : 1);
+      const beat = Math.floor(t / step);
+      const turnEvery = 2 + (this.seed % 2);
+      const dir = DANCE_TURNS[(Math.floor(beat / turnEvery) + this.seed) % DANCE_TURNS.length];
       this.anims.stop();
       this.setTexture(PEOPLE, personFrame(id, dir, beat % 2 === 0 ? 1 : 2));
-      this.setY(y - (time % BEAT_MS < BEAT_MS / 2 ? 1 : 0));
+      this.setY(y - (t % step < step / 2 ? 1 : 0));
     } else if (activity === 'phone') {
       // Cabeza gacha y el móvil entre las manos, quieto.
       this.anims.stop();
@@ -144,6 +162,11 @@ export class Character extends Phaser.GameObjects.Sprite {
       // El libro abierto en el regazo; de espaldas asoma a un lado.
       const side = where.dir === 'up' ? 5 : where.dir === 'left' ? -3 : 3;
       this.icon.setTexture('fx-book').setPosition(x + side, y - 6).setDepth(y + 1).setVisible(true);
+    } else if (activity === 'sip') {
+      // De pie con la copa en la mano; cada uno da un trago cuando le toca, no todos a la vez.
+      const raised = Math.floor((time + this.seed * 977) / 1400) % 5 === 0;
+      const side = where.dir === 'left' ? -4 : where.dir === 'up' ? 5 : 4;
+      this.icon.setTexture('fx-cup').setPosition(x + side, y - (raised ? 13 : 9)).setDepth(y + 1).setVisible(true);
     } else if (talking) {
       this.icon.setTexture('fx-talk').setPosition(x + 5, y - 24).setDepth(y + 1).setVisible(true);
     } else this.icon.setVisible(false);

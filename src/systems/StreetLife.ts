@@ -10,7 +10,7 @@ import { between, hashSeed, seededRng, weekIndex, type Rng } from './MetroDaily.
 import { isOpen, placeInfo, placeOfPoint, type PlaceInfo } from './Places.ts';
 import { route, tilePath } from './Navigation.ts';
 import { besideTile, identity, nextCustomer } from './Service.ts';
-import { isWalkable } from './LocationSystem.ts';
+import { ROADWAY, isWalkable } from './LocationSystem.ts';
 import { levelAt, profileFor, type Agent, type Clock } from './Crowd.ts';
 import { DOG_LOOKS } from '../data/wildlife.ts';
 import { crossingOf, signalAt, waitSpots } from './Signals.ts';
@@ -19,7 +19,6 @@ const MS_PER_GAME_MINUTE = 1000 / GAME_MINUTES_PER_REAL_SECOND;
 /** Hasta las 6 la madrugada es de la noche anterior: el sábado a las 3 sigue siendo viernes. */
 const NIGHT_ENDS = 6;
 /** Nadie se queda parado en la calzada, aunque se pueda pisar. */
-const ROADWAY = new Set(['.', '=', ':', 'z']);
 /** Cada cuánto (ms reales) la calle decide si sale alguien más. */
 const TICK: readonly [number, number] = [1_200, 2_600];
 /** Quien va solo a veces se para un momento a mitad de camino (el móvil, un escaparate). */
@@ -207,12 +206,14 @@ export class StreetLife {
       this.reconcile(clock, player);
     }
     for (const a of this.agents) {
-      if (a.kind === 'staff') this.advanceStaff(a, deltaMs);
+      // Hablando con el jugador: quieto donde está; su plan sigue al despedirse.
+      if (a.talking) a.moving = false;
+      else if (a.kind === 'staff') this.advanceStaff(a, deltaMs);
       else this.advance(a, deltaMs, clock);
     }
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
-      if (a.vanish && a.path.length === 0 && a.delay <= 0) {
+      if (a.vanish && a.path.length === 0 && a.delay <= 0 && !a.talking) {
         this.release(a);
         this.agents.splice(i, 1);
       }

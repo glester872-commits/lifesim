@@ -181,6 +181,22 @@ export const CHARACTERS: readonly CharacterDef[] = [
         ],
       },
       {
+        // Día de Carmen (miércoles sin clase o sábado): brunch en el Molinillo, Retales, Archivo y el flash del estudio.
+        id: 'sabado-carmen',
+        days: [2, 5],
+        weight: 1,
+        stops: [
+          { at: '11:30', point: 'MOLINILLO_TERRACE_01', lines: ['Brunch en el Molinillo. El café de aquí es otra liga.'], going: ['Voy al Carmen, que hoy hay que mirar tiendas.'] },
+          { at: '12:40', point: 'RETALES_RACK_02', lines: ['Gus guarda lo mejor para los sábados.', 'Esta chaqueta es de los setenta. Mírala.'], going: ['Paso por Retales antes de que lo compre otra.'] },
+          { at: '13:30', point: 'RETALES_MIRROR', lines: ['¿Este o el negro? No me digas «los dos».'], going: ['Me lo pruebo, dame un segundo.'] },
+          // Del Carmen a casa se cruza la avenida: margen para esperar el verde.
+          inside('15:10', SARA_HOME, 'Me voy a comer, que luego vuelvo.'),
+          { at: '17:10', point: 'ARCHIVO_WALL_01', lines: ['Estas zapatillas valen más que mi alquiler.', 'Sólo miro. Para el vídeo.'], going: ['Voy a Archivo, que han sacado algo.'] },
+          { at: '18:00', point: 'TINTA_FLASH_01', lines: ['Me estoy pensando una golondrina. En la muñeca.', 'Lía dice que me lo piense un mes. Llevo tres.'], going: ['Paso por Tinta a mirar diseños.'] },
+          inside('19:20', SARA_HOME, 'A casa, que esta noche edito.'),
+        ],
+      },
+      {
         id: 'sabado-en-casa',
         days: [5],
         weight: 1,
@@ -285,6 +301,19 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('13:00', ADA_HOME, 'A comer.'),
           { at: '18:00', point: 'CLOTHING_STORE_RACK_02', lines: ['Sara me ha mandado a por una chaqueta. Para mí, dice.'], going: ['Voy a Hilo, que me lo ha pedido Sara.'] },
           inside('19:10', ADA_HOME, 'A casa. Mañana más.'),
+        ],
+      },
+      {
+        // Sábado de rebuscar: al peso en Segunda Vuelta, café en el Molinillo y un rato de libro en el banco.
+        id: 'sabado-carmen',
+        days: [5],
+        weight: 1,
+        stops: [
+          { at: '10:40', point: 'VUELTA_BIN_01', lines: ['Al peso sale a nada. Hay que saber rebuscar.'], going: ['Voy a Segunda Vuelta, que los sábados reponen.'] },
+          { at: '11:40', point: 'MOLINILLO_TABLE_01', lines: ['Aquí se estudia bien. Y el bizcocho es casero.'], going: ['Un café en el Molinillo.'] },
+          inside('13:00', ADA_HOME, 'A comer.'),
+          { at: '18:00', point: 'CARMEN_BENCH_02', lines: ['Aquí se lee bien. Pasa gente, pero nadie grita.'], going: ['Me bajo a leer al Carmen.'] },
+          inside('19:20', ADA_HOME, 'A casa. Mañana más.'),
         ],
       },
       {

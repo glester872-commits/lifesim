@@ -10,6 +10,11 @@ import { getItem } from '../src/data/items.ts';
 import { VALLESCO } from '../src/data/vallesco.ts';
 import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
 import { PROPS } from '../src/world/tiles.ts';
+import { getOffer } from '../src/data/services.ts';
+import { HAIRSTYLES } from '../src/data/appearance.ts';
+import { getStore } from '../src/data/retail.ts';
+import { TATTOO_DESIGNS } from '../src/data/tattoos.ts';
+import { identity } from '../src/systems/Service.ts';
 import type { LocationDef } from '../src/types/game.ts';
 
 /** Tiles a los que se llega a pie desde la entrada del interior. */
@@ -46,14 +51,19 @@ for (const place of PLACES) {
   const terminals = interior?.terminals ?? [];
   const spots = interior?.spots ?? [];
   const lights = (interior?.props ?? []).filter((p) => PROPS[p.kind].light).length;
+  // Personal al que se le pide algo (la barbera, la barra): también es algo que hacer dentro.
+  const offers = (profile?.staff ?? []).flatMap((s) => {
+    const offer = identity(s).offers;
+    return offer ? [{ offer, points: s.points }] : [];
+  });
   const status = place.why ? 'LISTO' : interior ? 'pendiente' : 'fachada';
-  rows.push(`${status.padEnd(10)} ${place.id.padEnd(15)} interior:${interior ? 'sí' : 'no'}  compra:${terminals.length}  hacer:${spots.length}  personal:${profile?.staff.length ?? 0}  luces:${lights}${place.why ? `  → ${place.why}` : ''}`);
+  rows.push(`${status.padEnd(10)} ${place.id.padEnd(15)} interior:${interior ? 'sí' : 'no'}  compra:${terminals.length}  hacer:${spots.length + offers.length}  personal:${profile?.staff.length ?? 0}  luces:${lights}${place.why ? `  → ${place.why}` : ''}`);
   if (!place.why) continue;
   ready++;
 
   const who = `[${place.id}]`;
   assert.ok(interior, `${who} tiene "why" pero no se puede entrar`);
-  assert.ok(terminals.length + spots.length > 0, `${who} no hay nada que comprar ni que hacer dentro`);
+  assert.ok(terminals.length + spots.length + offers.length > 0, `${who} no hay nada que comprar ni que hacer dentro`);
   const walk = reachable(interior);
   for (const t of terminals) {
     assert.ok(getCatalog(t.catalog).products.length > 0, `${who} ${t.name}: catálogo vacío`);
@@ -62,6 +72,18 @@ for (const place of PLACES) {
   for (const s of spots) {
     for (const a of s.activities) getActivity(a);
     assert.ok(usable(walk, s.tx, s.ty), `${who} ${s.name}: no se llega a pie`);
+  }
+  for (const { offer, points } of offers) {
+    const def = getOffer(offer);
+    if (def.kind === 'activities') for (const a of def.activities) getActivity(a);
+    else if (def.kind === 'retail') assert.ok(getStore(def.store).stock.length > 0, `${who} ${offer}: tienda sin género`);
+    else if (def.slot === 'tattoos') assert.ok(TATTOO_DESIGNS.length > 0, `${who} ${offer}: no hay diseños`);
+    else assert.ok(HAIRSTYLES.some((h) => h.price !== undefined), `${who} ${offer}: no hay nada que ofrecer`);
+    // A quien ofrece se llega a pie: su puesto está junto a algo pisable desde la puerta.
+    for (const id of points) {
+      const pt = interior.points?.[id];
+      assert.ok(pt && usable(walk, pt.tx, pt.ty), `${who} ${offer}: no se llega a ${id}`);
+    }
   }
   assert.ok(lights > 0, `${who} sin luz propia dentro`);
   if (place.type === 'business') {

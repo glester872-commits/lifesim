@@ -2,7 +2,7 @@
 // comprueba con exactamente esta lógica.
 import { FOOD_HOURS, PIGEON_HOURS, PIGEON_SPOTS } from '../data/wildlife.ts';
 import type { LocationDef, TilePoint } from '../types/game.ts';
-import { isWalkable } from './LocationSystem.ts';
+import { ROADWAY, isWalkable } from './LocationSystem.ts';
 import type { Rng } from './MetroDaily.ts';
 import type { Walker } from './StreetLife.ts';
 
@@ -13,7 +13,6 @@ import type { Walker } from './StreetLife.ts';
  */
 
 /** Nadie se queda quieto en la calzada; una paloma, tampoco. */
-const ROADWAY = new Set(['.', '=', ':', 'z']);
 
 function walkable(loc: LocationDef, x: number, y: number): boolean {
   const tx = Math.round(x);

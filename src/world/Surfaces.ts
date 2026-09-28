@@ -86,7 +86,7 @@ const LEAF_FALL = ['#b88046', '#9a6a3a', '#c9a13a', '#8d7a3c'] as const;
 
 /** Por donde se camina fuera: donde la calzada los toca hay bordillo y cuneta. */
 const WALKWAY = new Set([',', 'P', 'c', '~', 'T']);
-const ROAD = new Set(['.', ':', '=', 'z']);
+const ROAD = new Set(['.', ':', '=', 'z', 'b']);
 
 // --------------------------------------------------------- losas y baldosas
 
@@ -247,6 +247,15 @@ function asphalt({ ctx, cells, at }: Paint): void {
     const ch = at(tx, ty);
     const kerbAbove = WALKWAY.has(at(tx, ty - 1));
     const kerbBelow = WALKWAY.has(at(tx, ty + 1));
+    // Carril bici: rojo teja encima del asfalto (el árido sigue asomando). En un paso de
+    // cebra que lo cruza, el rojo sigue entre las bandas: se ve que el carril continúa.
+    const bikeRow = ch === 'b' || (ch === 'z' && bikeCrossing(at, tx, ty));
+    if (bikeRow) {
+      ctx.globalAlpha = 0.62;
+      if (ch === 'b') px(ctx, PALETTE.bikeLane, X, Y, TILE, TILE);
+      else for (const [y, h] of [[Y, 1], [Y + 6, 3], [Y + 14, 2]]) px(ctx, PALETTE.bikeLane, X, y, TILE, h);
+      ctx.globalAlpha = 1;
+    }
     // Cuneta de hormigón junto al bordillo, con su junta cada 16 px e imbornal de vez en cuando.
     for (const [yes, gy] of [[kerbAbove, Y], [kerbBelow, Y + TILE - 3]] as const) {
       if (!yes) continue;
@@ -293,7 +302,29 @@ function asphalt({ ctx, cells, at }: Paint): void {
       px(ctx, PALETTE.ink, X + 1, Y + 11, 14, 1);
       ctx.globalAlpha = 1;
     }
+    if (ch === 'b') {
+      // Línea continua del lado de los coches: el carril bici no se pisa.
+      if (kerbAbove) paint(X, Y + TILE - 2, TILE, 2);
+      if (kerbBelow) paint(X, Y, TILE, 2);
+      // La bici y la flecha del sentido, cada tantos tiles. Se circula por la derecha:
+      // el carril del bordillo norte va al oeste.
+      const glyph = tx % 12 === 5 ? BIKE_GLYPH : tx % 12 === 7 ? (kerbAbove ? ARROW_WEST : ARROW_EAST) : null;
+      const top = Y + (kerbAbove ? 4 : 6);
+      glyph?.forEach((row, y) => [...row].forEach((c, x) => c === 'X' && paint(X + 2 + x, top + y, 1, 1)));
+    }
   }
+}
+
+/** Bici del carril, en pintura blanca: dos ruedas y el cuadro. */
+const BIKE_GLYPH = ['...X...XX..', '....X.X....', '.XXXXXXX.X.', 'X..XX..XX.X', 'X...X...X.X', '.XXX.....X.'];
+const ARROW_EAST = ['...X..', '....X.', 'XXXXXX', '....X.', '...X..'];
+const ARROW_WEST = ARROW_EAST.map((r) => [...r].reverse().join(''));
+
+/** Un paso de cebra que corta un carril bici: a un lado del paso, en su misma fila, sigue el carril. */
+function bikeCrossing(at: (tx: number, ty: number) => string, tx: number, ty: number): boolean {
+  let x = tx;
+  while (at(x, ty) === 'z') x--;
+  return at(x, ty) === 'b';
 }
 
 // ------------------------------------------------------ adoquín y caminos
@@ -459,7 +490,7 @@ export const MATERIALS: readonly Material[] = [
   // Plaza mayor: losa de caliza más grande y más clara, de hiladas anchas.
   { chars: '~', paint: slabs({ base: shade(PALETTE.plaza, 0.03), course: 16, lengths: [16, 24, 32], seed: 29, spread: 0.8 }) },
   { chars: ',', paint: sidewalk },
-  { chars: '.:=z', paint: asphalt },
+  { chars: '.:=zb', paint: asphalt },
   { chars: 'c', paint: cobble },
   { chars: 'g', paint: grass },
   { chars: 'd', paint: dirt },

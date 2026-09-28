@@ -14,7 +14,7 @@ import { batch, hash as noise, mix } from './Surfaces';
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -28,6 +28,12 @@ interface Look {
   door: Door;
   awning?: readonly [string, string];
   sign?: Sign;
+  /**
+   * Lo pintado en el muro ciego de la planta baja: un mural encargado (el
+   * grafiti con permiso de la Calle del Carmen) o carteles pegados. Sólo en los
+   * paños sin hueco: nunca tapa un escaparate ni una puerta.
+   */
+  wallArt?: 'mural' | 'posters';
 }
 
 const RUST = '#c0493f';
@@ -58,6 +64,23 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   laundry: { roof: PALETTE.roofBLit, roofLit: shade(PALETTE.roofBLit, 0.04), wall: shade(PALETTE.white, -0.2), shop: 'display', upper: 'windows', lit: PALETTE.glassLit, door: 'glass', sign: 'drop' },
   civic: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.stoneLit, shop: 'arched', upper: 'windows', lit: PALETTE.glassLit, door: 'wood', sign: 'flag' },
   works: { roof: PALETTE.ballast, roofLit: PALETTE.metal, wall: PALETTE.metal, shop: 'shutter', upper: 'windows', lit: PALETTE.amber, door: 'metal' },
+  // Vinoteca en la antigua obra: fachada granate, carpintería de madera y luz cálida detrás del cristal.
+  wine: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.rug, -0.3), shop: 'windows', upper: 'windows', lit: PALETTE.amber, door: 'wood', awning: [shade(PALETTE.rug, -0.15), PALETTE.white], sign: 'wine' },
+  // Calle del Carmen: cada tienda se reconoce desde la acera sin leer un rótulo.
+  // Retales, vintage: verde botella, toldo de rayas crema y óxido, escaparate con maniquíes y el vestido.
+  vintage: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#2f5d50', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'wood', awning: ['#e6dcc0', RUST], sign: 'dress' },
+  // Archivo, streetwear: hormigón oscuro, cristal corrido con luz fría y la gorra.
+  streetwear: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#3a3d44', shop: 'glass', upper: 'band', lit: NEON_CYAN, door: 'glass', sign: 'cap' },
+  // Segunda Vuelta, al peso: revoco amarillo, toldo verde y la etiqueta de precio.
+  thrift: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#d8b04a', shop: 'display', upper: 'windows', lit: PALETTE.amber, door: 'glass', awning: [PALETTE.leaf, PALETTE.white], sign: 'tag', wallArt: 'posters' },
+  // Tinta Carmen: negro, luz rosa detrás del cristal, el corazón con banda y un mural al lado.
+  tattoo: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: PALETTE.night, shop: 'windows', upper: 'windows', lit: NEON_PINK, door: 'metal', sign: 'heart', wallArt: 'mural' },
+  // Café Molinillo: terracota, toldo verde oscuro y la taza.
+  coffee: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#b8674a', shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#2f4a3a', '#e6dcc0'], sign: 'cup' },
+  // Discos Surco: persiana pintada de arriba abajo (con permiso) y el vinilo.
+  records: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#4a3f5a', shop: 'windows', upper: 'windows', lit: PALETTE.amber, door: 'wood', sign: 'disc', wallArt: 'mural' },
+  // Serigrafía: taller de carteles, con sus propios carteles en la fachada.
+  print: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.white, -0.16), shop: 'windows', upper: 'windows', lit: PALETTE.white, door: 'metal', wallArt: 'posters' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
 };
 
@@ -239,7 +262,39 @@ function drawFront(ctx: Ctx, look: Look, variant: number): void {
       px(ctx, shade(PALETTE.night, 0.04), 2, 6, 12, 8);
       break;
   }
+  if (variant === 0 && look.wallArt) drawWallArt(ctx, look.wallArt, look.wall);
   if (look.shop !== 'metro') drawAwning(ctx, look);
+}
+
+/**
+ * Grafiti controlado y cartelería: manchas de color con contorno en el mural,
+ * papeles superpuestos y medio arrancados en los carteles. Por debajo del alero.
+ */
+function drawWallArt(ctx: Ctx, art: 'mural' | 'posters', wall: string): void {
+  if (art === 'mural') {
+    const ink = [NEON_PINK, NEON_CYAN, PALETTE.amber, '#c8d84a', PALETTE.white];
+    px(ctx, shade(wall, 0.05), 0, 3, TILE, 12);
+    // Tres pompas de letras que se montan: contorno oscuro, relleno y un brillo.
+    for (const [x, y, w, h, k] of [[1, 5, 6, 6, 0], [6, 4, 6, 7, 1], [10, 7, 5, 6, 2]] as const) {
+      px(ctx, PALETTE.ink, x, y, w, h);
+      px(ctx, ink[k], x + 1, y + 1, w - 2, h - 2);
+      px(ctx, shade(ink[k], 0.2), x + 1, y + 1, w - 3, 1);
+    }
+    // Gotas y firma.
+    px(ctx, ink[0], 3, 11, 1, 3);
+    px(ctx, ink[3], 12, 13, 1, 2);
+    px(ctx, ink[4], 2, 13, 4, 1);
+    return;
+  }
+  const papers = [PALETTE.white, '#e6dcc0', NEON_PINK, '#c8d84a', PALETTE.amber];
+  for (const [x, y, w, h, k] of [[1, 4, 6, 8, 0], [6, 5, 5, 7, 2], [10, 3, 5, 9, 1], [3, 9, 5, 5, 3]] as const) {
+    px(ctx, shade(papers[k], -0.25), x + 1, y + 1, w, h);
+    px(ctx, papers[k], x, y, w, h);
+    px(ctx, PALETTE.ink, x + 1, y + 1, w - 2, 1);
+    px(ctx, shade(papers[k], -0.3), x + 1, y + 3, w - 3, 1);
+  }
+  // Una esquina arrancada.
+  px(ctx, wall, 14, 3, 1, 2);
 }
 
 /** Primera planta: ventanas con alféizar, balcones o cristal corrido. */
@@ -340,7 +395,8 @@ function drawSign(ctx: Ctx, sign: Sign): void {
   const edge: Readonly<Record<Sign, string>> = {
     house: PALETTE.amber, dumbbell: PALETTE.glassLit, cup: PALETTE.amber, hanger: PALETTE.white, basket: PALETTE.leafLit, fork: PALETTE.rugLit,
     cross: PALETTE.leafLit, scissors: PALETTE.glassLit, euro: PALETTE.amber, apple: RUST, key: PALETTE.amber,
-    drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK,
+    drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
+    dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -365,6 +421,12 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     case 'flag': p(5, 4, 1, 8); px(ctx, RUST, 6, 4, 5, 2); px(ctx, PALETTE.amber, 6, 6, 5, 2); break;
     case 'plate': p(4, 6, 8, 1); p(4, 9, 8, 1); px(ctx, PALETTE.glassLit, 4, 7, 3, 2); break;
     case 'note': px(ctx, NEON_CYAN, 4, 9, 3, 3); px(ctx, NEON_CYAN, 9, 8, 3, 3); p(6, 4, 1, 6); p(11, 3, 1, 6); p(6, 3, 6, 2); break;
+    case 'dress': p(7, 3, 2, 2); p(6, 5, 4, 2); p(5, 7, 6, 2); p(4, 9, 8, 3); px(ctx, RUST, 6, 7, 4, 1); break;
+    case 'cap': p(5, 5, 6, 4); p(4, 7, 1, 2); p(10, 8, 4, 2); px(ctx, NEON_CYAN, 6, 5, 2, 1); break;
+    case 'tag': p(6, 4, 6, 7); p(5, 5, 1, 5); p(4, 6, 1, 3); px(ctx, PALETTE.ink, 6, 7, 1, 1); px(ctx, PALETTE.ink, 8, 6, 3, 1); px(ctx, PALETTE.ink, 8, 8, 2, 1); break;
+    case 'heart': px(ctx, RUST, 4, 5, 3, 3); px(ctx, RUST, 9, 5, 3, 3); px(ctx, RUST, 4, 7, 8, 2); px(ctx, RUST, 5, 9, 6, 1); px(ctx, RUST, 6, 10, 4, 1); px(ctx, RUST, 7, 11, 2, 1); p(3, 7, 10, 1); break;
+    case 'disc': p(5, 4, 6, 8); p(4, 5, 8, 6); px(ctx, PALETTE.ink, 5, 5, 6, 6); px(ctx, PALETTE.amber, 7, 7, 2, 2); px(ctx, shade(PALETTE.ink, 0.15), 6, 5, 2, 1); break;
+    case 'wine': p(5, 3, 6, 1); p(5, 4, 1, 3); p(10, 4, 1, 3); px(ctx, PALETTE.rugLit, 6, 5, 4, 2); p(6, 7, 4, 1); p(7, 8, 2, 3); p(5, 11, 6, 1); break;
   }
 }
 
@@ -419,7 +481,7 @@ export function buildBuildingTextures(scene: Phaser.Scene): void {
     make(scene, `bs-${style}-door`, TILE, TILE, (ctx) => drawDoor(ctx, look));
     if (look.door === 'glass') make(scene, `bs-${style}-door-open`, TILE, TILE, (ctx) => drawDoorOpen(ctx, look));
   }
-  const signs: Sign[] = ['house', 'dumbbell', 'cup', 'hanger', 'basket', 'fork', 'cross', 'scissors', 'euro', 'apple', 'key', 'drop', 'book', 'flag', 'plate', 'note'];
+  const signs = [...new Set(STYLES.flatMap((s) => (LOOKS[s].sign ? [LOOKS[s].sign] : [])))];
   for (const s of signs) make(scene, `bs-sign-${s}`, TILE, TILE, (ctx) => drawSign(ctx, s));
   for (const d of ['chimney', 'ac', 'skylight', 'solar', 'tank'] as const) make(scene, `bs-deco-${d}`, TILE, TILE, (ctx) => drawDeco(ctx, d));
   make(scene, 'bs-atm', TILE, TILE, drawAtm);

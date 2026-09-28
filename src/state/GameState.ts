@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { EventMemory, Facing, GameStateData } from '../types/game';
+import type { Appearance } from '../data/appearance';
 import { emptyMemory } from '../systems/MetroEventManager';
 import type { Wallet } from '../systems/Commerce';
 import { INITIAL_CLOCK, INITIAL_ENERGY, INITIAL_MONEY, TILE } from '../config/constants';
@@ -26,6 +27,8 @@ export class GameState extends Phaser.Events.EventEmitter {
   events: EventMemory;
   private _inventory: Record<string, number>;
   private _cards: Record<string, number>;
+  private _appearance: Record<string, Appearance>;
+  private _wardrobe: string[];
 
   constructor(initial: GameStateData) {
     super();
@@ -40,6 +43,17 @@ export class GameState extends Phaser.Events.EventEmitter {
     this.events = initial.events;
     this._inventory = { ...initial.inventory };
     this._cards = { ...initial.cards };
+    this._appearance = structuredClone(initial.appearance);
+    this._wardrobe = [...initial.wardrobe];
+  }
+
+  /** Ropa del jugador: lo que ha comprado (systems/Retail.ts), se lleve o no puesto. */
+  get wardrobe(): readonly string[] {
+    return [...this._wardrobe];
+  }
+
+  set wardrobe(ids: readonly string[]) {
+    this._wardrobe = [...ids];
   }
 
   /**
@@ -98,6 +112,17 @@ export class GameState extends Phaser.Events.EventEmitter {
     this.emit('change');
   }
 
+  /** Lo cambiado del aspecto de alguien que persiste ('player' o un personaje con nombre). */
+  appearanceOf(id: string): Appearance {
+    return { ...this._appearance[id] };
+  }
+
+  /** Emite 'appearance' con el id: quien pinta a esa persona la vuelve a pintar. */
+  setAppearance(id: string, appearance: Appearance): void {
+    this._appearance[id] = { ...appearance };
+    this.emit('appearance', id);
+  }
+
   get snapshot(): GameStateData {
     return {
       money: this._money,
@@ -111,6 +136,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       events: structuredClone(this.events),
       inventory: { ...this._inventory },
       cards: { ...this._cards },
+      appearance: structuredClone(this._appearance),
+      wardrobe: [...this._wardrobe],
     };
   }
 }
@@ -134,5 +161,7 @@ export function createInitialState(): GameStateData {
     // Se empieza sin tarjeta de transporte: se compra en la máquina del metro.
     inventory: {},
     cards: {},
+    appearance: {},
+    wardrobe: [],
   };
 }

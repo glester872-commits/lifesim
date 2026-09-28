@@ -96,6 +96,16 @@ export type PropKind =
   | 'drain'
   | 'leaves'
   | 'dj-booth'
+  // barbería y vinoteca
+  | 'barber-chair'
+  | 'wine-rack'
+  // estudio de tatuaje y tiendas de la Calle del Carmen
+  | 'tattoo-chair'
+  | 'tattoo-cart'
+  | 'flash-wall'
+  | 'sneaker-wall'
+  | 'bargain-bin'
+  | 'poster-column'
   | 'speaker'
   // en la pared (sobre muro, que ya es sólido)
   | 'window'
@@ -199,6 +209,15 @@ export type BuildingStyle =
   | 'laundry'
   | 'civic'
   | 'works'
+  | 'wine'
+  // Calle del Carmen
+  | 'vintage'
+  | 'streetwear'
+  | 'thrift'
+  | 'tattoo'
+  | 'coffee'
+  | 'records'
+  | 'print'
   | 'backdrop';
 
 /**
@@ -250,6 +269,8 @@ export interface SpotDef {
   name: string;
   /** Ids en data/activities.ts. */
   activities: readonly string[];
+  /** El armario: cambiarse con la ropa comprada (scenes/Menus.ts, openWardrobe). */
+  wardrobe?: true;
 }
 
 /** Algo que se puede mirar con E: un cartel, una fuente, un escaparate. */
@@ -260,13 +281,26 @@ export interface InspectDef {
   lines: readonly string[];
 }
 
-/** Carriles con tráfico ambiental: coches que cruzan el mapa y ceden a los peatones. */
-export interface TrafficDef {
+/**
+ * Un flujo de carriles: quien los recorre entra por un borde, para en rojo, cede
+ * a los peatones y sale por el otro (systems/Traffic.ts). Qué pasa lo deciden los
+ * pesos del catálogo (data/vehicles.ts, data/bikes.ts) por hora, día y tipo de
+ * vía, y `mix` por barrio.
+ */
+export interface LaneFlow {
   lanes: readonly { row: number; dir: 1 | -1 }[];
-  /** Máximo por carril; el primero de cada carril es un taxi. */
-  carsPerLane: number;
-  /** [desde, hasta, coches por carril] en horas; fuera de las franjas, carsPerLane. */
+  road: import('../data/vehicles.ts').RoadKind;
+  /** Multiplicadores del barrio sobre los pesos del catálogo (id → factor). */
+  mix?: Readonly<Record<string, number>>;
+  /** Máximo por carril. */
+  perLane: number;
+  /** [desde, hasta, cuántos por carril] en horas; fuera de las franjas, perLane. */
   hourly?: readonly (readonly [number, number, number])[];
+}
+
+/** Tráfico de una calle: los coches y, si la calle tiene carril bici (tile `b`), las bicis. */
+export interface TrafficDef extends LaneFlow {
+  bikes?: LaneFlow;
 }
 
 /**
@@ -355,6 +389,8 @@ export interface NpcLook {
   /** Bolso en bandolera y gorra (color): sobre todo para los anónimos. */
   bag?: string;
   cap?: string;
+  /** Tatuajes de fábrica que se ven (el brazo de quien tatúa): world/HumanArt.ts los pinta sobre la piel. */
+  ink?: readonly { spot: import('../data/tattoos.ts').InkSpot; color: string }[];
 }
 
 export interface NpcDef extends NpcLook {
@@ -374,6 +410,14 @@ export interface GameStateData {
   events: EventMemory;
   /** Lo que lleva encima: id de objeto (data/items.ts) → unidades. */
   inventory: Record<string, number>;
+  /**
+   * Aspecto de quien persiste: 'player' y los personajes con nombre (id de
+   * data/npcs.ts) → lo que se ha cambiado sobre su aspecto de fábrica
+   * (data/appearance.ts). La gente anónima no entra aquí: es de paso.
+   */
+  appearance: Record<string, import('../data/appearance.ts').Appearance>;
+  /** Prendas del jugador (ids de data/retail.ts): lo comprado, se lleve o no puesto. */
+  wardrobe: string[];
   /** Tarjetas con saldo: id de tarjeta (data/items.ts, kind 'card') → euros cargados. Sin clave, no la tiene. */
   cards: Record<string, number>;
 }

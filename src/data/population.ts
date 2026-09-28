@@ -1,5 +1,5 @@
 import type { Level } from '../config/population.ts';
-import type { ServiceId } from './services.ts';
+import type { OfferId, ServiceId } from './services.ts';
 
 /**
  * Quién hay dentro de cada local y qué hace. Todo es dato: cambiar el horario
@@ -52,6 +52,8 @@ export interface StaffRole {
   serves?: readonly string[];
   /** Sólo si la afluencia llega a este nivel: un camarero de refuerzo, no uno fijo. */
   minLevel?: Level;
+  /** Lo que ofrece si el jugador le habla, si no es lo de su oficio (la barra de la vinoteca sirve vino). */
+  offers?: OfferId;
 }
 
 export interface PopulationProfile {
@@ -121,7 +123,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     weekday: [-1, -1, 0, 0, 1, 1, -2],
     maxVisitors: 10,
     staff: [
-      { service: 'cashier', npc: 'ivan', points: ['CLOTHING_STORE_STAFF'] },
+      { service: 'cashier', npc: 'ivan', points: ['CLOTHING_STORE_STAFF'], offers: 'shop-hilo' },
       { service: 'shop-worker', line: 'Las tallas grandes están al fondo.', points: ['CLOTHING_STORE_FLOOR_'], minLevel: 'MEDIUM' },
     ],
     visitors: [
@@ -235,28 +237,242 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     maxVisitors: 22,
     staff: [
       { service: 'security', label: 'Portero', points: ['CLUB_DOOR'] },
-      { service: 'bartender', line: '¿Qué te pongo? Rápido, que hay cola.', points: ['CLUB_BARTENDER_01'] },
-      { service: 'bartender', line: 'Un segundo, que voy.', points: ['CLUB_BARTENDER_02'], minLevel: 'HIGH' },
+      { service: 'bartender', line: '¿Qué te pongo? Rápido, que hay cola.', points: ['CLUB_BARTENDER_01'], offers: 'club-bar' },
+      { service: 'bartender', line: 'Un segundo, que voy.', points: ['CLUB_BARTENDER_02'], minLevel: 'HIGH', offers: 'club-bar' },
       { service: 'dj', points: ['CLUB_DJ'] },
     ],
+    // La noche tiene fases, y cada una trae a su gente: primero se toma algo y se
+    // charla con la pista vacía; a partir de las once se baila; al final quedan los
+    // últimos. Todos piden en la barra (ORDER) y se llevan la copa a un corro (DRINK).
     visitors: [
       {
-        role: 'clubber', label: 'Alguien de fiesta', line: '¡Esta canción me encanta!', weight: 3, party: [1, 3],
+        role: 'warmup', label: 'Alguien tomando algo', line: 'Aún es pronto. Esto se llena a la una.', weight: 3, party: [2, 3], hours: [21, 24],
         plan: [
-          { state: 'DRINK', points: ['CLUB_BAR_'], minutes: [3, 8] },
+          { state: 'ORDER', points: ['CLUB_BAR_'], minutes: [2, 4] },
+          { state: 'DRINK', points: ['CLUB_STAND_', 'CLUB_SEAT_'], minutes: [15, 35] },
+          { state: 'TALK', points: ['CLUB_SEAT_', 'CLUB_STAND_'], minutes: [10, 25] },
+          { state: 'DANCE', points: ['CLUB_DANCE_'], minutes: [8, 15], chance: 0.2 },
+        ],
+      },
+      {
+        role: 'clubber', label: 'Alguien de fiesta', line: '¡Esta canción me encanta!', weight: 4, party: [1, 3], hours: [23, 5],
+        plan: [
+          { state: 'ORDER', points: ['CLUB_BAR_'], minutes: [2, 4] },
+          { state: 'DRINK', points: ['CLUB_STAND_'], minutes: [4, 10], chance: 0.7 },
           { state: 'DANCE', points: ['CLUB_DANCE_'], minutes: [12, 30], repeat: [1, 3] },
           { state: 'TALK', points: ['CLUB_STAND_', 'CLUB_SEAT_'], minutes: [8, 20], chance: 0.6 },
-          { state: 'DRINK', points: ['CLUB_BAR_'], minutes: [3, 6], chance: 0.4 },
-          { state: 'DANCE', points: ['CLUB_DANCE_'], minutes: [12, 30], chance: 0.5 },
+          { state: 'ORDER', points: ['CLUB_BAR_'], minutes: [2, 4], chance: 0.4 },
+          { state: 'DRINK', points: ['CLUB_STAND_'], minutes: [4, 8], chance: 0.4 },
+          { state: 'DANCE', points: ['CLUB_DANCE_'], minutes: [12, 30], chance: 0.6 },
         ],
       },
       {
         role: 'lounger', label: 'Alguien charlando', line: 'No se oye nada, pero da igual.', weight: 1, party: [2, 3],
         plan: [
-          { state: 'DRINK', points: ['CLUB_BAR_'], minutes: [3, 8] },
+          { state: 'ORDER', points: ['CLUB_BAR_'], minutes: [2, 4] },
           { state: 'TALK', points: ['CLUB_SEAT_', 'CLUB_STAND_'], minutes: [20, 45] },
           { state: 'DANCE', points: ['CLUB_DANCE_'], minutes: [10, 20], chance: 0.3 },
         ],
+      },
+      {
+        role: 'last-round', label: 'Alguien que no se quiere ir', line: 'La última y me voy. De verdad.', weight: 2, party: [1, 2], hours: [4, 6],
+        plan: [
+          { state: 'DRINK', points: ['CLUB_STAND_', 'CLUB_SEAT_'], minutes: [5, 12] },
+          { state: 'DANCE', points: ['CLUB_DANCE_'], minutes: [8, 20], chance: 0.5 },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'hair-salon',
+    // Tranquila por la mañana, un pico a mediodía y otro al salir de trabajar; el sábado, cola.
+    bands: [[10, 12, 'LOW'], [12, 14, 'MEDIUM'], [14, 17, 'LOW'], [17, 20, 'HIGH']],
+    weekday: [0, 0, 0, 0, 0, 1, 0],
+    maxVisitors: 6,
+    staff: [
+      { service: 'barber', npc: 'nati', points: ['BARBER_STAFF_01'], serves: ['BARBER_CHAIR_'] },
+      { service: 'barber', points: ['BARBER_STAFF_02'], serves: ['BARBER_CHAIR_'], minLevel: 'MEDIUM' },
+    ],
+    visitors: [
+      {
+        role: 'haircut', label: 'Cliente de la barbería', line: 'Vengo cada tres semanas, como un reloj.', weight: 4,
+        plan: [
+          { state: 'WAIT', points: ['BARBER_WAIT_'], minutes: [4, 15] },
+          { state: 'HAIRCUT', points: ['BARBER_CHAIR_'], minutes: [20, 35] },
+          { state: 'PAY', points: ['BARBER_RECEPTION'], minutes: [1, 3] },
+        ],
+      },
+      {
+        role: 'products', label: 'Alguien mirando productos', line: 'Sólo venía a por la cera.', weight: 1,
+        plan: [
+          { state: 'BROWSE', points: ['BARBER_SHELF'], minutes: [2, 5] },
+          { state: 'PAY', points: ['BARBER_RECEPTION'], minutes: [1, 3] },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'wine-bar',
+    // Tarde de vinos: poca gente al abrir, llena a la hora de cenar y tranquila al cierre.
+    bands: [[18, 20, 'LOW'], [20, 22, 'MEDIUM'], [22, 24, 'HIGH'], [0, 1, 'LOW']],
+    // El lunes cierra; viernes y sábado, un nivel más; el domingo, uno menos.
+    weekday: [0, 0, 0, 0, 1, 1, -1],
+    maxVisitors: 12,
+    staff: [
+      { service: 'bartender', npc: 'bruno', points: ['WINE_BAR_STAFF'], offers: 'wine-bar' },
+      { service: 'waiter', points: ['WINE_BAR_WAITER'], serves: ['WINE_BAR_TABLE_', 'WINE_BAR_DATE_'], minLevel: 'MEDIUM' },
+    ],
+    visitors: [
+      {
+        role: 'couple', label: 'Una pareja', line: '(Hablan bajito. No es tu conversación.)', weight: 3, party: [2, 2],
+        plan: [
+          { state: 'DRINK', points: ['WINE_BAR_DATE_', 'WINE_BAR_TABLE_'], minutes: [35, 70] },
+          { state: 'TALK', points: ['WINE_BAR_TABLE_', 'WINE_BAR_DATE_'], minutes: [15, 30], chance: 0.5 },
+        ],
+      },
+      {
+        role: 'friends', label: 'Alguien con amigos', line: 'Otra ronda y nos vamos, que mañana se trabaja.', weight: 2, party: [2, 3],
+        plan: [
+          { state: 'DRINK', points: ['WINE_BAR_TABLE_'], minutes: [30, 60] },
+          { state: 'TALK', points: ['WINE_BAR_TABLE_'], minutes: [15, 30] },
+        ],
+      },
+      {
+        role: 'regular', label: 'Un habitual', line: 'Siempre me siento en la barra. Bruno ya sabe lo que tomo.', weight: 2,
+        plan: [
+          { state: 'ORDER', points: ['WINE_BAR_STOOL_'], minutes: [2, 4] },
+          { state: 'DRINK', points: ['WINE_BAR_STOOL_'], minutes: [25, 50] },
+        ],
+      },
+      {
+        role: 'waiting', label: 'Alguien esperando', line: 'He quedado. Llega tarde, como siempre.', weight: 1,
+        plan: [
+          { state: 'WAIT', points: ['WINE_BAR_WAIT_'], minutes: [5, 12] },
+          { state: 'DRINK', points: ['WINE_BAR_STOOL_', 'WINE_BAR_TABLE_'], minutes: [20, 40] },
+        ],
+      },
+    ],
+  },
+  // --------------------------------------------------- Calle del Carmen
+  // Las tres tiendas de ropa, con el mismo recorrido de cliente: mirar, probarse, pagar.
+  // Quien cobra ofrece la tienda (data/retail.ts); otro dependiente sale cuando hay gente.
+  {
+    place: 'vintage-store',
+    bands: [[11, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 21, 'HIGH']],
+    // El sábado, que Gus trae lo del rastro, se llena.
+    weekday: [-1, -1, 0, 0, 0, 1, 0],
+    maxVisitors: 6,
+    staff: [
+      { service: 'cashier', npc: 'gus', label: 'Retales', line: 'Si te gusta, pruébatelo: mañana ya no está.', points: ['RETALES_STAFF'], offers: 'shop-retales' },
+      { service: 'shop-worker', line: 'Lo de los setenta, en el perchero del fondo.', points: ['RETALES_FLOOR_'], minLevel: 'HIGH' },
+    ],
+    visitors: [
+      {
+        role: 'vintage-hunter', label: 'Alguien buscando vintage', line: 'Busco una chaqueta como la de mi padre en las fotos.', weight: 3, party: [1, 2],
+        plan: [
+          { state: 'BROWSE', points: ['RETALES_RACK_', 'RETALES_TABLE'], minutes: [4, 10], repeat: [1, 3] },
+          { state: 'CHECK_ITEM', points: ['RETALES_FITTING_', 'RETALES_MIRROR'], minutes: [3, 8], chance: 0.6 },
+          { state: 'QUEUE', points: ['RETALES_TILL', 'RETALES_QUEUE_'], minutes: [1, 3], chance: 0.5 },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'streetwear-store',
+    bands: [[12, 15, 'LOW'], [15, 18, 'MEDIUM'], [18, 21, 'HIGH']],
+    // Viernes y sábado, lanzamientos; el domingo abre y es cuando más gente joven viene.
+    weekday: [-2, -1, 0, 0, 1, 1, 0],
+    maxVisitors: 8,
+    staff: [
+      { service: 'cashier', label: 'Archivo', line: 'Esa sudadera es de una tirada de doscientas.', look: 'uniforme-archivo', points: ['ARCHIVO_STAFF'], offers: 'shop-archivo' },
+      { service: 'shop-worker', line: 'Las zapatillas de arriba sólo se miran.', look: 'uniforme-archivo', points: ['ARCHIVO_FLOOR_'], minLevel: 'MEDIUM' },
+    ],
+    visitors: [
+      {
+        role: 'sneakerhead', label: 'Alguien mirando zapatillas', line: 'Estas salieron en el noventa y seis. Y yo sin ellas.', weight: 2, party: [1, 3],
+        plan: [
+          { state: 'BROWSE', points: ['ARCHIVO_WALL_', 'ARCHIVO_TABLE'], minutes: [3, 8], repeat: [1, 2] },
+          { state: 'BROWSE', points: ['ARCHIVO_RACK_'], minutes: [3, 6], chance: 0.6 },
+          { state: 'QUEUE', points: ['ARCHIVO_TILL', 'ARCHIVO_QUEUE_'], minutes: [1, 3], chance: 0.4 },
+        ],
+      },
+      {
+        role: 'shopper', label: 'Cliente', line: 'Me pruebo la talla grande, por si acaso.', weight: 2,
+        plan: [
+          { state: 'BROWSE', points: ['ARCHIVO_RACK_'], minutes: [3, 8], repeat: [1, 2] },
+          { state: 'CHECK_ITEM', points: ['ARCHIVO_FITTING_'], minutes: [3, 6], chance: 0.5 },
+          { state: 'QUEUE', points: ['ARCHIVO_TILL', 'ARCHIVO_QUEUE_'], minutes: [1, 3], chance: 0.6 },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'thrift-store',
+    bands: [[10, 12, 'MEDIUM'], [12, 16, 'LOW'], [16, 20, 'HIGH']],
+    weekday: [0, 0, 0, 0, 0, 1, 0],
+    maxVisitors: 8,
+    staff: [
+      { service: 'cashier', label: 'Segunda Vuelta', line: 'Si lo quieres al peso, ponlo en la báscula.', look: 'uniforme-vuelta', points: ['VUELTA_STAFF'], offers: 'shop-vuelta' },
+      { service: 'shop-worker', label: 'Clasificando', line: 'Esto llegó ayer. Aún no sé ni qué es.', look: 'uniforme-vuelta', points: ['VUELTA_FLOOR_', 'VUELTA_RACK_'], minLevel: 'MEDIUM' },
+    ],
+    visitors: [
+      {
+        role: 'digger', label: 'Alguien rebuscando', line: 'En el cajón de abajo siempre está lo mejor.', weight: 3, party: [1, 2],
+        plan: [
+          { state: 'BROWSE', points: ['VUELTA_BIN_', 'VUELTA_RACK_'], minutes: [4, 12], repeat: [2, 4] },
+          { state: 'CHECK_ITEM', points: ['VUELTA_FITTING_'], minutes: [3, 6], chance: 0.4 },
+          { state: 'QUEUE', points: ['VUELTA_TILL', 'VUELTA_QUEUE_'], minutes: [1, 3], chance: 0.7 },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'tattoo-studio',
+    // Con cita: el primer turno a mediodía y el grueso por la tarde.
+    bands: [[12, 15, 'LOW'], [15, 18, 'MEDIUM'], [18, 21, 'HIGH']],
+    weekday: [0, 0, 0, 0, 1, 1, 0],
+    maxVisitors: 5,
+    staff: [
+      { service: 'tattoo-artist', npc: 'lia', points: ['TINTA_ARTIST_01'], serves: ['TINTA_CHAIR_'] },
+      { service: 'tattoo-artist', label: 'Tatuadora', points: ['TINTA_ARTIST_02'], serves: ['TINTA_CHAIR_'], minLevel: 'MEDIUM' },
+      { service: 'receptionist', label: 'Recepción', line: '¿Tienes cita o vienes a mirar el flash?', look: 'uniforme-tatuaje', points: ['TINTA_DESK'] },
+    ],
+    visitors: [
+      {
+        role: 'tattoo', label: 'Alguien tatuándose', line: 'No duele. Bueno, un poco. Bastante.', weight: 3,
+        plan: [
+          { state: 'CHECK_IN', points: ['TINTA_RECEPTION'], minutes: [2, 4] },
+          { state: 'WAIT', points: ['TINTA_WAIT_'], minutes: [5, 20] },
+          { state: 'TATTOO', points: ['TINTA_CHAIR_'], minutes: [40, 110] },
+          { state: 'PAY', points: ['TINTA_RECEPTION'], minutes: [2, 4] },
+        ],
+      },
+      {
+        role: 'flash', label: 'Alguien mirando diseños', line: 'Ese de la golondrina. O el ancla. No sé.', weight: 2, party: [1, 2],
+        plan: [
+          { state: 'BROWSE', points: ['TINTA_FLASH_'], minutes: [3, 8], repeat: [1, 2] },
+          { state: 'CHECK_IN', points: ['TINTA_RECEPTION'], minutes: [2, 5], chance: 0.5 },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'coffee-molinillo',
+    bands: [[8, 10, 'HIGH'], [10, 13, 'MEDIUM'], [13, 16, 'LOW'], [16, 19, 'MEDIUM'], [19, 20, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 1, 1],
+    maxVisitors: 5,
+    staff: [{ service: 'bartender', label: 'Barra', line: '¿Con leche de avena o de la de siempre?', points: ['MOLINILLO_STAFF'] }],
+    visitors: [
+      {
+        role: 'customer', label: 'Cliente', line: 'Aquí el café sabe a café.', weight: 3, party: [1, 2],
+        plan: [
+          { state: 'ORDER', points: ['MOLINILLO_COUNTER', 'MOLINILLO_QUEUE_'], minutes: [1, 3] },
+          { state: 'DRINK', points: ['MOLINILLO_TABLE_'], minutes: [15, 40] },
+        ],
+      },
+      {
+        role: 'takeaway', label: 'Cliente con prisa', line: 'Para llevar, que abro la tienda.', weight: 2, hours: [8, 11],
+        plan: [{ state: 'ORDER', points: ['MOLINILLO_COUNTER', 'MOLINILLO_QUEUE_'], minutes: [1, 2] }],
       },
     ],
   },

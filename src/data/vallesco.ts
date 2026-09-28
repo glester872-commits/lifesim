@@ -5,11 +5,16 @@ import { dress } from '../systems/Dressing.ts';
  * Barrio Vallesco (dirección A, design/barrio/direccion-a.html): la Calle
  * Mayor peatonal y comercial al norte, la avenida con tráfico en medio y la
  * parte residencial al sur, con la plazuela del metro a diez pasos de casa.
+ * Al este, la Calle del Olmo se estrecha y sigue como Calle del Carmen: un
+ * carril bici entre dos aceras anchas de granito, con tiendas de ropa vintage,
+ * de archivo y de segunda mano, un estudio de tatuaje, un café con terraza, una
+ * tienda de discos y un taller de serigrafía. El Pasaje del Carmen la une con la
+ * avenida; por el oeste se entra desde el Olmo, a diez pasos de tu portal.
  *
  * El suelo se pinta por rectángulos en orden (lo último manda). Los edificios
  * van aparte: tapan su huella, generan su puerta y son sólidos.
  */
-const W = 76;
+const W = 110;
 const H = 56;
 
 /** [carácter, x, y, ancho, alto]. Leyenda en data/locations.ts. */
@@ -32,9 +37,10 @@ const GROUND = paint('g', [
   ['.', 2, 27, 10, 2], // carga y descarga del súper
   ['~', 51, 27, 23, 2], // explanada de las oficinas
   [',', 0, 29, W, 2], // Avenida de Vallesco: acera norte
-  ['.', 0, 31, W, 1],
+  ['b', 0, 31, W, 1], // carril bici hacia el oeste, junto al bordillo norte
   ['=', 0, 32, W, 1], // línea central: hacia el oeste arriba, hacia el este abajo
-  ['.', 0, 33, W, 2],
+  ['.', 0, 33, W, 1],
+  ['b', 0, 34, W, 1], // carril bici hacia el este, junto al bordillo sur
   ['z', 24, 31, 3, 4], // paso de cebra oeste
   ['z', 52, 31, 3, 4], // paso de cebra este
   [',', 0, 35, W, 2], // acera sur
@@ -44,10 +50,17 @@ const GROUND = paint('g', [
   ['c', 56, 37, 2, 9], // Pasaje del Reloj
   [',', 0, 46, W, 1], // Calle del Olmo
   ['.', 0, 47, W, 2],
+  ['b', 0, 47, W, 1], // carril bici hacia el oeste: sigue por el Olmo y es todo el carril del Carmen
   ['z', 39, 47, 2, 2],
   [',', 0, 49, W, 1],
   ['c', 37, 52, 37, 1], // Parque del Olmo: paseo
   ['k', 60, 50, 8, 4], // pista
+  ['~', 74, 27, 36, 2], // explanada de las oficinas, hasta el final de la avenida
+  // Calle del Carmen: acera ancha de granito a cada lado y un solo carril, para bicis.
+  ['c', 74, 37, 2, 9], // Pasaje del Carmen, de la avenida al Carmen
+  ['P', 74, 44, 36, 3], // acera norte: escaparates, paso y bordillo
+  ['z', 89, 47, 2, 1], // paso de peatones del Carmen
+  ['P', 74, 48, 36, 3], // acera sur
   ['R', 0, 55, W, 1], // la vía: límite sur del barrio
 ]);
 
@@ -76,7 +89,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('restaurant-door', 'Casa Tomás', 'restaurant', [25, 19, 9, 6], 'n', 29, { enter: into('restaurant'), point: 'RESTAURANT_ENTRANCE' }),
   b('office-door', 'Edificio Atalaya', 'office', [57, 19, 17, 8], 's', 65, { floors: 2, enter: into('office'), point: 'OFFICE_ENTRANCE' }),
   // Ambientales: puerta dibujada, sin afordancia. El punto de entrada queda para los NPC.
-  b('hair', 'Peluquería', 'hair', [12, 10, 5, 6], 's', 14, { floors: 2, point: 'HAIR_SALON_ENTRANCE', inspect: ['Peluquería Nati. Sin cita, pero con paciencia.'] }),
+  b('hair', 'Barbería Nati', 'hair', [12, 10, 5, 6], 's', 14, { floors: 2, enter: into('barbershop'), point: 'HAIR_SALON_ENTRANCE' }),
   b('pharmacy', 'Farmacia', 'pharmacy', [17, 9, 5, 7], 's', 19, { floors: 2, enter: into('pharmacy'), point: 'PHARMACY_ENTRANCE' }),
   b('res-mayor-3', 'Mayor 3', 'res-brick', [22, 5, 7, 11], 's', 25, { floors: 2, point: 'RES_MAYOR_3_ENTRANCE', inspect: ['Portero automático. Nueve timbres, dos con el nombre tachado.'] }),
   b('bank', 'Banco', 'bank', [62, 9, 6, 7], 's', 64, { floors: 2, point: 'BANK_ENTRANCE', inspect: ['El cajero pide la tarjeta antes de decir buenos días.'] }),
@@ -93,10 +106,31 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('res-av-20', 'Avenida 20', 'res-brick', [58, 37, 16, 9], 'n', 65, { point: 'RES_AVENIDA_20_ENTRANCE', inspect: ['El portero automático zumba, pero nadie contesta.'] }),
   b('civic', 'Junta municipal', 'civic', [2, 50, 14, 5], 'n', 9, { point: 'CIVIC_ENTRANCE', inspect: ['Junta Municipal de Vallesco. Empadronamientos, quejas y un tablón lleno de chinchetas.'] }),
   b('res-olmo-6', 'Olmo 6', 'res-plaster', [16, 50, 12, 5], 'n', 22, { point: 'RES_OLMO_6_ENTRANCE', inspect: ['Bicicletas encadenadas a la reja del portal.'] }),
-  b('works', 'Obra', 'works', [28, 50, 8, 5], 'n'),
+  // Donde estuvo la obra: la vinoteca, en la calle tranquila junto al parque.
+  b('wine-bar', 'La Cepa · vinoteca', 'wine', [28, 50, 8, 5], 'n', 32, { enter: into('wine-bar'), point: 'WINE_BAR_ENTRANCE' }),
   // Traseras: tejados que cierran el norte del barrio.
   b('backdrop-nw', 'Manzana norte', 'backdrop', [2, 1, 20, 7], undefined),
   b('backdrop-ne', 'Manzana noreste', 'backdrop', [49, 1, 18, 6], undefined),
+
+  // Calle Mayor, tramo este: vecinos a los dos lados.
+  b('res-mayor-15', 'Mayor 15', 'res-brick', [76, 4, 10, 12], 's', 80, { floors: 2, point: 'RES_MAYOR_15_ENTRANCE', inspect: ['Una bici colgada en el balcón del primero. Nadie sabe cómo la subieron.'] }),
+  b('res-mayor-17', 'Mayor 17', 'res-plaster', [86, 6, 11, 10], 's', 91, { floors: 2, point: 'RES_MAYOR_17_ENTRANCE', inspect: ['«Se alquila habitación. Preguntar por Reme, segundo B».'] }),
+  b('res-mayor-19', 'Mayor 19', 'res-stone', [97, 3, 13, 13], 's', 103, { floors: 2, point: 'RES_MAYOR_19_ENTRANCE', inspect: ['Un portal de piedra con el número en azulejo.'] }),
+  b('backdrop-e', 'Manzana este', 'backdrop', [86, 1, 11, 5], undefined),
+  b('res-mayor-20', 'Mayor 20', 'res-stone', [76, 19, 14, 8], 'n', 82, { point: 'RES_MAYOR_20_ENTRANCE', inspect: ['El ascensor lleva un cartel de «averiado» desde el verano.'] }),
+  b('res-mayor-22', 'Mayor 22', 'res-brick', [90, 19, 20, 8], 'n', 99, { point: 'RES_MAYOR_22_ENTRANCE', inspect: ['Un patio de vecinos detrás de la reja, lleno de macetas.'] }),
+
+  // Calle del Carmen, acera norte: planta baja con tienda y vivienda encima.
+  b('carmen-tinta', 'Tinta Carmen · tatuajes', 'tattoo', [76, 37, 7, 7], 's', 79, { floors: 2, enter: into('tinta'), point: 'TINTA_ENTRANCE' }),
+  b('carmen-retales', 'Retales · vintage', 'vintage', [83, 37, 8, 7], 's', 87, { floors: 2, enter: into('retales'), point: 'RETALES_ENTRANCE' }),
+  b('carmen-molinillo', 'Café Molinillo', 'coffee', [91, 37, 6, 7], 's', 93, { floors: 2, enter: into('molinillo'), point: 'MOLINILLO_ENTRANCE' }),
+  b('carmen-surco', 'Discos Surco', 'records', [97, 37, 6, 7], 's', 99, { floors: 2, point: 'RECORDS_ENTRANCE', inspect: ['Discos Surco. Cajas de vinilos a cinco euros en la puerta y un cartel: «Abrimos cuando llegamos».'] }),
+  b('res-carmen-12', 'Carmen 12', 'res-plaster', [103, 37, 7, 7], 's', 106, { floors: 2, point: 'RES_CARMEN_12_ENTRANCE', inspect: ['El portero automático tiene más pegatinas que timbres.'] }),
+  // Acera sur: locales de una planta, pegados a la vía.
+  b('carmen-archivo', 'Archivo · streetwear', 'streetwear', [76, 51, 9, 4], 'n', 80, { enter: into('archivo'), point: 'ARCHIVO_ENTRANCE' }),
+  b('carmen-vuelta', 'Segunda Vuelta', 'thrift', [86, 51, 9, 4], 'n', 90, { enter: into('vuelta'), point: 'VUELTA_ENTRANCE' }),
+  b('carmen-print', 'Serigrafía Chapa', 'print', [96, 51, 6, 4], 'n', 98, { point: 'PRINT_SHOP_ENTRANCE', inspect: ['Serigrafía Chapa. Aquí se imprimen los carteles de la columna de enfrente. Y los de medio barrio.'] }),
+  b('res-carmen-9', 'Carmen 9', 'res-brick', [103, 51, 7, 4], 'n', 106, { point: 'RES_CARMEN_9_ENTRANCE', inspect: ['Un felpudo que dice «Bienvenidos» en cuatro idiomas.'] }),
 ];
 
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
@@ -136,7 +170,6 @@ const PROPS: readonly PropPlacement[] = [
   // Avenida
   ...row('tree', 29, [2, 14, 20, 34, 46, 58, 70]),
   at('bus-stop', 38, 29),
-  at('car', 5, 31), at('car-b', 11, 31), at('car-c', 64, 31), at('car-b', 40, 34), at('car', 46, 34),
   ...row('tree', 35, [4, 19, 48, 60, 72]),
 
   // Plazuela del Metro: escena de referencia de Visual V2 (design/ART_BIBLE.md). El rótulo METRO
@@ -150,13 +183,27 @@ const PROPS: readonly PropPlacement[] = [
   at('manhole', 33, 39), at('drain', 30, 45), at('leaves', 26, 45), at('leaves', 35, 44), at('leaves', 33, 44),
 
   // Calle del Olmo
-  at('car', 8, 47), at('car-c', 60, 48),
+  at('car', 8, 48), at('car-c', 60, 48),
 
   // Parque del Olmo
   ...[[38, 50], [42, 53], [47, 51], [56, 50], [70, 51], [73, 53], [52, 54]].map(([x, y]) => at('tree', x, y)),
   ...row('bench', 51, [44, 45, 52, 53]),
   at('hoop', 60, 51), at('hoop', 67, 51),
   at('lamp', 48, 53), at('lamp', 58, 53),
+
+  // Huecos de hierba entre el barrio viejo y el tramo este.
+  ...[[74, 2], [74, 9], [74, 13], [74, 22], [74, 25], [74, 52]].map(([x, y]) => at('tree', x, y)),
+
+  // Calle del Carmen. Norte: escaparates y terraza en la fila 44, paso en la 45, bordillo en la 46.
+  at('bench', 84, 44), at('bench', 104, 44),
+  at('parasol', 94, 44), at('cafe-table', 96, 44),
+  at('bike-rack', 77, 46), at('poster-column', 80, 46), at('street-lamp', 82, 46), at('plane-tree', 86, 46),
+  at('bike', 92, 46), at('bike', 93, 46), at('street-lamp', 97, 46), at('plane-tree', 103, 46), at('street-lamp', 107, 46),
+  // Sur: bordillo en la 48, paso en la 49, escaparates en la 50.
+  at('bike', 78, 48), at('bike', 79, 48), at('street-lamp', 84, 48), at('plane-tree', 94, 48),
+  at('street-lamp', 100, 48), at('bike-rack', 102, 48),
+  at('poster-column', 95, 50),
+  at('leaves', 87, 49), at('leaves', 104, 45),
 ];
 
 const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
@@ -165,11 +212,21 @@ const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['fa
 // LocationSystem desde BUILDINGS (HOME_ENTRANCE, CAFE_ENTRANCE, ...).
 const POINTS: Readonly<Record<string, PointDef>> = {
   // Bordes: el resto de la ciudad. Por aquí entrarán y se irán los NPC que no viven aquí.
-  EDGE_MAYOR_W: p(0, 17, 'edge'), EDGE_MAYOR_E: p(75, 17, 'edge'),
-  EDGE_AVENIDA_NW: p(0, 30, 'edge'), EDGE_AVENIDA_NE: p(75, 30, 'edge'),
-  EDGE_AVENIDA_SW: p(0, 36, 'edge'), EDGE_AVENIDA_SE: p(75, 36, 'edge'),
-  EDGE_OLMO_W: p(0, 46, 'edge'), EDGE_OLMO_E: p(75, 46, 'edge'),
-  EDGE_OLMO_SW: p(0, 49, 'edge'), EDGE_OLMO_SE: p(75, 49, 'edge'),
+  EDGE_MAYOR_W: p(0, 17, 'edge'), EDGE_MAYOR_E: p(W - 1, 17, 'edge'),
+  EDGE_AVENIDA_NW: p(0, 30, 'edge'), EDGE_AVENIDA_NE: p(W - 1, 30, 'edge'),
+  EDGE_AVENIDA_SW: p(0, 36, 'edge'), EDGE_AVENIDA_SE: p(W - 1, 36, 'edge'),
+  // El Olmo acaba en el Carmen: sus bordes este son los del Carmen.
+  EDGE_OLMO_W: p(0, 46, 'edge'), EDGE_OLMO_E: p(W - 1, 45, 'edge'),
+  EDGE_OLMO_SW: p(0, 49, 'edge'), EDGE_OLMO_SE: p(W - 1, 49, 'edge'),
+
+  // Calle del Carmen: escaparates, gente esperando en la puerta, bancos y la terraza del Molinillo.
+  TINTA_WINDOW: p(77, 44, 'interact', 'up'), RETALES_WINDOW: p(89, 44, 'interact', 'up'), RECORDS_WINDOW: p(101, 44, 'interact', 'up'),
+  ARCHIVO_WINDOW: p(83, 50, 'interact', 'down'), VUELTA_WINDOW: p(93, 50, 'interact', 'down'),
+  CARMEN_WAIT_01: p(81, 44, 'wait', 'down'), CARMEN_WAIT_02: p(86, 44, 'wait', 'down'), CARMEN_WAIT_03: p(78, 50, 'wait', 'up'), CARMEN_WAIT_04: p(82, 50, 'wait', 'up'),
+  CARMEN_BENCH_01: p(84, 45, 'seat', 'up'), CARMEN_BENCH_02: p(104, 45, 'seat', 'up'),
+  CARMEN_TALK_01: p(99, 49, 'meet', 'left'), CARMEN_TALK_02: p(100, 49, 'meet', 'right'),
+  MOLINILLO_TERRACE_01: p(95, 44, 'seat', 'right'), MOLINILLO_TERRACE_02: p(97, 44, 'seat', 'left'),
+  MOLINILLO_TERRACE_WAITER: p(92, 44, 'work', 'down'),
 
   // Sitios para estar
   PLAZA_FOUNTAIN: p(40, 13, 'meet'),
@@ -217,6 +274,12 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   'olmo-23': p(23, 46, 'path'), 'olmo-30': p(30, 46, 'path'), 'olmo-40': p(40, 46, 'path'), 'olmo-56': p(56, 46, 'path'),
   'olmo-s40': p(40, 49, 'path'), 'olmo-s70': p(70, 49, 'path'),
   'park-w': p(40, 52, 'path'), 'park-e': p(72, 52, 'path'),
+  // Tramo este: Mayor, avenida sur, Pasaje del Carmen y las dos aceras del Carmen.
+  'mayor-80': p(80, 17, 'path'), 'mayor-91': p(91, 17, 'path'), 'mayor-103': p(103, 17, 'path'),
+  'avs-75': p(75, 36, 'path'), 'olmo-74': p(74, 46, 'path'),
+  'carmen-75': p(75, 45, 'path'), 'carmen-79': p(79, 45, 'path'), 'carmen-87': p(87, 45, 'path'), 'carmen-89': p(89, 45, 'path'),
+  'carmen-93': p(93, 45, 'path'), 'carmen-96': p(96, 45, 'path'), 'carmen-99': p(99, 45, 'path'), 'carmen-106': p(106, 45, 'path'),
+  'carmen-s80': p(80, 49, 'path'), 'carmen-s89': p(89, 49, 'path'), 'carmen-s90': p(90, 49, 'path'), 'carmen-s98': p(98, 49, 'path'), 'carmen-s106': p(106, 49, 'path'),
 };
 
 type Link = readonly [string, string];
@@ -225,9 +288,12 @@ const chain = (...ids: string[]): Link[] => ids.slice(1).map((id, i) => [ids[i],
 const LINKS: readonly Link[] = [
   // Calle Mayor, de oeste a este, y cada puerta a su nodo
   ...chain('EDGE_MAYOR_W', 'mayor-06', 'mayor-14', 'mayor-19', 'mayor-23', 'mayor-25', 'mayor-29', 'mayor-40',
-    'mayor-50', 'mayor-53', 'CAFE_TERRACE_01', 'mayor-56', 'CAFE_TERRACE_02', 'mayor-64', 'mayor-71', 'EDGE_MAYOR_E'),
+    'mayor-50', 'mayor-53', 'CAFE_TERRACE_01', 'mayor-56', 'CAFE_TERRACE_02', 'mayor-64', 'mayor-71', 'mayor-80', 'mayor-91', 'mayor-103', 'EDGE_MAYOR_E'),
+  ['RES_MAYOR_15_ENTRANCE', 'mayor-80'], ['RES_MAYOR_20_ENTRANCE', 'mayor-80'], ['RES_MAYOR_17_ENTRANCE', 'mayor-91'],
+  ['RES_MAYOR_19_ENTRANCE', 'mayor-103'], ['RES_MAYOR_22_ENTRANCE', 'mayor-103'],
   ['CLOTHING_STORE_ENTRANCE', 'mayor-06'], ['SUPERMARKET_ENTRANCE', 'mayor-06'],
   ['HAIR_SALON_ENTRANCE', 'mayor-14'], ['CLUB_ENTRANCE', 'mayor-14'],
+  ['WINE_BAR_ENTRANCE', 'olmo-s40'],
   ...chain('mayor-14', 'CLUB_QUEUE_01', 'CLUB_QUEUE_02', 'CLUB_QUEUE_03'),
   ['CLUB_SMOKE_01', 'mayor-14'], ['CLUB_SMOKE_02', 'mayor-19'],
   ['PHARMACY_ENTRANCE', 'mayor-19'], ['FRUIT_SHOP_ENTRANCE', 'mayor-19'],
@@ -251,7 +317,7 @@ const LINKS: readonly Link[] = [
   ['HARDWARE_ENTRANCE', 'av-29'], ['OFFICE_ENTRANCE', 'av-65'],
   ['av-25', 'avs-25'], ['av-53', 'avs-53'],
   ...chain('EDGE_AVENIDA_SW', 'RES_AVENIDA_2_ENTRANCE', 'avs-23', 'avs-25', 'avs-30', 'avs-53', 'avs-56',
-    'RES_AVENIDA_20_ENTRANCE', 'EDGE_AVENIDA_SE'),
+    'RES_AVENIDA_20_ENTRANCE', 'avs-75', 'EDGE_AVENIDA_SE'),
 
   // Del sur de la avenida a la Calle del Olmo: Tintoreros, la plazuela y el pasaje
   ...chain('avs-23', 'tintoreros-s', 'olmo-23'),
@@ -262,10 +328,25 @@ const LINKS: readonly Link[] = [
 
   // Calle del Olmo y el parque
   ...chain('EDGE_OLMO_W', 'RES_OLMO_3_ENTRANCE', 'olmo-23', 'olmo-30', 'olmo-40', 'HOME_ENTRANCE',
-    'RES_OLMO_11_ENTRANCE', 'olmo-56', 'EDGE_OLMO_E'),
+    'RES_OLMO_11_ENTRANCE', 'olmo-56', 'olmo-74', 'carmen-75'),
   ['olmo-40', 'olmo-s40'],
   ...chain('EDGE_OLMO_SW', 'CIVIC_ENTRANCE', 'RES_OLMO_6_ENTRANCE', 'olmo-s40'),
-  ...chain('olmo-s40', 'park-w', 'PARK_BENCH_01', 'PARK_BENCH_02', 'PARK_COURT', 'park-e', 'olmo-s70', 'EDGE_OLMO_SE'),
+  ...chain('olmo-s40', 'park-w', 'PARK_BENCH_01', 'PARK_BENCH_02', 'PARK_COURT', 'park-e', 'olmo-s70', 'carmen-s80'),
+
+  // Calle del Carmen: el pasaje baja de la avenida; cada acera de oeste a este y el paso de peatones en medio.
+  ['avs-75', 'carmen-75'],
+  ...chain('carmen-75', 'carmen-79', 'carmen-87', 'carmen-89', 'carmen-93', 'carmen-96', 'carmen-99', 'carmen-106', 'EDGE_OLMO_E'),
+  ...chain('carmen-s80', 'carmen-s89', 'carmen-s90', 'carmen-s98', 'carmen-s106', 'EDGE_OLMO_SE'),
+  ['carmen-89', 'carmen-s89'],
+  ['TINTA_ENTRANCE', 'carmen-79'], ['RETALES_ENTRANCE', 'carmen-87'], ['MOLINILLO_ENTRANCE', 'carmen-93'],
+  ['RECORDS_ENTRANCE', 'carmen-99'], ['RES_CARMEN_12_ENTRANCE', 'carmen-106'],
+  ['ARCHIVO_ENTRANCE', 'carmen-s80'], ['VUELTA_ENTRANCE', 'carmen-s90'], ['PRINT_SHOP_ENTRANCE', 'carmen-s98'], ['RES_CARMEN_9_ENTRANCE', 'carmen-s106'],
+  ['TINTA_WINDOW', 'carmen-75'], ['RETALES_WINDOW', 'carmen-89'], ['RECORDS_WINDOW', 'carmen-99'],
+  ['ARCHIVO_WINDOW', 'carmen-s80'], ['VUELTA_WINDOW', 'carmen-s90'],
+  ['CARMEN_WAIT_01', 'carmen-79'], ['CARMEN_WAIT_02', 'carmen-87'], ['CARMEN_WAIT_03', 'carmen-s80'], ['CARMEN_WAIT_04', 'carmen-s80'],
+  ['CARMEN_BENCH_01', 'carmen-87'], ['CARMEN_BENCH_02', 'carmen-106'],
+  ['CARMEN_TALK_01', 'carmen-s98'], ['CARMEN_TALK_02', 'carmen-s98'],
+  ['MOLINILLO_TERRACE_01', 'carmen-96'], ['MOLINILLO_TERRACE_02', 'carmen-96'], ['MOLINILLO_TERRACE_WAITER', 'carmen-93'],
   ['PARK_BENCH_03', 'PARK_BENCH_01'], ['PARK_BENCH_04', 'PARK_BENCH_02'],
   ['PARK_TALK_01', 'PARK_BENCH_02'], ['PARK_TALK_02', 'PARK_BENCH_02'], ['PARK_WAIT_01', 'park-w'],
   ['FASHION_WINDOW_01', 'mayor-06'], ['FASHION_WINDOW_02', 'mayor-06'], ['SUPER_WINDOW', 'mayor-06'],
@@ -290,12 +371,22 @@ const BASE: LocationDef = {
   },
   points: POINTS,
   links: LINKS,
-  // Carriles de circulación; los de los bordes (31 y 34) son de aparcamiento.
-  // De madrugada sólo pasa el taxi; en hora punta, tres coches por carril.
+  // Carriles de circulación en medio; en los bordes (31 y 34), un carril bici por sentido.
+  // De madrugada, uno por carril (taxis y el camión de la basura); en hora punta, tres.
+  // La avenida tiene parada: pasa algo más de autobús que en otra avenida.
+  // Bicis: dos por carril en hora punta, alguna suelta de madrugada; los repartidores, a la hora de comer y de cenar.
   traffic: {
     lanes: [{ row: 32, dir: -1 }, { row: 33, dir: 1 }],
-    carsPerLane: 3,
+    road: 'avenue',
+    mix: { bus: 1.4 },
+    perLane: 3,
     hourly: [[0, 1, 2], [1, 6.5, 1], [6.5, 7.5, 2], [7.5, 21, 3], [21, 24, 2]],
+    bikes: {
+      lanes: [{ row: 31, dir: -1 }, { row: 34, dir: 1 }, { row: 47, dir: -1 }],
+      road: 'avenue',
+      perLane: 2,
+      hourly: [[0, 6.5, 1], [6.5, 22, 2], [22, 24, 1]],
+    },
   },
   // Los dos pasos de cebra de la avenida, con semáforo; el segundo, desfasado: no cambian a la vez.
   signals: [
@@ -308,7 +399,9 @@ const BASE: LocationDef = {
     { tx: 46, ty: 11, name: 'Quiosco', lines: ['Periódicos de hoy, revistas de hace un mes y cromos que ya nadie colecciona.'] },
     { tx: 39, ty: 29, name: 'Marquesina', lines: ['Línea 27, hacia el centro. La pantalla dice «8 min» desde hace un buen rato.'] },
     { tx: 31, ty: 18, name: 'Pizarra', lines: ['Menú del día: lentejas, merluza o pollo, postre y pan. Once euros.'] },
-    { tx: 31, ty: 50, name: 'Obra', lines: ['«Rehabilitación de fachada. Fin de obra: marzo.» No dice de qué año.'] },
+    { tx: 80, ty: 46, name: 'Columna de carteles', lines: ['Conciertos en la Órbita, un mercadillo de discos el domingo y clases de serigrafía. Todo impreso enfrente.'] },
+    { tx: 95, ty: 50, name: 'Columna de carteles', lines: ['Encima de un cartel de hace un año, uno de la semana pasada. Encima, pegatinas.'] },
+    { tx: 96, ty: 44, name: 'Terraza del Molinillo', lines: ['Dos mesas y una sombrilla. Se sirve fuera cuando el café está abierto.'] },
   ],
   // Donde se compra: la máquina de la Calle Mayor.
   terminals: [{ tx: 29, ty: 16, name: 'Máquina expendedora', catalog: 'vending' }],
