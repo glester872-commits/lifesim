@@ -36,7 +36,8 @@ ella y usa sus mismas piezas y reglas. Todo sigue dibujándose por código desde
 | Aparcabicis | 2 tiles, ~18 px | Tres bicis, cada una distinta. |
 | Jardinera | 2 tiles, ~22 px | Flores en dos colores de acento como mucho. |
 | Tótem de metro | 1 tile, 44 px | Rótulo luminoso arriba. |
-| Puerta | 1 tile | Su umbral es acera: se entra caminando. |
+| Puerta | 1 tile de ancho, **26–28 px** de hoja (planta de 32 px) | Más alta que quien entra. Su umbral es acera: se entra caminando. |
+| Planta de fachada | **2 tiles (32 px)** | `LocationSystem.STOREY_ROWS`. Fachadas al sur: `floors` 1–3, dos filas cada una; lo que queda de huella es tejado. La fachada al norte se ve de canto (una fila). |
 
 Ningún objeto del mobiliario supera 2 tiles de ancho sin ser un edificio.
 
@@ -123,8 +124,16 @@ no cuesta nada por frame y nunca tapa a nadie.
 
 1. Usar las piezas V2 existentes (`plaza-bench`, `street-lamp`, `plane-tree`,
    `planter-box`, `bike-rack`, `metro-totem`, `info-board`, `manhole`, `drain`,
-   `leaves`; suelo `P` y `T`) antes de dibujar otras.
+   `leaves`; suelo `P` y `T`) antes de dibujar otras. Para una plaza de primera: la boca de metro
+   principal de 5 × 4 (`metro` con `w: 5, h: 4`), el árbol en parterre elevado (`bed-tree`) y el
+   parterre de flores (`flower-bed`). Referencia: la plazuela del metro, 02:47 (design/visual-reference).
 2. Pieza nueva: seguir §3 (escala), §5 (sombras) y §7 (luz), y declarar en su
    `PropDef` `shadow`, `cast`, `light`, `emissive` o `flat` según toque.
 3. Comprobar de día y de noche, con gente, y pasar `npm run check`: una pieza
    sólida mal puesta rompe el grafo de peatones y el check lo dice.
+
+## 13. Identidad de barrio
+
+Cada zona varía dentro de esta biblia, nunca fuera: velo del suelo, guion de
+color por hora, temperatura de farola, kit de calle, gente y tráfico. Reglas y
+cómo añadir un barrio: `design/DISTRICTS.md`.

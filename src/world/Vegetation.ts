@@ -22,13 +22,15 @@ export interface Species {
   key: string;
   w: number;
   h: number;
-  /** Pie: rejilla de hierro de alcorque (calle) o tierra con raíces (parque). */
-  foot: 'grate' | 'soil';
+  /** Pie: rejilla de hierro de alcorque (calle), tierra con raíces (parque) o parterre elevado con flores (plaza). */
+  foot: 'grate' | 'soil' | 'bed';
   variants: number;
 }
 
 export const TREE: Species = { key: 'prop-tree', w: 44, h: 60, foot: 'soil', variants: 4 };
 export const PLANE_TREE: Species = { key: 'prop-plane-tree', w: 56, h: 80, foot: 'grate', variants: 3 };
+/** El mismo plátano en su parterre elevado de granito: el árbol de plaza. */
+export const BED_TREE: Species = { key: 'prop-bed-tree', w: 56, h: 85, foot: 'bed', variants: 3 };
 
 function hash2(x: number, y: number, seed: number): number {
   let h = Math.imul(x * 374761393 + y * 668265263 + seed * 2246822519, 3266489917);
@@ -59,8 +61,29 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
   const k = w / 56; // escala de la especie
 
   // Pie del árbol.
-  const footY = h - 6;
-  if (sp.foot === 'grate') {
+  const footY = h - (sp.foot === 'bed' ? 11 : 6);
+  if (sp.foot === 'bed') {
+    // Parterre elevado de granito (design/visual-reference): tierra con flores y matas, canto al sol y frente con juntas.
+    const bw = Math.round(28 * k);
+    const bx = Math.round(cx - bw / 2);
+    px(ctx, shade(PALETTE.plaza, 0.06), bx - 1, footY - 3, bw + 2, 2);
+    px(ctx, '#3f3226', bx, footY - 1, bw, 3);
+    for (let i = 0; i < 9; i++) {
+      const fx = bx + 1 + Math.floor(rnd() * (bw - 3));
+      const lump = rnd() < 0.5;
+      px(ctx, lump ? GREENS[3] : GREENS[4], fx, footY - 3 - (lump ? 1 : 0), 3, 3);
+      px(ctx, GREENS[5], fx + 1, footY - 4 - (lump ? 1 : 0), 1, 1);
+    }
+    for (let i = 0; i < 7; i++) {
+      const fx = bx + 1 + Math.floor(rnd() * (bw - 2));
+      px(ctx, ['#e06a8a', PALETTE.white, '#f0c060', '#c77adb'][i % 4], fx, footY - 3 - Math.floor(rnd() * 2), 1, 1);
+    }
+    px(ctx, shade(PALETTE.plaza, -0.05), bx - 1, footY + 2, bw + 2, 7);
+    px(ctx, shade(PALETTE.plaza, 0.1), bx - 1, footY + 2, bw + 2, 1);
+    for (let x = bx + 6; x < bx + bw; x += 8) px(ctx, shade(PALETTE.plaza, -0.16), x, footY + 3, 1, 5);
+    px(ctx, shade(PALETTE.plaza, -0.2), bx + bw - 1, footY + 2, 2, 7);
+    px(ctx, shade(PALETTE.plaza, -0.26), bx - 1, footY + 8, bw + 2, 1);
+  } else if (sp.foot === 'grate') {
     px(ctx, shade(PALETTE.plaza, -0.2), cx - 10, footY - 1, 20, 7);
     px(ctx, PALETTE.iron, cx - 9, footY, 18, 5);
     for (let x = cx - 8; x < cx + 9; x += 2) px(ctx, shade(PALETTE.iron, 0.12), x, footY + 1, 1, 3);
@@ -153,7 +176,7 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
 }
 
 export function buildVegetationTextures(scene: Phaser.Scene): void {
-  for (const sp of [TREE, PLANE_TREE]) {
+  for (const sp of [TREE, PLANE_TREE, BED_TREE]) {
     for (let v = 0; v < sp.variants; v++) {
       make(scene, `${sp.key}-${v}`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w));
       // La misma copa un píxel a sotavento: world/Ambience alterna los dos con las rachas.

@@ -12,6 +12,7 @@ import { forceWeather, weatherAt } from './systems/Weather';
 import { MetroEventManager } from './systems/MetroEventManager';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
+import { CyclistView } from './world/CyclistView';
 import { HUD } from './ui/HUD';
 import { DialogueBox } from './ui/DialogueBox';
 import { TargetHint } from './ui/TargetHint';
@@ -132,6 +133,8 @@ if (import.meta.env.DEV) {
       worldRoute,
       placeInfo,
       placesOfType,
+      // Bicis: lifesim.debugCyclists() pinta carril, posición simulada, recuadro pintado y velocidad; debugCyclists(false) lo quita.
+      debugCyclists: (on = true) => { CyclistView.debug = on; },
       // El tiempo: lifesim.weather.now() y, para probar, lifesim.weather.force({ rain: 0.9, celsius: 5 }) (null: el del calendario).
       weather: {
         now: () => weatherAt(state.day, state.hour + state.minute / 60),

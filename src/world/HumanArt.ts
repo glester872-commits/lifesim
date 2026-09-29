@@ -59,13 +59,16 @@ function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w:
 
 /**
  * 0 quieto · 1 y 2 los dos pasos · 3 respiración (el tronco baja un píxel) ·
- * 4 sentado · 5 mirando el móvil · 6 pesas arriba.
+ * 4 sentado · 5 mirando el móvil · 6 pesas arriba · 7 brazo en alto (jalear).
+ * Sólo de perfil, para quien pelea (world/StreetEventView): 8 guardia · 9 golpe · 10 encaja.
  */
-export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6];
+export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+/** Las de la textura común de gente: todas menos las de pelea, que se hornean aparte y sólo para quien pelea. */
+export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7];
+export const FIGHT_POSES: readonly Pose[] = [0, 8, 9, 10];
 
-/** Cuánto baja el tronco en cada pose: al apoyar y al respirar, uno; sentado, tres. */
-const drop = (pose: Pose): number => (pose === 4 ? 3 : pose === 0 || pose >= 5 ? 0 : 1);
+/** Cuánto baja el tronco en cada pose: al apoyar, respirar o ponerse en guardia, uno; sentado, tres. */
+const drop = (pose: Pose): number => (pose === 4 ? 3 : pose === 8 || pose === 9 ? 1 : pose === 0 || pose >= 5 ? 0 : 1);
 
 const SKINS = ['#e3b692', '#d3a17c', '#b98462', '#96654a', '#f0caa8'] as const;
 const TROUSERS = ['#33374a', '#2f4563', '#5b4b3a', '#232329', '#6a6d75', '#3f4b3a'] as const;
@@ -136,6 +139,11 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, c.skin, 3, 4, 1, 1);
     px(ctx, sleeveDark, 12, 5, 1, 6);
     px(ctx, shade(c.skin, -0.08), 12, 4, 1, 1);
+  } else if (pose === 7) {
+    // Jaleando: un brazo arriba con el puño cerrado; el otro, abajo.
+    px(ctx, sleeve, 3, 5, 1, 6);
+    px(ctx, c.skin, 3, 3, 1, 2);
+    arm(ctx, c, back ? 'r' : 'l', 12, armR, 1, 5, sleeveDark, shade(c.skin, -0.08));
   } else if (pose === 5) {
     // Sólo el brazo: el antebrazo va doblado hacia el pecho y se pinta encima del tronco.
     px(ctx, sleeve, 3, 11, 1, 3);
@@ -267,7 +275,8 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
 function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   const b = drop(pose);
   const far = shade(c.trousers, -0.12);
-  const step = pose === 1 || pose === 2;
+  // En guardia y al golpear, piernas abiertas como al dar un paso, con el pie de delante hacia el otro.
+  const step = pose === 1 || pose === 2 || pose === 8 || pose === 9;
 
   // Piernas: juntas quieto; al andar, una delante y otra detrás; sentado, el muslo hacia delante.
   if (pose === 4) {
@@ -275,7 +284,7 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     leg(ctx, c, c.trousers, 10, 19, 2, 3);
     px(ctx, c.shoes, 10, 22, 3, 2);
   } else if (step) {
-    const [front, rear] = pose === 1 ? [c.trousers, far] : [far, c.trousers];
+    const [front, rear] = pose === 2 ? [far, c.trousers] : [c.trousers, far];
     leg(ctx, c, rear, 5, 17, 3, 2);
     leg(ctx, c, rear, 4, 19, 3, 3);
     px(ctx, c.shoes, 3, 22, 4, 2);
@@ -361,6 +370,23 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, c.skin, 7, 2, 2, 1);
     px(ctx, PALETTE.ink, 6, 0, 4, 2);
     px(ctx, PALETTE.metal, 7, 0, 2, 1);
+  } else if (pose === 7) {
+    // Brazo en alto, puño cerrado: jaleando.
+    px(ctx, sleeve, 7, 4, 2, 7);
+    px(ctx, c.skin, 7, 2, 2, 2);
+  } else if (pose === 8) {
+    // Guardia: el antebrazo sube y el puño queda delante de la barbilla.
+    px(ctx, sleeve, 8, 11 + b, 3, 2);
+    px(ctx, sleeve, 11, 9 + b, 2, 3);
+    px(ctx, c.skin, 11, 7 + b, 2, 2);
+  } else if (pose === 9) {
+    // Golpe: el brazo estirado hacia delante a la altura del hombro.
+    px(ctx, sleeve, 8, 10 + b, 5, 2);
+    px(ctx, c.skin, 13, 10 + b, 2, 2);
+  } else if (pose === 10) {
+    // Encaja: echado atrás, el brazo se le va hacia la espalda.
+    px(ctx, sleeve, 4, 11, 2, 3);
+    px(ctx, c.skin, 3, 14, 2, 1);
   } else if (pose === 1) {
     arm(ctx, c, near, 5, 11 + b, 2, 4, sleeve, c.skin);
   } else if (pose === 2) {

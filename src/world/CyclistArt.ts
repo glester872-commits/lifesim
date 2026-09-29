@@ -91,35 +91,38 @@ function drawRider(ctx: Ctx, r: RiderLook, c: HumanColors, body: HTMLCanvasEleme
   wheel(ctx, FRONT, f);
   frame(ctx, r.bike, r.bike.colors[r.color], bar);
 
+  // Al pedalear, el cuerpo baja un píxel en los fotogramas impares: sólo tronco, cabeza, casco, mochila y hombro.
+  // Ruedas, cuadro, manillar, pedales y sombra no se mueven en ningún fotograma: la bici no despega del carril.
+  const b = !stopped && f % 2 === 1 ? 1 : 0;
   // Tronco y cabeza, de la persona sentada; quien va con prisa, con la cabeza un poco adelantada.
-  ctx.drawImage(body, 0, 12, 16, 5, 1, 9, 16, 5);
-  ctx.drawImage(body, 0, 0, 16, 12, 1 + lean, -3, 16, 12);
+  ctx.drawImage(body, 0, 12, 16, 5, 1, 9 + b, 16, 5);
+  ctx.drawImage(body, 0, 0, 16, 12, 1 + lean, -3 + b, 16, 12);
   if (r.helmet) {
     const hx = 6 + lean;
     const color = HELMETS[(r.look.id.length + r.color) % HELMETS.length];
-    px(ctx, PALETTE.outline, hx - 2, 0, 10, 4);
-    px(ctx, color, hx - 1, 0, 8, 3);
-    px(ctx, shade(color, 0.18), hx, 0, 4, 1);
-    px(ctx, shade(color, -0.3), hx + 1, 1, 1, 1);
-    px(ctx, shade(color, -0.3), hx + 4, 1, 1, 1);
+    px(ctx, PALETTE.outline, hx - 2, b, 10, 4);
+    px(ctx, color, hx - 1, b, 8, 3);
+    px(ctx, shade(color, 0.18), hx, b, 4, 1);
+    px(ctx, shade(color, -0.3), hx + 1, 1 + b, 1, 1);
+    px(ctx, shade(color, -0.3), hx + 4, 1 + b, 1, 1);
   }
   if (r.bike.cube) {
-    // La caja del reparto, cuadrada y enorme, con su asa.
-    px(ctx, PALETTE.outline, 0, 1, 8, 10);
-    px(ctx, r.bike.cube, 1, 2, 6, 8);
-    px(ctx, shade(r.bike.cube, 0.15), 1, 2, 6, 1);
-    px(ctx, shade(r.bike.cube, -0.25), 1, 9, 6, 1);
-    px(ctx, PALETTE.ink, 3, 5, 2, 2);
+    // La caja del reparto, cuadrada y enorme, con su asa: va a la espalda, sube y baja con el cuerpo.
+    px(ctx, PALETTE.outline, 0, 1 + b, 8, 10);
+    px(ctx, r.bike.cube, 1, 2 + b, 6, 8);
+    px(ctx, shade(r.bike.cube, 0.15), 1, 2 + b, 6, 1);
+    px(ctx, shade(r.bike.cube, -0.25), 1, 9 + b, 6, 1);
+    px(ctx, PALETTE.ink, 3, 5 + b, 2, 2);
   } else if (r.pack) {
     const pack = PACKS[(r.look.id.length * 3 + r.color) % PACKS.length];
-    px(ctx, PALETTE.outline, 3, 6, 4, 7);
-    px(ctx, pack, 4, 7, 3, 5);
-    px(ctx, shade(pack, 0.15), 4, 7, 3, 1);
-    px(ctx, shade(pack, -0.25), 4, 11, 3, 1);
+    px(ctx, PALETTE.outline, 3, 6 + b, 4, 7);
+    px(ctx, pack, 4, 7 + b, 3, 5);
+    px(ctx, shade(pack, 0.15), 4, 7 + b, 3, 1);
+    px(ctx, shade(pack, -0.25), 4, 11 + b, 3, 1);
   }
-  // Brazo al manillar.
+  // Brazo al manillar: el hombro va con el cuerpo, la mano se queda en el manillar.
   const sleeve = c.sleeves ?? c.clothDark;
-  line(ctx, sleeve, 8 + lean, 10, bar[0] - 1, bar[1] + 1, 2);
+  line(ctx, sleeve, 8 + lean, 10 + b, bar[0] - 1, bar[1] + 1, 2);
   px(ctx, c.skin, bar[0] - 1, bar[1], 2, 2);
   // Pierna de delante: en el pedal o, parado, con el pie en el suelo.
   if (stopped) leg(ctx, c.trousers, c.shoes, [11, 19], [12, 24]);

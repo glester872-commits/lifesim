@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   AUTOSAVE_INTERVAL_MS,
   CAMERA_LERP,
+  CAMERA_LOOK_UP,
   CAMERA_ZOOM,
   GAME_MINUTES_PER_REAL_SECOND,
   INTERACT_RADIUS,
@@ -17,6 +18,7 @@ import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
 import { Ambience } from '../world/Ambience';
 import { Traffic } from '../systems/Traffic';
+import { withDistrictLanes } from '../systems/Districts';
 import { TrafficView } from '../world/TrafficView';
 import { CyclistView } from '../world/CyclistView';
 import { VEHICLES, type VehicleType } from '../data/vehicles';
@@ -41,6 +43,9 @@ import { stopAtStation } from '../systems/Transit';
 import { Menus } from './Menus';
 import { CrowdView } from '../world/CrowdView';
 import { WeatherView } from '../world/WeatherView';
+import { Atmosphere } from '../world/Atmosphere';
+import { StreetEventView } from '../world/StreetEventView';
+import { STREET_EVENTS } from '../data/streetEvents';
 import { Occlusion } from '../world/Occlusion';
 import { weatherAt } from '../systems/Weather';
 import { WildlifeView } from '../world/WildlifeView';
@@ -68,7 +73,8 @@ type Interactable =
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true };
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
+  | { kind: 'event'; x: number; y: number; view: StreetEventView };
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
@@ -136,6 +142,12 @@ export class WorldScene extends Phaser.Scene {
   private signals: SignalView | null = null;
   /** Lluvia, charcos y vaho: sólo fuera. */
   private weatherView: WeatherView | null = null;
+  private atmosphere: Atmosphere | null = null;
+  private streetEvents: StreetEventView[] = [];
+  private ringBodies: Phaser.GameObjects.Zone[] = [];
+  /** Mirando un evento: la cámara encuadra el corro hasta que el jugador se mueve. */
+  private watching = false;
+  private lighting: Lighting | null = null;
   /** Lo alto que tapa al jugador se aclara mientras le tapa. */
   private occlusion: Occlusion | null = null;
   private crowdViews: CrowdView[] = [];
@@ -263,6 +275,19 @@ export class WorldScene extends Phaser.Scene {
     this.street?.populate(this.clockNow(), this.playerTile());
     const weather = (): ReturnType<typeof weatherAt> => weatherAt(this.services.state.day, this.services.state.hour + this.services.state.minute / 60);
     this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street));
+    // Lo que pasa en sitios escondidos algunas noches (data/streetEvents.ts): su corro es gente como la de la calle.
+    this.streetEvents = STREET_EVENTS.filter((e) => e.location === def.id).map((e) => new StreetEventView(this, def, e, weather));
+    this.crowdViews.push(...this.streetEvents.map((e) => e.crowd));
+    // Donde pelean no se entra: un cuerpo sólido sobre el corro mientras pelean.
+    this.ringBodies = this.streetEvents.map((e) => {
+      const r = e.ringRect;
+      const zone = this.add.zone(r.x, r.y, r.width, r.height).setOrigin(0, 0);
+      this.physics.add.existing(zone, true);
+      this.physics.add.collider(this.player, zone);
+      (zone.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+      return zone;
+    });
+    this.watching = false;
     const now = this.clockNow();
     this.wildlife = this.street ? new WildlifeView(this, def, this.street, now.day, now.hour + now.minute / 60, this.playerTile()) : null;
     this.crowdTargets = new WeakMap();
@@ -270,10 +295,10 @@ export class WorldScene extends Phaser.Scene {
     // La hora con la fracción del minuto en curso: los semáforos cambian a su segundo, no a saltos de minuto.
     this.ambience = new Ambience(this, def, () => this.pedestrians);
     const hour = (): number => this.services.clock.minuteOfDay / 60;
-    this.traffic = def.traffic ? new Traffic(def.traffic, VEHICLES, def.signals ?? [], built.widthPx) : null;
+    this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx) : null;
     this.traffic?.populate(this.trafficClock());
     this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour) : null;
-    this.bikes = def.traffic?.bikes ? new Traffic(def.traffic.bikes, BIKES, def.signals ?? [], built.widthPx) : null;
+    this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx) : null;
     this.bikes?.populate(this.trafficClock());
     this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
@@ -283,13 +308,22 @@ export class WorldScene extends Phaser.Scene {
       ? new WeatherView(this, def, () => weatherAt(state.day, state.hour + state.minute / 60), () => state.hour + state.minute / 60, () => [...this.crowdViews.flatMap((v) => v.people), ...this.characters.map((c) => c.sprite)])
       : null;
     // La hora se ve en la calle; dentro manda la luz del local.
-    new Lighting(this, def, built, state);
+    this.lighting = new Lighting(this, def, built, state);
+    // Lo pequeño que se mueve solo: hojas, vaho, vapor, polvo, humo, el aire del tren (world/Atmosphere).
+    const edgeY = def.metro ? def.metro.edgeRow * TILE + 12 : 0;
+    this.atmosphere = new Atmosphere(this, def, {
+      weather: () => weatherAt(state.day, state.hour + state.minute / 60),
+      hour: () => state.hour + state.minute / 60,
+      day: () => state.day,
+      traffic: () => this.traffic,
+      train: () => (this.metro ? { train: this.metro.train, doors: this.metro.doorSpots, edgeY } : null),
+    });
 
     const camera = this.cameras.main;
     camera.setBackgroundColor(PALETTE.ink);
     camera.setRoundPixels(true);
     camera.startFollow(this.player, true, CAMERA_LERP, CAMERA_LERP);
-    camera.setFollowOffset(0, 12);
+    camera.setFollowOffset(0, CAMERA_LOOK_UP);
     this.fitCamera();
     camera.fadeIn(TRANSITION_MS, 0, 0, 0);
 
@@ -392,6 +426,16 @@ export class WorldScene extends Phaser.Scene {
     this.cyclistView?.sync();
     this.signals?.update(time);
     this.weatherView?.update(delta);
+    this.atmosphere?.update(delta);
+    // Los eventos de calle siguen su reloj aunque el jugador mire: minutos absolutos, los de systems/StreetEvents.
+    const eventMinute = this.services.state.day * 1440 + this.services.clock.minuteOfDay;
+    this.streetEvents.forEach((e, i) => {
+      e.update(eventMinute, time);
+      (this.ringBodies[i].body as Phaser.Physics.Arcade.StaticBody).enable = e.ringActive;
+    });
+    // Mirando: en cuanto el jugador se mueve, la cámara vuelve a él.
+    if (this.watching && (this.player.body as Phaser.Physics.Arcade.Body).speed > 1) this.stopWatching();
+    this.lighting?.tick(time);
     this.occlusion?.update(this.player, delta);
     if (talking) return;
 
@@ -592,7 +636,11 @@ export class WorldScene extends Phaser.Scene {
     let best: Interactable | null = null;
     let bestDistance = INTERACT_RADIUS;
 
-    for (const item of [...this.interactables, ...this.crowdInteractables()]) {
+    // Un evento de calle se ofrece cuando ya lo tienes delante, sin marca que lo anuncie de lejos.
+    const events: Interactable[] = this.streetEvents
+      .filter((e) => e.noticedFrom(this.playerTile()))
+      .map((e) => ({ kind: 'event', x: this.player.x, y: this.player.y - 8, view: e }));
+    for (const item of [...this.interactables, ...this.crowdInteractables(), ...events]) {
       if (item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) continue;
       if (item.kind === 'npc' && !item.sprite.visible) continue;
       const { x, y } = anchor(item);
@@ -648,6 +696,7 @@ export class WorldScene extends Phaser.Scene {
       if (target.wardrobe) this.menus.openWardrobe();
       else this.menus.openSpot(target.name, target.activities);
     }
+    else if (target.kind === 'event') this.approachEvent(target.view);
     else if (target.kind === 'npc') {
       // Personal con algo que ofrecer (la barbera, la barra): se le pide; el resto, se charla.
       const offer = this.offerOf(target.sprite);
@@ -658,6 +707,39 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     else this.openDialogue(target.name, target.lines);
+  }
+
+  /**
+   * Delante de un evento de calle: lo que ve y qué hace. Mirar encuadra el
+   * corro (sin parar nada: el reloj y la pelea siguen); hablar, con quien esté
+   * más cerca; irse, nada. Participar no existe todavía: cuando haya combate,
+   * será otra opción aquí.
+   */
+  private approachEvent(view: StreetEventView): void {
+    const phase = view.phaseNow === 'none' ? 'dispersing' : view.phaseNow;
+    this.services.dialogue.ask(view.def.name, [view.def.lines.arrive[phase]], ['Mirar', 'Hablar con alguien', 'Irse'], (pick) => {
+      if (pick === 0) this.watch(view);
+      else if (pick === 1) {
+        const who = view.nearestPerson(this.player.x, this.player.y);
+        if (!who) return;
+        this.startTalk(who);
+        this.openDialogue(who.def.name, who.def.lines);
+      }
+    });
+  }
+
+  private watch(view: StreetEventView): void {
+    const r = view.ringRect;
+    const cam = this.cameras.main;
+    this.watching = true;
+    // followOffset se resta al objetivo: para centrar el corro, la distancia del jugador al corro (con el mismo CAMERA_LOOK_UP de siempre).
+    this.tweens.add({ targets: cam.followOffset, x: this.player.x - r.centerX, y: this.player.y - r.centerY + CAMERA_LOOK_UP, duration: 600, ease: 'Sine.easeInOut' });
+  }
+
+  private stopWatching(): void {
+    this.watching = false;
+    this.tweens.killTweensOf(this.cameras.main.followOffset);
+    this.tweens.add({ targets: this.cameras.main.followOffset, x: 0, y: CAMERA_LOOK_UP, duration: 350, ease: 'Sine.easeOut' });
   }
 
   /** Lo que ofrece esta persona si es personal de un local con servicio (data/services.ts). */

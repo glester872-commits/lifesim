@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config/constants';
 import type { LocationDef, Vec2 } from '../types/game';
 import { PROPS } from './tiles';
-import { doorRow } from '../systems/LocationSystem';
+import { doorRow, STOREY_ROWS } from '../systems/LocationSystem';
 import { gust } from './Motion';
 
 /**
@@ -38,7 +38,7 @@ export class Ambience {
       for (const o of scene.children.list) {
         if (!(o instanceof Phaser.GameObjects.Image)) continue;
         const key = o.texture.key;
-        if (/^prop-(plane-)?tree-\d+$/.test(key) && scene.textures.exists(`${key}-gust`)) this.trees.push({ img: o, still: key, windy: `${key}-gust` });
+        if (/^prop-(plane-|bed-)?tree-\d+$/.test(key) && scene.textures.exists(`${key}-gust`)) this.trees.push({ img: o, still: key, windy: `${key}-gust` });
       }
     }
 
@@ -58,7 +58,13 @@ export class Ambience {
     for (const b of def.buildings ?? []) {
       if (!b.enter || b.doorX === undefined || !scene.textures.exists(`bs-${b.style}-door-open`)) continue;
       const row = doorRow(b);
-      const sprite = scene.add.image(b.doorX * TILE, row * TILE, `bs-${b.style}-door-open`).setOrigin(0, 0).setDepth(-9).setAlpha(0);
+      // Al sur, la puerta es de planta entera (dos filas): la abierta, también.
+      const tall = b.front === 's' && scene.textures.exists(`bs-${b.style}-door-open-t`);
+      const sprite = scene.add
+        .image(b.doorX * TILE, (tall ? row - (STOREY_ROWS - 1) : row) * TILE, `bs-${b.style}-door-open${tall ? '-t' : ''}`)
+        .setOrigin(0, 0)
+        .setDepth(-9)
+        .setAlpha(0);
       this.doors.push({ sprite, x: b.doorX * TILE + TILE / 2, y: (row + 1) * TILE, open: false });
     }
   }

@@ -45,7 +45,7 @@ const GROUND = paint('g', [
   ['z', 52, 31, 3, 4], // paso de cebra este
   [',', 0, 35, W, 2], // acera sur
   ['P', 25, 37, 12, 9], // Plazuela del Metro: adoquín de granito (Visual V2)
-  ['T', 29, 41, 3, 1], // franja podotáctil delante de la escalera del metro
+  ['T', 29, 42, 3, 1], // franja podotáctil delante de la escalera del metro (la boca principal ocupa hasta la fila 41)
   ['.', 22, 37, 3, 9], // Calle Tintoreros, tramo con coches
   [',', 22, 37, 1, 9], // su acera, junto a Olmo 3: por aquí se baja andando, no por la calzada
   ['c', 56, 37, 2, 9], // Pasaje del Reloj
@@ -62,6 +62,10 @@ const GROUND = paint('g', [
   ['P', 74, 44, 36, 3], // acera norte: escaparates, paso y bordillo
   ['z', 89, 47, 2, 1], // paso de peatones del Carmen
   ['P', 74, 48, 36, 3], // acera sur
+  // Patio de atrás de Mayor 9 y Mayor 15: tierra pisada, y el callejón de servicio que baja a la Mayor.
+  ['d', 68, 0, 18, 3],
+  ['d', 74, 3, 12, 1],
+  ['c', 74, 4, 2, 12],
   ['R', 0, 55, W, 1], // la vía: límite sur del barrio
 ]);
 
@@ -82,7 +86,7 @@ const into = (location: string): BuildingDef['enter'] => ({ location, spawn: 'en
 const BUILDINGS: readonly BuildingDef[] = [
   // Interiores
   b('home-door', 'Tu portal · Olmo 7', 'home', [37, 37, 9, 9], 's', 41, { floors: 2, enter: into('home'), point: 'HOME_ENTRANCE' }),
-  b('metro-door', 'Metro · Vallesco', 'metro', [29, 38, 3, 3], 's', 30, { enter: { location: 'vallesco-station', spawn: 'entry' }, point: 'METRO_ENTRANCE' }),
+  b('metro-door', 'Metro · Vallesco', 'metro', [28, 38, 5, 4], 's', 30, { enter: { location: 'vallesco-station', spawn: 'entry' }, point: 'METRO_ENTRANCE' }),
   b('gym-door', 'Gimnasio Forja', 'gym', [33, 1, 15, 5], 's', 40, { floors: 2, enter: into('gym'), point: 'GYM_ENTRANCE' }),
   b('cafe-door', 'Cafetería Pausa', 'cafe', [52, 8, 10, 8], 's', 56, { floors: 2, enter: into('cafe'), point: 'CAFE_ENTRANCE' }),
   b('fashion-door', 'Hilo · moda', 'fashion', [2, 8, 10, 8], 's', 6, { floors: 2, enter: into('fashion'), point: 'CLOTHING_STORE_ENTRANCE' }),
@@ -92,9 +96,9 @@ const BUILDINGS: readonly BuildingDef[] = [
   // Ambientales: puerta dibujada, sin afordancia. El punto de entrada queda para los NPC.
   b('hair', 'Barbería Nati', 'hair', [12, 10, 5, 6], 's', 14, { floors: 2, enter: into('barbershop'), point: 'HAIR_SALON_ENTRANCE' }),
   b('pharmacy', 'Farmacia', 'pharmacy', [17, 9, 5, 7], 's', 19, { floors: 2, enter: into('pharmacy'), point: 'PHARMACY_ENTRANCE' }),
-  b('res-mayor-3', 'Mayor 3', 'res-brick', [22, 5, 7, 11], 's', 25, { floors: 2, point: 'RES_MAYOR_3_ENTRANCE', inspect: ['Portero automático. Nueve timbres, dos con el nombre tachado.'] }),
+  b('res-mayor-3', 'Mayor 3', 'res-brick', [22, 5, 7, 11], 's', 25, { floors: 3, point: 'RES_MAYOR_3_ENTRANCE', inspect: ['Portero automático. Nueve timbres, dos con el nombre tachado.'] }),
   b('bank', 'Banco', 'bank', [62, 9, 6, 7], 's', 64, { floors: 2, point: 'BANK_ENTRANCE', inspect: ['El cajero pide la tarjeta antes de decir buenos días.'] }),
-  b('res-mayor-9', 'Mayor 9', 'res-stone', [68, 3, 6, 13], 's', 71, { floors: 2, point: 'RES_MAYOR_9_ENTRANCE', inspect: ['Un buzón rebosa de publicidad. Alguien no ha pasado por aquí en semanas.'] }),
+  b('res-mayor-9', 'Mayor 9', 'res-stone', [68, 3, 6, 13], 's', 71, { floors: 3, point: 'RES_MAYOR_9_ENTRANCE', inspect: ['Un buzón rebosa de publicidad. Alguien no ha pasado por aquí en semanas.'] }),
   // El antiguo local en alquiler: ahora abre de noche (horario en data/places.ts).
   b('club-door', 'Sala Órbita', 'club', [12, 19, 5, 6], 'n', 14, { enter: into('club'), point: 'CLUB_ENTRANCE' }),
   b('fruit', 'Frutería', 'fruit', [17, 19, 5, 6], 'n', 19, { point: 'FRUIT_SHOP_ENTRANCE', inspect: ['Cajas de naranjas en la acera y una pizarra: «Hoy, nísperos».'] }),
@@ -102,7 +106,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('study', 'Centro de estudios', 'study', [34, 19, 16, 9], 'n', 41, { point: 'STUDY_CENTER_ENTRANCE', inspect: ['Centro de estudios Vallesco. Un cartel anuncia cursos de tarde; la matrícula, en ventanilla.'] }),
   b('laundry', 'Lavandería', 'laundry', [51, 19, 6, 6], 'n', 53, { point: 'LAUNDRY_ENTRANCE', inspect: ['Tres lavadoras girando y nadie esperando.'] }),
   b('res-av-2', 'Avenida 2', 'res-plaster', [2, 37, 11, 9], 'n', 7, { point: 'RES_AVENIDA_2_ENTRANCE', inspect: ['Un portal que huele a lejía recién echada.'] }),
-  b('res-olmo-3', 'Olmo 3', 'res-brick', [13, 37, 9, 9], 's', 17, { floors: 2, point: 'RES_OLMO_3_ENTRANCE', inspect: ['En el portal, un aviso: «Junta de vecinos el jueves. Tema: el ascensor».'] }),
+  b('res-olmo-3', 'Olmo 3', 'res-brick', [13, 37, 9, 9], 's', 17, { floors: 3, point: 'RES_OLMO_3_ENTRANCE', inspect: ['En el portal, un aviso: «Junta de vecinos el jueves. Tema: el ascensor».'] }),
   b('res-olmo-11', 'Olmo 11', 'res-stone', [46, 37, 10, 9], 's', 50, { floors: 2, point: 'RES_OLMO_11_ENTRANCE', inspect: ['Un triciclo aparcado bajo la escalera.'] }),
   b('res-av-20', 'Avenida 20', 'res-brick', [58, 37, 16, 9], 'n', 65, { point: 'RES_AVENIDA_20_ENTRANCE', inspect: ['El portero automático zumba, pero nadie contesta.'] }),
   b('civic', 'Junta municipal', 'civic', [2, 50, 14, 5], 'n', 9, { point: 'CIVIC_ENTRANCE', inspect: ['Junta Municipal de Vallesco. Empadronamientos, quejas y un tablón lleno de chinchetas.'] }),
@@ -114,9 +118,9 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('backdrop-ne', 'Manzana noreste', 'backdrop', [49, 1, 18, 6], undefined),
 
   // Calle Mayor, tramo este: vecinos a los dos lados.
-  b('res-mayor-15', 'Mayor 15', 'res-brick', [76, 4, 10, 12], 's', 80, { floors: 2, point: 'RES_MAYOR_15_ENTRANCE', inspect: ['Una bici colgada en el balcón del primero. Nadie sabe cómo la subieron.'] }),
+  b('res-mayor-15', 'Mayor 15', 'res-brick', [76, 4, 10, 12], 's', 80, { floors: 3, point: 'RES_MAYOR_15_ENTRANCE', inspect: ['Una bici colgada en el balcón del primero. Nadie sabe cómo la subieron.'] }),
   b('res-mayor-17', 'Mayor 17', 'res-plaster', [86, 6, 11, 10], 's', 91, { floors: 2, point: 'RES_MAYOR_17_ENTRANCE', inspect: ['«Se alquila habitación. Preguntar por Reme, segundo B».'] }),
-  b('res-mayor-19', 'Mayor 19', 'res-stone', [97, 3, 13, 13], 's', 103, { floors: 2, point: 'RES_MAYOR_19_ENTRANCE', inspect: ['Un portal de piedra con el número en azulejo.'] }),
+  b('res-mayor-19', 'Mayor 19', 'res-stone', [97, 3, 13, 13], 's', 103, { floors: 3, point: 'RES_MAYOR_19_ENTRANCE', inspect: ['Un portal de piedra con el número en azulejo.'] }),
   b('backdrop-e', 'Manzana este', 'backdrop', [86, 1, 11, 5], undefined),
   b('res-mayor-20', 'Mayor 20', 'res-stone', [76, 19, 14, 8], 'n', 82, { point: 'RES_MAYOR_20_ENTRANCE', inspect: ['El ascensor lleva un cartel de «averiado» desde el verano.'] }),
   b('res-mayor-22', 'Mayor 22', 'res-brick', [90, 19, 20, 8], 'n', 99, { point: 'RES_MAYOR_22_ENTRANCE', inspect: ['Un patio de vecinos detrás de la reja, lleno de macetas.'] }),
@@ -139,7 +143,7 @@ const row = (kind: PropKind, ty: number, xs: readonly number[]): PropPlacement[]
 
 const PROPS: readonly PropPlacement[] = [
   // Borde norte
-  ...[[1, 0], [24, 0], [29, 2], [48, 2], [68, 0], [74, 1]].map(([x, y]) => at('tree', x, y)),
+  ...[[1, 0], [24, 0], [29, 2], [48, 2], [68, 0]].map(([x, y]) => at('tree', x, y)),
 
   // Plaza de la Fuente
   at('fountain', 39, 11),
@@ -176,10 +180,13 @@ const PROPS: readonly PropPlacement[] = [
   // Plazuela del Metro: escena de referencia de Visual V2 (design/ART_BIBLE.md). El rótulo METRO
   // va en la marquesina de la boca. Islas de árbol y banco a los lados, farolas en tres esquinas, tótem
   // y plano junto a la escalera; las líneas del grafo (plazuela-1 → -2 → boca → banco → Olmo) quedan libres.
-  at('plane-tree', 25, 44), at('plane-tree', 36, 43),
+  at('bed-tree', 25, 44), at('plane-tree', 36, 43),
+  // Un parterre de flores en el flanco este de la boca (design/visual-reference), fuera de los caminos.
+  at('flower-bed', 35, 40),
   at('plaza-bench', 25, 40), at('plaza-bench', 34, 43),
   at('street-lamp', 25, 38), at('street-lamp', 35, 38), at('street-lamp', 32, 45),
-  at('metro-totem', 32, 40), at('info-board', 28, 38),
+  // El plano del barrio ya va en el pórtico de la boca (world/UrbanArt: drawMetroHero); aquí, sólo el tótem.
+  at('metro-totem', 34, 41),
   at('bike-rack', 27, 44), at('planter-box', 34, 45), at('bin', 36, 41),
   at('manhole', 33, 39), at('drain', 30, 45), at('leaves', 26, 45), at('leaves', 35, 44), at('leaves', 33, 44),
 
@@ -193,7 +200,12 @@ const PROPS: readonly PropPlacement[] = [
   at('lamp', 48, 53), at('lamp', 58, 53),
 
   // Huecos de hierba entre el barrio viejo y el tramo este.
-  ...[[74, 2], [74, 9], [74, 13], [74, 22], [74, 25], [74, 52]].map(([x, y]) => at('tree', x, y)),
+  ...[[74, 22], [74, 25], [74, 52]].map(([x, y]) => at('tree', x, y)),
+
+  // Patio de atrás de la Mayor: nadie pasa por aquí. Cajas como gradas, un contenedor, colillas y una lámpara de pinza.
+  // Lo que se hace aquí de noche es data/streetEvents.ts; de día sólo quedan las huellas.
+  at('container', 70, 1), at('crates', 72, 1), at('crates', 85, 2), at('work-light', 84, 1),
+  at('debris', 73, 2), at('debris', 78, 0), at('debris', 82, 3), at('debris', 75, 8),
 
   // Calle del Carmen. Norte: escaparates y terraza en la fila 44, paso en la 45, bordillo en la 46.
   at('bench', 84, 44), at('bench', 104, 44),
@@ -271,6 +283,8 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   'avs-23': p(23, 36, 'path'), 'avs-25': p(25, 36, 'path'), 'avs-30': p(30, 36, 'path'),
   'avs-53': p(53, 36, 'path'), 'avs-56': p(56, 36, 'path'),
   'tintoreros-s': p(22, 41, 'path'), 'tintoreros-sn': p(22, 36, 'path'), 'tintoreros-ss': p(22, 46, 'path'), 'plazuela-1': p(26, 37, 'path'), 'plazuela-2': p(28, 42, 'path'),
+  // Bordeando el pórtico de la boca principal por su lado oeste.
+  'plazuela-3': p(27, 41, 'path'),
   'plazuela-4': p(33, 37, 'path'), pasaje: p(56, 41, 'path'),
   'olmo-23': p(23, 46, 'path'), 'olmo-30': p(30, 46, 'path'), 'olmo-40': p(40, 46, 'path'), 'olmo-56': p(56, 46, 'path'),
   'olmo-s40': p(40, 49, 'path'), 'olmo-s70': p(70, 49, 'path'),
@@ -322,7 +336,7 @@ const LINKS: readonly Link[] = [
 
   // Del sur de la avenida a la Calle del Olmo: Tintoreros, la plazuela y el pasaje
   ...chain('avs-23', 'tintoreros-sn', 'tintoreros-s', 'tintoreros-ss', 'olmo-23'),
-  ...chain('avs-30', 'plazuela-1', 'plazuela-2', 'METRO_ENTRANCE', 'METRO_PLAZUELA_BENCH'),
+  ...chain('avs-30', 'plazuela-1', 'plazuela-3', 'plazuela-2', 'METRO_ENTRANCE', 'METRO_PLAZUELA_BENCH'),
   ...chain('avs-30', 'plazuela-4', 'METRO_PLAZUELA_BENCH', 'olmo-30'),
   ['plazuela-2', 'olmo-30'],
   ...chain('avs-56', 'pasaje', 'olmo-56'),
@@ -372,6 +386,17 @@ const BASE: LocationDef = {
   },
   points: POINTS,
   links: LINKS,
+  // Identidad visual por zona (data/districts.ts, design/DISTRICTS.md): vecinos por defecto; la última zona manda.
+  district: 'residential',
+  zones: [
+    { profile: 'commercial', tx: 0, ty: 0, w: 74, h: 37 }, // Calle Mayor oeste, plaza, Tintoreros y la avenida
+    { profile: 'commercial', tx: 74, ty: 27, w: 36, h: 10 }, // la avenida hasta el final (el tramo este de la Mayor es de vecinos)
+    { profile: 'transit', tx: 23, ty: 37, w: 14, h: 9 }, // Plazuela del Metro
+    { profile: 'park', tx: 36, ty: 49, w: 38, h: 6 }, // Parque del Olmo
+    { profile: 'vintage', tx: 74, ty: 37, w: 36, h: 18 }, // Calle del Carmen y su pasaje
+    { profile: 'nightlife', tx: 10, ty: 16, w: 12, h: 10 }, // la puerta de la Sala Órbita, con su cola
+    { profile: 'nightlife', tx: 27, ty: 49, w: 9, h: 6 }, // La Cepa, junto al parque
+  ],
   // Carriles de circulación en medio; en los bordes (31 y 34), un carril bici por sentido.
   // De madrugada, uno por carril (taxis y el camión de la basura); en hora punta, tres.
   // La avenida tiene parada: pasa algo más de autobús que en otra avenida.
@@ -405,6 +430,8 @@ const BASE: LocationDef = {
     { tx: 80, ty: 46, name: 'Columna de carteles', lines: ['Conciertos en la Órbita, un mercadillo de discos el domingo y clases de serigrafía. Todo impreso enfrente.'] },
     { tx: 95, ty: 50, name: 'Columna de carteles', lines: ['Encima de un cartel de hace un año, uno de la semana pasada. Encima, pegatinas.'] },
     { tx: 96, ty: 44, name: 'Terraza del Molinillo', lines: ['Dos mesas y una sombrilla. Se sirve fuera cuando el café está abierto.'] },
+    { tx: 72, ty: 2, name: 'Cajas de fruta', lines: ['Cajas apiladas como gradas alrededor de un trozo de tierra pisada en redondo. Colillas, vasos de plástico. Aquí se junta gente, y no de día.'] },
+    { tx: 83, ty: 2, name: 'Lámpara de pinza', lines: ['Una lámpara de obra enganchada a las cajas. El cable sube por la pared hasta una ventana del primero.'] },
   ],
   // Nombres para el mapa (tecla M): calles y zonas, sobre el suelo que ya las dibuja.
   areas: [

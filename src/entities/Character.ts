@@ -9,7 +9,7 @@ import { PEOPLE, personFrame } from '../world/TextureFactory';
  * Lo que se ve hacer a alguien parado. No es IA: sale del sitio donde está
  * (una silla, una cinta) y de lo que su sistema ya dice que hace.
  */
-export type Activity = 'idle' | 'sit' | 'read' | 'run' | 'lift' | 'phone' | 'talk' | 'dance' | 'eat' | 'drink' | 'sip';
+export type Activity = 'idle' | 'sit' | 'read' | 'run' | 'lift' | 'phone' | 'talk' | 'dance' | 'eat' | 'drink' | 'sip' | 'cheer';
 
 /** La música de la sala: 120 pulsaciones. Todos bailan al mismo compás, cada uno a su manera. */
 const BEAT_MS = 500;
@@ -44,6 +44,7 @@ export function activityAt(point: string | undefined, state: string | undefined,
   if (point?.includes('_DANCE_') || state === 'DANCE') return 'dance';
   // Sentado a la mesa: con plato si come, con taza o vaso si bebe.
   if (state === 'PHONE') return 'phone';
+  if (state === 'CHEER') return 'cheer';
   if (p?.kind === 'seat' || point?.includes('_DESK_')) return state === 'EAT' ? 'eat' : state === 'DRINK' ? 'drink' : state === 'READ' ? 'read' : 'sit';
   // Bebiendo de pie (en un corro, en la barra): con la copa en la mano.
   if (state === 'DRINK') return 'sip';
@@ -155,6 +156,12 @@ export class Character extends Phaser.GameObjects.Sprite {
       // Cabeza gacha y el móvil entre las manos, quieto.
       this.anims.stop();
       this.setTexture(PEOPLE, personFrame(id, where.dir, 5));
+    } else if (activity === 'cheer') {
+      // Jalea: el puño arriba y abajo, cada uno a su compás, con un salto de un píxel al subir.
+      this.anims.stop();
+      const up = Math.floor((time + this.seed * 263) / 320) % 2 === 0;
+      this.setTexture(PEOPLE, personFrame(id, where.dir, up ? 7 : 0));
+      if (up) this.setY(y - 1);
     } else if (activity === 'lift') {
       // Repeticiones: arriba y abajo, cada uno a su ritmo.
       this.anims.stop();

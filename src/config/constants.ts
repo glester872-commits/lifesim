@@ -14,6 +14,14 @@ export const VIEW_WIDTH = 336;
 export const VIEW_HEIGHT = 288;
 export const MAX_CAMERA_ZOOM = 12;
 export const CAMERA_LERP = 0.14;
+/**
+ * Cuánto por encima del jugador mira la cámara (px de mundo). Las fachadas al
+ * sur suben dos tiles por planta desde la acera: con el jugador algo por debajo
+ * del centro se ve la calle y la fachada de enfrente entera. El zoom sigue
+ * siendo entero (WorldScene.fitCamera): bajarlo "un poco" no existe sin
+ * deformar los píxeles.
+ */
+export const CAMERA_LOOK_UP = 22;
 
 export const PLAYER_SPEED = 76;
 export const PLAYER_BODY = { width: 10, height: 8 };

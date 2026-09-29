@@ -134,6 +134,15 @@ export type PropKind =
   | 'barrier'
   | 'skip'
   | 'debris'
+  | 'crates'
+  | 'bed-tree'
+  | 'flower-bed'
+  | 'parking-meter'
+  | 'road-arrow-e'
+  | 'road-arrow-w'
+  | 'asphalt-patch'
+  | 'tyre-marks'
+  | 'work-light'
   | 'tube-light';
 
 export interface PropPlacement {
@@ -238,8 +247,8 @@ export interface BuildingDef {
   front?: 'n' | 's';
   /** Columna de la puerta, en la fila de fachada que toca la calle. */
   doorX?: number;
-  /** Plantas visibles en fachada (sólo frentes al sur). Por defecto una. */
-  floors?: 1 | 2;
+  /** Plantas visibles en fachada (sólo frentes al sur), dos filas cada una (LocationSystem.STOREY_ROWS). Por defecto una. */
+  floors?: 1 | 2 | 3;
   /** Interior al que lleva la puerta. Sin él, la puerta es decorado y no se ofrece. */
   enter?: { location: string; spawn: string };
   /** Id del punto semántico generado delante de la puerta (p. ej. CAFE_ENTRANCE). */
@@ -288,7 +297,8 @@ export interface InspectDef {
  * vía, y `mix` por barrio.
  */
 export interface LaneFlow {
-  lanes: readonly { row: number; dir: 1 | -1 }[];
+  /** `mix`: lo que ponen las zonas que cruza el carril, por franja (systems/Districts.ts lo rellena al entrar). */
+  lanes: readonly { row: number; dir: 1 | -1; mix?: Readonly<Partial<Record<import('../data/vehicles.ts').TrafficBand, Readonly<Record<string, number>>>>> }[];
   road: import('../data/vehicles.ts').RoadKind;
   /** Multiplicadores del barrio sobre los pesos del catálogo (id → factor). */
   mix?: Readonly<Record<string, number>>;
@@ -373,11 +383,25 @@ export interface LocationDef {
   areas?: readonly { name: string; tx: number; ty: number }[];
   /** Interiores: focos de colores que barren esta zona en tiles (la pista de baile), al ritmo de la música. */
   strobe?: { tx: number; ty: number; w: number; h: number };
+  /** Identidad visual de todo el sitio (data/districts.ts). Sin ella, el arte maestro sin variación. */
+  district?: import('../data/districts.ts').DistrictId;
+  /** Zonas con otra identidad, en tiles; la última que contiene un tile manda (design/DISTRICTS.md). */
+  zones?: readonly DistrictZone[];
+}
+
+export interface DistrictZone {
+  profile: import('../data/districts.ts').DistrictId;
+  tx: number;
+  ty: number;
+  w: number;
+  h: number;
 }
 
 /** Colores de ropa y pelo; alimentan el generador de texturas. */
 export interface NpcLook {
   id: string;
+  /** Anónimos: qué zona los atrae más (data/districts.ts, crowd). Sin él, 'everyday'. */
+  style?: import('../data/districts.ts').LookStyle;
   cloth: string;
   clothDark: string;
   hair: string;

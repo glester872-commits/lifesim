@@ -356,6 +356,9 @@ const RIBERA: LocationDef = {
   id: 'ribera',
   name: 'Ribera Norte',
   kind: 'exterior',
+  // Mercado y terrazas junto al río; la puerta del bar, de noche (data/districts.ts).
+  district: 'commercial',
+  zones: [{ profile: 'nightlife', tx: 1, ty: 8, w: 16, h: 4 }],
   ground: [
     'gggggggggggggggggggggggggggggggggggggggg',
     'gggggggggggggggggggggggggggggggggggggggg',

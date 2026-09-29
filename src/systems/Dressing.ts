@@ -2,6 +2,8 @@
 // lo valida con el resto (caminos, puntos, tramos del grafo).
 import { PROPS, TILES } from '../world/tiles.ts';
 import type { BuildingDef, LocationDef, PropKind, PropPlacement, TilePoint } from '../types/game.ts';
+import { DISTRICTS } from '../data/districts.ts';
+import { districtAt, zonesOf } from './Districts.ts';
 
 /**
  * Micromobiliario por contexto, no al azar. Cada regla lee lo que ya hay en
@@ -251,13 +253,32 @@ function parking(s: Site): void {
       }
       const r = hash(x, y, 11);
       if (r < 0.72 && s.place(r < 0.24 ? 'car' : r < 0.48 ? 'car-b' : 'car-c', x, y)) {
-        if (!signed) {
-          const kerb = WALKWAY.has(s.at(x, y - 1)) ? y - 1 : y + 1;
-          signed = s.place('parking-sign', x, kerb);
-        }
+        const kerb = WALKWAY.has(s.at(x, y - 1)) ? y - 1 : y + 1;
+        if (!signed) signed = s.place('parking-sign', x, kerb);
+        // Zona de pago: un parquímetro en el bordillo cada pocos coches, pegado a uno de ellos.
+        else if (hash(x, y, 31) < 0.34) s.place('parking-meter', x + 1, kerb);
         x += 2 + (hash(x, y, 12) < 0.5 ? 1 : 0);
       } else x++;
     }
+  }
+}
+
+/**
+ * Lo pintado y lo gastado en la calzada: delante de cada semáforo, la flecha
+ * de carril (hacia donde va el tráfico) y las rodadas de quien frena en la
+ * línea; y, suelto, algún parche de asfalto nuevo. Plano: se hornea en el suelo.
+ */
+function roadMarks(s: Site): void {
+  for (const sig of s.def.signals ?? []) {
+    for (const lane of s.def.traffic?.lanes ?? []) {
+      if (lane.row < sig.ty || lane.row >= sig.ty + sig.h) continue;
+      const [arrow, marks] = lane.dir > 0 ? [sig.tx - 5, sig.tx - 3] : [sig.tx + sig.w + 4, sig.tx + sig.w + 2];
+      s.place(lane.dir > 0 ? 'road-arrow-e' : 'road-arrow-w', arrow, lane.row);
+      s.place('tyre-marks', marks, lane.row);
+    }
+  }
+  for (let y = 0; y < s.h; y++) {
+    for (let x = 0; x < s.w; x++) if (ASPHALT.has(s.at(x, y)) && hash(x, y, 41) < 0.04) s.place('asphalt-patch', x, y);
   }
 }
 
@@ -326,6 +347,39 @@ function alleyMouths(s: Site): void {
   }
 }
 
+/**
+ * El kit de cada zona (data/districts.ts): carteles y bicis contra las fachadas
+ * del Carmen, bolardos y mupi en la noche, arbusto y hoja en el parque. `every`
+ * dice cuánto (una pieza por tantos sitios que valen), `max` el tope. Lo alto
+ * (un cartel) sólo con pared detrás; lo bajo, a cualquier lado de la fachada.
+ */
+function districtKits(s: Site): void {
+  const blocks = s.def.buildings ?? [];
+  const inBuilding = (x: number, y: number): boolean => blocks.some((b) => x >= b.tx && x < b.tx + b.w && y >= b.ty && y < b.ty + b.h);
+  zonesOf(s.def).forEach((z, zi) => {
+    const kit = DISTRICTS[z.profile].kit;
+    if (!kit) return;
+    const spots: { x: number; y: number; r: number }[] = [];
+    for (let y = z.ty; y < z.ty + z.h; y++) {
+      for (let x = z.tx; x < z.tx + z.w; x++) {
+        if (!s.isFree(x, y) || districtAt(s.def, x, y) !== z.profile) continue;
+        const ok = kit.on === 'open' ? s.at(x, y) === 'g' : WALKWAY.has(s.at(x, y)) && (inBuilding(x, y - 1) || inBuilding(x, y + 1));
+        if (ok) spots.push({ x, y, r: hash(x, y, 40 + zi) });
+      }
+    }
+    // Una pieza por cada `every` sitios libres que valen, en orden de azar fijo.
+    const quota = Math.min(kit.max, Math.ceil(spots.length / kit.every));
+    let n = 0;
+    for (const { x, y } of spots.sort((a, b) => a.r - b.r)) {
+      if (n >= quota) break;
+      // Empieza por la pieza que le toca a este tile y, si no cabe, prueba las demás del kit.
+      const first = Math.floor(hash(x, y, 60 + zi) * kit.props.length);
+      const kinds = kit.props.map((_, i) => kit.props[(first + i) % kit.props.length]);
+      if (kinds.some((kind) => ((PROPS[kind].tilesHigh ?? 1) === 1 || inBuilding(x, y - 1)) && s.place(kind, x, y))) n++;
+    }
+  });
+}
+
 /** La basura que deja cada sitio: colillas y flyers a la puerta de la discoteca; papeles junto a paradas y papeleras. */
 function litter(s: Site): void {
   for (const b of s.def.buildings ?? []) {
@@ -352,7 +406,9 @@ export function dress(def: LocationDef): PropPlacement[] {
   mailboxes(s);
   alleyMouths(s);
   benchBins(s);
+  districtKits(s);
   parking(s);
+  roadMarks(s);
   litter(s);
   return s.placed;
 }

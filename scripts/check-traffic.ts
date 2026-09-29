@@ -10,6 +10,7 @@ import { seededRng } from '../src/systems/MetroDaily.ts';
 import { signalAt } from '../src/systems/Signals.ts';
 import { Traffic, vehicleWeights, type Vehicle } from '../src/systems/Traffic.ts';
 import type { LaneFlow, Vec2 } from '../src/types/game.ts';
+import { PROPS } from '../src/world/tiles.ts';
 
 const loc = getLocation('district');
 const def = loc.traffic!;
@@ -26,7 +27,8 @@ function checkLanes(flow: LaneFlow, allowed: ReadonlySet<string>, what: string):
   for (const lane of flow.lanes) {
     for (let x = 0; x < width; x++) assert.ok(allowed.has(loc.ground[lane.row][x]), `${what} ${lane.row}: (${x}) es «${loc.ground[lane.row][x]}»`);
     for (const b of loc.buildings ?? []) assert.ok(lane.row < b.ty || lane.row >= b.ty + b.h, `${what} ${lane.row} atraviesa ${b.name}`);
-    for (const p of loc.props) assert.ok(p.ty !== lane.row, `${what} ${lane.row}: ${p.kind} en (${p.tx}, ${p.ty})`);
+    // Lo pintado en el asfalto (flechas, parches, rodadas) es suelo; lo que tiene cuerpo, no.
+    for (const p of loc.props) if (!PROPS[p.kind].flat) assert.ok(p.ty !== lane.row, `${what} ${lane.row}: ${p.kind} en (${p.tx}, ${p.ty})`);
   }
 }
 checkLanes(def, CAR_ROAD, 'carril');

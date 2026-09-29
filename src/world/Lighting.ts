@@ -7,6 +7,10 @@ import type { GlowSpot, WindowSpot } from './BuildingArt';
 import { make } from './paint';
 import { isOpen, placeForInterior, placesOfType, type PlaceInfo } from '../systems/Places';
 import { weatherAt, type Weather } from '../systems/Weather';
+import { gradeAt, hex, profileAt, zonesOf } from '../systems/Districts';
+import { every, wave } from './Motion';
+import { backRows, facadeRows } from '../systems/LocationSystem';
+import { DISTRICTS, type DistrictProfile } from '../data/districts';
 
 /** Canal a canal: `a` por `b` (0xffffff no cambia nada). */
 function multiply(a: number, b: number): number {
@@ -241,7 +245,10 @@ export class Lighting {
   private readonly windows: Phaser.GameObjects.Graphics;
   private readonly windowSpots: readonly WindowSpot[];
   /** Lo que brilla (rótulos, pantallas, apliques): encima de la sombra de la hora, sin oscurecerse. */
-  private readonly emissives: { img: Phaser.GameObjects.Image; place?: PlaceInfo; pulse?: boolean }[] = [];
+  /** `flicker`: semilla del tartamudeo ocasional de ese rótulo (sin ella, luz fija). */
+  private readonly emissives: { img: Phaser.GameObjects.Image; place?: PlaceInfo; flicker?: number }[] = [];
+  /** Cuánto de noche era en el último repintado: la base del tartamudeo y del brillo del mojado. */
+  private night = 0;
   private readonly state: GameState;
   /** Dentro: luz fija del local, lámparas encendidas si está abierto y sin cielo. */
   private readonly indoor: boolean;
@@ -262,6 +269,10 @@ export class Lighting {
   private lastKey = '';
   private readonly roofs: { x: number; y: number; w: number; h: number }[] = [];
   private roofBrush!: Phaser.GameObjects.Rectangle;
+  /** Zonas con identidad (data/districts.ts), en px de mundo: su guion de color tiñe la luz del cielo. */
+  private readonly zones: { x: number; y: number; w: number; h: number; profile: DistrictProfile }[];
+  /** Color y fuerza de farola y escaparate donde cae (px de mundo): la temperatura de cada zona. */
+  private readonly lampAt: (x: number, y: number) => readonly [number, number];
 
   constructor(scene: Phaser.Scene, def: LocationDef, built: { widthPx: number; heightPx: number; windows: readonly WindowSpot[]; glows: readonly GlowSpot[] }, state: GameState) {
     const { widthPx, heightPx } = built;
@@ -270,6 +281,11 @@ export class Lighting {
     this.ambient = def.ambient ? Number.parseInt(def.ambient.slice(1), 16) : 0xffffff;
     this.room = placeForInterior(def.id);
     this.windowSpots = built.windows;
+    this.zones = zonesOf(def).map((z) => ({ x: z.tx * TILE, y: z.ty * TILE, w: z.w * TILE, h: z.h * TILE, profile: DISTRICTS[z.profile] }));
+    this.lampAt = (x, y) => {
+      const lamp = profileAt(def, Math.floor(x / TILE), Math.floor(y / TILE))?.lamp;
+      return lamp ? [hex(lamp[0]), lamp[1]] : [WARM, 1];
+    };
     // Con margen: la cámara puede enseñar algo más allá del borde del mapa.
     const m = TILE * 24;
     this.shade = scene.add
@@ -295,8 +311,10 @@ export class Lighting {
       const baseY = (p.ty + 1) * TILE - 3;
       if (!this.indoor) {
         // Fuera, la luz del suelo la pone el mapa de luz: devuelve el color a lo que ilumina, gente incluida.
-        const [w, h] = prop.light.pool ? [prop.light.pool[0] * 2.7, prop.light.pool[1] * 3.6] : [84, 50];
-        this.fixedSources.push({ x, y: baseY, w, h, color: prop.light.cool ? COOL : WARM, strength: prop.light.cool ? 0.6 : 1 });
+        // Charco definido, no un baño: entre farola y farola queda la penumbra azul de la noche (design/visual-reference).
+        const [w, h] = prop.light.pool ? [prop.light.pool[0] * 2.3, prop.light.pool[1] * 3.0] : [84, 50];
+        const [warm, strength] = this.lampAt(x, baseY);
+        this.fixedSources.push({ x, y: baseY, w, h, color: prop.light.cool ? COOL : warm, strength: prop.light.cool ? 0.6 : strength });
       } else if (prop.light.pool) {
         const [w, h] = prop.light.pool;
         const pool = scene.add.image(x, baseY, poolTexture(scene, w, h)).setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
@@ -316,10 +334,9 @@ export class Lighting {
       // Rótulo de un edificio sin lugar (un bloque cualquiera): no hay quien lo encienda.
       if (g.building && !place) continue;
       const img = scene.add.image(g.x, g.y, g.key).setOrigin(0, 0).setDepth(DEPTH + 2);
-      // El neón de la noche respira despacio, sin parpadeo; con movimiento reducido, fijo.
-      const pulse = !!place?.tags.includes('nightlife') && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
-      if (pulse) scene.tweens.add({ targets: img, alpha: { from: 0.72, to: 1 }, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      this.emissives.push({ img, place, pulse });
+      // Neón de la noche y rótulos del Carmen: fijos casi siempre y, de higos a brevas, un tartamudeo (tick). Con movimiento reducido, fijos.
+      const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+      this.emissives.push({ img, place, flicker: flickers ? this.emissives.length + 1 : undefined });
       if (!place) {
         // La boca de metro, siempre encendida, alumbra la acera de delante.
         const src = scene.textures.get(g.key).getSourceImage();
@@ -330,12 +347,13 @@ export class Lighting {
     if (!this.indoor) {
       for (const b of def.buildings ?? []) {
         if (b.style === 'metro') continue;
-        const floors = b.front === 's' ? (b.floors ?? 1) : b.front === 'n' ? 1 : 0;
+        const rows = facadeRows(b) + backRows(b);
         const top = b.front === 'n' ? b.ty + 1 : b.ty;
         // Una farola no alumbra los tejados ni el sol les pone la sombra del vecino: quedan con la luz del cielo.
-        this.roofs.push({ x: b.tx * TILE, y: top * TILE, w: b.w * TILE, h: (b.h - floors) * TILE });
-        // Un bloque de dos plantas echa más sombra que un local bajo; los fondos de tejados, como un bloque.
-        this.casters.push({ x: b.tx * TILE, y: b.ty * TILE, w: b.w * TILE, h: b.h * TILE, height: TILE * (floors === 2 ? 2.6 : floors === 0 ? 2.2 : 1.6) });
+        this.roofs.push({ x: b.tx * TILE, y: top * TILE, w: b.w * TILE, h: (b.h - rows) * TILE });
+        // Cuantas más plantas, más sombra: un local bajo poca, un bloque de tres la de media calle; los fondos de tejados, como un bloque.
+        const floors = b.front === 's' ? (b.floors ?? 1) : b.front === 'n' ? 1 : 0;
+        this.casters.push({ x: b.tx * TILE, y: b.ty * TILE, w: b.w * TILE, h: b.h * TILE, height: TILE * (floors === 0 ? 2.2 : 1.6 + (floors - 1) * 1.1) });
         const place = PLACE_OF_BUILDING.get(b.id);
         if (place && b.doorX !== undefined && b.front && place.type === 'business') this.doors.push({ b, place });
       }
@@ -429,7 +447,8 @@ export class Lighting {
       g.fillStyle(w.shop ? w.tone : 0xd08a3a, body).fillRect(w.x, w.y, w.w, w.h);
       g.fillStyle(w.shop ? 0xffffff : 0xf0c070, top).fillRect(w.x, w.y, w.w, 1);
       // Y un poco de esa luz cae en la acera, al pie del cristal.
-      sources.push({ x: w.x + w.w / 2, y: w.y + w.h + 6, w: w.w * 2 + 20, h: 26, color: w.shop ? mix(WARM, w.tone, 0.6) : WARM, strength: pool });
+      const warm = this.lampAt(w.x + w.w / 2, w.y + w.h + 6)[0];
+      sources.push({ x: w.x + w.w / 2, y: w.y + w.h + 6, w: w.w * 2 + 20, h: 26, color: w.shop ? mix(warm, w.tone, 0.6) : warm, strength: pool });
     });
     // La puerta de un local abierto: un charco en el umbral, del color de dentro.
     for (const { b, place } of this.doors) {
@@ -437,7 +456,8 @@ export class Lighting {
       const pane = this.windowSpots.find((w) => w.building === b.id && w.shop);
       const x = b.doorX! * TILE + TILE / 2;
       const y = b.front === 'n' ? b.ty * TILE - 4 : (b.ty + b.h) * TILE + 6;
-      sources.push({ x, y, w: 46, h: 28, color: pane ? mix(WARM, pane.tone, 0.7) : WARM, strength: 0.7 });
+      const warm = this.lampAt(x, y)[0];
+      sources.push({ x, y, w: 46, h: 28, color: pane ? mix(warm, pane.tone, 0.7) : warm, strength: 0.7 });
     }
     this.dynamicSources = sources;
     this.windows.setAlpha(night).setVisible(night > 0.05);
@@ -475,7 +495,9 @@ export class Lighting {
    */
   private paintLightmap(sky: number, night: number, sun: Sun, wet: number): void {
     const map = this.lightmap!;
-    map.clear().fill(wetGround(sky, wet));
+    const ground = wetGround(sky, wet);
+    map.clear().fill(ground);
+    this.paintZones(map, ground);
     if (sun.strength > 0.02) map.draw(this.castShadows(sun, mix(sky, SUN_SHADOW, SUN_SHADOW_MAX * sun.strength)));
     if (night >= 0.05) {
       map.beginDraw();
@@ -494,6 +516,25 @@ export class Lighting {
     // Con un rectángulo propio (fusión normal): fill() heredaría la suma de la última luz.
     const roof = this.roofBrush.setFillStyle(sky);
     for (const r of this.roofs) map.draw(roof.setPosition(r.x / LM_SCALE, r.y / LM_SCALE).setSize(r.w / LM_SCALE, r.h / LM_SCALE));
+  }
+
+  /**
+   * El guion de color de cada zona: su tinte de la hora por encima del cielo.
+   * El borde se funde en tres tiles (un tercio, la mitad, entero): se cruza de
+   * una zona a otra sin ver la raya.
+   */
+  private paintZones(map: Phaser.GameObjects.RenderTexture, ground: number): void {
+    const hour = this.state.hour + this.state.minute / 60;
+    const brush = this.roofBrush;
+    for (const z of this.zones) {
+      brush.setFillStyle(multiply(ground, gradeAt(z.profile, hour)));
+      [1 / 3, 1 / 2, 1].forEach((alpha, i) => {
+        const inset = i * TILE;
+        brush.setAlpha(alpha).setPosition((z.x + inset) / LM_SCALE, (z.y + inset) / LM_SCALE).setSize((z.w - inset * 2) / LM_SCALE, (z.h - inset * 2) / LM_SCALE);
+        map.draw(brush);
+      });
+    }
+    brush.setAlpha(1);
   }
 
   private update(): void {
@@ -517,7 +558,7 @@ export class Lighting {
     const homes = Math.round(homeLightsAt(hour) * 40) / 40;
     // Qué locales están abiertos, en una cadena: si nada cambia, no se repinta nada.
     const open = [...PLACE_OF_BUILDING.values()].filter((p) => p.hours && this.opened(p)).map((p) => p.id).join(',');
-    const key = `${sky}|${sun.dx.toFixed(3)}|${sun.length.toFixed(3)}|${sun.strength.toFixed(2)}|${homes}|${open}|${night > 0.05}|${wet}`;
+    const key = `${sky}|${sun.dx.toFixed(3)}|${sun.length.toFixed(3)}|${sun.strength.toFixed(2)}|${homes}|${open}|${night > 0.05}|${wet}|${this.zones.map((z) => gradeAt(z.profile, hour)).join()}`;
     if (key !== this.lastKey) {
       this.lastKey = key;
       this.relight(night, homes, wet);
@@ -525,10 +566,26 @@ export class Lighting {
     }
     this.windows.setAlpha(night).setVisible(night > 0.05);
     for (const light of this.lights) light.setAlpha(night).setVisible(night > 0.05);
+    this.night = night;
     for (const e of this.emissives) {
       const on = night > 0.05 && (!e.place || this.opened(e.place));
-      if (!e.pulse) e.img.setAlpha(night);
-      e.img.setVisible(on);
+      e.img.setAlpha(night).setVisible(on);
     }
+  }
+
+  /**
+   * Cada frame, sólo lo que se mueve de la luz: el tartamudeo de un neón (una
+   * vez cada 12–20 s, menos de medio segundo, cada rótulo a su hora) y el
+   * reflejo del suelo mojado, que tiembla despacio como el agua.
+   */
+  tick(time: number): void {
+    if (this.indoor) return;
+    for (const e of this.emissives) {
+      if (!e.flicker || !e.img.visible) continue;
+      const period = 12_000 + (e.flicker * 2711) % 8000;
+      const stutter = every(time, e.flicker, period, 420);
+      e.img.setAlpha(this.night * (stutter && Math.floor(time / 70) % 3 === 0 ? 0.25 : 1));
+    }
+    if (this.reflections?.visible) this.reflections.setAlpha(0.7 + 0.3 * wave(time, 1900));
   }
 }

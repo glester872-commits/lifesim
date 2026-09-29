@@ -47,13 +47,14 @@ export interface TrafficClock {
 
 type Lane = LaneFlow['lanes'][number];
 
-/** Peso de cada tipo en esta vía, a esta hora y este día. */
-export function vehicleWeights<T extends MoverType>(def: LaneFlow, catalog: readonly T[], day: number, hour: number): [T, number][] {
+/** Peso de cada tipo en esta vía, a esta hora y este día; con carril, también lo que ponen las zonas que cruza. */
+export function vehicleWeights<T extends MoverType>(def: LaneFlow, catalog: readonly T[], day: number, hour: number, lane?: Lane): [T, number][] {
   const band = bandAt(hour);
   const weekend = weekIndex(day) >= 5;
+  const zone = lane?.mix?.[band];
   return catalog.map((t): [T, number] => [
     t,
-    t.weight * (t.bands?.[band] ?? 1) * (weekend ? (t.weekend ?? 1) : 1) * (t.roads?.[def.road] ?? 1) * (def.mix?.[t.id] ?? 1),
+    t.weight * (t.bands?.[band] ?? 1) * (weekend ? (t.weekend ?? 1) : 1) * (t.roads?.[def.road] ?? 1) * (def.mix?.[t.id] ?? 1) * (zone?.[t.id] ?? 1),
   ]);
 }
 
@@ -78,6 +79,11 @@ function pick<T>(weights: readonly [T, number][], rng: Rng): T {
 export class Traffic<T extends MoverType = MoverType> {
   readonly vehicles: Vehicle<T>[] = [];
   private readonly def: LaneFlow;
+
+  /** Sus carriles, para quien los pinta o los depura. */
+  get lanes(): LaneFlow['lanes'] {
+    return this.def.lanes;
+  }
   private readonly catalog: readonly T[];
   private readonly signals: readonly SignalDef[];
   private readonly widthPx: number;
@@ -221,7 +227,7 @@ export class Traffic<T extends MoverType = MoverType> {
 
   /** `atEdge`: entra por el borde con el morro justo fuera del mapa. */
   private spawn(lane: Lane, x: number, clock: TrafficClock, atEdge = false): void {
-    const type = pick(vehicleWeights(this.def, this.catalog, clock.day, clock.minuteOfDay / 60), this.rng);
+    const type = pick(vehicleWeights(this.def, this.catalog, clock.day, clock.minuteOfDay / 60, lane), this.rng);
     const half = type.length / 2;
     const at = atEdge ? (lane.dir > 0 ? -half : this.widthPx + half) : x;
     // Al repartir, nadie encima de otro: si no cabe, no sale.

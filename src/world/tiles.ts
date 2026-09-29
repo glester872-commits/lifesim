@@ -134,6 +134,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'meeting-table': { key: 'prop-meeting-table', tilesHigh: 1, tilesWide: 3 },
   // Visual V2 (design/ART_BIBLE.md): texturas más altas o anchas que su tile; sólo la fila base colisiona.
   'plane-tree': { key: 'prop-plane-tree', tilesHigh: 5, variants: 3, shadow: [18, 6], cast: 16, castBlob: [48, 16] },
+  // Árbol de plaza en su parterre elevado; y un parterre de flores suelto, bajo, de dos tiles.
+  'bed-tree': { key: 'prop-bed-tree', tilesHigh: 5, variants: 3, shadow: [30, 5], cast: 16, castBlob: [48, 16] },
+  'flower-bed': { key: 'prop-flower-bed', tilesHigh: 1, tilesWide: 2, shadow: [30, 4] },
   'plaza-bench': { key: 'prop-plaza-bench', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22 },
   'bike-rack': { key: 'prop-bike-rack', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
@@ -188,6 +191,15 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   barrier: { key: 'prop-barrier', tilesHigh: 1, tilesWide: 2 },
   skip: { key: 'prop-skip', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   debris: { key: 'prop-debris', tilesHigh: 1, flat: true, variants: 3 },
+  // Calzada y bordillo: parquímetro junto a los coches aparcados; flechas, parches y rodadas pintados en el asfalto (planos).
+  'parking-meter': { key: 'prop-parking-meter', tilesHigh: 2, shadow: [6, 2] },
+  'road-arrow-e': { key: 'prop-road-arrow-e', tilesHigh: 1, flat: true },
+  'road-arrow-w': { key: 'prop-road-arrow-w', tilesHigh: 1, flat: true },
+  'asphalt-patch': { key: 'prop-asphalt-patch', tilesHigh: 1, flat: true, variants: 3 },
+  'tyre-marks': { key: 'prop-tyre-marks', tilesHigh: 1, flat: true, variants: 2 },
+  // Patio de atrás: cajas de fruta apiladas (asiento improvisado) y una lámpara de pinza sobre otra pila: poca luz, cálida.
+  crates: { key: 'prop-crates', tilesHigh: 2, variants: 2, shadow: [14, 4] },
+  'work-light': { key: 'prop-work-light', tilesHigh: 2, light: { dy: 22, pool: [34, 16] }, shadow: [14, 4] },
 };
 
 export function tileAt(ground: readonly string[], tx: number, ty: number): TileDef | undefined {

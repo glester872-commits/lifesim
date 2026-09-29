@@ -302,7 +302,183 @@ function drawMetroEntranceGlow(ctx: Ctx): void {
   ctx.globalAlpha = 1;
 }
 
+/**
+ * Parterre de flores suelto, 2 × 1 tiles: el mismo granito que el de los
+ * árboles de plaza, bajo, con matas y flores de cuatro colores en montículo.
+ */
+function drawFlowerBed(ctx: Ctx): void {
+  const w = TILE * 2;
+  px(ctx, shade(GRANITE, 0.06), 1, 4, w - 2, 2);
+  px(ctx, '#3f3226', 2, 5, w - 4, 3);
+  for (let i = 0; i < 12; i++) {
+    const x = 2 + Math.floor(hash(i * 7 + 3) * (w - 6));
+    const y = 1 + Math.floor(hash(i * 5 + 1) * 4);
+    px(ctx, i % 3 === 0 ? PALETTE.leafLit : PALETTE.leaf, x, y, 3, 4);
+  }
+  for (let i = 0; i < 10; i++) {
+    const x = 3 + Math.floor(hash(i * 11 + 7) * (w - 6));
+    const y = 1 + Math.floor(hash(i * 13 + 2) * 5);
+    px(ctx, ['#e06a8a', PALETTE.white, '#f0c060', '#c77adb'][i % 4], x, y, 1, 1);
+  }
+  px(ctx, shade(GRANITE, -0.04), 1, 8, w - 2, 7);
+  px(ctx, shade(GRANITE, 0.1), 1, 8, w - 2, 1);
+  for (let x = 8; x < w - 2; x += 8) px(ctx, shade(GRANITE, -0.16), x, 9, 1, 5);
+  px(ctx, shade(GRANITE, -0.2), w - 3, 8, 2, 7);
+  px(ctx, shade(GRANITE, -0.28), 1, 14, w - 2, 1);
+}
+
+// ------------------------------------------------ boca de metro principal
+
+/** Ancho y alto de la boca principal, en px: 5 × 4 tiles (la escala de una planta de fachada). */
+const HERO_W = TILE * 5;
+const HERO_H = TILE * 4;
+const NAVY = '#1c2c52';
+
+/** Logo del metro: cuadrado azul con borde blanco y la M blanca. `lit` lo aclara para la noche. */
+function metroLogo(ctx: Ctx, x: number, y: number, lit: boolean): void {
+  const face = lit ? '#fff4d8' : PALETTE.white;
+  px(ctx, face, x, y, 11, 11);
+  px(ctx, lit ? '#3f6fc8' : LINE_BLUE, x + 1, y + 1, 9, 9);
+  // M de trazo ancho.
+  px(ctx, face, x + 2, y + 2, 1, 7);
+  px(ctx, face, x + 8, y + 2, 1, 7);
+  px(ctx, face, x + 3, y + 3, 1, 2);
+  px(ctx, face, x + 7, y + 3, 1, 2);
+  px(ctx, face, x + 4, y + 5, 1, 1);
+  px(ctx, face, x + 6, y + 5, 1, 1);
+  px(ctx, face, x + 5, y + 6, 1, 1);
+}
+
+/** El plano de la red en la pared: fondo claro, cuatro líneas de colores que se cruzan y el «usted está aquí». */
+function networkMap(ctx: Ctx, x: number, y: number, lit: boolean): void {
+  const k = lit ? 0.1 : 0;
+  px(ctx, PALETTE.ink, x - 1, y - 1, 15, 20);
+  px(ctx, shade('#e8e0c8', k), x, y, 13, 18);
+  px(ctx, shade(LINE_RED, k), x + 2, y + 2, 1, 14);
+  px(ctx, shade(LINE_RED, k), x + 3, y + 8, 7, 1);
+  px(ctx, shade('#e0b23a', k), x + 9, y + 2, 1, 8);
+  px(ctx, shade('#e0b23a', k), x + 5, y + 10, 5, 1);
+  px(ctx, shade('#3f8a54', k), x + 5, y + 10, 1, 6);
+  px(ctx, shade(LINE_BLUE, k), x + 2, y + 13, 9, 1);
+  px(ctx, PALETTE.white, x + 8, y + 7, 3, 3);
+  px(ctx, LINE_RED, x + 9, y + 8, 1, 1);
+}
+
+/** Horarios: panel oscuro con renglones ámbar. */
+function timetable(ctx: Ctx, x: number, y: number, lit: boolean): void {
+  px(ctx, PALETTE.ink, x - 1, y - 1, 15, 20);
+  px(ctx, shade(PALETTE.night, lit ? 0.12 : 0.04), x, y, 13, 18);
+  for (let r = 0; r < 6; r++) {
+    const c = r === 0 ? (lit ? '#fff4d8' : PALETTE.white) : lit ? PALETTE.amber : PALETTE.amberDim;
+    px(ctx, c, x + 2, y + 2 + r * 3, r === 0 ? 9 : 6 + (r % 3), 1);
+    if (r > 0) px(ctx, c, x + 10, y + 2 + r * 3, 2, 1);
+  }
+}
+
+/**
+ * Boca de metro principal, 5 × 4 tiles: el foco de la plazuela (design/visual-reference).
+ * Un pórtico de granito con el dintel y la banda azul del rótulo (logo y METRO),
+ * dos tubos de luz en el techo, el plano de la red a la izquierda y los horarios
+ * a la derecha, y la escalera que baja entre dos pretiles de granito con su
+ * barandilla. Los peldaños de abajo son la calle; se oscurecen al bajar hacia
+ * la boca del túnel, donde vuelve la luz de la estación. La fila de abajo, en
+ * el centro, es la puerta.
+ */
+function drawMetroHero(ctx: Ctx): void {
+  const W = HERO_W;
+  const H = HERO_H;
+  const stone = shade(GRANITE, -0.04);
+  // Fondo del hueco: la oscuridad de dentro.
+  px(ctx, shade(PALETTE.night, -0.05), 8, 12, W - 16, H - 12);
+  // Pilares del pórtico, con su canto al sol (izquierda) y juntas cada 8 px.
+  for (const x of [0, W - 9]) {
+    px(ctx, stone, x, 0, 9, H);
+    px(ctx, shade(stone, 0.08), x, 0, 2, H);
+    px(ctx, shade(stone, -0.14), x + 7, 0, 2, H);
+    for (let y = 8; y < H; y += 8) px(ctx, shade(stone, -0.08), x, y, 9, 1);
+    px(ctx, shade(stone, -0.2), x, H - 2, 9, 2);
+  }
+  // Dintel y banda del rótulo.
+  px(ctx, stone, 0, 0, W, 4);
+  px(ctx, shade(stone, 0.1), 0, 0, W, 1);
+  px(ctx, PALETTE.ink, 9, 3, W - 18, 12);
+  px(ctx, NAVY, 10, 4, W - 20, 10);
+  px(ctx, shade(NAVY, 0.1), 10, 4, W - 20, 1);
+  metroLogo(ctx, 16, 4, false);
+  drawWord(ctx, 'METRO', 32, 5, shade(PALETTE.white, -0.15));
+  px(ctx, LINE_RED, 9, 14, W - 18, 1);
+  // Techo del vestíbulo con dos tubos de luz (apagados de día).
+  px(ctx, shade(PALETTE.night, 0.05), 9, 15, W - 18, 3);
+  px(ctx, shade(PALETTE.amberDim, -0.2), 16, 16, 12, 1);
+  px(ctx, shade(PALETTE.amberDim, -0.2), W - 28, 16, 12, 1);
+  // Paneles: el plano a la izquierda y los horarios a la derecha.
+  networkMap(ctx, 12, 21, false);
+  timetable(ctx, W - 25, 21, false);
+  // Boca del túnel al fondo de la escalera.
+  const sx = 26;
+  const sw = W - 52;
+  px(ctx, PALETTE.ink, sx, 26, sw, 10);
+  px(ctx, shade(PALETTE.stone, -0.3), sx + 6, 34, sw - 12, 2);
+  // Escalera: de abajo (la calle, clara) hacia arriba (la boca, oscura); cada peldaño con su canto.
+  for (let k = 0; k < 9; k++) {
+    const y = H - 3 - k * 3;
+    const tone = -0.02 - k * 0.07;
+    px(ctx, shade(PALETTE.stone, tone), sx, y - 2, sw, 3);
+    px(ctx, shade(PALETTE.stone, tone + 0.06), sx, y - 2, sw, 1);
+  }
+  // Pretiles de granito a los dos lados de la bajada, con su barandilla de acero.
+  for (const x of [9, W - 26]) {
+    px(ctx, GRANITE, x, 42, 17, H - 42);
+    px(ctx, shade(GRANITE, 0.07), x, 42, 17, 1);
+    px(ctx, shade(GRANITE, -0.14), x, H - 2, 17, 2);
+    for (let y = 47; y < H - 2; y += 5) px(ctx, shade(GRANITE, -0.06), x, y, 17, 1);
+  }
+  for (const x of [sx - 1, sx + sw]) {
+    px(ctx, STEEL, x, 30, 1, H - 30);
+    px(ctx, STEEL_LIT, x, 30, 1, 1);
+    for (let y = 34; y < H; y += 6) px(ctx, STEEL_LIT, x, y, 1, 1);
+  }
+  // Pasamanos que bajan con la escalera.
+  px(ctx, STEEL_LIT, sx + 2, 32, 1, H - 34);
+  px(ctx, STEEL_LIT, sx + sw - 3, 32, 1, H - 34);
+  // Apliques al pie de los pilares.
+  px(ctx, PALETTE.ink, 10, 46, 4, 4);
+  px(ctx, PALETTE.amberDim, 11, 47, 2, 2);
+  px(ctx, PALETTE.ink, W - 14, 46, 4, 4);
+  px(ctx, PALETTE.amberDim, W - 13, 47, 2, 2);
+}
+
+/** Lo que brilla de la boca principal: rótulo, tubos, paneles, apliques y la luz que sube por la escalera. */
+function drawMetroHeroGlow(ctx: Ctx): void {
+  const W = HERO_W;
+  const H = HERO_H;
+  metroLogo(ctx, 16, 4, true);
+  drawWord(ctx, 'METRO', 32, 5, '#fff0c8');
+  px(ctx, '#ff7a6a', 9, 14, W - 18, 1);
+  px(ctx, WARM, 16, 16, 12, 1);
+  px(ctx, WARM, W - 28, 16, 12, 1);
+  glow(ctx, 22, 19, 9, 0.22, PALETTE.amber);
+  glow(ctx, W - 22, 19, 9, 0.22, PALETTE.amber);
+  networkMap(ctx, 12, 21, true);
+  timetable(ctx, W - 25, 21, true);
+  px(ctx, WARM, 11, 47, 2, 2);
+  px(ctx, WARM, W - 13, 47, 2, 2);
+  glow(ctx, 12, 48, 5, 0.3, PALETTE.amber);
+  glow(ctx, W - 12, 48, 5, 0.3, PALETTE.amber);
+  // La estación, encendida abajo: luz fría que sube por los peldaños de la boca.
+  for (let k = 0; k < 5; k++) {
+    ctx.globalAlpha = 0.34 - k * 0.06;
+    px(ctx, '#bfe8ff', 27, 35 - k, W - 54, 1);
+  }
+  ctx.globalAlpha = 0.18;
+  px(ctx, WARM, 26, 42, W - 52, H - 44);
+  ctx.globalAlpha = 1;
+}
+
 export function buildUrbanTextures(scene: Phaser.Scene): void {
+  make(scene, 'bs-metro-hero', HERO_W, HERO_H, drawMetroHero);
+  make(scene, 'bs-metro-hero-glow', HERO_W, HERO_H, drawMetroHeroGlow);
+  make(scene, 'prop-flower-bed', TILE * 2, TILE, drawFlowerBed);
   make(scene, 'tile-tactile-0', TILE, TILE, drawTactile);
   make(scene, 'prop-manhole', TILE, TILE, drawManhole);
   make(scene, 'prop-drain', TILE, TILE, drawDrain);

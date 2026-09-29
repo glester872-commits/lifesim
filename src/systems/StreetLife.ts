@@ -13,6 +13,7 @@ import { besideTile, identity, nextCustomer } from './Service.ts';
 import { ROADWAY, isWalkable } from './LocationSystem.ts';
 import { levelAt, profileFor, type Agent, type Clock } from './Crowd.ts';
 import { DOG_LOOKS } from '../data/wildlife.ts';
+import { lookWeights, profileAt } from './Districts.ts';
 import { crossingOf, signalAt, waitSpots } from './Signals.ts';
 import { HEAVY_RAIN, outdoorAppeal, weatherAt, type Weather } from './Weather.ts';
 
@@ -705,9 +706,12 @@ export class StreetLife {
   // -------------------------------------------------------- altas y bajas
 
   private newWalker(rule: TripRule | undefined, at: TilePoint, path: TilePoint[]): Walker {
+    // Cada zona atrae su ropa (data/districts.ts, crowd): se mira a dónde va. Mejor alguien que aún no está en la calle.
     const used = new Set(this.agents.map((a) => a.look));
-    let look = Math.floor(this.rng() * PASSENGER_LOOKS.length);
-    for (let i = 0; i < PASSENGER_LOOKS.length && used.has(look); i++) look = (look + 1) % PASSENGER_LOOKS.length;
+    const dest = path[path.length - 1] ?? at;
+    const weights = lookWeights(PASSENGER_LOOKS, profileAt(this.loc, Math.round(dest.tx), Math.round(dest.ty)));
+    const free = weights.map((w, i) => (used.has(i) ? 0 : w));
+    const look = pick(this.rng, (free.some((w) => w > 0) ? free : weights).map((w, i) => [i, w] as const)) ?? 0;
     const walker: Walker = {
       id: this.nextId++, kind: 'visitor', role: rule?.role ?? '', label: rule?.label ?? '', line: rule?.line ?? '', look,
       x: at.tx, y: at.ty, dir: 'down', moving: false, state: 'WALK',

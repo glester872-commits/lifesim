@@ -62,12 +62,42 @@ export class CyclistView {
       const left = Math.round(v.x - RIDER_W / 2);
       const top = bottom - RIDER_H;
       const frame = v.speed < 0.5 ? RIDER_STOPPED : Math.floor(Math.abs(v.x) / STROKE_PX) % 4;
-      // Al pedalear el cuerpo sube y baja un píxel con cada pedalada; parado, quieto.
-      const bob = frame !== RIDER_STOPPED && frame % 2 === 1 ? 1 : 0;
-      p.body.setFrame(frame).setPosition(left, top + bob).setDepth(bottom).setVisible(true);
+      // La bici va siempre a la misma altura: el cuerpo que sube y baja al pedalear está dibujado
+      // en los propios fotogramas (world/CyclistArt). Mover el sprite entero hacía botar las ruedas.
+      p.body.setFrame(frame).setPosition(left, top).setDepth(bottom).setVisible(true);
       const at = ([lx, ly]: readonly [number, number]): [number, number] => [left + (flip ? RIDER_W - 1 - lx : lx), top + ly];
       p.head.setPosition(...at(RIDER_LAMPS.head)).setVisible(lit);
       p.tail.setPosition(...at(RIDER_LAMPS.tail)).setVisible(lit || v.braking).setAlpha(v.braking ? 1 : 0.7);
+    }
+    this.drawDebug();
+  }
+
+  /**
+   * Sólo para depurar (en desarrollo, `lifesim.debugCyclists()` en la consola):
+   * el eje de cada carril bici, la posición simulada (punto, con decimales), el
+   * recuadro que se pinta (redondeado), la velocidad (raya) y la línea de parada
+   * si la hay. Verde en marcha, rojo frenando. Apagado, no cuesta nada.
+   */
+  static debug = false;
+  private dbg: Phaser.GameObjects.Graphics | null = null;
+
+  private drawDebug(): void {
+    if (!CyclistView.debug) {
+      this.dbg?.clear();
+      return;
+    }
+    const g = (this.dbg ??= this.scene.add.graphics().setDepth(EMISSIVE_DEPTH + 10)).clear();
+    const w = this.scene.physics.world.bounds.width;
+    for (const lane of this.traffic.lanes) {
+      g.lineStyle(1, 0x5ad8ff, 0.5).lineBetween(0, lane.row * TILE + TILE / 2, w, lane.row * TILE + TILE / 2);
+    }
+    for (const v of this.traffic.vehicles) {
+      const y = v.row * TILE + TILE / 2;
+      const color = v.braking ? 0xff5a5a : 0x5aff8a;
+      const bottom = v.row * TILE + TILE - 1;
+      g.lineStyle(1, color, 0.9).strokeRect(Math.round(v.x - RIDER_W / 2), bottom - RIDER_H, RIDER_W, RIDER_H);
+      g.fillStyle(0xffffff, 1).fillCircle(v.x, y, 1.5);
+      g.lineStyle(1, color, 1).lineBetween(v.x, y, v.x + v.dir * v.speed * 0.5, y);
     }
   }
 

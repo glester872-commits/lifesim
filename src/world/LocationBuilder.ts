@@ -6,6 +6,8 @@ import { LAYER, seat, standing } from './Layers';
 import { solidMask } from '../systems/LocationSystem';
 import { bakeBuildings, type GlowSpot, type WindowSpot } from './BuildingArt';
 import { painted, paintSurfaces } from './Surfaces';
+import { hex, zonesOf } from '../systems/Districts';
+import { DISTRICTS } from '../data/districts';
 
 export interface BuiltLocation {
   widthPx: number;
@@ -188,6 +190,16 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const prop = PROPS[placement.kind];
     if (prop.flat) ground.batchDraw(propKey(prop, placement.tx, placement.ty), placement.tx * TILE, placement.ty * TILE);
   }
+  // Velo de cada zona (data/districts.ts) sobre el suelo, debajo de edificios y props; el borde, fundido en tres tiles.
+  ground.endDraw();
+  for (const z of zonesOf(def)) {
+    const [color, alpha] = DISTRICTS[z.profile].wash;
+    // Tres capas de un tercio: en el centro, el velo entero.
+    for (const inset of [0, 1, 2]) {
+      ground.fill(hex(color), alpha / 3,(z.tx + inset) * TILE, (z.ty + inset) * TILE, (z.w - inset * 2) * TILE, (z.h - inset * 2) * TILE);
+    }
+  }
+  ground.beginDraw();
   const glows: GlowSpot[] = [];
   const windows = bakeBuildings(ground, def.buildings ?? [], glows);
   ground.endDraw();

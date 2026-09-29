@@ -10,6 +10,7 @@ import { buildVegetationTextures } from './Vegetation';
 import { buildStreetTextures } from './StreetArt';
 import { buildVehicleTextures } from './VehicleArt';
 import { buildWeatherTextures } from './WeatherView';
+import { buildAtmosphereTextures } from './Atmosphere';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
@@ -689,6 +690,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   buildBuildingTextures(scene);
   buildVehicleTextures(scene);
   buildWeatherTextures(scene);
+  buildAtmosphereTextures(scene);
 }
 
 /**

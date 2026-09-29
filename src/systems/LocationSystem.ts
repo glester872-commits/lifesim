@@ -18,6 +18,31 @@ import { getCatalog } from '../data/catalogs.ts';
 
 // ------------------------------------------------------------- edificios
 
+/**
+ * Escala del mundo: una persona mide 24 px (tile y medio) y una planta de
+ * fachada, dos tiles (32 px); la puerta, unos 27 px. Con una planta de un solo
+ * tile las puertas quedaban más bajas que quien entra por ellas.
+ */
+export const STOREY_ROWS = 2;
+
+/**
+ * Filas de la huella que son fachada vista: las plantas de una fachada al sur,
+ * a dos filas cada una; la fachada al norte se ve de canto (una fila); un
+ * fondo de tejados, ninguna. El resto de la huella es tejado.
+ */
+export function facadeRows(b: BuildingDef): number {
+  return b.front === 's' ? (b.floors ?? 1) * STOREY_ROWS : b.front === 'n' ? 1 : 0;
+}
+
+/**
+ * Filas de la huella que son la pared trasera vista: un edificio con la puerta
+ * al norte enseña al sur su espalda (ventanas de patio, tendederos, aparatos),
+ * de una planta de alto, si le cabe con al menos una fila de tejado.
+ */
+export function backRows(b: BuildingDef): number {
+  return b.front === 'n' && b.h >= STOREY_ROWS + 2 ? STOREY_ROWS : 0;
+}
+
 /** Fila de fachada que toca la calle: ahí va la puerta. */
 export function doorRow(b: BuildingDef): number {
   return b.front === 'n' ? b.ty : b.ty + b.h - 1;
@@ -177,9 +202,10 @@ function validateBuildings(loc: LocationDef, width: number): void {
       throw new Error(`[${loc.id}] la puerta de ${b.id} no está en su fachada`);
     }
     if (b.enter && b.doorX === undefined) throw new Error(`[${loc.id}] ${b.id} tiene interior pero no puerta`);
-    if (b.floors === 2 && (b.front !== 's' || b.h < 4)) {
-      throw new Error(`[${loc.id}] ${b.id}: dos plantas sólo en frentes al sur y con al menos 4 filas`);
+    if ((b.floors ?? 1) > 1 && (b.front !== 's' || b.h < facadeRows(b) + 1)) {
+      throw new Error(`[${loc.id}] ${b.id}: ${b.floors} plantas sólo en frentes al sur y con ${facadeRows(b) + 1} filas o más (dos por planta y una de tejado)`);
     }
+    if (b.front === 's' && b.h < facadeRows(b)) throw new Error(`[${loc.id}] ${b.id}: no le cabe la planta baja (${STOREY_ROWS} filas)`);
   }
 }
 
