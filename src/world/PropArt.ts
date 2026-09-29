@@ -3,6 +3,9 @@ import { PALETTE, TILE } from '../config/constants';
 import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
 import { getVehicle } from '../data/vehicles';
 import { drawVehicle } from './VehicleArt';
+import { buildGymTextures } from './GymArt';
+import { buildSeatTextures } from './SeatArt';
+import { buildDiningTextures } from './DiningArt';
 
 /**
  * Terreno y props del barrio y de los interiores nuevos. Mismo idioma que
@@ -249,14 +252,6 @@ function drawBottles(ctx: Ctx): void {
   }
 }
 
-function drawGymFloor(ctx: Ctx, variant: number): void {
-  const base = shade(PALETTE.night, 0.1);
-  px(ctx, base, 0, 0, TILE, TILE);
-  px(ctx, shade(base, -0.03), 0, 0, TILE, 1);
-  px(ctx, shade(base, -0.03), 0, 0, 1, TILE);
-  sprinkle(ctx, shade(base, 0.05), TILE, TILE, 3 + variant, 18);
-}
-
 function drawCourt(ctx: Ctx, variant: number): void {
   const base = shade(PALETTE.rug, -0.05);
   px(ctx, base, 0, 0, TILE, TILE);
@@ -435,28 +430,6 @@ function drawSofa(ctx: Ctx): void {
   px(ctx, shade(c, 0.12), 1, 3, TILE * 2 - 2, 1);
 }
 
-function drawTreadmill(ctx: Ctx): void {
-  px(ctx, PALETTE.metal, 3, 2, 10, 5);
-  px(ctx, PALETTE.ink, 4, 3, 8, 3);
-  px(ctx, PALETTE.glassLit, 5, 4, 3, 1);
-  px(ctx, PALETTE.metalLit, 2, 6, 1, 8);
-  px(ctx, PALETTE.metalLit, 13, 6, 1, 8);
-  px(ctx, PALETTE.ink, 3, 10, 10, 20);
-  px(ctx, shade(PALETTE.ink, 0.08), 4, 11, 8, 18);
-  for (let y = 13; y < 29; y += 3) px(ctx, shade(PALETTE.ink, 0.14), 4, y, 8, 1);
-  px(ctx, PALETTE.metal, 3, 29, 10, 2);
-}
-
-function drawWeights(ctx: Ctx): void {
-  px(ctx, PALETTE.metal, 2, 4, 2, 27);
-  px(ctx, PALETTE.metal, 12, 4, 2, 27);
-  for (const y of [8, 15, 22]) {
-    px(ctx, PALETTE.metalLit, 2, y + 3, 12, 1);
-    px(ctx, PALETTE.ink, 4, y, 3, 4);
-    px(ctx, PALETTE.ink, 9, y, 3, 4);
-  }
-}
-
 function drawWeightBench(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 3, 11, 2, 4);
   px(ctx, PALETTE.metal, 11, 11, 2, 4);
@@ -478,14 +451,6 @@ function drawLockers(ctx: Ctx): void {
     px(ctx, PALETTE.ink, x + 2, 8, 4, 1);
     px(ctx, PALETTE.metalLit, x + 5, 16, 1, 3);
   }
-}
-
-function drawMirror(ctx: Ctx): void {
-  const w = TILE * 2;
-  px(ctx, PALETTE.metal, 1, 1, w - 2, 14);
-  px(ctx, shade(PALETTE.glass, 0.12), 2, 2, w - 4, 12);
-  px(ctx, shade(PALETTE.glassLit, -0.1), 4, 3, 2, 10);
-  px(ctx, shade(PALETTE.glassLit, -0.25), 7, 3, 1, 10);
 }
 
 function drawClothesRack(ctx: Ctx): void {
@@ -719,6 +684,9 @@ function drawDisplayTable(ctx: Ctx): void {
 }
 
 export function buildPropTextures(scene: Phaser.Scene): void {
+  buildGymTextures(scene);
+  buildSeatTextures(scene);
+  buildDiningTextures(scene);
   make(scene, 'prop-floor-lamp', TILE, TILE * 2, drawFloorLamp);
   make(scene, 'prop-display-table', TILE * 2, TILE, drawDisplayTable);
   make(scene, 'prop-window', TILE * 2, TILE, drawWindow);
@@ -733,7 +701,6 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-tube-light', TILE * 2, TILE * 2, drawTubeLight);
 
   for (let v = 0; v < 2; v++) {
-    make(scene, `tile-gym-floor-${v}`, TILE, TILE, (ctx) => drawGymFloor(ctx, v));
     make(scene, `tile-court-${v}`, TILE, TILE, (ctx) => drawCourt(ctx, v));
     make(scene, `tile-office-carpet-${v}`, TILE, TILE, (ctx) => drawOfficeCarpet(ctx, v));
   }
@@ -768,11 +735,8 @@ export function buildPropTextures(scene: Phaser.Scene): void {
 
   make(scene, 'prop-wardrobe', TILE, TILE * 2, drawWardrobe);
   make(scene, 'prop-sofa', TILE * 2, TILE, drawSofa);
-  make(scene, 'prop-treadmill', TILE, TILE * 2, drawTreadmill);
-  make(scene, 'prop-weights', TILE, TILE * 2, drawWeights);
   make(scene, 'prop-weight-bench', TILE, TILE, drawWeightBench);
   make(scene, 'prop-lockers', TILE * 2, TILE * 2, drawLockers);
-  make(scene, 'prop-mirror', TILE * 2, TILE, drawMirror);
   make(scene, 'prop-clothes-rack', TILE * 2, TILE * 2, drawClothesRack);
   make(scene, 'prop-mannequin', TILE, TILE * 2, drawMannequin);
   make(scene, 'prop-fitting-room', TILE, TILE * 2, drawFittingRoom);

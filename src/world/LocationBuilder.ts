@@ -211,7 +211,9 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const width = (prop.tilesWide ?? 1) * TILE;
     const baseY = placement.ty * TILE + TILE;
     // Lo del techo, por encima de la gente (y por debajo de la luz de world/Lighting).
-    scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.seat ? seat(baseY) : standing(baseY));
+    scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.mount ? seat(baseY) : standing(baseY));
+    // El respaldo que queda por delante de quien se sienta (una silla vista desde detrás) va encima de él.
+    if (prop.front) scene.add.image(placement.tx * TILE + width / 2, baseY, prop.front).setOrigin(0.5, 1).setDepth(standing(baseY) + 1);
   }
 
   // Dentro, el muro de delante (el que queda al sur de la sala) va por delante de la gente: su canto

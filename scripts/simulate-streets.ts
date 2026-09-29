@@ -1,7 +1,7 @@
 // Simula la gente de la calle con el mismo StreetLife que usa el juego:
 // `npm run simulate:streets`. Falla si algo no se cumple.
 import assert from 'node:assert/strict';
-import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
+import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
 import { findPoint } from '../src/systems/Navigation.ts';
 import { StreetLife, streetProfileFor, streetTargetAt } from '../src/systems/StreetLife.ts';
 import type { Clock } from '../src/systems/Crowd.ts';
@@ -47,7 +47,7 @@ function run(start: Clock, minutes: number, seed: number) {
     const still: string[] = [];
     for (const a of street.agents) {
       const tile = `${Math.round(a.x)},${Math.round(a.y)}`;
-      assert.ok(isWalkable(loc, Math.round(a.x), Math.round(a.y)), `${a.role} dentro de algo en ${tile}`);
+      assert.ok(isStandable(loc, Math.round(a.x), Math.round(a.y)), `${a.role} dentro de algo en ${tile}`);
       const standing = !a.moving && a.path.length === 0 && a.delay <= 0 && !a.vanish;
       if (standing) {
         still.push(tile);

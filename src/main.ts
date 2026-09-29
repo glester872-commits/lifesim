@@ -13,6 +13,10 @@ import { MetroEventManager } from './systems/MetroEventManager';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { CyclistView } from './world/CyclistView';
+import { STREET_EVENTS } from './data/streetEvents';
+import { StreetEvent } from './systems/StreetEvents';
+import { getLocation } from './systems/LocationSystem';
+import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
 import { HUD } from './ui/HUD';
 import { DialogueBox } from './ui/DialogueBox';
 import { TargetHint } from './ui/TargetHint';
@@ -114,6 +118,41 @@ window.addEventListener('resize', fitCanvas);
 
 // Gancho de desarrollo para inspeccionar la partida desde la consola.
 // Vite lo elimina del bundle de produccion.
+/**
+ * Herramientas de desarrollo de los eventos de calle. Sólo las crea el gancho de
+ * consola de abajo (import.meta.env.DEV): en la versión publicada no se llama y
+ * Vite la deja fuera. Cada orden actúa sobre la regla de verdad del evento
+ * (StreetEvent.dev*), así que la escena la ve en el siguiente frame.
+ */
+function devFight() {
+  const events = new Map(STREET_EVENTS.map((d) => [d.id, new StreetEvent(d, getLocation(d.location))]));
+  const pick = (id?: string): StreetEvent => {
+    const ev = events.get(id ?? STREET_EVENTS[0].id);
+    if (!ev) throw new Error(`No hay evento '${id}'. Hay: ${[...events.keys()].join(', ')}`);
+    return ev;
+  };
+  const now = (): number => state.day * 1440 + services.clock.minuteOfDay;
+  const world = (): WorldSceneType => game.scene.getScene('World') as WorldSceneType;
+  const status = (id?: string) => ({ id: pick(id).def.id, ...pick(id).devStatus(now()) });
+  return {
+    /** Empieza la pelea ahora: el corro casi formado y el primer asalto en unos segundos. */
+    force: (id?: string) => (pick(id).devForce(now()), status(id)),
+    /** Lleva al jugador al mirador del evento (la boca del callejón que da al patio). */
+    goto: (id?: string) => {
+      const ev = pick(id);
+      world().teleport(ev.def.location, ev.def.vantage, 'up');
+      return `${ev.def.name}: ${ev.def.location} (${ev.def.vantage.tx}, ${ev.def.vantage.ty})`;
+    },
+    /** Fija la pelea activa (sin fin) o la suelta; al soltarla, el corro se deshace. */
+    pin: (on = true, id?: string) => (pick(id).devPin(now(), on), status(id)),
+    /** La quita ya: el patio queda vacío hasta que acabe la noche del calendario. */
+    despawn: (id?: string) => (pick(id).devDespawn(now()), status(id)),
+    /** Vuelve al calendario: quita lo forzado, lo fijado y lo retirado (el evento no tiene otro enfriamiento). */
+    resetCooldown: (id?: string) => (pick(id).devReset(), status(id)),
+    status,
+  };
+}
+
 if (import.meta.env.DEV) {
   const events = services.metroEvents;
   const now = () => ({ day: state.day, hour: state.hour, minute: state.minute, money: state.money, energy: state.energy });
@@ -135,6 +174,10 @@ if (import.meta.env.DEV) {
       placesOfType,
       // Bicis: lifesim.debugCyclists() pinta carril, posición simulada, recuadro pintado y velocidad; debugCyclists(false) lo quita.
       debugCyclists: (on = true) => { CyclistView.debug = on; },
+      // Pelea callejera (data/streetEvents.ts): lifesim.fight.force(), .goto(), .pin(true|false), .despawn(),
+      // .resetCooldown(), .status(). Sin argumento, la del patio de la Mayor; con uno, el id de otro evento.
+      // Es la misma noche que las del calendario (systems/StreetEvents.ts): la misma gente, poses, corro y recogida.
+      fight: devFight(),
       // El tiempo: lifesim.weather.now() y, para probar, lifesim.weather.force({ rain: 0.9, celsius: 5 }) (null: el del calendario).
       weather: {
         now: () => weatherAt(state.day, state.hour + state.minute / 60),

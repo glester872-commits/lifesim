@@ -61,14 +61,28 @@ function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w:
  * 0 quieto · 1 y 2 los dos pasos · 3 respiración (el tronco baja un píxel) ·
  * 4 sentado · 5 mirando el móvil · 6 pesas arriba · 7 brazo en alto (jalear).
  * Sólo de perfil, para quien pelea (world/StreetEventView): 8 guardia · 9 golpe · 10 encaja.
+ *
+ * Las de los puestos de uso (data/stations.ts), a pares, uno por mitad del movimiento:
+ * 11 y 12 tumbado en el banco, brazos doblados y estirados (da igual hacia dónde mire) ·
+ * 13 y 14 pedaleando, sentado · 15 y 16 curl, mancuernas abajo y arriba ·
+ * 17 y 18 sentadilla, barra a la espalda, arriba y abajo · 19 y 20 remo, de perfil,
+ * recogido y estirado · 21 estirando con los brazos arriba · 22 estirando sentado en el suelo ·
+ * 23 los dos brazos arriba agarrando la polea.
+ *
+ * Sentado (data/seating.ts): 24 la 4 soltando el aire (el tronco baja uno más: respira sin
+ * parecer congelado) · 25 sentado mirando el móvil · 26 sentado llevándose el tenedor a la boca.
  */
-export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26;
 /** Las de la textura común de gente: todas menos las de pelea, que se hornean aparte y sólo para quien pelea. */
-export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7];
+export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26];
 export const FIGHT_POSES: readonly Pose[] = [0, 8, 9, 10];
 
-/** Cuánto baja el tronco en cada pose: al apoyar, respirar o ponerse en guardia, uno; sentado, tres. */
-const drop = (pose: Pose): number => (pose === 4 ? 3 : pose === 8 || pose === 9 ? 1 : pose === 0 || pose >= 5 ? 0 : 1);
+/** Cuánto baja el tronco en cada pose: al apoyar, respirar o ponerse en guardia, uno; sentado (también en la bici), tres. */
+const drop = (pose: Pose): number => (pose === 24 ? 4 : pose === 4 || pose === 25 || pose === 26 || pose === 13 || pose === 14 ? 3 : (pose >= 1 && pose <= 3) || pose === 8 || pose === 9 ? 1 : 0);
+/** Mirando el móvil, de pie o sentado. */
+const onPhone = (pose: Pose): boolean => pose === 5 || pose === 25;
+/** Sentado: las piernas de la 4, sea lo que sea lo que haga arriba. */
+const seated = (pose: Pose): boolean => pose === 4 || pose === 24 || pose === 25 || pose === 26;
 
 const SKINS = ['#e3b692', '#d3a17c', '#b98462', '#96654a', '#f0caa8'] as const;
 const TROUSERS = ['#33374a', '#2f4563', '#5b4b3a', '#232329', '#6a6d75', '#3f4b3a'] as const;
@@ -97,15 +111,134 @@ export function colorsOf(look: NpcLook): HumanColors {
 }
 
 export function drawHuman(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors): void {
-  if (facing === 'left') {
+  if (pose === 11 || pose === 12) drawLying(ctx, pose === 12, c);
+  else if (facing === 'left') {
     ctx.save();
     ctx.translate(16, 0);
     ctx.scale(-1, 1);
-    drawSide(ctx, pose, c, 'l');
+    drawBody(ctx, true, false, 'l', pose, c);
     ctx.restore();
-  } else if (facing === 'right') drawSide(ctx, pose, c, 'r');
-  else drawFrontBack(ctx, facing === 'up', pose, c);
+  } else drawBody(ctx, facing === 'right', facing === 'up', 'r', pose, c);
   outline(ctx);
+}
+
+/**
+ * Las poses agachadas (sentadilla abajo, sentado en el suelo, en el remo) son
+ * el cuerpo de pie bajado unos píxeles con las piernas cortadas y dobladas
+ * encima: las mismas proporciones, la misma cabeza y la misma ropa que al
+ * andar, sin dibujar a nadie dos veces.
+ */
+function drawBody(ctx: Ctx, side: boolean, back: boolean, near: 'r' | 'l', pose: Pose, c: HumanColors): void {
+  const plain = (p: Pose): void => (side ? drawSide(ctx, p, c, near) : drawFrontBack(ctx, back, p, c));
+  const inner = shade(c.trousers, -0.1);
+  if (pose === 18) {
+    lowered(ctx, 3, 20, () => plain(17));
+    if (side) {
+      // De perfil: el muslo hacia delante y la rodilla por delante del pie.
+      leg(ctx, c, c.trousers, 6, 19, 6, 2);
+      leg(ctx, c, c.trousers, 9, 21, 2, 1);
+      px(ctx, c.shoes, 7, 22, 5, 2);
+    } else {
+      // Rodillas abiertas hacia fuera, pies bien apoyados.
+      leg(ctx, c, c.trousers, 3, 19, 4, 2);
+      leg(ctx, c, inner, 9, 19, 4, 2);
+      px(ctx, c.trousers, 4, 21, 2, 1);
+      px(ctx, inner, 10, 21, 2, 1);
+      px(ctx, c.shoes, 3, 22, 4, 2);
+      px(ctx, c.shoes, 9, 22, 4, 2);
+    }
+  } else if (pose === 22) {
+    if (side) {
+      // Sentado con las piernas estiradas y los brazos hacia las puntas de los pies.
+      lowered(ctx, 5, 20, () => plain(9));
+      leg(ctx, c, c.trousers, 6, 20, 8, 2);
+      px(ctx, c.shoes, 13, 19, 2, 3);
+    } else {
+      // Mariposa: rodillas abiertas en el suelo, plantas juntas y las manos en los tobillos.
+      lowered(ctx, 4, 20, () => plain(0));
+      leg(ctx, c, c.trousers, 1, 20, 6, 2);
+      leg(ctx, c, inner, 9, 20, 6, 2);
+      px(ctx, c.shoes, 6, 21, 2, 2);
+      px(ctx, c.shoes, 8, 21, 2, 2);
+      px(ctx, c.skin, 5, 20, 1, 1);
+      px(ctx, shade(c.skin, -0.08), 10, 20, 1, 1);
+    }
+  } else if (pose === 19 || pose === 20) {
+    // Remo: sentado abajo, en el carro. Recogido, rodillas arriba y brazos estirados
+    // hacia el tirador; estirado, piernas planas, echado atrás y el tirador en el pecho.
+    const finish = pose === 20;
+    lowered(ctx, 5, 20, () => plain(finish ? 10 : 9), finish ? -1 : 1);
+    if (finish) {
+      leg(ctx, c, c.trousers, 6, 20, 8, 2);
+      px(ctx, c.shoes, 13, 18, 2, 4);
+      px(ctx, c.skin, 9, 17, 1, 1);
+    } else {
+      leg(ctx, c, c.trousers, 6, 19, 4, 2);
+      leg(ctx, c, c.trousers, 9, 17, 2, 3);
+      leg(ctx, c, c.trousers, 10, 20, 2, 2);
+      px(ctx, c.shoes, 11, 20, 3, 2);
+    }
+  } else plain(pose);
+}
+
+/** Dibuja la parte de arriba bajada `dy` píxeles (y corrida `dx`) y cortada en la fila `clip`: ahí van las piernas dobladas. */
+function lowered(ctx: Ctx, dy: number, clip: number, upper: () => void, dx = 0): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, 16, clip);
+  ctx.clip();
+  ctx.translate(dx, dy);
+  upper();
+  ctx.restore();
+}
+
+/**
+ * Tumbado boca arriba en el banco, visto desde arriba: la cabeza hacia la
+ * jaula, el tronco sobre el banco y las piernas a los lados con los pies en el
+ * suelo. Los brazos doblados con las manos a la altura del pecho o estirados
+ * hacia arriba (hacia la cámara, así que suben en pantalla). Lo que levanta
+ * (la barra) lo pone entities/Character: el mismo cuerpo vale para cualquier peso.
+ */
+function drawLying(ctx: Ctx, pressed: boolean, c: HumanColors): void {
+  const inner = shade(c.trousers, -0.1);
+  const sleeve = c.sleeves ?? c.cloth;
+  const sleeveDark = c.sleeves ? shade(c.sleeves, -0.08) : c.clothDark;
+  // Tumbado se ve más corto que de pie (el suelo se ve en escorzo) y con las
+  // rodillas abiertas a los lados del banco: lo que lo distingue de alguien de pie.
+  // Piernas: muslos abiertos desde la cadera, espinillas hacia el suelo y los pies apoyados fuera del banco.
+  leg(ctx, c, c.trousers, 3, 14, 3, 2);
+  leg(ctx, c, inner, 10, 14, 3, 2);
+  leg(ctx, c, c.trousers, 2, 16, 2, 3);
+  leg(ctx, c, inner, 12, 16, 2, 3);
+  px(ctx, c.shoes, 1, 19, 3, 2);
+  px(ctx, c.shoes, 12, 19, 3, 2);
+  px(ctx, c.trousers, 5, 12, 6, 3);
+  px(ctx, inner, 8, 12, 3, 3);
+  // Tronco ancho de hombros, con la luz a la izquierda como de pie.
+  px(ctx, c.cloth, 4, 7, 8, 6);
+  px(ctx, c.cloth, 3, 8, 10, 3);
+  px(ctx, shade(c.cloth, 0.06), 4, 7, 2, 5);
+  px(ctx, c.clothDark, 10, 8, 2, 4);
+  // Cabeza sobre el banco, el pelo hacia la jaula y la cara mirando al techo.
+  px(ctx, c.skin, 5, 3, 6, 4);
+  px(ctx, shade(c.skin, -0.07), 10, 3, 1, 4);
+  px(ctx, c.hair, 5, 2, 6, 2);
+  px(ctx, shade(c.hair, 0.1), 6, 2, 2, 1);
+  px(ctx, PALETTE.outline, 6, 5, 1, 1);
+  px(ctx, PALETTE.outline, 9, 5, 1, 1);
+  if (pressed) {
+    // Brazos estirados hacia el techo: desde el hombro suben en pantalla, las manos sobre la cara.
+    px(ctx, sleeve, 3, 5, 2, 4);
+    px(ctx, sleeveDark, 11, 5, 2, 4);
+    px(ctx, c.skin, 3, 4, 2, 1);
+    px(ctx, shade(c.skin, -0.08), 11, 4, 2, 1);
+  } else {
+    // Codos abiertos a los lados y los antebrazos arriba: la barra, en el pecho.
+    px(ctx, sleeve, 0, 8, 3, 2);
+    px(ctx, sleeveDark, 13, 8, 3, 2);
+    px(ctx, c.skin, 1, 6, 1, 2);
+    px(ctx, shade(c.skin, -0.08), 14, 6, 1, 2);
+  }
 }
 
 /** Pierna con sus manchas, si el pantalón las lleva. */
@@ -118,8 +251,11 @@ function leg(ctx: Ctx, c: HumanColors, color: string, x: number, y: number, w: n
 
 function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): void {
   const b = drop(pose);
-  const liftL = pose === 1 ? 1 : 0;
-  const liftR = pose === 2 ? 1 : 0;
+  const stepL = pose === 1 ? 1 : 0;
+  const stepR = pose === 2 ? 1 : 0;
+  // Pedaleando, la rodilla que sube lleva el pie tres píxeles arriba.
+  const liftL = stepL + (pose === 13 ? 3 : 0);
+  const liftR = stepR + (pose === 14 ? 3 : 0);
   const inner = shade(c.trousers, -0.1);
 
   // Piernas y zapatos: al dar el paso, un pie se levanta un píxel.
@@ -130,10 +266,48 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
 
   // Brazos: se balancean al contrario que las piernas.
   const sleeve = c.sleeves ?? c.cloth;
-  const armL = 11 + b - liftL + liftR;
-  const armR = 11 + b - liftR + liftL;
+  const armL = 11 + b - stepL + stepR;
+  const armR = 11 + b - stepR + stepL;
   const sleeveDark = c.sleeves ? shade(c.sleeves, -0.08) : c.clothDark;
-  if (pose === 6) {
+  const skinDark = shade(c.skin, -0.08);
+  if (pose === 26) {
+    // Comiendo: sólo el brazo que no sube (el que sube se pinta encima del tronco, al final).
+    if (back) arm(ctx, c, 'l', 3, armL, 1, 5, sleeve, c.skin);
+    else arm(ctx, c, 'l', 12, armR, 1, 5, sleeveDark, skinDark);
+  } else if (pose === 13 || pose === 14) {
+    // En la bici: los brazos, cortos y hacia dentro, van al manillar.
+    arm(ctx, c, back ? 'l' : 'r', 3, armL, 1, 3, sleeve, c.skin);
+    arm(ctx, c, back ? 'r' : 'l', 12, armR, 1, 3, sleeveDark, skinDark);
+  } else if (pose === 15) {
+    // Curl, abajo: brazos estirados y una mancuerna en cada mano.
+    arm(ctx, c, back ? 'l' : 'r', 3, 11, 1, 5, sleeve, c.skin);
+    arm(ctx, c, back ? 'r' : 'l', 12, 11, 1, 5, sleeveDark, skinDark);
+  } else if (pose === 16) {
+    // Curl, arriba: el antebrazo sube y la mancuerna queda a la altura del hombro.
+    px(ctx, sleeve, 3, 11, 1, 3);
+    px(ctx, sleeveDark, 12, 11, 1, 3);
+    px(ctx, c.skin, 3, 10, 1, 1);
+    px(ctx, skinDark, 12, 10, 1, 1);
+  } else if (pose === 17) {
+    // Barra a la espalda: los codos abajo y las manos arriba, agarrándola junto a los hombros.
+    px(ctx, sleeve, 3, 10, 1, 3);
+    px(ctx, sleeveDark, 12, 10, 1, 3);
+    px(ctx, c.skin, 3, 9, 1, 1);
+    px(ctx, skinDark, 12, 9, 1, 1);
+  } else if (pose === 21) {
+    // Estirando: los dos brazos por encima de la cabeza, las manos juntas.
+    px(ctx, sleeve, 3, 1, 1, 10);
+    px(ctx, sleeveDark, 12, 1, 1, 10);
+    px(ctx, c.skin, 4, 0, 8, 1);
+  } else if (pose === 23) {
+    // Polea: los brazos arriba, estirados, con un agarre en cada mano.
+    px(ctx, sleeve, 3, 4, 1, 7);
+    px(ctx, sleeveDark, 12, 4, 1, 7);
+    px(ctx, c.skin, 3, 2, 1, 2);
+    px(ctx, skinDark, 12, 2, 1, 2);
+    px(ctx, PALETTE.ink, 2, 1, 3, 1);
+    px(ctx, PALETTE.ink, 11, 1, 3, 1);
+  } else if (pose === 6) {
     // Brazos estirados por encima de la cabeza.
     px(ctx, sleeve, 3, 5, 1, 6);
     px(ctx, c.skin, 3, 4, 1, 1);
@@ -144,10 +318,10 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, sleeve, 3, 5, 1, 6);
     px(ctx, c.skin, 3, 3, 1, 2);
     arm(ctx, c, back ? 'r' : 'l', 12, armR, 1, 5, sleeveDark, shade(c.skin, -0.08));
-  } else if (pose === 5) {
+  } else if (onPhone(pose)) {
     // Sólo el brazo: el antebrazo va doblado hacia el pecho y se pinta encima del tronco.
-    px(ctx, sleeve, 3, 11, 1, 3);
-    px(ctx, sleeveDark, 12, 11, 1, 3);
+    px(ctx, sleeve, 3, 11 + b, 1, 3);
+    px(ctx, sleeveDark, 12, 11 + b, 1, 3);
   } else {
     // De frente, el brazo derecho queda a la izquierda de la imagen; de espaldas, al revés.
     arm(ctx, c, back ? 'l' : 'r', 3, armL, 1, 5, sleeve, c.skin);
@@ -170,7 +344,7 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   px(ctx, shade(c.skin, -0.07), 10, 3 + b, 2, 5);
   if (!back) {
     // Mirando el móvil, los ojos bajan: medio ojo, un píxel más abajo.
-    const down = pose === 5 ? 1 : 0;
+    const down = onPhone(pose) ? 1 : 0;
     px(ctx, PALETTE.outline, 6, 5 + b + down, 1, 2 - down);
     px(ctx, PALETTE.outline, 9, 5 + b + down, 1, 2 - down);
     px(ctx, shade(c.skin, -0.14), 7, 7 + b, 2, 1); // boca, apenas
@@ -206,13 +380,13 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, c.bag, back ? 3 : 10, 14, 3, 3);
     px(ctx, shade(c.bag, -0.2), back ? 3 : 10, 16, 3, 1);
   }
-  if (pose === 5 && !back) {
+  if (onPhone(pose) && !back) {
     // Antebrazos hacia dentro y el móvil entre las manos, de canto: se ve su dorso.
-    px(ctx, c.sleeves ?? c.cloth, 4, 13, 2, 1);
-    px(ctx, c.sleeves ? shade(c.sleeves, -0.08) : c.clothDark, 10, 13, 2, 1);
-    px(ctx, c.skin, 6, 13, 1, 2);
-    px(ctx, shade(c.skin, -0.08), 9, 13, 1, 2);
-    px(ctx, PALETTE.ink, 7, 12, 2, 3);
+    px(ctx, c.sleeves ?? c.cloth, 4, 13 + b, 2, 1);
+    px(ctx, c.sleeves ? shade(c.sleeves, -0.08) : c.clothDark, 10, 13 + b, 2, 1);
+    px(ctx, c.skin, 6, 13 + b, 1, 2);
+    px(ctx, shade(c.skin, -0.08), 9, 13 + b, 1, 2);
+    px(ctx, PALETTE.ink, 7, 12 + b, 2, 3);
   }
   if (pose === 6) {
     // La barra por encima de la cabeza, con un disco a cada lado.
@@ -220,6 +394,41 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, PALETTE.ink, 0, 1, 2, 5);
     px(ctx, PALETTE.ink, 14, 1, 2, 5);
   }
+  if (pose === 26) {
+    // Un bocado: el antebrazo sube a la boca con el tenedor; de espaldas asoma por un lado.
+    const hand = back ? 12 : 3;
+    px(ctx, sleeve, hand, 10 + b, 1, 3);
+    px(ctx, sleeve, back ? 11 : 4, 9 + b, 2, 1);
+    if (!back) {
+      px(ctx, c.skin, 6, 8 + b, 1, 2);
+      px(ctx, PALETTE.metalLit, 6, 6 + b, 1, 2);
+    }
+  }
+  if (pose === 15 || pose === 16) {
+    // Las mancuernas, por encima del tronco: junto a la cadera o a la altura del hombro.
+    const y = pose === 15 ? 16 : 9;
+    dumbbell(ctx, 3, y);
+    dumbbell(ctx, 12, y);
+  }
+  if (pose === 17) {
+    // La barra cruzada sobre los hombros, por detrás del cuello, con sus discos.
+    px(ctx, PALETTE.metalLit, 0, 9, 16, 1);
+    plate(ctx, 0, 6);
+    plate(ctx, 14, 6);
+  }
+}
+
+/** Mancuerna en la mano: la empuñadura en `x` y un disco oscuro a cada lado. */
+function dumbbell(ctx: Ctx, x: number, y: number): void {
+  px(ctx, PALETTE.metal, x - 1, y, 3, 1);
+  px(ctx, PALETTE.ink, x - 2, y - 1, 1, 3);
+  px(ctx, PALETTE.ink, x + 2, y - 1, 1, 3);
+}
+
+/** Disco de barra de canto: dos píxeles de ancho, con el borde de arriba con luz. */
+function plate(ctx: Ctx, x: number, y: number): void {
+  px(ctx, PALETTE.ink, x, y, 2, 7);
+  px(ctx, shade(PALETTE.ink, 0.14), x, y, 2, 1);
 }
 
 function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
@@ -279,7 +488,7 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   const step = pose === 1 || pose === 2 || pose === 8 || pose === 9;
 
   // Piernas: juntas quieto; al andar, una delante y otra detrás; sentado, el muslo hacia delante.
-  if (pose === 4) {
+  if (seated(pose)) {
     leg(ctx, c, c.trousers, 6, 17, 6, 2);
     leg(ctx, c, c.trousers, 10, 19, 2, 3);
     px(ctx, c.shoes, 10, 22, 3, 2);
@@ -355,15 +564,21 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
 
   // Brazo cercano, por encima del tronco, al contrario que la pierna delantera.
   const sleeve = c.sleeves ?? c.clothDark;
-  if (pose === 5) {
+  if (pose === 26) {
+    // Un bocado: el antebrazo sube y la mano llega a la boca.
+    px(ctx, sleeve, 7, 11 + b, 2, 3);
+    px(ctx, sleeve, 9, 10 + b, 2, 2);
+    px(ctx, c.skin, 11, 8 + b, 1, 2);
+    px(ctx, PALETTE.metalLit, 12, 7 + b, 1, 1);
+  } else if (onPhone(pose)) {
     // Antebrazo levantado y el móvil delante de la cara, con la pantalla hacia ella.
-    px(ctx, sleeve, 7, 11, 2, 3);
-    px(ctx, sleeve, 9, 12, 2, 2);
-    px(ctx, c.skin, 11, 11, 1, 2);
-    px(ctx, PALETTE.ink, 12, 9, 1, 4);
-    px(ctx, PALETTE.glassLit, 11, 10, 1, 1);
+    px(ctx, sleeve, 7, 11 + b, 2, 3);
+    px(ctx, sleeve, 9, 12 + b, 2, 2);
+    px(ctx, c.skin, 11, 11 + b, 1, 2);
+    px(ctx, PALETTE.ink, 12, 9 + b, 1, 4);
+    px(ctx, PALETTE.glassLit, 11, 10 + b, 1, 1);
     // Ojo bajado: sólo su mitad de abajo.
-    px(ctx, c.skin, 10, 5, 1, 1);
+    px(ctx, c.skin, 10, 5 + b, 1, 1);
   } else if (pose === 6) {
     // Brazo arriba y la barra de canto: el disco sobre la cabeza.
     px(ctx, sleeve, 7, 3, 2, 8);

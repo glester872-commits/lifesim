@@ -210,6 +210,11 @@ export class StreetLife {
   }
 
   /** Puntos donde está un personaje con nombre: nadie los coge, y quien estaba ahí se va. */
+  /** Si alguien tiene ese punto (va hacia él, está en él o es de un personaje con nombre o del jugador). */
+  isTaken(point: string): boolean {
+    return this.reserved.has(point) || this.claimed.has(point);
+  }
+
   claim(points: ReadonlySet<string>): void {
     this.claimed = points;
     for (const a of this.agents) if (a.staying && a.stayPoint && points.has(a.stayPoint)) a.timer = 0;
@@ -772,8 +777,13 @@ export class StreetLife {
     return ROADWAY.has(this.loc.ground[Math.round(tile.ty)]?.[Math.round(tile.tx)] ?? '');
   }
 
+  /**
+   * Destinos de un viaje por prefijo. El puesto de quien trabaja nunca lo es:
+   * MOLINILLO_TERRACE_ vale por las mesas, no por MOLINILLO_TERRACE_WAITER.
+   */
   private graphPoints(prefixes: readonly string[]): string[] {
-    return [...this.graph].filter((id) => prefixes.some((p) => id.startsWith(p)));
+    const points = this.loc.points ?? {};
+    return [...this.graph].filter((id) => points[id]?.kind !== 'work' && prefixes.some((p) => id.startsWith(p)));
   }
 
   private pointAt(id: string): TilePoint {

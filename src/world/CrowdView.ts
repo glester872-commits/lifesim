@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import type { Agent } from '../systems/Crowd';
 import { Character, activityAt } from '../entities/Character';
+import { seatAt } from '../systems/Seating';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import type { NpcDef } from '../types/game';
 import type { Weather } from '../systems/Weather';
@@ -72,7 +73,7 @@ export class CrowdView {
       const activity = settled ? activityAt(a.point, a.state, a.id) : a.gait === 'jog' ? 'run' : waiting ? activityAt(undefined, 'WAIT', a.id) : 'idle';
       // El paraguas se abre al empezar a llover y se cierra al parar; la capucha no lleva paraguas.
       sprite.umbrella = this.outdoor && !a.staffRole ? umbrellaFor(a.id, w, sprite.def.id.endsWith('~hood')) : null;
-      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity }, time);
+      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift: settled ? seatAt(a.point)?.lift : 0, carry: a.carry }, time);
     }
     for (const [id, sprite] of this.sprites) {
       if (here.has(id)) continue;

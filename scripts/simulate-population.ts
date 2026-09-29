@@ -1,7 +1,7 @@
 // Simula la gente de los locales con el mismo Crowd que usa el juego:
 // `npm run simulate:population`. Falla si algo no se cumple.
 import assert from 'node:assert/strict';
-import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
+import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
 import { placeInfo } from '../src/systems/Places.ts';
 import { Crowd, levelAt, profileFor, targetAt, type Clock } from '../src/systems/Crowd.ts';
 import { POPULATION } from '../src/config/population.ts';
@@ -53,7 +53,7 @@ function run(placeId: string, start: Clock, minutes: number, seed = 1) {
     }
     for (const a of crowd.agents) {
       if (!seen.has(a.id)) { seen.add(a.id); entered++; }
-      assert.ok(isWalkable(loc, Math.round(a.x), Math.round(a.y)), `${placeId}: ${a.role} dentro de algo en ${a.x},${a.y}`);
+      assert.ok(isStandable(loc, Math.round(a.x), Math.round(a.y)), `${placeId}: ${a.role} dentro de algo en ${a.x},${a.y}`);
     }
     for (const id of before) if (!crowd.agents.some((a) => a.id === id)) left++;
     assert.ok(crowd.agents.length <= place.capacity, `${placeId}: aforo superado`);
@@ -151,6 +151,52 @@ for (const n of gymWeek) assert.ok(n >= POPULATION.levels.HIGH[0] && n <= profil
   assert.ok(late.initial.visitors <= 4, 'a las 22:20 el gimnasio debería estar casi vacío');
 }
 
+// El gimnasio a lo largo del día: medio por la mañana, flojo a mediodía, lleno por la tarde, casi vacío al cierre.
+assert.equal(level('gym', 2, '07:30'), 'MEDIUM', 'gimnasio 07:30');
+assert.equal(level('gym', 2, '12:00'), 'LOW', 'gimnasio 12:00');
+assert.equal(level('gym', 2, '19:00'), 'HIGH', 'gimnasio 19:00');
+assert.equal(level('gym', 2, '22:00'), 'LOW', 'gimnasio 22:00');
+
+// Puestos de uso (data/stations.ts) en hora punta: una máquina, una persona; quien la usa está
+// encima; la ocupación (libre, reservada, en uso) dice la verdad; y antes de bajarse, se incorpora.
+{
+  const { loc, crowd } = setup('gym', 31);
+  const player = { tx: 20, ty: 12 };
+  let clock = at(2, '18:00');
+  crowd.populate(clock, player);
+  const stations = Object.entries(loc.points ?? {}).filter(([, p]) => p.use);
+  const used = new Set<string>();
+  const states = new Set<string>();
+  let elapsed = 0;
+  for (let ms = 0; ms < 120 * MS_PER_MIN; ms += STEP_MS) {
+    crowd.update(STEP_MS, clock, player);
+    if ((elapsed += STEP_MS) >= MS_PER_MIN) {
+      elapsed -= MS_PER_MIN;
+      clock = addMinutes(clock, 1);
+    }
+    const onPoint = new Map<string, number>();
+    for (const a of crowd.agents) {
+      states.add(a.state);
+      if (!a.point || a.path.length > 0 || a.leaving) continue;
+      onPoint.set(a.point, (onPoint.get(a.point) ?? 0) + 1);
+      const p = loc.points![a.point];
+      assert.ok(a.x === p.tx && a.y === p.ty, `gimnasio: ${a.role} tiene ${a.point} pero está en ${a.x},${a.y}`);
+    }
+    for (const [id, p] of stations) {
+      const occupancy = crowd.occupancy(id);
+      assert.ok((onPoint.get(id) ?? 0) <= 1, `gimnasio: dos personas en ${id}`);
+      if (onPoint.has(id)) {
+        assert.equal(occupancy, 'IN_USE', `gimnasio: ${id} con alguien encima y ${occupancy}`);
+        used.add(p.use!);
+      } else assert.notEqual(occupancy, 'IN_USE', `gimnasio: ${id} en uso sin nadie`);
+    }
+  }
+  console.log(`\ngimnasio 18:00–20:00: puestos usados ${[...used].sort().join(', ')}\n  estados: ${[...states].sort().join(', ')}`);
+  for (const s of ['treadmill', 'bike', 'bench-press', 'dumbbells', 'stretch']) assert.ok(used.has(s), `gimnasio: nadie usó ${s} en dos horas de hora punta`);
+  assert.ok(states.has('FINISH'), 'gimnasio: nadie se incorporó antes de dejar una máquina');
+  assert.equal(crowd.pathFailures, 0, 'gimnasio: rutas a las máquinas no encontradas');
+}
+
 // Si el jugador tapa la puerta, nadie entra atravesándolo.
 {
   const { place, profile, loc, crowd } = setup('cafe', 3);
@@ -161,32 +207,70 @@ for (const n of gymWeek) assert.ok(n >= POPULATION.levels.HIGH[0] && n <= profil
   assert.ok(targetAt(place, profile, at(2, '07:30')) > 0);
 }
 
-// Restaurante un sábado por la noche: grupos en la misma mesa, camareros de uniforme que van a las mesas.
+// Restaurante (systems/TableService.ts): una mesa por grupo; cada mesa pasa por todo el servicio
+// (sentarse, pedir, cocina, servir, comer, cuenta, pagar, recoger); los camareros andan, nunca aparecen;
+// dos camareros nunca atienden la misma mesa; y el jugador pide, come y paga por el mismo camino.
 {
-  const { crowd } = setup('restaurant', 21);
+  const { loc, crowd } = setup('restaurant', 21);
   const player = { tx: 1, ty: 2 };
-  crowd.populate(at(6, '21:30'), player);
+  let clock = at(6, '19:30');
+  crowd.populate(clock, player);
+  const service = crowd.service!;
+  assert.ok(service, 'el restaurante sin servicio de mesa');
   const mates = crowd.agents.filter((a) => a.leader);
-  assert.ok(mates.length > 0, 'nadie viene acompañado al restaurante un sábado');
-  for (const m of mates) assert.ok(Math.hypot(m.x - m.leader!.x, m.y - m.leader!.y) <= 3.2, 'un grupo sentado lejos de los suyos');
-  let visits = 0;
-  let wasServing = new Set<number>();
-  for (let ms = 0; ms < 90_000; ms += STEP_MS) {
-    crowd.update(STEP_MS, at(6, '21:40'), player);
-    const serving = new Set(
-      crowd.agents
-        .filter((w) => w.kind === 'staff' && w.state === 'SERVE' && w.path.length === 0)
-        .filter((w) => crowd.agents.some((c) => c.kind === 'visitor' && !c.moving && Math.hypot(c.x - w.x, c.y - w.y) <= 1.01))
-        .map((w) => w.id),
-    );
-    for (const id of serving) if (!wasServing.has(id)) visits++;
-    wasServing = serving;
-  }
+  for (const m of mates) assert.equal(service.tableOf(m.point), service.tableOf(m.leader!.point), 'un grupo repartido en dos mesas');
   const waiters = crowd.agents.filter((a) => a.role === 'waiter');
-  console.log(`\nrestaurante sábado 21:30: ${mates.length} acompañantes, ${waiters.length} camareros, ${visits} visitas a mesas en 90 s`);
-  assert.ok(visits >= 3, 'los camareros no van a las mesas');
   for (const w of waiters) assert.equal(w.uniform, 'uniforme-sala', 'un camarero sin uniforme');
+
+  // El jugador se sienta a una mesa libre y contesta como lo haría en la escena.
+  const mine = service.tables.find((t) => t.state === 'AVAILABLE')!;
+  const calls: string[] = [];
+  let charged = 0;
+  service.onPlayer = (call) => {
+    calls.push(call.kind);
+    if (call.kind === 'order') service.playerOrder([call.items.find((i) => i.kind === 'food')!, call.items.find((i) => i.kind === 'drink')!]);
+    if (call.kind === 'bill') charged = service.playerPay();
+  };
+  service.seatPlayer(mine.def.seats[0]);
+
+  const seen = new Map<string, Set<string>>();
+  const last = new Map<number, { x: number; y: number }>();
+  let elapsed = 0;
+  let cycles = 0;
+  for (let ms = 0; ms < 300 * MS_PER_MIN; ms += STEP_MS) {
+    crowd.update(STEP_MS, clock, player);
+    if ((elapsed += STEP_MS) >= MS_PER_MIN) {
+      elapsed -= MS_PER_MIN;
+      clock = addMinutes(clock, 1);
+    }
+    for (const t of service.tables) {
+      const states = seen.get(t.def.id) ?? new Set<string>();
+      if (states.has('PAID') && t.state === 'AVAILABLE') {
+        cycles++;
+        states.clear();
+      }
+      states.add(t.state);
+      seen.set(t.def.id, states);
+    }
+    const owners = service.tables.filter((t) => t.waiter !== null).map((t) => t.waiter);
+    assert.equal(new Set(owners).size, owners.length, 'un camarero con dos mesas a la vez');
+    for (const a of crowd.agents.filter((x) => x.role === 'waiter')) {
+      const prev = last.get(a.id);
+      // Nunca más de lo que se anda en un paso: nadie aparece en otro sitio.
+      if (prev) assert.ok(Math.hypot(a.x - prev.x, a.y - prev.y) <= (a.speed * STEP_MS) / 1000 + 1e-6, 'un camarero se ha teletransportado');
+      last.set(a.id, { x: a.x, y: a.y });
+    }
+  }
+  console.log(`
+restaurante sábado 19:30 → ${hhmm(clock)}: ${mates.length} acompañantes, ${waiters.length} camareros, ${cycles} mesas servidas de principio a fin`);
+  console.log(`  el jugador: ${calls.join(' → ')} · pagó ${charged.toFixed(2)} €`);
+  assert.ok(cycles >= 4, 'las mesas no completan el servicio');
+  assert.deepEqual(calls, ['order', 'served', 'finished', 'bill'], 'el jugador no pasa por todo el servicio');
+  assert.ok(charged > 0, 'el jugador no ha pagado');
+  assert.equal(service.playerTable?.state, 'PAID');
+  assert.equal(service.playerStands(), 0, 'cobra dos veces');
   assert.equal(crowd.pathFailures, 0);
+  void loc;
 }
 
 // La discoteca: se llena poco a poco por la noche, pico de madrugada, se vacía al cerrar.

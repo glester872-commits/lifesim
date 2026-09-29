@@ -66,27 +66,79 @@ export interface PopulationProfile {
   maxVisitors: number;
   staff: readonly StaffRole[];
   visitors: readonly VisitorRole[];
+  /**
+   * Servicio de mesa (systems/TableService.ts): la carta, el pase donde sale lo
+   * de cocina y el puesto de quien cocina. Con él, los camareros (oficio
+   * `serve`) toman nota, llevan, cobran y recogen en las mesas del interior
+   * (LocationDef.tables), y los clientes que se sientan en ellas comen al ritmo
+   * del servicio y no de un reloj fijo.
+   */
+  tableService?: { menu: string; pass: string; kitchen: string };
 }
 
 export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   {
     place: 'gym',
-    bands: [[6, 8, 'LOW'], [8, 10, 'MEDIUM'], [10, 16, 'LOW'], [16, 18, 'MEDIUM'], [18, 21, 'HIGH'], [21, 23, 'LOW']],
-    // Fuerte después del trabajo; el sábado a medio gas y el domingo flojo.
+    // Antes del trabajo, a medio gas; a mediodía, flojo; de cinco a nueve y media, lleno; al cierre, casi vacío.
+    bands: [[6, 9, 'MEDIUM'], [9, 16, 'LOW'], [16, 17, 'MEDIUM'], [17, 21.5, 'HIGH'], [21.5, 23, 'LOW']],
+    // El sábado a medio gas y el domingo flojo.
     weekday: [0, 0, 0, 0, 0, -1, -2],
     maxVisitors: 14,
     staff: [
       { service: 'receptionist', npc: 'nerea', points: ['GYM_STAFF'] },
       { service: 'gym-staff', points: ['GYM_COACH_'], minLevel: 'MEDIUM' },
     ],
+    // Cuánto dura cada máquina lo dice su puesto (data/stations.ts); aquí, a qué va cada uno y en qué orden.
     visitors: [
       {
-        role: 'gym_member', label: 'Alguien entrenando', line: 'Ahora no, que pierdo la cuenta de la serie.', weight: 1,
+        // Antes de trabajar, sobre todo cardio: entrar, cinta o bici, un trago y a la ducha.
+        role: 'gym_early', label: 'Alguien que entrena antes de trabajar', line: 'A las nueve fichando. Voy justo.', weight: 4, hours: [6, 9.5],
+        plan: [
+          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
+          { state: 'CARDIO', points: ['GYM_TREADMILL_', 'GYM_BIKE_', 'GYM_ROW_'], minutes: [15, 25], repeat: [1, 2] },
+          { state: 'STRETCH', points: ['GYM_MAT_'], minutes: [5, 8], chance: 0.4 },
+          { state: 'DRINK', points: ['GYM_WATER'], minutes: [1, 2], chance: 0.6 },
+        ],
+      },
+      {
+        role: 'gym_cardio', label: 'Alguien haciendo cardio', line: 'Llevo cuatro kilómetros. No me hagas perder la cuenta.', weight: 3,
         plan: [
           { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
           { state: 'CHANGE', points: ['GYM_LOCKERS'], minutes: [2, 4], chance: 0.6 },
-          { state: 'EXERCISE', points: ['GYM_TREADMILL_', 'GYM_WEIGHTS', 'GYM_BENCH_', 'GYM_MAT_', 'GYM_TRAINING_ZONE'], minutes: [10, 22], repeat: [1, 3] },
-          { state: 'REST', points: ['GYM_WATER'], minutes: [1, 3], chance: 0.5 },
+          { state: 'CARDIO', points: ['GYM_TREADMILL_', 'GYM_BIKE_', 'GYM_ROW_'], minutes: [15, 25], repeat: [1, 3] },
+          { state: 'DRINK', points: ['GYM_WATER'], minutes: [1, 2], chance: 0.6 },
+          { state: 'STRETCH', points: ['GYM_MAT_'], minutes: [5, 8], chance: 0.5 },
+        ],
+      },
+      {
+        // Peso: calienta un poco, va de una máquina a otra y descansa con el móvil entre medias.
+        role: 'gym_lifter', label: 'Alguien entrenando', line: 'Ahora no, que pierdo la cuenta de la serie.', weight: 3,
+        plan: [
+          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
+          { state: 'CHANGE', points: ['GYM_LOCKERS'], minutes: [2, 4], chance: 0.8 },
+          { state: 'WARM_UP', points: ['GYM_TREADMILL_', 'GYM_BIKE_'], minutes: [5, 8], chance: 0.4 },
+          { state: 'LIFT', points: ['GYM_BENCH_', 'GYM_SQUAT_', 'GYM_WEIGHTS_', 'GYM_CABLE_'], minutes: [8, 14], repeat: [2, 4] },
+          { state: 'REST', points: ['GYM_REST_'], minutes: [2, 4], chance: 0.5 },
+          { state: 'DRINK', points: ['GYM_WATER'], minutes: [1, 2], chance: 0.7 },
+        ],
+      },
+      {
+        // Estirar y poco más: la esterilla, algo de bici y un rato de móvil.
+        role: 'gym_mobility', label: 'Alguien estirando', line: 'Esto también es entrenar, aunque no lo parezca.', weight: 1,
+        plan: [
+          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
+          { state: 'STRETCH', points: ['GYM_MAT_'], minutes: [8, 14], repeat: [1, 2] },
+          { state: 'CARDIO', points: ['GYM_BIKE_'], minutes: [10, 15], chance: 0.5 },
+          { state: 'REST', points: ['GYM_REST_'], minutes: [2, 4], chance: 0.5 },
+        ],
+      },
+      {
+        // Dos que vienen juntos por la tarde: máquinas contiguas, un rato de charla y se van a la vez.
+        role: 'gym_buddies', label: 'Alguien entrenando con un colega', line: 'Venga, la última y nos vamos.', weight: 1, hours: [16, 22], party: [2, 2],
+        plan: [
+          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
+          { state: 'LIFT', points: ['GYM_BENCH_', 'GYM_WEIGHTS_', 'GYM_SQUAT_'], minutes: [8, 14], repeat: [2, 3] },
+          { state: 'TALK', points: ['GYM_CHAT_'], minutes: [2, 4], chance: 0.8 },
         ],
       },
     ],
@@ -191,14 +243,17 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     staff: [
       { service: 'cook', npc: 'tomas', points: ['RESTAURANT_STAFF'] },
       { service: 'waiter', line: '¿Mesa para uno?', points: ['RESTAURANT_WAITER_'], serves: ['RESTAURANT_TABLE_'] },
-      { service: 'waiter', line: 'Ahora mismo le traigo la cuenta.', points: ['RESTAURANT_WAITER_'], serves: ['RESTAURANT_TABLE_'], minLevel: 'HIGH' },
+      { service: 'waiter', line: 'Ahora mismo le traigo la cuenta.', points: ['RESTAURANT_WAITER_'], serves: ['RESTAURANT_TABLE_'], minLevel: 'MEDIUM' },
     ],
+    // La comida va por el servicio de mesa: piden, esperan a cocina, comen, pagan y se van.
+    tableService: { menu: 'casa-tomas', pass: 'RESTAURANT_PASS', kitchen: 'RESTAURANT_STAFF' },
     visitors: [
       {
-        role: 'diner', label: 'Comensal', line: 'El menú de hoy no está mal.', weight: 1, party: [1, 4],
+        // Solos o en pareja: cada mesa tiene dos sillas.
+        role: 'diner', label: 'Comensal', line: 'El menú de hoy no está mal.', weight: 1, party: [1, 2],
         plan: [
           { state: 'WAIT', points: ['RESTAURANT_WAIT_'], minutes: [1, 3] },
-          { state: 'EAT', points: ['RESTAURANT_TABLE_'], minutes: [30, 60] },
+          { state: 'DINE', points: ['RESTAURANT_TABLE_'], minutes: [60, 90] },
         ],
       },
     ],

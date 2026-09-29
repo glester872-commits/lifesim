@@ -45,7 +45,11 @@ for (const loc of allLocations()) {
   for (const [id, s] of Object.entries(loc.spawns)) must(`spawn ${id}`, s);
   // Las puertas del tren dependen de dónde pare; su fila de borde de andén sí debe alcanzarse.
   for (const portal of loc.portals) must(`portal ${portal.id}`, portal.train ? { tx: 11, ty: portal.ty } : portal);
-  for (const [id, pt] of Object.entries(loc.points ?? {})) check(free, `punto ${id}`, pt);
+  for (const [id, pt] of Object.entries(loc.points ?? {})) {
+    // Encima de una máquina (una cinta, un banco) se sube desde un tile de al lado.
+    if (isWalkable(loc, pt.tx, pt.ty)) check(free, `punto ${id}`, pt);
+    else assert.ok([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => free.has(`${pt.tx + dx},${pt.ty + dy}`)), `[${loc.id}] no se llega a la máquina de ${id}`);
+  }
 }
 
 // El grafo del barrio conecta cada destino con cada borde.

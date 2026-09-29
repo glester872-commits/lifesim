@@ -1,4 +1,6 @@
-import type { LocationDef, PointDef, PropKind, PropPlacement } from '../types/game.ts';
+import type { LocationDef, PointDef, PropKind, PropPlacement, TableDef } from '../types/game.ts';
+import type { StationId } from './stations.ts';
+import { seatsFurniture } from './seating.ts';
 
 /**
  * Interiores del barrio Vallesco que sólo existen aquí. Cada uno sale a la
@@ -37,56 +39,100 @@ const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, t
 const many = (kind: PropKind, cells: readonly (readonly [number, number])[]): PropPlacement[] =>
   cells.map(([x, y]) => at(kind, x, y));
 const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
+/** Número de dos cifras para ids de puntos en serie: 0 → '01'. */
+const TWO = (i: number): string => String(i + 1).padStart(2, '0');
 
 // ------------------------------------------------------------- gimnasio
 
+/** Puesto de uso (data/stations.ts) en un punto: sobre la máquina si se sube, delante si no. */
+const use = (tx: number, ty: number, station: StationId, facing: PointDef['facing']): PointDef => ({ tx, ty, kind: 'interact', facing, use: station });
+/** Máquinas iguales y su punto encima de cada una, numerados: PREFIX_01, PREFIX_02... */
+function machines(kind: PropKind, prefix: string, station: StationId, facing: PointDef['facing'], cells: readonly (readonly [number, number])[]) {
+  return {
+    props: many(kind, cells),
+    points: Object.fromEntries(cells.map(([x, y], i) => [`${prefix}${TWO(i)}`, use(x, y, station, facing)])),
+  };
+}
+
+const TREADMILLS = machines('treadmill', 'GYM_TREADMILL_', 'treadmill', 'up', [[2, 3], [4, 3], [6, 3], [8, 3]]);
+const BIKES = machines('exercise-bike', 'GYM_BIKE_', 'bike', 'up', [[2, 6], [4, 6], [6, 6]]);
+const ROWERS = machines('rower', 'GYM_ROW_', 'rower', 'right', [[2, 9], [5, 9]]);
+// En el banco se sienta mirando a la sala y se tumba con la cabeza hacia la jaula.
+const BENCHES = machines('bench-press', 'GYM_BENCH_', 'bench-press', 'down', [[13, 3], [15, 3]]);
+const RACKS = machines('squat-rack', 'GYM_SQUAT_', 'squat-rack', 'up', [[11, 3]]);
+const MATS: [number, number][] = [[10, 10], [11, 10], [12, 10], [13, 10]];
+
+/**
+ * Gimnasio Forja. Cardio a la izquierda frente al espejo (cintas, bicis y
+ * remos), peso libre a la derecha (jaula, dos bancos de press, polea y el
+ * estante de mancuernas), esterillas para estirar, y recepción, fuente y
+ * taquillas en la parte de baldosa. Cada máquina es un puesto de
+ * data/stations.ts: quien la usa se sube, y nadie más la coge.
+ */
 export const GYM: LocationDef = {
   id: 'gym',
   name: 'Gimnasio Forja',
   kind: 'interior',
-  // Suelo de caucho en la zona de entrenamiento; baldosa en recepción y vestuario.
-  ground: room(22, 14, 10, (x, y) => (y <= 8 && x <= 13 ? 'm' : 't')),
+  // Caucho en la sala; baldosa en recepción y vestuario.
+  ground: room(26, 15, 18, (x) => (x <= 17 ? 'm' : 't')),
   props: [
-    // Pared de espejo corrida sobre la zona de cintas y pesas.
-    ...many('mirror', [[1, 1], [3, 1], [5, 1], [7, 1], [9, 1]]),
-    ...many('treadmill', [[2, 4], [4, 4], [6, 4]]),
-    ...many('weights', [[11, 3], [12, 3]]),
-    ...many('weight-bench', [[3, 7], [7, 7], [11, 7]]),
-    at('lockers', 18, 3),
-    ...many('counter', [[15, 10], [16, 10], [17, 10]]),
-    at('cooler', 20, 10),
-    ...many('plant', [[20, 3], [1, 11]]),
-    // Neón de la casa, reloj de sala y tubos fluorescentes: luz fría de gimnasio.
-    at('neon', 14, 1),
-    at('clock', 18, 1),
-    at('window', 11, 1),
-    ...many('tube-light', [[2, 6], [7, 6], [12, 6], [16, 9]]),
+    // Espejo corrido detrás del cardio y del peso libre; la jaula y la polea, delante de él.
+    ...many('mirror', [[1, 1], [3, 1], [5, 1], [7, 1], [9, 1], [11, 1], [13, 1], [15, 1]]),
+    at('gym-sign', 17, 1),
+    at('clock', 20, 1),
+    at('window', 21, 1),
+    at('chalkboard', 23, 1),
+    ...TREADMILLS.props,
+    ...BIKES.props,
+    ...ROWERS.props,
+    ...RACKS.props,
+    ...BENCHES.props,
+    at('cable-machine', 17, 3),
+    at('weights', 11, 7),
+    at('plate-tree', 10, 6),
+    at('kettlebells', 15, 7),
+    ...many('yoga-mat', MATS),
+    // Lo que deja la gente por ahí: toallas, botellas y un disco suelto; y las bolsas junto a las taquillas.
+    ...many('gym-towel', [[5, 4], [14, 9], [8, 8], [3, 11]]),
+    at('gym-bags', 19, 5),
+    at('lockers', 21, 3),
+    at('lockers', 23, 3),
+    ...many('counter', [[20, 10], [21, 10], [22, 10]]),
+    at('cooler', 24, 9),
+    ...many('plant', [[24, 6], [1, 12]]),
+    // Tubos fluorescentes sobre los pasillos (cuelgan por delante de la gente: nunca encima de una máquina).
+    ...many('tube-light', [[3, 5], [7, 5], [3, 8], [7, 8], [12, 5], [15, 6], [11, 12], [21, 7]]),
   ],
   ambient: '#e2ebff',
-  ...exitTo('gym-door', 10, 14),
+  ...exitTo('gym-door', 18, 15),
   // Nadie colocado a mano: la gente la pone data/population.ts según la hora.
   npcs: [],
   points: {
-    GYM_EXIT: p(10, 11, 'exit', 'up'),
-    GYM_RECEPTION: p(16, 11, 'interact', 'up'),
-    GYM_STAFF: p(16, 9, 'work', 'down'),
-    GYM_TRAINING_ZONE: p(8, 6, 'meet'),
-    GYM_TREADMILL_01: p(2, 5, 'interact', 'up'),
-    GYM_TREADMILL_02: p(4, 5, 'interact', 'up'),
-    GYM_TREADMILL_03: p(6, 5, 'interact', 'up'),
-    GYM_WEIGHTS: p(11, 4, 'interact', 'up'),
-    GYM_BENCH_01: p(3, 8, 'interact', 'up'),
-    GYM_BENCH_02: p(7, 8, 'interact', 'up'),
-    GYM_LOCKERS: p(18, 4, 'interact', 'up'),
-    GYM_WATER: p(19, 10, 'interact', 'right'),
-    GYM_WEIGHTS_02: p(12, 4, 'interact', 'up'),
-    GYM_BENCH_03: p(11, 8, 'interact', 'up'),
-    GYM_MAT_01: p(9, 5, 'interact'),
-    GYM_MAT_02: p(5, 7, 'interact'),
-    GYM_MAT_03: p(9, 8, 'interact'),
-    GYM_MAT_04: p(13, 6, 'interact'),
-    GYM_LOCKERS_02: p(19, 4, 'interact', 'up'),
-    GYM_COACH_01: p(8, 3, 'work', 'down'),
+    GYM_EXIT: p(18, 12, 'exit', 'up'),
+    GYM_RECEPTION: p(21, 11, 'interact', 'up'),
+    GYM_STAFF: p(21, 9, 'work', 'down'),
+    GYM_TRAINING_ZONE: p(9, 8, 'meet'),
+    ...TREADMILLS.points,
+    ...BIKES.points,
+    ...ROWERS.points,
+    ...BENCHES.points,
+    ...RACKS.points,
+    GYM_CABLE_01: use(17, 4, 'cable', 'up'),
+    GYM_WEIGHTS_01: use(11, 8, 'dumbbells', 'up'),
+    GYM_WEIGHTS_02: use(12, 8, 'dumbbells', 'up'),
+    GYM_WEIGHTS_03: use(13, 8, 'dumbbells', 'up'),
+    ...Object.fromEntries(MATS.map(([x, y], i) => [`GYM_MAT_${TWO(i)}`, use(x, y, 'stretch', 'down')])),
+    GYM_WATER: use(23, 9, 'water', 'right'),
+    // Un rato de charla entre series: dos puntos de cara.
+    GYM_CHAT_01: p(15, 10, 'meet', 'right'),
+    GYM_CHAT_02: p(16, 10, 'meet', 'left'),
+    // Descanso de pie, con el móvil, junto a la pared.
+    GYM_REST_01: p(8, 12, 'wait', 'up'),
+    GYM_REST_02: p(14, 12, 'wait', 'up'),
+    GYM_REST_03: p(17, 8, 'wait', 'left'),
+    GYM_LOCKERS: p(21, 4, 'interact', 'up'),
+    GYM_LOCKERS_02: p(23, 4, 'interact', 'up'),
+    GYM_COACH_01: p(9, 4, 'work', 'down'),
     GYM_COACH_02: p(14, 6, 'work', 'left'),
   },
 };
@@ -192,6 +238,17 @@ export const SUPERMARKET: LocationDef = {
 // ------------------------------------------------------------ restaurante
 
 const TABLES: [number, number][] = [[11, 4], [14, 4], [17, 4], [11, 7], [14, 7], [17, 7], [4, 8], [7, 8]];
+/** Dos sitios por mesa, delante y a su derecha, cada uno con su silla (data/seating.ts). */
+const RESTAURANT_SEATS: Record<string, PointDef> = {
+  ...Object.fromEntries(TABLES.map(([x, y], i) => [`RESTAURANT_TABLE_${TWO(i)}`, p(x, y + 1, 'seat', 'up')])),
+  ...Object.fromEntries(TABLES.map(([x, y], i) => [`RESTAURANT_TABLE_${TWO(i + 8)}`, p(x + 1, y, 'seat', 'left')])),
+};
+/** Cada mesa con sus dos sillas y el tile de su izquierda, donde se para quien atiende (systems/TableService). */
+const RESTAURANT_TABLES: TableDef[] = TABLES.map(([x, y], i) => ({
+  id: `MESA_${TWO(i)}`,
+  seats: [`RESTAURANT_TABLE_${TWO(i)}`, `RESTAURANT_TABLE_${TWO(i + 8)}`],
+  service: { tx: x - 1, ty: y },
+}));
 
 export const RESTAURANT: LocationDef = {
   id: 'restaurant',
@@ -200,9 +257,13 @@ export const RESTAURANT: LocationDef = {
   // Barra y cocina al fondo (baldosa); comedor de madera.
   ground: room(20, 13, 10, (_x, y) => (y <= 3 ? 't' : 'f')),
   props: [
+    // Cocina detrás de la barra: fogones con sus ollas y baldas; lo que sale, al pase (el final de la barra).
     ...many('shelf', [[2, 2], [3, 2], [7, 2]]),
+    at('stove', 4, 2),
     ...many('counter', [[2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4], [8, 4]]),
-    ...many('table', TABLES),
+    // Mesas con mantel: el comedor de un restaurante de toda la vida.
+    ...many('dining-table', TABLES),
+    ...seatsFurniture(RESTAURANT_SEATS),
     ...many('plant', [[1, 10], [18, 10]]),
     // Una lámpara cálida sobre cada mesa y dos sobre la barra.
     ...many('pendant', [...TABLES, [3, 5], [7, 5]]),
@@ -211,18 +272,16 @@ export const RESTAURANT: LocationDef = {
   ...exitTo('restaurant-door', 10, 13),
   // Se pide en la barra: menú del día a mediodía, carta por la noche.
   spots: [{ tx: 5, ty: 4, name: 'Barra · Casa Tomás', activities: ['restaurant-lunch', 'restaurant-dinner'] }],
+  // Servicio de mesa (data/population.ts: tableService): sentarse a una mesa es pedir que te atiendan.
+  tables: RESTAURANT_TABLES,
   npcs: [],
   points: {
     RESTAURANT_EXIT: p(10, 10, 'exit', 'up'),
     RESTAURANT_COUNTER: p(5, 5, 'interact', 'up'),
     RESTAURANT_STAFF: p(5, 3, 'work', 'down'),
-    ...Object.fromEntries(
-      TABLES.map(([x, y], i) => [`RESTAURANT_TABLE_${String(i + 1).padStart(2, '0')}`, p(x, y + 1, 'seat', 'up')]),
-    ),
-    // Segundo sitio de cada mesa, a su derecha.
-    ...Object.fromEntries(
-      TABLES.map(([x, y], i) => [`RESTAURANT_TABLE_${String(i + 9).padStart(2, '0')}`, p(x + 1, y, 'seat', 'left')]),
-    ),
+    // El pase: donde recoge el camarero lo que sale de cocina y deja la vajilla sucia.
+    RESTAURANT_PASS: p(8, 5, 'interact', 'up'),
+    ...RESTAURANT_SEATS,
     RESTAURANT_WAIT_01: p(9, 9, 'wait', 'up'),
     RESTAURANT_WAIT_02: p(11, 9, 'wait', 'up'),
     RESTAURANT_WAITER_01: p(9, 6, 'work'),
@@ -275,7 +334,14 @@ const DANCE: [number, number][] = [
   [9, 5], [11, 5], [13, 5], [15, 5], [10, 6], [12, 6], [14, 6], [9, 7],
   [11, 7], [13, 7], [15, 7], [10, 8], [12, 8], [14, 8], [11, 9], [13, 9],
 ];
-const TWO = (i: number): string => String(i + 1).padStart(2, '0');
+
+/** Sillas de las mesas bajas de la zona de estar. */
+const CLUB_SEATS: Record<string, PointDef> = {
+  CLUB_SEAT_01: p(19, 5, 'seat', 'up'),
+  CLUB_SEAT_02: p(20, 4, 'seat', 'left'),
+  CLUB_SEAT_03: p(19, 9, 'seat', 'up'),
+  CLUB_SEAT_04: p(20, 8, 'seat', 'left'),
+};
 
 export const CLUB: LocationDef = {
   id: 'club',
@@ -296,6 +362,7 @@ export const CLUB: LocationDef = {
     ...many('table', [[19, 4], [19, 8]]),
     ...many('cafe-table', [[21, 6], [5, 9]]),
     ...many('sofa', [[18, 2], [21, 2]]),
+    ...seatsFurniture(CLUB_SEATS),
     at('painting', 20, 1),
     ...many('plant', [[1, 11], [22, 11]]),
   ],
@@ -311,10 +378,12 @@ export const CLUB: LocationDef = {
     CLUB_BARTENDER_02: p(6, 3, 'work', 'down'),
     ...Object.fromEntries([2, 3, 4, 5, 6, 7].map((x, i) => [`CLUB_BAR_${TWO(i)}`, p(x, 5, 'interact', 'up')])),
     ...Object.fromEntries(DANCE.map(([x, y], i) => [`CLUB_DANCE_${TWO(i)}`, p(x, y, 'meet', 'up')])),
-    CLUB_SEAT_01: p(19, 5, 'seat', 'up'),
-    CLUB_SEAT_02: p(20, 4, 'seat', 'left'),
-    CLUB_SEAT_03: p(19, 9, 'seat', 'up'),
-    CLUB_SEAT_04: p(20, 8, 'seat', 'left'),
+    ...CLUB_SEATS,
+    // Los sofás de la pared, dos plazas cada uno.
+    CLUB_SOFA_01: p(18, 2, 'seat', 'down'),
+    CLUB_SOFA_02: p(19, 2, 'seat', 'down'),
+    CLUB_SOFA_03: p(21, 2, 'seat', 'down'),
+    CLUB_SOFA_04: p(22, 2, 'seat', 'down'),
     CLUB_STAND_01: p(20, 6, 'meet', 'right'),
     CLUB_STAND_02: p(21, 7, 'meet', 'up'),
     CLUB_STAND_03: p(22, 6, 'meet', 'left'),
@@ -369,8 +438,9 @@ export const BARBERSHOP: LocationDef = {
     BARBER_STAFF_02: p(4, 5, 'work', 'up'),
     BARBER_RECEPTION: p(10, 8, 'interact', 'up'),
     BARBER_SHELF: p(11, 4, 'interact', 'right'),
-    BARBER_WAIT_01: p(1, 7, 'seat', 'up'),
-    BARBER_WAIT_02: p(2, 7, 'seat', 'up'),
+    // Esperando en el sofá, dos plazas.
+    BARBER_WAIT_01: p(1, 6, 'seat', 'down'),
+    BARBER_WAIT_02: p(2, 6, 'seat', 'down'),
     BARBER_WAIT_03: p(5, 8, 'wait', 'left'),
   },
 };
@@ -380,6 +450,19 @@ export const BARBERSHOP: LocationDef = {
 /** Mesas para dos; la del rincón, apartada y con lámpara de pie, es la de las citas. */
 const WINE_TABLES: [number, number][] = [[9, 4], [12, 4], [9, 7]];
 const WINE_DATE_TABLE: [number, number] = [12, 7];
+/** Taburetes de la barra, mirando a ella. */
+const WINE_STOOLS: Record<string, PointDef> = Object.fromEntries([1, 2, 4, 5].map((x, i) => [`WINE_BAR_STOOL_${TWO(i)}`, p(x, 5, 'seat', 'up')]));
+/** Cada mesa, una silla a cada lado, cara a cara; la de las citas, igual. */
+const WINE_SEATS: Record<string, PointDef> = {
+  ...Object.fromEntries(
+    WINE_TABLES.flatMap(([x, y], i) => [
+      [`WINE_BAR_TABLE_${TWO(i * 2)}`, p(x - 1, y, 'seat', 'right')],
+      [`WINE_BAR_TABLE_${TWO(i * 2 + 1)}`, p(x + 1, y, 'seat', 'left')],
+    ]),
+  ),
+  WINE_BAR_DATE_01: p(WINE_DATE_TABLE[0] - 1, WINE_DATE_TABLE[1], 'seat', 'right'),
+  WINE_BAR_DATE_02: p(WINE_DATE_TABLE[0] + 1, WINE_DATE_TABLE[1], 'seat', 'left'),
+};
 
 /**
  * La Cepa: vinoteca pequeña donde estaba la obra. Barra con botelleros detrás,
@@ -398,6 +481,8 @@ export const WINE_BAR: LocationDef = {
     at('chalkboard', 7, 1),
     at('painting', 11, 1),
     ...many('cafe-table', [...WINE_TABLES, WINE_DATE_TABLE]),
+    ...seatsFurniture(WINE_STOOLS, 'stool'),
+    ...seatsFurniture(WINE_SEATS),
     ...many('pendant', [[2, 5], [4, 5], ...WINE_TABLES]),
     at('floor-lamp', 14, 8),
     at('plant', 1, 8),
@@ -409,16 +494,8 @@ export const WINE_BAR: LocationDef = {
     WINE_BAR_EXIT: p(8, 9, 'exit', 'up'),
     WINE_BAR_STAFF: p(3, 3, 'work', 'down'),
     WINE_BAR_WAITER: p(7, 6, 'work', 'right'),
-    ...Object.fromEntries([1, 2, 4, 5].map((x, i) => [`WINE_BAR_STOOL_${TWO(i)}`, p(x, 5, 'seat', 'up')])),
-    // Cada mesa, un sitio a cada lado, cara a cara.
-    ...Object.fromEntries(
-      WINE_TABLES.flatMap(([x, y], i) => [
-        [`WINE_BAR_TABLE_${TWO(i * 2)}`, p(x - 1, y, 'seat', 'right')],
-        [`WINE_BAR_TABLE_${TWO(i * 2 + 1)}`, p(x + 1, y, 'seat', 'left')],
-      ]),
-    ),
-    WINE_BAR_DATE_01: p(WINE_DATE_TABLE[0] - 1, WINE_DATE_TABLE[1], 'seat', 'right'),
-    WINE_BAR_DATE_02: p(WINE_DATE_TABLE[0] + 1, WINE_DATE_TABLE[1], 'seat', 'left'),
+    ...WINE_STOOLS,
+    ...WINE_SEATS,
     // Quien ha quedado y espera, de pie cerca de la puerta, mirando quién entra.
     WINE_BAR_WAIT_01: p(6, 8, 'wait', 'down'),
     WINE_BAR_WAIT_02: p(10, 9, 'wait', 'down'),
@@ -623,14 +700,21 @@ export const TINTA: LocationDef = {
     TINTA_RECEPTION: p(12, 9, 'interact', 'up'),
     TINTA_FLASH_01: p(1, 2, 'interact', 'up'),
     TINTA_FLASH_02: p(12, 2, 'interact', 'up'),
-    TINTA_WAIT_01: p(1, 8, 'seat', 'up'),
-    TINTA_WAIT_02: p(2, 8, 'seat', 'up'),
+    TINTA_WAIT_01: p(1, 7, 'seat', 'down'),
+    TINTA_WAIT_02: p(2, 7, 'seat', 'down'),
     TINTA_WAIT_03: p(4, 9, 'wait', 'left'),
   },
 };
 
 /** Café Molinillo: barra corta con cafetera y vitrina, cuatro sitios y la pizarra del día. */
 const MOLINILLO_TABLES: [number, number][] = [[8, 4], [8, 7]];
+/** Una silla a cada lado de cada mesa, cara a cara. */
+const MOLINILLO_SEATS: Record<string, PointDef> = Object.fromEntries(
+  MOLINILLO_TABLES.flatMap(([x, y], i) => [
+    [`MOLINILLO_TABLE_${TWO(i * 2)}`, p(x - 1, y, 'seat', 'right')],
+    [`MOLINILLO_TABLE_${TWO(i * 2 + 1)}`, p(x + 1, y, 'seat', 'left')],
+  ]),
+);
 
 export const MOLINILLO: LocationDef = {
   id: 'molinillo',
@@ -642,6 +726,7 @@ export const MOLINILLO: LocationDef = {
     at('espresso', 2, 4), at('pastry-case', 4, 4),
     at('chalkboard', 1, 1), at('window', 8, 1),
     ...many('cafe-table', MOLINILLO_TABLES),
+    ...seatsFurniture(MOLINILLO_SEATS),
     ...many('pendant', MOLINILLO_TABLES.map(([x, y]) => [x, y - 1] as [number, number])),
     at('plant', 10, 3),
   ],
@@ -654,11 +739,6 @@ export const MOLINILLO: LocationDef = {
     MOLINILLO_STAFF: p(2, 3, 'work', 'down'),
     MOLINILLO_COUNTER: p(3, 5, 'interact', 'up'),
     MOLINILLO_QUEUE_01: p(4, 6, 'wait', 'up'),
-    ...Object.fromEntries(
-      MOLINILLO_TABLES.flatMap(([x, y], i) => [
-        [`MOLINILLO_TABLE_${TWO(i * 2)}`, p(x - 1, y, 'seat', 'right')],
-        [`MOLINILLO_TABLE_${TWO(i * 2 + 1)}`, p(x + 1, y, 'seat', 'left')],
-      ]),
-    ),
+    ...MOLINILLO_SEATS,
   },
 };

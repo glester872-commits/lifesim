@@ -2,8 +2,9 @@
  * Menú de opciones en DOM: comprar en una máquina, elegir destino en el tren,
  * elegir qué hacer en un sitio, usar algo de la bolsa. No sabe qué vende ni a
  * dónde lleva: recibe opciones y avisa de la elegida. La Scene le pasa las
- * teclas mientras está abierto (el reloj y el jugador se paran, como en un
- * diálogo).
+ * teclas mientras está abierto (el reloj y el jugador se paran), salvo que se
+ * abra «en vivo»: pedir en una mesa o pagar la cuenta pasa con el local en
+ * marcha, como una conversación.
  */
 export interface MenuOption {
   label: string;
@@ -17,6 +18,7 @@ interface Open {
   options: readonly MenuOption[];
   onPick: (index: number) => void;
   onCancel?: () => void;
+  live: boolean;
 }
 
 export class Menu {
@@ -54,9 +56,14 @@ export class Menu {
     return this.current !== null;
   }
 
+  /** Abierto sin parar el mundo (pedir en la mesa, pagar): el reloj y la gente siguen. */
+  get isLive(): boolean {
+    return this.current?.live ?? false;
+  }
+
   /** Abre (o rehace, si ya estaba abierto) con estas opciones. `note` es el resultado de lo último. */
-  open(title: string, text: string, options: readonly MenuOption[], onPick: (index: number) => void, onCancel?: () => void, note = '', selected = 0): void {
-    this.current = { options, onPick, onCancel };
+  open(title: string, text: string, options: readonly MenuOption[], onPick: (index: number) => void, onCancel?: () => void, note = '', selected = 0, live = false): void {
+    this.current = { options, onPick, onCancel, live };
     this.selected = Math.min(Math.max(0, selected), options.length - 1);
     this.titleEl.textContent = title;
     this.textEl.textContent = text;

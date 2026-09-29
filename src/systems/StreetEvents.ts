@@ -93,32 +93,46 @@ const shuffled = <T>(items: readonly T[], rng: Rng): T[] => {
   return out;
 };
 
-/** Lo que pasa (o no) la noche que empieza el día `day`. */
-export function planNight(def: StreetEventDef, loc: LocationDef, day: number): Night {
-  const rng = seededRng(hashSeed(def.id, day));
+/**
+ * Una noche empezada a mano (herramientas de desarrollo): empieza en `start`
+ * (minutos absolutos), con `rounds` asaltos si se dice, y sin mirar el día, el
+ * azar ni la lluvia. Todo lo demás (quién viene, por dónde, cómo pelean, cómo
+ * se van) es exactamente lo de una noche normal.
+ */
+export interface ForcedStart {
+  start: number;
+  rounds?: number;
+}
+
+/** Lo que pasa (o no) la noche que empieza el día `day`; con `force`, la que se empieza a mano. */
+export function planNight(def: StreetEventDef, loc: LocationDef, day: number, force?: ForcedStart): Night {
+  const rng = seededRng(force ? hashSeed(def.id, day, 'force', Math.round(force.start)) : hashSeed(def.id, day));
   const [h0, h1] = def.window;
   const from = day * 1440 + h0 * 60;
   const to = day * 1440 + (h1 <= h0 ? h1 + 24 : h1) * 60;
-  const rounds = def.rounds[0] + Math.floor(rng() * (def.rounds[1] - def.rounds[0] + 1));
+  const rolled = def.rounds[0] + Math.floor(rng() * (def.rounds[1] - def.rounds[0] + 1));
+  const rounds = force?.rounds ?? rolled;
   const fightLen = rounds * ROUND + (rounds - 1) * BREAK;
-  const start = from + rng() * Math.max(0, to - from - GATHER - fightLen - DISPERSE);
+  const slot = rng();
+  const start = force ? force.start : from + slot * Math.max(0, to - from - GATHER - fightLen - DISPERSE);
   const fightAt = start + GATHER;
   const bouts = Array.from({ length: rounds }, (_, i) => [fightAt + i * (ROUND + BREAK), fightAt + i * (ROUND + BREAK) + ROUND] as const);
   const end = fightAt + fightLen;
   // Las tiradas de la noche, siempre en el mismo orden: cambiar una regla no cambia el resto.
   const [roll, raidRoll, raidWhen] = [rng(), rng(), rng()];
   const base = { day, start, fightAt, rounds: bouts, end, raidAt: null, members: [] };
-  if (!def.days.includes(weekIndex(day))) return { ...base, happens: false, why: 'weekday' };
-  if (roll >= def.chance) return { ...base, happens: false, why: 'chance' };
+  if (!force && !def.days.includes(weekIndex(day))) return { ...base, happens: false, why: 'weekday' };
+  if (!force && roll >= def.chance) return { ...base, happens: false, why: 'chance' };
   const w = weatherAt(Math.floor(fightAt / 1440), (fightAt % 1440) / 60);
-  if (!def.covered && w.rain >= def.weather.cancelRain) return { ...base, happens: false, why: 'rain' };
+  if (!force && !def.covered && w.rain >= def.weather.cancelRain) return { ...base, happens: false, why: 'rain' };
 
   let crowd = def.crowd[0] + Math.floor(rng() * (def.crowd[1] - def.crowd[0] + 1));
   if (!def.covered && w.rain > 0.08) crowd *= def.weather.lightRainCrowd;
   if (w.celsius < def.weather.coldBelow) crowd *= def.weather.coldCrowd;
   if (w.celsius > def.weather.warmAbove) crowd += def.weather.warmExtra;
   crowd = Math.max(2, Math.min(def.spectators.length, Math.round(crowd)));
-  const raidAt = raidRoll < def.raid ? fightAt + raidWhen * (end - fightAt) * 0.8 : null;
+  // A mano no hay aviso del vigía: la pelea dura lo que se ha pedido (y fijada, hasta que se suelte).
+  const raidAt = !force && raidRoll < def.raid ? fightAt + raidWhen * (end - fightAt) * 0.8 : null;
   const stop = raidAt ?? end;
 
   const entries = def.entries.map((id) => loc.points?.[id]).filter((p): p is NonNullable<typeof p> => !!p);
@@ -208,6 +222,31 @@ export function fighterPoses(n: Night, t: number): [FighterPose, FighterPose] {
   return att === 0 ? [a, d] : [d, a];
 }
 
+/** Cuándo se ha ido el último: el fin (o el aviso), el rato de recoger y lo que tarda en salir andando. */
+const tailOf = (n: Night): number => (n.raidAt ?? n.end) + DISPERSE + 180;
+
+/**
+ * Se deshace el corro en `t`: como el aviso del vigía, todos se van deprisa.
+ * Quien aún venía de camino no desaparece: llega a su sitio y se va en el acto.
+ */
+function scatter(n: Night, t: number): void {
+  n.raidAt = Math.min(n.raidAt ?? Infinity, t);
+  for (const m of n.members) {
+    if (m.leave <= t) continue;
+    m.leave = Math.max(t, m.arrive) + (m.seed % 90) / 60;
+    m.fast = true;
+  }
+}
+
+/** Lo forzado a mano, por evento: sobrevive a cambiar de escena (cada escena crea su StreetEvent). Sólo lo toca el gancho de desarrollo. */
+interface DevOverride {
+  forced?: Night;
+  pinned?: boolean;
+  /** Hasta cuándo el sitio queda vacío (retirada a mano). */
+  clearUntil?: number;
+}
+const DEV = new Map<string, DevOverride>();
+
 /**
  * Un evento en su sitio: sus noches y los caminos de su gente, calculados una
  * vez; lo demás, del reloj. Los caminos rodean el corro (nadie cruza por donde
@@ -244,11 +283,81 @@ export class StreetEvent {
 
   /** La noche que toca a esta hora: la que empezó ayer y aún colea, o la de hoy. */
   nightAt(t: number): Night {
+    // Herramientas de desarrollo (DEV, abajo): una noche forzada manda; una retirada deja el sitio vacío.
+    const dev = DEV.get(this.def.id);
+    if (dev?.forced) {
+      if (t < tailOf(dev.forced)) return dev.forced;
+      dev.forced = undefined;
+    }
+    if (dev?.clearUntil !== undefined && t < dev.clearUntil) return { ...this.naturalAt(t), happens: false };
+    return this.naturalAt(t);
+  }
+
+  /** La noche del calendario, sin nada de desarrollo. */
+  private naturalAt(t: number): Night {
     const today = Math.floor(t / 1440);
     const yesterday = this.night(today - 1);
     // Con margen: el último en irse aún está saliendo por la Mayor.
-    const tail = (yesterday.raidAt ?? yesterday.end) + DISPERSE + 180;
-    return yesterday.happens && t < tail ? yesterday : this.night(today);
+    return yesterday.happens && t < tailOf(yesterday) ? yesterday : this.night(today);
+  }
+
+  // ------------------------------------------ herramientas de desarrollo
+  // Sólo las llama el gancho de consola de main.ts (import.meta.env.DEV): en la
+  // versión publicada nadie las llama y el estado de abajo se queda vacío. Una
+  // pelea forzada es una noche como las demás (planNight): la misma gente, las
+  // mismas poses, el mismo corro, el mismo aviso para mirar y la misma recogida.
+
+  /** Empieza una pelea ahora: el corro ya casi formado y el primer asalto en seis minutos de juego. */
+  devForce(t: number, pinned = false): Night {
+    // Fijada: tantos asaltos que no acaba sola (unas 34 horas de juego) hasta que se suelte.
+    const night = planNight(this.def, this.loc, Math.floor(t / 1440), { start: t - (GATHER - 6), rounds: pinned ? 60 : undefined });
+    DEV.set(this.def.id, { forced: night, pinned });
+    return night;
+  }
+
+  /** Fijar la pelea activa (la fuerza si no hay una forzada) o soltarla: al soltar, el corro se deshace como con el aviso del vigía. */
+  devPin(t: number, on: boolean): void {
+    const dev = DEV.get(this.def.id);
+    if (on) {
+      if (!dev?.forced || !dev.pinned || phaseAt(dev.forced, t) === 'dispersing') this.devForce(t, true);
+      return;
+    }
+    if (!dev?.forced) return;
+    dev.pinned = false;
+    scatter(dev.forced, t);
+  }
+
+  /**
+   * Retirar la pelea ya: nadie en el patio desde este momento (ni la forzada
+   * ni la de esta noche del calendario, hasta que acabe). La recogida es la de
+   * siempre: la vista suelta a cada uno en el siguiente frame.
+   */
+  devDespawn(t: number): void {
+    const natural = this.naturalAt(t);
+    DEV.set(this.def.id, { clearUntil: natural.happens ? Math.max(t, tailOf(natural)) : t });
+  }
+
+  /**
+   * Volver al calendario: quita lo forzado, lo fijado y lo retirado. El evento
+   * no tiene enfriamiento propio (cada noche se tira por su cuenta, sin mirar
+   * la anterior); lo único que lo bloquea es haberlo retirado a mano.
+   */
+  devReset(): void {
+    DEV.delete(this.def.id);
+  }
+
+  /** Qué hay ahora y por qué: para la consola. */
+  devStatus(t: number): { phase: EventPhase; forced: boolean; pinned: boolean; cleared: boolean; tonight: string } {
+    const dev = DEV.get(this.def.id);
+    const natural = this.naturalAt(t);
+    const hhmm = (m: number): string => `día ${Math.floor(m / 1440)} ${String(Math.floor((m % 1440) / 60)).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`;
+    return {
+      phase: this.phase(t),
+      forced: !!dev?.forced,
+      pinned: !!dev?.pinned,
+      cleared: dev?.clearUntil !== undefined && t < dev.clearUntil,
+      tonight: natural.happens ? `sí, de ${hhmm(natural.start)} a ${hhmm(natural.raidAt ?? natural.end)}` : `no (${natural.why})`,
+    };
   }
 
   phase(t: number): EventPhase {
@@ -296,25 +405,25 @@ export class StreetEvent {
   presentAt(t: number): Presence[] {
     const n = this.nightAt(t);
     if (!n.happens) return [];
-    const phase = phaseAt(n, t);
-    const out: Presence[] = [];
-    for (const m of n.members) {
-      const into = this.path(m.entry, m.slot);
-      const inMin = Math.max(1, into.length - 1) / WALK;
-      if (t < m.arrive - inMin) continue;
-      if (t < m.arrive) {
-        out.push(along(m, into, (t - (m.arrive - inMin)) / inMin));
-        continue;
-      }
-      if (t >= m.leave) {
-        const away = this.path(m.slot, m.exit);
-        const outMin = Math.max(1, away.length - 1) / (m.fast ? FLEE : WALK);
-        if (t < m.leave + outMin) out.push(along(m, away, (t - m.leave) / outMin));
-        continue;
-      }
-      out.push(this.atSlot(n, m, phase, t));
+    return n.members.map((m) => this.memberAt(n, m, t)).filter((p): p is Presence => p !== null);
+  }
+
+  /**
+   * Dónde está una persona de esa noche a la hora `t`, o null si todavía no ha
+   * salido o ya se ha ido. Cada una puede ir con su propio retraso (quien se para
+   * a hablar con el jugador sigue luego donde lo dejó: world/StreetEventView).
+   */
+  memberAt(n: Night, m: Member, t: number): Presence | null {
+    const into = this.path(m.entry, m.slot);
+    const inMin = Math.max(1, into.length - 1) / WALK;
+    if (t < m.arrive - inMin) return null;
+    if (t < m.arrive) return along(m, into, (t - (m.arrive - inMin)) / inMin);
+    if (t >= m.leave) {
+      const away = this.path(m.slot, m.exit);
+      const outMin = Math.max(1, away.length - 1) / (m.fast ? FLEE : WALK);
+      return t < m.leave + outMin ? along(m, away, (t - m.leave) / outMin) : null;
     }
-    return out;
+    return this.atSlot(n, m, phaseAt(n, t), t);
   }
 
   /** En su sitio: mira la pelea y reacciona, cada uno a su compás. */

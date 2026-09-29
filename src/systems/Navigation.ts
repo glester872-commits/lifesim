@@ -1,7 +1,6 @@
 // Sin Phaser: lo usan el juego (depuración) y scripts/check-world.ts.
 import type { LocationDef, PointDef, PointKind, TilePoint } from '../types/game.ts';
-import { allLocations, getLocation, isWalkable } from './LocationSystem.ts';
-import { PROPS } from '../world/tiles.ts';
+import { allLocations, getLocation, isWalkable, mountAt } from './LocationSystem.ts';
 
 /**
  * Destinos del mundo para los NPC que vendrán. Un personaje no lleva rutas
@@ -84,14 +83,15 @@ function graphRoute(loc: LocationDef, fromId: string, toId: string): TilePoint[]
 }
 
 /**
- * Anchura primero por tiles transitables; los NPC quietos cuentan como muebles, y
- * los asientos (sillón de barbero, camilla de tatuaje) también: no colisionan
- * porque alguien se sienta encima, pero de camino a otra parte se rodean.
+ * Anchura primero por tiles transitables; los NPC quietos cuentan como muebles.
+ * A una máquina o un asiento (sólidos) sólo se sube quien acaba el camino en él.
  */
 function gridRoute(loc: LocationDef, a: TilePoint, b: TilePoint): TilePoint[] | null {
   const key = (p: TilePoint): string => `${p.tx},${p.ty}`;
-  const blocked = new Set([...loc.npcs.map(key), ...loc.props.filter((p) => PROPS[p.kind].seat).map(key)]);
+  const blocked = new Set(loc.npcs.map(key));
   const goal = key(b);
+  // A una máquina (la cinta, el banco) se sube sólo quien va a usarla: es sólida salvo como final del camino.
+  const onto = mountAt(loc, b.tx, b.ty);
   const prev = new Map<string, TilePoint | null>([[key(a), null]]);
   const queue: TilePoint[] = [a];
   while (queue.length > 0) {
@@ -100,7 +100,7 @@ function gridRoute(loc: LocationDef, a: TilePoint, b: TilePoint): TilePoint[] | 
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const next = { tx: cur.tx + dx, ty: cur.ty + dy };
       const k = key(next);
-      if (prev.has(k) || !isWalkable(loc, next.tx, next.ty) || (blocked.has(k) && k !== goal)) continue;
+      if (prev.has(k) || !(isWalkable(loc, next.tx, next.ty) || (onto && k === goal)) || (blocked.has(k) && k !== goal)) continue;
       prev.set(k, cur);
       queue.push(next);
     }

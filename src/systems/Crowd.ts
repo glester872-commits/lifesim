@@ -11,6 +11,8 @@ import { outdoorAppeal, weatherAt } from './Weather.ts';
 import { isOpen, openingDay, type PlaceInfo } from './Places.ts';
 import { tilePath } from './Navigation.ts';
 import { besideTile, identity, nextCustomer } from './Service.ts';
+import { getStation, type Occupancy, type StationDef } from '../data/stations.ts';
+import { TableService } from './TableService.ts';
 
 export interface Clock {
   day: number;
@@ -102,6 +104,8 @@ export interface Agent {
   face?: TilePoint;
   /** Hablando con el jugador: no da un paso ni pasa a lo siguiente hasta despedirse. */
   talking?: boolean;
+  /** Lo que lleva en las manos quien sirve: la bandeja con lo pedido o la vajilla sucia (systems/TableService). */
+  carry?: 'tray' | 'dishes';
 }
 
 export interface CrowdStats {
@@ -147,6 +151,29 @@ export class Crowd {
     for (const points of prefixes) {
       if (points.length > 0 && this.pointsMatching(points).length === 0) throw new Error(`[${loc.id}] ningún punto para ${points.join(', ')}`);
     }
+    // Servicio de mesa (systems/TableService.ts): si el local lo tiene, sus camareros y sus mesas van por él.
+    this.service = profile.tableService && loc.tables
+      ? new TableService(loc, profile.tableService, {
+          agents: this.agents,
+          walk: (a, to, face) => {
+            a.path = this.route(a, to);
+            a.face = face;
+            // Ya estaba ahí: se gira sin dar un paso.
+            if (a.path.length === 0 && face) a.dir = facingTo({ tx: Math.round(a.x), ty: Math.round(a.y) }, face);
+          },
+          pointAt: (id) => this.pointAt(id),
+        }, () => this.rng())
+      : null;
+  }
+
+  /** El servicio de mesa del local, si lo tiene: mesas, cocina y camareros. */
+  readonly service: TableService | null;
+
+  /** Si ese asiento se puede coger: fuera de una mesa con servicio, siempre; en una, si es libre o de su grupo. */
+  private seatOk(id: string, a?: Agent): boolean {
+    const table = this.service?.tableOf(id);
+    if (!table) return true;
+    return a ? this.service!.canSit(id, a) : table.party === null && table.state === 'AVAILABLE';
   }
 
   get summary(): CrowdStats {
@@ -184,7 +211,7 @@ export class Crowd {
     const seed = seededRng(hashSeed('populate', this.place.id, clock.day, slot));
     this.rng = seed;
     const level = levelAt(this.place, this.profile, clock);
-    const far = (id: string): boolean => this.distance(this.pointAt(id), player) >= POPULATION.spawnClearance;
+    const far = (id: string): boolean => this.distance(this.pointAt(id), player) >= POPULATION.spawnClearance && this.seatOk(id);
 
     for (const role of this.profile.staff) {
       if (!onShift(role, level)) continue;
@@ -212,16 +239,20 @@ export class Crowd {
       agent.plan = plan.slice(skip + 1);
       agent.stepPoints = step.points;
       this.occupy(agent, point, step.state);
-      agent.timer = this.duration(step) * (0.2 + this.rng() * 0.8);
+      agent.timer = this.duration(step, point) * (0.2 + this.rng() * 0.8);
+      this.service?.adopt(point, agent);
       placed++;
-      // Su grupo, ya sentado a su lado.
+      // Su grupo, ya sentado a su lado (en una mesa con servicio, en la misma mesa).
       for (let k = 1; k < this.partySize(role, target - placed + 1); k++) {
-        const near = this.freePointNear(step.points, this.pointAt(point), far);
+        const near = this.service?.tableOf(point)
+          ? this.service.mateSeat(agent, (s) => this.reserved.has(s) || this.claimed.has(s))
+          : this.freePointNear(step.points, this.pointAt(point), far);
         if (!near) break;
         const mate = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(near));
         mate.leader = agent;
         mate.following = point;
         this.occupy(mate, near, step.state);
+        this.service?.adopt(near, mate);
         placed++;
       }
     }
@@ -238,6 +269,7 @@ export class Crowd {
       this.tick = between(this.rng, ...POPULATION.tickEvery);
       this.reconcile(clock, player);
     }
+    this.service?.update(deltaMs, clock.hour + clock.minute / 60);
     for (const agent of this.agents) this.advance(agent, deltaMs);
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
@@ -282,7 +314,8 @@ export class Crowd {
       if (role) this.enterVisitor(role, diff);
     } else if (diff < 0) {
       // Se van primero los que menos plan les queda; un grupo se va entero con quien lo lleva.
-      const leaders = active.filter((a) => !a.leader).sort((a, b) => a.plan.length - b.plan.length);
+      // Quien está a mitad de comer en una mesa con servicio acaba y paga antes.
+      const leaders = active.filter((a) => !a.leader && !this.service?.holds(a)).sort((a, b) => a.plan.length - b.plan.length);
       for (const a of leaders.slice(0, changes)) a.leaveSoon = true;
     }
     this.refresh(clock);
@@ -313,10 +346,17 @@ export class Crowd {
     }
     a.moving = false;
     if (a.leaving) return;
+    // Camarero de un servicio de mesa: decide él qué hace (systems/TableService).
+    if (this.service?.drives(a)) {
+      this.service.stepWaiter(a, deltaMs);
+      return;
+    }
     if (a.leader && !a.leaveSoon) {
       this.followParty(a);
       return;
     }
+    // Comiendo en una mesa con servicio: no se va por su reloj, sino al pagar.
+    if (this.service?.holds(a)) return;
     a.timer -= deltaMs;
     if (a.timer > 0) return;
     if (a.kind === 'staff') this.nextStaffMove(a);
@@ -333,8 +373,13 @@ export class Crowd {
     }
     if (!lead.point || lead.point === a.following || !lead.stepPoints) return;
     a.following = lead.point;
-    const near = this.freePointNear(lead.stepPoints, this.pointAt(lead.point), (id) => id !== a.point);
-    if (near) this.goTo(a, near, lead.state);
+    // En una mesa con servicio, a otra silla de la misma mesa; si no, al sitio libre más cercano.
+    const near = this.service?.tableOf(lead.point)
+      ? this.service.mateSeat(lead, (s) => s === a.point || this.reserved.has(s) || this.claimed.has(s))
+      : this.freePointNear(lead.stepPoints, this.pointAt(lead.point), (id) => id !== a.point);
+    if (!near) return;
+    this.goTo(a, near, lead.state);
+    this.service?.reserve(near, a);
   }
 
   private walk(a: Agent, deltaMs: number): void {
@@ -351,9 +396,10 @@ export class Crowd {
       a.path.shift();
       if (a.path.length === 0) {
         a.moving = false;
+        // Hacia quien iba (el camarero, a la mesa) antes que hacia donde mira su punto.
         const facing = a.point ? this.loc.points?.[a.point]?.facing : undefined;
-        if (facing) a.dir = facing;
-        else if (a.face) a.dir = facingTo(target, a.face);
+        if (a.face) a.dir = facingTo(target, a.face);
+        else if (facing) a.dir = facing;
         a.face = undefined;
       }
       return;
@@ -365,12 +411,18 @@ export class Crowd {
   // -------------------------------------------------------------- planes
 
   private nextVisitorStep(a: Agent): void {
+    // Antes de dejar una máquina, se incorpora, recoge y se baja: nadie sale andando de una postura tumbado.
+    if (a.point && a.state !== 'FINISH' && this.stationOf(a.point)) {
+      a.state = 'FINISH';
+      a.timer = between(this.rng, 900, 1_700);
+      return;
+    }
     if (a.leaveSoon || a.plan.length === 0) {
       this.leave(a);
       return;
     }
     const step = a.plan[0];
-    const point = this.freePoint(step.points, (id) => id !== a.point);
+    const point = this.freePoint(step.points, (id) => id !== a.point && this.seatOk(id, a));
     if (!point && !a.point) {
       // Acaba de entrar y no hay sitio: se da la vuelta en vez de quedarse en la puerta.
       this.leave(a);
@@ -385,8 +437,9 @@ export class Crowd {
     }
     a.plan.shift();
     this.goTo(a, point, step.state);
+    this.service?.reserve(point, a);
     a.stepPoints = step.points;
-    a.timer = this.duration(step) + between(this.rng, ...POPULATION.reaction);
+    a.timer = this.duration(step, point) + between(this.rng, ...POPULATION.reaction);
   }
 
   /**
@@ -473,8 +526,27 @@ export class Crowd {
     return roles[roles.length - 1];
   }
 
-  private duration(step: PlanStep): number {
-    return between(this.rng, step.minutes[0], step.minutes[1]) * MS_PER_GAME_MINUTE;
+  /** Lo que dura un paso: lo que pida el puesto (una cinta, un banco) o, si no es un puesto, el plan. */
+  private duration(step: PlanStep, point: string): number {
+    const [lo, hi] = this.stationOf(point)?.minutes ?? step.minutes;
+    return between(this.rng, lo, hi) * MS_PER_GAME_MINUTE;
+  }
+
+  private stationOf(point: string): StationDef | undefined {
+    const use = this.loc.points?.[point]?.use;
+    return use ? getStation(use) : undefined;
+  }
+
+  /**
+   * Libre, reservado (alguien va de camino) o en uso (alguien está encima). Un
+   * personaje con nombre que está ahí también lo ocupa. Nadie coge un punto que
+   * no está libre: lo decide `freePoints`, que mira las mismas reservas.
+   */
+  occupancy(point: string): Occupancy {
+    const id = this.reserved.get(point);
+    if (id === undefined) return this.claimed.has(point) ? 'IN_USE' : 'FREE';
+    const a = this.agents.find((x) => x.id === id);
+    return a && a.path.length === 0 ? 'IN_USE' : 'RESERVED';
   }
 
   // -------------------------------------------------------- altas y bajas

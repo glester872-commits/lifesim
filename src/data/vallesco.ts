@@ -150,15 +150,17 @@ const PROPS: readonly PropPlacement[] = [
   // Sin espejo: la esquina noreste es de jardineras y los bancos de ese lado van corridos.
   ...[[31, 7], [31, 13], [48, 13]].map(([x, y]) => at('tree', x, y)),
   at('planter', 48, 7), at('planter', 49, 7),
+  // Los bancos miran a la fuente: los del norte, al sur; los del sur, al norte (con el respaldo hacia la calle).
   ...row('bench', 8, [35, 36, 43, 44]),
-  ...row('bench', 13, [35, 36, 44, 45]),
+  ...row('bench-up', 13, [35, 36, 44, 45]),
   at('kiosk', 46, 11),
   at('lamp', 33, 10),
   at('lamp', 49, 10),
 
-  // Calle Mayor: terrazas, género en la puerta, farolas y papeleras junto a las fachadas
-  at('parasol', 52, 16), at('cafe-table', 53, 16), at('parasol', 59, 16), at('cafe-table', 60, 16),
-  at('cafe-table', 26, 18), at('menu-board', 31, 18), at('cafe-table', 32, 18),
+  // Calle Mayor: terrazas (la silla junto a la mesa, fuera de la acera), género en la puerta, farolas y papeleras
+  at('parasol', 52, 16), at('cafe-table', 53, 16), at('chair-left', 54, 16),
+  at('parasol', 59, 16), at('cafe-table', 60, 16), at('chair-left', 61, 16),
+  at('cafe-table', 26, 18), at('chair-left', 27, 18), at('menu-board', 31, 18), at('cafe-table', 32, 18),
   ...row('produce', 18, [3, 4, 8, 18, 20]),
   ...row('lamp', 16, [11, 21, 47]),
   ...row('lamp', 18, [34, 67]),
@@ -209,7 +211,7 @@ const PROPS: readonly PropPlacement[] = [
 
   // Calle del Carmen. Norte: escaparates y terraza en la fila 44, paso en la 45, bordillo en la 46.
   at('bench', 84, 44), at('bench', 104, 44),
-  at('parasol', 94, 44), at('cafe-table', 96, 44),
+  at('parasol', 94, 44), at('chair-right', 95, 44), at('cafe-table', 96, 44), at('chair-left', 97, 44),
   at('bike-rack', 77, 46), at('poster-column', 80, 46), at('street-lamp', 82, 46), at('plane-tree', 86, 46),
   at('bike', 92, 46), at('bike', 93, 46), at('street-lamp', 97, 46), at('plane-tree', 103, 46), at('street-lamp', 107, 46),
   // Sur: bordillo en la 48, paso en la 49, escaparates en la 50.
@@ -236,27 +238,33 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   TINTA_WINDOW: p(77, 44, 'interact', 'up'), RETALES_WINDOW: p(89, 44, 'interact', 'up'), RECORDS_WINDOW: p(101, 44, 'interact', 'up'),
   ARCHIVO_WINDOW: p(83, 50, 'interact', 'down'), VUELTA_WINDOW: p(93, 50, 'interact', 'down'),
   CARMEN_WAIT_01: p(81, 44, 'wait', 'down'), CARMEN_WAIT_02: p(86, 44, 'wait', 'down'), CARMEN_WAIT_03: p(78, 50, 'wait', 'up'), CARMEN_WAIT_04: p(82, 50, 'wait', 'up'),
-  CARMEN_BENCH_01: p(84, 45, 'seat', 'up'), CARMEN_BENCH_02: p(104, 45, 'seat', 'up'),
+  CARMEN_BENCH_01: p(84, 44, 'seat', 'down'), CARMEN_BENCH_02: p(104, 44, 'seat', 'down'),
   CARMEN_TALK_01: p(99, 49, 'meet', 'left'), CARMEN_TALK_02: p(100, 49, 'meet', 'right'),
   MOLINILLO_TERRACE_01: p(95, 44, 'seat', 'right'), MOLINILLO_TERRACE_02: p(97, 44, 'seat', 'left'),
   MOLINILLO_TERRACE_WAITER: p(92, 44, 'work', 'down'),
 
   // Sitios para estar
   PLAZA_FOUNTAIN: p(40, 13, 'meet'),
-  PLAZA_BENCH_01: p(35, 9, 'seat', 'up'), PLAZA_BENCH_02: p(44, 9, 'seat', 'up'),
-  PLAZA_BENCH_03: p(35, 12, 'seat', 'down'), PLAZA_BENCH_04: p(44, 12, 'seat', 'down'),
+  // Cada banco de dos tiles, dos plazas (data/seating.ts): se sube desde el tile de delante (plaza-bN).
+  PLAZA_BENCH_01: p(35, 8, 'seat', 'down'), PLAZA_BENCH_05: p(36, 8, 'seat', 'down'),
+  PLAZA_BENCH_02: p(44, 8, 'seat', 'down'), PLAZA_BENCH_06: p(43, 8, 'seat', 'down'),
+  PLAZA_BENCH_03: p(35, 13, 'seat', 'up'), PLAZA_BENCH_07: p(36, 13, 'seat', 'up'),
+  PLAZA_BENCH_04: p(44, 13, 'seat', 'up'), PLAZA_BENCH_08: p(45, 13, 'seat', 'up'),
   NEWS_KIOSK: p(46, 12, 'interact', 'up'),
-  CAFE_TERRACE_01: p(54, 17, 'seat', 'up'), CAFE_TERRACE_02: p(60, 17, 'seat', 'up'),
+  CAFE_TERRACE_01: p(54, 16, 'seat', 'left'), CAFE_TERRACE_02: p(61, 16, 'seat', 'left'),
   // La mesa de fuera de Casa Tomás, junto a la pizarra del menú.
   RESTAURANT_TERRACE_01: p(27, 18, 'seat', 'left'),
   // Donde espera el camarero de cada terraza: al lado de la puerta, no en ella.
   CAFE_TERRACE_WAITER: p(57, 16, 'work', 'down'), RESTAURANT_TERRACE_WAITER: p(28, 18, 'work', 'left'),
   BUS_STOP: p(39, 30, 'wait', 'up'),
   METRO_PLAZUELA_BENCH: p(33, 42, 'wait', 'down'),
-  PARK_BENCH_01: p(44, 52, 'seat', 'up'), PARK_BENCH_02: p(52, 52, 'seat', 'up'),
+  // Los dos bancos corridos de la plazuela, dos plazas cada uno.
+  PLAZUELA_BENCH_01: p(25, 40, 'seat', 'down'), PLAZUELA_BENCH_02: p(26, 40, 'seat', 'down'),
+  PLAZUELA_BENCH_03: p(34, 43, 'seat', 'down'), PLAZUELA_BENCH_04: p(35, 43, 'seat', 'down'),
+  PARK_BENCH_01: p(44, 51, 'seat', 'down'), PARK_BENCH_02: p(52, 51, 'seat', 'down'),
   PARK_COURT: p(63, 52, 'meet'),
-  // El otro sitio de cada banco, dos corros junto a las farolas y alguien esperando bajo el árbol de la entrada.
-  PARK_BENCH_03: p(45, 52, 'seat', 'up'), PARK_BENCH_04: p(53, 52, 'seat', 'up'),
+  // La otra plaza de cada banco, dos corros junto a las farolas y alguien esperando bajo el árbol de la entrada.
+  PARK_BENCH_03: p(45, 51, 'seat', 'down'), PARK_BENCH_04: p(53, 51, 'seat', 'down'),
   PARK_TALK_01: p(49, 53, 'meet', 'right'), PARK_TALK_02: p(57, 53, 'meet', 'left'),
   PARK_WAIT_01: p(38, 51, 'wait', 'down'),
   // Escaparates de la Calle Mayor: quien pasea se para a mirar (norte, mirando arriba; sur, abajo).
@@ -289,6 +297,10 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   'olmo-23': p(23, 46, 'path'), 'olmo-30': p(30, 46, 'path'), 'olmo-40': p(40, 46, 'path'), 'olmo-56': p(56, 46, 'path'),
   'olmo-s40': p(40, 49, 'path'), 'olmo-s70': p(70, 49, 'path'),
   'park-w': p(40, 52, 'path'), 'park-e': p(72, 52, 'path'),
+  // Delante de cada banco: desde aquí se sube a sus plazas; el paseo pasa por aquí, no por encima del banco.
+  'plaza-b1': p(35, 9, 'path'), 'plaza-b2': p(44, 9, 'path'), 'plaza-b3': p(35, 12, 'path'), 'plaza-b4': p(44, 12, 'path'),
+  'park-b1': p(44, 52, 'path'), 'park-b2': p(52, 52, 'path'), 'carmen-b1': p(84, 45, 'path'), 'carmen-b2': p(104, 45, 'path'),
+  'plazuela-a': p(25, 41, 'path'), 'plazuela-b': p(35, 42, 'path'), 'mayor-54': p(54, 17, 'path'), 'mayor-61': p(61, 17, 'path'),
   // Tramo este: Mayor, avenida sur, Pasaje del Carmen y las dos aceras del Carmen.
   'mayor-80': p(80, 17, 'path'), 'mayor-91': p(91, 17, 'path'), 'mayor-103': p(103, 17, 'path'),
   'avs-75': p(75, 36, 'path'), 'olmo-74': p(74, 46, 'path'),
@@ -303,7 +315,7 @@ const chain = (...ids: string[]): Link[] => ids.slice(1).map((id, i) => [ids[i],
 const LINKS: readonly Link[] = [
   // Calle Mayor, de oeste a este, y cada puerta a su nodo
   ...chain('EDGE_MAYOR_W', 'mayor-06', 'mayor-14', 'mayor-19', 'mayor-23', 'mayor-25', 'mayor-29', 'mayor-40',
-    'mayor-50', 'mayor-53', 'CAFE_TERRACE_01', 'mayor-56', 'CAFE_TERRACE_02', 'mayor-64', 'mayor-71', 'mayor-80', 'mayor-91', 'mayor-103', 'EDGE_MAYOR_E'),
+    'mayor-50', 'mayor-53', 'mayor-54', 'mayor-56', 'mayor-61', 'mayor-64', 'mayor-71', 'mayor-80', 'mayor-91', 'mayor-103', 'EDGE_MAYOR_E'),
   ['RES_MAYOR_15_ENTRANCE', 'mayor-80'], ['RES_MAYOR_20_ENTRANCE', 'mayor-80'], ['RES_MAYOR_17_ENTRANCE', 'mayor-91'],
   ['RES_MAYOR_19_ENTRANCE', 'mayor-103'], ['RES_MAYOR_22_ENTRANCE', 'mayor-103'],
   ['CLOTHING_STORE_ENTRANCE', 'mayor-06'], ['SUPERMARKET_ENTRANCE', 'mayor-06'],
@@ -320,8 +332,10 @@ const LINKS: readonly Link[] = [
   ...chain('mayor-40', 'plaza-s', 'PLAZA_FOUNTAIN'),
   ['PLAZA_FOUNTAIN', 'plaza-w'], ['PLAZA_FOUNTAIN', 'plaza-e'], ...chain('mayor-29', 'plaza-sw', 'plaza-w'),
   ...chain('plaza-w', 'plaza-nw', 'GYM_ENTRANCE', 'plaza-ne', 'plaza-e'),
-  ['PLAZA_BENCH_01', 'plaza-w'], ['PLAZA_BENCH_03', 'plaza-w'],
-  ['PLAZA_BENCH_02', 'plaza-e'], ['PLAZA_BENCH_04', 'PLAZA_FOUNTAIN'], ['NEWS_KIOSK', 'PLAZA_FOUNTAIN'],
+  ['plaza-b1', 'plaza-w'], ['plaza-b3', 'plaza-w'], ['plaza-b2', 'plaza-e'], ['plaza-b4', 'PLAZA_FOUNTAIN'],
+  ['PLAZA_BENCH_01', 'plaza-b1'], ['PLAZA_BENCH_05', 'plaza-b1'], ['PLAZA_BENCH_02', 'plaza-b2'], ['PLAZA_BENCH_06', 'plaza-b2'],
+  ['PLAZA_BENCH_03', 'plaza-b3'], ['PLAZA_BENCH_07', 'plaza-b3'], ['PLAZA_BENCH_04', 'plaza-b4'], ['PLAZA_BENCH_08', 'plaza-b4'],
+  ['NEWS_KIOSK', 'PLAZA_FOUNTAIN'],
 
   // De la Mayor a la avenida
   ...chain('mayor-23', 'tintoreros-n', 'av-23'),
@@ -346,7 +360,7 @@ const LINKS: readonly Link[] = [
     'RES_OLMO_11_ENTRANCE', 'olmo-56', 'olmo-74', 'carmen-75'),
   ['olmo-40', 'olmo-s40'],
   ...chain('EDGE_OLMO_SW', 'CIVIC_ENTRANCE', 'RES_OLMO_6_ENTRANCE', 'olmo-s40'),
-  ...chain('olmo-s40', 'park-w', 'PARK_BENCH_01', 'PARK_BENCH_02', 'PARK_COURT', 'park-e', 'olmo-s70', 'carmen-s80'),
+  ...chain('olmo-s40', 'park-w', 'park-b1', 'park-b2', 'PARK_COURT', 'park-e', 'olmo-s70', 'carmen-s80'),
 
   // Calle del Carmen: el pasaje baja de la avenida; cada acera de oeste a este y el paso de peatones en medio.
   ['avs-75', 'carmen-75'],
@@ -359,11 +373,14 @@ const LINKS: readonly Link[] = [
   ['TINTA_WINDOW', 'carmen-75'], ['RETALES_WINDOW', 'carmen-89'], ['RECORDS_WINDOW', 'carmen-99'],
   ['ARCHIVO_WINDOW', 'carmen-s80'], ['VUELTA_WINDOW', 'carmen-s90'],
   ['CARMEN_WAIT_01', 'carmen-79'], ['CARMEN_WAIT_02', 'carmen-87'], ['CARMEN_WAIT_03', 'carmen-s80'], ['CARMEN_WAIT_04', 'carmen-s80'],
-  ['CARMEN_BENCH_01', 'carmen-87'], ['CARMEN_BENCH_02', 'carmen-106'],
+  ['carmen-b1', 'carmen-87'], ['carmen-b2', 'carmen-106'], ['CARMEN_BENCH_01', 'carmen-b1'], ['CARMEN_BENCH_02', 'carmen-b2'],
   ['CARMEN_TALK_01', 'carmen-s98'], ['CARMEN_TALK_02', 'carmen-s98'],
   ['MOLINILLO_TERRACE_01', 'carmen-96'], ['MOLINILLO_TERRACE_02', 'carmen-96'], ['MOLINILLO_TERRACE_WAITER', 'carmen-93'],
-  ['PARK_BENCH_03', 'PARK_BENCH_01'], ['PARK_BENCH_04', 'PARK_BENCH_02'],
-  ['PARK_TALK_01', 'PARK_BENCH_02'], ['PARK_TALK_02', 'PARK_BENCH_02'], ['PARK_WAIT_01', 'park-w'],
+  ['PARK_BENCH_01', 'park-b1'], ['PARK_BENCH_03', 'park-b1'], ['PARK_BENCH_02', 'park-b2'], ['PARK_BENCH_04', 'park-b2'],
+  ['CAFE_TERRACE_01', 'mayor-54'], ['CAFE_TERRACE_02', 'mayor-61'],
+  ['plazuela-a', 'plazuela-3'], ['PLAZUELA_BENCH_01', 'plazuela-a'], ['PLAZUELA_BENCH_02', 'plazuela-a'], ['PLAZUELA_BENCH_03', 'METRO_PLAZUELA_BENCH'],
+  ['plazuela-b', 'METRO_PLAZUELA_BENCH'], ['PLAZUELA_BENCH_04', 'plazuela-b'],
+  ['PARK_TALK_01', 'park-b2'], ['PARK_TALK_02', 'park-b2'], ['PARK_WAIT_01', 'park-w'],
   ['FASHION_WINDOW_01', 'mayor-06'], ['FASHION_WINDOW_02', 'mayor-06'], ['SUPER_WINDOW', 'mayor-06'],
   ['HAIR_WINDOW', 'mayor-14'], ['PHARMACY_WINDOW', 'mayor-19'], ['FRUIT_WINDOW', 'mayor-23'],
   ['LAUNDRY_WINDOW', 'mayor-56'], ['BANK_WINDOW', 'mayor-64'],

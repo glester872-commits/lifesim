@@ -1,4 +1,5 @@
-import type { LocationDef, MetroDef } from '../types/game.ts';
+import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
+import { seatsFurniture } from './seating.ts';
 import { VALLESCO } from './vallesco.ts';
 import { ARCHIVO, BARBERSHOP, CLUB, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
@@ -51,6 +52,7 @@ const HOME: LocationDef = {
     { kind: 'plant', tx: 20, ty: 12 },
     { kind: 'wardrobe', tx: 16, ty: 3 },
     { kind: 'sofa', tx: 6, ty: 11 },
+    { kind: 'chair-up', tx: 3, ty: 7 },
     // Lo que hace de un piso un sitio donde se vive: luz por las ventanas, la cafetera, la nevera.
     { kind: 'window', tx: 9, ty: 1 },
     { kind: 'window', tx: 13, ty: 1 },
@@ -90,9 +92,24 @@ const HOME: LocationDef = {
     HOME_STORAGE: { tx: 12, ty: 4, kind: 'interact', facing: 'up' },
     HOME_KITCHEN: { tx: 2, ty: 4, kind: 'interact', facing: 'up' },
     HOME_TABLE: { tx: 3, ty: 7, kind: 'seat', facing: 'up' },
-    HOME_SOFA: { tx: 6, ty: 12, kind: 'seat', facing: 'up' },
+    // El sofá, dos plazas; la mesa, su silla.
+    HOME_SOFA: { tx: 6, ty: 11, kind: 'seat', facing: 'down' },
+    HOME_SOFA_02: { tx: 7, ty: 11, kind: 'seat', facing: 'down' },
     HOME_GUEST: { tx: 11, ty: 9, kind: 'meet' },
   },
+};
+
+/** Los asientos de la cafetería: cada uno con su silla (data/seating.ts). */
+const CAFE_SEATS: Readonly<Record<string, PointDef>> = {
+  CAFE_TABLE_01: { tx: 13, ty: 5, kind: 'seat', facing: 'up' },
+  CAFE_TABLE_02: { tx: 12, ty: 9, kind: 'seat', facing: 'up' },
+  CAFE_TABLE_03: { tx: 3, ty: 10, kind: 'seat', facing: 'up' },
+  CAFE_TABLE_04: { tx: 15, ty: 9, kind: 'seat', facing: 'up' },
+  CAFE_TABLE_05: { tx: 14, ty: 4, kind: 'seat', facing: 'left' },
+  CAFE_TABLE_06: { tx: 13, ty: 8, kind: 'seat', facing: 'left' },
+  CAFE_TABLE_07: { tx: 4, ty: 9, kind: 'seat', facing: 'left' },
+  CAFE_TABLE_08: { tx: 16, ty: 8, kind: 'seat', facing: 'left' },
+  CAFE_WINDOW_SEAT: { tx: 10, ty: 3, kind: 'seat', facing: 'up' },
 };
 
 const CAFE: LocationDef = {
@@ -144,6 +161,8 @@ const CAFE: LocationDef = {
     { kind: 'wall-shelf', tx: 1, ty: 1 },
     { kind: 'pendant', tx: 6, ty: 6 },
     { kind: 'cafe-table', tx: 10, ty: 2 },
+    // Una silla debajo de cada asiento de mesa (data/seating.ts), mirando a su mesa.
+    ...seatsFurniture(CAFE_SEATS),
   ],
   ambient: '#ffe2c0',
   portals: [
@@ -160,15 +179,7 @@ const CAFE: LocationDef = {
     CAFE_EXIT: { tx: 8, ty: 10, kind: 'exit', facing: 'up' },
     CAFE_COUNTER: { tx: 5, ty: 7, kind: 'interact', facing: 'up' },
     CAFE_BARISTA: { tx: 5, ty: 5, kind: 'work', facing: 'down' },
-    CAFE_TABLE_01: { tx: 13, ty: 5, kind: 'seat', facing: 'up' },
-    CAFE_TABLE_02: { tx: 12, ty: 9, kind: 'seat', facing: 'up' },
-    CAFE_TABLE_03: { tx: 3, ty: 10, kind: 'seat', facing: 'up' },
-    CAFE_TABLE_04: { tx: 15, ty: 9, kind: 'seat', facing: 'up' },
-    CAFE_TABLE_05: { tx: 14, ty: 4, kind: 'seat', facing: 'left' },
-    CAFE_TABLE_06: { tx: 13, ty: 8, kind: 'seat', facing: 'left' },
-    CAFE_TABLE_07: { tx: 4, ty: 9, kind: 'seat', facing: 'left' },
-    CAFE_TABLE_08: { tx: 16, ty: 8, kind: 'seat', facing: 'left' },
-    CAFE_WINDOW_SEAT: { tx: 10, ty: 3, kind: 'seat', facing: 'up' },
+    ...CAFE_SEATS,
     CAFE_QUEUE_01: { tx: 5, ty: 8, kind: 'wait', facing: 'up' },
     CAFE_QUEUE_02: { tx: 5, ty: 9, kind: 'wait', facing: 'up' },
     CAFE_WAITER_01: { tx: 10, ty: 6, kind: 'work' },

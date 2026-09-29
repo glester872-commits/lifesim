@@ -300,7 +300,7 @@ export class PassengerAI {
   }
 
   private sit(): void {
-    this.walker.face('down');
+    this.walker.sit('down');
     this.beginWaiting();
   }
 

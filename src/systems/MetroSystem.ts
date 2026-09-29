@@ -91,6 +91,8 @@ export class MetroSystem {
   private readonly log: string[] = [];
   private contextTimer = CONTEXT_REFRESH_MS;
   private debugTimer = 0;
+  /** Plazas del andén ocupadas o reservadas: las comparten pasajeros y jugador (systems/Seating). */
+  private seatTaken: boolean[] = [];
 
   constructor(
     scene: Phaser.Scene,
@@ -138,7 +140,8 @@ export class MetroSystem {
       walkY,
       edgeY,
       spots: def.waitingSpots.map((p) => ({ at: at(p), front: p.ty === def.walkRow })),
-      seats: def.seats.map((p) => ({ x: p.tx * TILE + TILE / 2, y: p.ty * TILE + 11 })),
+      // Los pies a ras del suelo del banco, como cualquiera sentado (data/seating.ts): la cadera cae en el asiento.
+      seats: def.seats.map((p) => ({ x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE })),
       signs: def.signSpots.map((s) => ({ at: at(s), facing: s.facing, platform: s.ty < gateRow })),
       doorXs: this.doorSpots.map((d) => d.x),
     };
@@ -224,10 +227,24 @@ export class MetroSystem {
     });
   }
 
+  /** Si alguien (un pasajero o el jugador) tiene esa plaza del andén. */
+  isSeatTaken(index: number): boolean {
+    return this.seatTaken[index] ?? true;
+  }
+
+  /** El jugador se sienta en el andén: la misma reserva que la de los pasajeros, que ya no la cogen. */
+  takeSeat(index: number): void {
+    this.seatTaken[index] = true;
+  }
+
+  freeSeat(index: number): void {
+    this.seatTaken[index] = false;
+  }
+
   /** Vista compartida de la estación para todos los pasajeros. Se crea una vez. */
   private world(): PassengerWorld {
     const spotTaken = this.layout.spots.map(() => false);
-    const seatTaken = this.layout.seats.map(() => false);
+    const seatTaken = (this.seatTaken = this.layout.seats.map(() => false));
     const free = (taken: boolean[], ok: (i: number) => boolean = () => true): number[] =>
       taken.flatMap((t, i) => (!t && ok(i) ? [i] : []));
     const system = this;

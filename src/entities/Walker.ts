@@ -21,6 +21,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   private dir: Facing;
   /** Hablando con el jugador: hacia dónde miraría si no. Su IA sigue mandando; se aplica al despedirse. */
   private resumeDir: Facing | null = null;
+  /** Sentado en un banco del andén (data/seating.ts): la pose 4 hasta que vuelva a andar. */
+  private seated = false;
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
     super(scene, 0, 0, PEOPLE, personFrame(look.id, facing));
@@ -87,6 +89,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   }
 
   walk(path: Vec2[], speed: number): void {
+    this.seated = false;
     this.path = path.slice();
     this.speed = speed;
   }
@@ -96,7 +99,19 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.path = [];
     (this.body as Phaser.Physics.Arcade.Body).stop();
     this.anims.stop();
-    this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir));
+    this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir, this.pose));
+  }
+
+  /** Se sienta donde está (encima del banco), mirando hacia donde mira el asiento. Se levanta al volver a andar. */
+  sit(facing: Facing): void {
+    this.seated = true;
+    this.anims.stop();
+    this.face(facing);
+  }
+
+  /** De pie o sentado. */
+  private get pose(): 0 | 4 {
+    return this.seated ? 4 : 0;
   }
 
   /** Se para y mira a quien le habla, respirando. La ruta no se pierde: sigue al despedirse. */
@@ -104,7 +119,9 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.resumeDir ??= this.dir;
     (this.body as Phaser.Physics.Arcade.Body).stop();
     this.dir = facing;
-    this.anims.play(`npc-${this.currentLook.id}-idle-${facing}`, true);
+    // Sentado, se gira sin levantarse.
+    if (this.seated) this.setTexture(PEOPLE, personFrame(this.currentLook.id, facing, 4));
+    else this.anims.play(`npc-${this.currentLook.id}-idle-${facing}`, true);
     this.sync();
   }
 
@@ -122,7 +139,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     this.dir = facing;
-    if (!this.moving) this.setTexture(PEOPLE, personFrame(this.currentLook.id, facing));
+    if (!this.moving) this.setTexture(PEOPLE, personFrame(this.currentLook.id, facing, this.pose));
     this.sync();
   }
 

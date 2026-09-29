@@ -70,8 +70,12 @@ export interface PropDef {
   shadow?: readonly [number, number];
   /** Cuelga del techo: no pisa el suelo (ni colisiona ni hace sombra) y pasa por encima de la gente. */
   overhead?: true;
-  /** Asiento en el que alguien se sienta encima (sillón de barbero): no colisiona y se pinta detrás de quien lo ocupa. */
-  seat?: true;
+  /**
+   * Máquina o asiento al que se sube quien lo usa (cinta, banco, silla): sólido para
+   * el jugador y para quien pasa, pero el camino de quien va a usarla puede
+   * acabar encima (systems/Navigation). Se pinta detrás de quien la ocupa.
+   */
+  mount?: true;
   /** Plano en el suelo (alcantarilla, hojas): se hornea con él, no colisiona ni tapa a nadie. */
   flat?: true;
   /** Sombra proyectada hacia el sureste, en px de largo: lo alto (farolas, troncos). ART_BIBLE §5. */
@@ -80,13 +84,28 @@ export interface PropDef {
   castBlob?: readonly [number, number];
   /** Textura con sólo lo que brilla (rótulo, pantalla): encima de la noche, invisible de día. */
   emissive?: string;
+  /**
+   * Lo que queda por delante de quien se sienta (el respaldo de una silla vista
+   * desde detrás): se pinta encima de la persona, dentro del tile del mueble.
+   */
+  front?: string;
 }
 
 export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // El plátano de sombra: la copa desborda su tile y tapa a quien pasa por detrás.
   tree: { key: 'prop-tree', tilesHigh: 4, variants: 4, shadow: [14, 5], cast: 12, castBlob: [40, 14] },
   bush: { key: 'prop-bush', tilesHigh: 1 },
-  bench: { key: 'prop-bench', tilesHigh: 1 },
+  // Para sentarse (data/seating.ts): sólidos, y quien se sienta se sube encima.
+  bench: { key: 'prop-bench', tilesHigh: 1, mount: true },
+  'bench-up': { key: 'prop-bench-up', tilesHigh: 1, mount: true, front: 'prop-bench-up-front' },
+  'chair-up': { key: 'prop-chair-up', tilesHigh: 1, mount: true, front: 'prop-chair-up-front' },
+  'chair-down': { key: 'prop-chair-down', tilesHigh: 2, mount: true },
+  'chair-left': { key: 'prop-chair-left', tilesHigh: 2, mount: true },
+  'chair-right': { key: 'prop-chair-right', tilesHigh: 2, mount: true },
+  stool: { key: 'prop-stool', tilesHigh: 1, mount: true },
+  // Restaurante: mesa con mantel (lo que se pide lo pone world/ServiceView encima) y fogones de dos tiles.
+  'dining-table': { key: 'prop-dining-table', tilesHigh: 1 },
+  stove: { key: 'prop-stove', tilesHigh: 2, tilesWide: 2 },
   lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 18 }, shadow: [8, 3] },
   sign: { key: 'prop-sign', tilesHigh: 2 },
   planter: { key: 'prop-planter', tilesHigh: 1 },
@@ -118,12 +137,27 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'menu-board': { key: 'prop-menu-board', tilesHigh: 1 },
   hoop: { key: 'prop-hoop', tilesHigh: 2 },
   wardrobe: { key: 'prop-wardrobe', tilesHigh: 2 },
-  sofa: { key: 'prop-sofa', tilesHigh: 1, tilesWide: 2 },
-  treadmill: { key: 'prop-treadmill', tilesHigh: 2 },
-  weights: { key: 'prop-weights', tilesHigh: 2 },
+  sofa: { key: 'prop-sofa', tilesHigh: 1, tilesWide: 2, mount: true },
+  treadmill: { key: 'prop-treadmill', tilesHigh: 2, mount: true },
+  // Estante de mancuernas contra el espejo: tres tiles de ancho, bajo.
+  weights: { key: 'prop-weights', tilesHigh: 2, tilesWide: 3 },
   'weight-bench': { key: 'prop-weight-bench', tilesHigh: 1 },
+  'exercise-bike': { key: 'prop-exercise-bike', tilesHigh: 2, mount: true },
+  // De perfil: el asiento en el tile de la izquierda y el volante en el de la derecha.
+  rower: { key: 'prop-rower', tilesHigh: 1, tilesWide: 2, mount: true },
+  'bench-press': { key: 'prop-bench-press', tilesHigh: 2, mount: true },
+  'squat-rack': { key: 'prop-squat-rack', tilesHigh: 3, mount: true },
+  'cable-machine': { key: 'prop-cable-machine', tilesHigh: 3 },
+  'plate-tree': { key: 'prop-plate-tree', tilesHigh: 2, shadow: [10, 3] },
+  kettlebells: { key: 'prop-kettlebells', tilesHigh: 1, tilesWide: 2 },
+  // Por el suelo: se hornean con él y se pisan.
+  'yoga-mat': { key: 'prop-yoga-mat', tilesHigh: 1, flat: true, variants: 3 },
+  'gym-towel': { key: 'prop-gym-towel', tilesHigh: 1, flat: true, variants: 3 },
+  'gym-bags': { key: 'prop-gym-bags', tilesHigh: 1, tilesWide: 2 },
+  // En la pared.
+  'gym-sign': { key: 'prop-gym-sign', tilesHigh: 1, tilesWide: 3, light: { dy: 8, cool: true } },
   lockers: { key: 'prop-lockers', tilesHigh: 2, tilesWide: 2 },
-  mirror: { key: 'prop-mirror', tilesHigh: 1, tilesWide: 2 },
+  mirror: { key: 'prop-mirror', tilesHigh: 1, tilesWide: 2, variants: 3 },
   'clothes-rack': { key: 'prop-clothes-rack', tilesHigh: 2, tilesWide: 2 },
   mannequin: { key: 'prop-mannequin', tilesHigh: 2 },
   'fitting-room': { key: 'prop-fitting-room', tilesHigh: 2 },
@@ -137,7 +171,7 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Árbol de plaza en su parterre elevado; y un parterre de flores suelto, bajo, de dos tiles.
   'bed-tree': { key: 'prop-bed-tree', tilesHigh: 5, variants: 3, shadow: [30, 5], cast: 16, castBlob: [48, 16] },
   'flower-bed': { key: 'prop-flower-bed', tilesHigh: 1, tilesWide: 2, shadow: [30, 4] },
-  'plaza-bench': { key: 'prop-plaza-bench', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
+  'plaza-bench': { key: 'prop-plaza-bench', tilesHigh: 2, tilesWide: 2, shadow: [30, 5], mount: true },
   'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22 },
   'bike-rack': { key: 'prop-bike-rack', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'planter-box': { key: 'prop-planter-box', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
@@ -160,9 +194,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Botellero de vinoteca: rombos de madera con botellas acostadas, del suelo al techo.
   'wine-rack': { key: 'prop-wine-rack', tilesHigh: 2 },
   // Sillón de barbero: alguien se sienta encima.
-  'barber-chair': { key: 'prop-barber-chair', tilesHigh: 2, seat: true },
+  'barber-chair': { key: 'prop-barber-chair', tilesHigh: 2, mount: true },
   // Estudio de tatuaje y tiendas de la Calle del Carmen.
-  'tattoo-chair': { key: 'prop-tattoo-chair', tilesHigh: 2, seat: true },
+  'tattoo-chair': { key: 'prop-tattoo-chair', tilesHigh: 2, mount: true },
   'tattoo-cart': { key: 'prop-tattoo-cart', tilesHigh: 2, light: { dy: 24 }, shadow: [10, 3] },
   'flash-wall': { key: 'prop-flash-wall', tilesHigh: 1, tilesWide: 2 },
   'sneaker-wall': { key: 'prop-sneaker-wall', tilesHigh: 1, tilesWide: 2, light: { dy: 8, cool: true } },

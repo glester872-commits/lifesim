@@ -30,6 +30,7 @@ import { MetroSystem } from '../systems/MetroSystem';
 import { METRO_CONFIG } from '../config/metro';
 import { buildLocation } from '../world/LocationBuilder';
 import { Player } from '../entities/Player';
+import { seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
 import { getNpc } from '../data/npcs';
@@ -42,6 +43,9 @@ import { hoursLabel, isOpen, placeForInterior } from '../systems/Places';
 import { stopAtStation } from '../systems/Transit';
 import { Menus } from './Menus';
 import { CrowdView } from '../world/CrowdView';
+import { ServiceView } from '../world/ServiceView';
+import type { PlayerCall } from '../systems/TableService';
+import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
@@ -74,11 +78,15 @@ type Interactable =
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
-  | { kind: 'event'; x: number; y: number; view: StreetEventView };
+  | { kind: 'event'; x: number; y: number; view: StreetEventView }
+  | { kind: 'seat'; x: number; y: number; seat: Seat };
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
 }
+
+/** Lo que queda a la espalda de quien mira hacia un lado: sentado, no se gira hacia el respaldo. */
+const BEHIND: Readonly<Record<Facing, Facing>> = { up: 'down', down: 'up', left: 'right', right: 'left' };
 
 /** Hacia dónde mira quien está en `from` para ver a quien está en `to`. */
 function facingTo(from: Vec2, to: Vec2): Facing {
@@ -147,10 +155,18 @@ export class WorldScene extends Phaser.Scene {
   private ringBodies: Phaser.GameObjects.Zone[] = [];
   /** Mirando un evento: la cámara encuadra el corro hasta que el jugador se mueve. */
   private watching = false;
+  /** Sentado: en qué asiento (data/seating.ts) y desde dónde se sentó, que es a donde vuelve al levantarse. */
+  private seatedOn: { seat: Seat; from: Vec2 } | null = null;
+  /** Asientos que un personaje con nombre ocupa o a los que va ahora mismo: el jugador no se sienta ahí. */
+  private charactersOn: ReadonlySet<string> = new Set();
   private lighting: Lighting | null = null;
   /** Lo alto que tapa al jugador se aclara mientras le tapa. */
   private occlusion: Occlusion | null = null;
   private crowdViews: CrowdView[] = [];
+  /** Lo que hay en las mesas, el pase y la cocina de un local con servicio de mesa. */
+  private serviceView: ServiceView | null = null;
+  /** Sentado a una mesa con servicio y ya apuntado en ella: el camarero sabe que está. */
+  private dining = false;
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
   /** Compras, bolsa, destino del tren y sitios sin mapa. */
@@ -174,6 +190,7 @@ export class WorldScene extends Phaser.Scene {
     // Un mapa abierto es del sitio de antes: al llegar a otro, cerrado (se vuelve a abrir con M).
     this.services.map.close();
     this.interactables = [];
+    this.seatedOn = null;
     this.characters = CHARACTERS.map((c, i) => {
       const entry = { def: c, sprite: new Character(this, getNpc(c.npc), i), now: null as Whereabouts | null, heldAt: null as number | null, lag: 0 };
       // Lo que dice depende de dónde está o a dónde va.
@@ -255,6 +272,10 @@ export class WorldScene extends Phaser.Scene {
     for (const s of def.spots ?? []) {
       this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe });
     }
+    // Donde sentarse: los mismos asientos que usa la gente (bancos, sillas, sofás, el andén).
+    for (const seat of seatsIn(def)) {
+      this.interactables.push({ kind: 'seat', x: seat.tx * TILE + TILE / 2, y: seat.ty * TILE + TILE / 2, seat });
+    }
     this.menus = new Menus(this.services, {
       persist: () => this.persist(),
       arriveByTrain: (locationId) => this.arriveByTrain(locationId),
@@ -272,6 +293,11 @@ export class WorldScene extends Phaser.Scene {
     // Los personajes, primero: nadie de la gente anónima aparece sentado en su sitio.
     this.placeCharacters();
     this.crowd?.populate(this.clockNow(), this.playerTile());
+    // Servicio de mesa (systems/TableService): lo que hay en las mesas y lo que el camarero le dice al jugador.
+    this.dining = false;
+    const service = this.crowd?.service ?? null;
+    this.serviceView = service && profile?.tableService ? new ServiceView(this, service, def, profile.tableService) : null;
+    if (service) service.onPlayer = (call) => this.tableCall(call);
     this.street?.populate(this.clockNow(), this.playerTile());
     const weather = (): ReturnType<typeof weatherAt> => weatherAt(this.services.state.day, this.services.state.hour + this.services.state.minute / 60);
     this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street));
@@ -383,7 +409,9 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
-    // Un menú abierto para el mundo como un diálogo: se elige con W/S y E, o con 1–9.
+    // Un menú abierto para el mundo: se elige con W/S y E, o con 1–9. Uno «en vivo» (pedir en la
+    // mesa, pagar la cuenta) deja al local seguir: el jugador se queda quieto y el resto, no.
+    const liveMenu = menu.isOpen && !dialogue.isOpen && menu.isLive;
     if (menu.isOpen && !dialogue.isOpen) {
       this.player.halt();
       this.prompt.setVisible(false);
@@ -396,7 +424,7 @@ export class WorldScene extends Phaser.Scene {
         const digit = DIGITS.findIndex((name) => this.pressedAny([name]));
         if (digit >= 0) menu.confirm(digit);
       }
-      return;
+      if (!liveMenu) return;
     }
 
     // Con un diálogo abierto el jugador escucha, quieto; el resto del mundo sigue a lo suyo.
@@ -416,6 +444,7 @@ export class WorldScene extends Phaser.Scene {
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
     this.street?.update(delta, this.clockNow(), this.playerTile());
     for (const view of this.crowdViews) view.sync(time);
+    this.serviceView?.sync(time);
     const { hour, minute } = this.services.state;
     this.wildlife?.update(delta, time, hour + minute / 60, this.playerTile(), (this.player.body as Phaser.Physics.Arcade.Body).speed > 1);
     this.gatherPedestrians();
@@ -437,7 +466,15 @@ export class WorldScene extends Phaser.Scene {
     if (this.watching && (this.player.body as Phaser.Physics.Arcade.Body).speed > 1) this.stopWatching();
     this.lighting?.tick(time);
     this.occlusion?.update(this.player, delta);
-    if (talking) return;
+    if (talking || liveMenu) {
+      // Sentado, sigue respirando (y comiendo) mientras habla o elige.
+      if (this.player.isSeated) this.player.seatedFrame(time, null, this.crowd?.service?.playerEating ?? false);
+      return;
+    }
+    if (this.player.isSeating) {
+      this.updateSeated(time);
+      return;
+    }
 
     this.player.move({
       up: this.held('up') || this.held('upAlt'),
@@ -536,15 +573,23 @@ export class WorldScene extends Phaser.Scene {
     const now = this.absMinute();
     const here = this.services.state.locationId;
     const claimed = new Set<string>();
+    const heading = new Set<string>();
     for (const c of this.characters) {
       if (c.heldAt === null && c.lag > 0) c.lag = catchUp(c.def, now, c.lag, (GAME_MINUTES_PER_REAL_SECOND * deltaMs) / 1000, here);
       const w = whereabouts(c.def, c.heldAt ?? now - c.lag);
       c.now = w;
       const visible = w.location === here && !w.inside;
       if (visible && !w.moving) claimed.add(w.stop.point);
-      // Parado en un semáforo: de pie, sin la actividad del sitio al que va.
-      c.sprite.place(visible ? { ...w, moving: w.moving && !w.waiting, activity: w.waiting ? 'idle' : activityAt(w.stop.point, undefined, 0) } : null, this.time.now);
+      if (visible && seatAt(w.stop.point)) heading.add(w.stop.point);
+      // Parado en un semáforo: de pie, sin la actividad del sitio al que va. Cada uno, su semilla y la altura de su asiento.
+      const activity = w.waiting ? 'idle' : activityAt(w.stop.point, undefined, this.characters.indexOf(c));
+      c.sprite.place(visible ? { ...w, moving: w.moving && !w.waiting, activity, lift: w.moving ? 0 : seatAt(w.stop.point)?.lift } : null, this.time.now);
     }
+    this.charactersOn = heading;
+    // Un personaje con nombre viene a su sitio de siempre y el jugador está sentado ahí: se levanta.
+    if (this.seatedOn && this.player.isSeated && heading.has(this.seatedOn.seat.id)) this.standUp();
+    // El asiento del jugador es suyo mientras esté sentado: la gente del local y de la calle no lo coge.
+    if (this.seatedOn && !this.seatedOn.seat.id.startsWith('metro:')) claimed.add(this.seatedOn.seat.id);
     this.crowd?.claim(claimed);
     this.street?.claim(claimed);
   }
@@ -625,9 +670,137 @@ export class WorldScene extends Phaser.Scene {
 
   private syncState(): void {
     const { state } = this.services;
-    state.position.x = this.player.x;
-    state.position.y = this.player.y;
+    // Sentado se guarda donde estaba de pie: al volver a la partida se aparece ahí, no encima del banco.
+    const at = this.seatedOn?.from ?? this.player;
+    state.position.x = at.x;
+    state.position.y = at.y;
     state.facing = this.player.facing;
+  }
+
+  /**
+   * Sentado: las teclas de andar miran alrededor sin levantarse (nunca hacia el
+   * respaldo); E habla con quien esté cerca o, si no hay nadie, levanta; Esc
+   * también levanta. Mientras se sienta o se levanta, nada responde.
+   */
+  private updateSeated(time: number): void {
+    this.syncState();
+    const on = this.seatedOn;
+    if (!on || !this.player.isSeated) {
+      this.prompt.setVisible(false);
+      this.services.hint.hide();
+      return;
+    }
+    const held: [Facing, boolean][] = [
+      ['left', this.held('left') || this.held('leftAlt')],
+      ['right', this.held('right') || this.held('rightAlt')],
+      ['up', this.held('up') || this.held('upAlt')],
+      ['down', this.held('down') || this.held('downAlt')],
+    ];
+    const look = held.find(([dir, down]) => down && dir !== BEHIND[on.seat.facing])?.[0] ?? null;
+    // A una mesa con servicio: se apunta en cuanto se ha sentado del todo (el camarero vendrá).
+    const service = this.crowd?.service;
+    if (!this.dining && service?.tableOf(on.seat.id)) {
+      service.seatPlayer(on.seat.id);
+      this.dining = true;
+    }
+    this.player.seatedFrame(time, look, service?.playerEating ?? false);
+
+    const target = this.nearestInteractable();
+    this.updatePrompt(target);
+    if (!target) {
+      // A la mesa, qué pasa con lo tuyo; si no, sólo cómo levantarse.
+      const status = this.dining ? this.crowd?.service?.playerStatus() : null;
+      this.services.hint.show(status ? `${status} · levantarse` : 'Levantarse');
+      this.prompt.setPosition(this.player.x, this.player.y - PLAYER_H - 8).setVisible(true);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.interact)) {
+      if (target) this.interact(target);
+      else this.standUp();
+    } else if (this.pressedAny(['cancel', 'cancelAlt'])) this.standUp();
+    else if (this.pressedAny(['bag'])) this.menus.openBag();
+  }
+
+  /** Si alguien tiene ese asiento: la gente del local o de la calle (va o está), un personaje con nombre o, en el andén, un pasajero. */
+  private seatTaken(seat: Seat): boolean {
+    if (seat.id.startsWith('metro:')) return this.metro?.isSeatTaken(Number(seat.id.slice(6))) ?? true;
+    // Una mesa con servicio es de un grupo hasta que se va y la recogen.
+    const table = this.crowd?.service?.tableOf(seat.id);
+    if (table && (table.party !== null || table.state !== 'AVAILABLE')) return true;
+    return this.charactersOn.has(seat.id) || (this.crowd !== null && this.crowd.occupancy(seat.id) !== 'FREE') || (this.street?.isTaken(seat.id) ?? false);
+  }
+
+  /** Se sienta: reserva el asiento donde lo reserva la gente, da los pasos hasta él y se sienta mirando hacia donde se mira ahí. */
+  private sitDown(seat: Seat): void {
+    if (this.seatTaken(seat)) return;
+    this.seatedOn = { seat, from: { x: this.player.x, y: this.player.y } };
+    if (seat.id.startsWith('metro:')) this.metro?.takeSeat(Number(seat.id.slice(6)));
+    this.prompt.setVisible(false);
+    this.services.hint.hide();
+    this.player.sitOn(seat.tx * TILE + TILE / 2, seat.ty * TILE + TILE, seat.facing, seat.lift);
+  }
+
+  /** Se levanta, vuelve andando a donde estaba y suelta el asiento. */
+  private standUp(): void {
+    const on = this.seatedOn;
+    if (!on || !this.player.isSeated) return;
+    this.prompt.setVisible(false);
+    this.services.hint.hide();
+    // Levantarse de la mesa sin haber pagado es dejar el dinero encima: se cobra lo pedido.
+    if (this.dining) {
+      this.dining = false;
+      const owed = this.crowd?.service?.playerStands() ?? 0;
+      if (owed > 0) {
+        this.services.state.money -= owed;
+        this.persist();
+        this.services.dialogue.start('Casa', [`Dejas ${euros(owed)} en la mesa y te levantas.`]);
+      }
+    }
+    this.player.standTo(on.from.x, on.from.y, () => {
+      if (on.seat.id.startsWith('metro:')) this.metro?.freeSeat(Number(on.seat.id.slice(6)));
+      this.seatedOn = null;
+    });
+  }
+
+  /**
+   * El camarero llega a la mesa del jugador (systems/TableService): a tomar
+   * nota, a servir, a cobrar; o se acaba lo que había en la mesa. Todo en
+   * conversación y menús en vivo: el local sigue mientras tanto.
+   */
+  private tableCall(call: PlayerCall): void {
+    const service = this.crowd?.service;
+    if (!service || !this.dining) return;
+    const { state, dialogue } = this.services;
+    const waiter = 'Camarero';
+    if (call.kind === 'order') {
+      const hello = state.hour < 14 ? 'Buenos días' : state.hour < 21 ? 'Buenas tardes' : 'Buenas noches';
+      dialogue.start(waiter, [`${hello}. ¿Qué te apetece tomar?`]);
+      dialogue.once('close', () =>
+        this.menus.openOrder(service.menu, call.items, waiter, (picked) => {
+          service.playerOrder(picked);
+          dialogue.start(waiter, [picked.length > 0 ? `${picked.map((i) => i.name.toLowerCase()).join(' y ')}. Marchando.` : 'Sin prisa. Vuelvo en un rato.']);
+        }),
+      );
+    } else if (call.kind === 'served') {
+      dialogue.start(waiter, [`Aquí tienes: ${call.plates.map((i) => i.name.toLowerCase()).join(' y ')}. ¡Que aproveche!`]);
+    } else if (call.kind === 'finished') {
+      state.energy += call.energy;
+      this.persist();
+    } else if (call.kind === 'bill') {
+      dialogue.start(waiter, ['Aquí tienes la cuenta, cuando quieras.']);
+      dialogue.once('close', () =>
+        this.menus.openBill(call.total, (amount) => {
+          if (amount === null) {
+            service.playerPay(true);
+            dialogue.start(waiter, ['Tranquilo, vuelvo luego.']);
+            return;
+          }
+          service.playerPay();
+          state.money -= amount;
+          this.persist();
+          dialogue.start(waiter, [amount > call.total ? '¡Gracias! Hasta la próxima.' : 'Gracias. ¡Hasta pronto!']);
+        }),
+      );
+    }
   }
 
   private nearestInteractable(): Interactable | null {
@@ -636,11 +809,15 @@ export class WorldScene extends Phaser.Scene {
     let best: Interactable | null = null;
     let bestDistance = INTERACT_RADIUS;
 
-    // Un evento de calle se ofrece cuando ya lo tienes delante, sin marca que lo anuncie de lejos.
+    // Un evento de calle se ofrece cuando ya lo tienes delante, sin marca que lo anuncie de lejos: en su
+    // mirador (StreetEventDef.vantage), no pegado al jugador; dentro del patio mandan las cajas y la gente.
     const events: Interactable[] = this.streetEvents
       .filter((e) => e.noticedFrom(this.playerTile()))
-      .map((e) => ({ kind: 'event', x: this.player.x, y: this.player.y - 8, view: e }));
+      .map((e) => ({ kind: 'event', x: e.def.vantage.tx * TILE + TILE / 2, y: e.def.vantage.ty * TILE + TILE / 2, view: e }));
     for (const item of [...this.interactables, ...this.crowdInteractables(), ...events]) {
+      // Sentado sólo se habla con quien esté cerca; un asiento ocupado no se ofrece.
+      if (this.player.isSeating && item.kind !== 'npc') continue;
+      if (item.kind === 'seat' && this.seatTaken(item.seat)) continue;
       if (item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) continue;
       if (item.kind === 'npc' && !item.sprite.visible) continue;
       const { x, y } = anchor(item);
@@ -664,6 +841,7 @@ export class WorldScene extends Phaser.Scene {
     const toll =
       target.kind === 'portal' ? describePortal(target.portal) + (this.closedPlace(target.portal) ? ' · cerrado' : '')
       : target.kind === 'terminal' || target.kind === 'spot' ? target.name
+      : target.kind === 'seat' ? `Sentarse · ${target.seat.def.name}`
       : '';
     if (toll) this.services.hint.show(toll);
     else this.services.hint.hide();
@@ -686,6 +864,10 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private interact(target: Interactable): void {
+    if (target.kind === 'seat') {
+      this.sitDown(target.seat);
+      return;
+    }
     if (target.kind === 'portal') {
       this.travel(target.portal);
       return;
@@ -777,6 +959,26 @@ export class WorldScene extends Phaser.Scene {
   /** Llega en tren a un andén: el tren sigue en la vía al bajar y el trayecto cuenta su evento. */
   private arriveByTrain(locationId: string): void {
     this.go(locationId, 'train', true);
+  }
+
+  /**
+   * Pone al jugador en un tile de una localización (herramientas de desarrollo:
+   * lifesim.fight.goto()). En la misma, lo mueve; en otra, rehace la Scene con
+   * esa posición, igual que al cargar una partida.
+   */
+  teleport(locationId: string, tile: TilePoint, facing: Facing = 'up'): void {
+    const position = { x: tile.tx * TILE + TILE / 2, y: (tile.ty + 1) * TILE - 2 };
+    const { state } = this.services;
+    state.locationId = locationId;
+    state.position.x = position.x;
+    state.position.y = position.y;
+    state.facing = facing;
+    if ((this.scene.settings.data as WorldSceneData | undefined)?.locationId === locationId) {
+      this.player.setPosition(position.x, position.y);
+      this.cameras.main.centerOn(position.x, position.y);
+      return;
+    }
+    this.scene.restart({ locationId, position, facing });
   }
 
   /** Cambia de localización: guarda, funde a negro y rehace la Scene a la hora que sea ya. */

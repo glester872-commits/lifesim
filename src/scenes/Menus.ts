@@ -15,6 +15,7 @@ import { buyGarment, stockOf, takeOff, wear } from '../systems/Retail';
 import { getGarment, getStore } from '../data/retail';
 import { getDesign, getZone, STYLE_NAMES, TATTOO_DESIGNS, TATTOO_ZONES, type TattooZone } from '../data/tattoos';
 import { PLAYER_COLORS } from '../world/TextureFactory';
+import type { MenuItem, ServiceMenu } from '../data/menus';
 
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
 export interface MenuHost {
@@ -386,6 +387,78 @@ export class Menus {
   private activityContext(): ActivityContext {
     const { state } = this.services;
     return { day: state.day, hour: state.hour, minute: state.minute, money: state.money, energy: state.energy, inventory: state.wallet.inventory };
+  }
+
+  // ---------------------------------------------------------- en la mesa
+
+  /**
+   * Pedir sentado a una mesa con servicio (systems/TableService): primero de
+   * comer y luego de beber, con su precio, sólo lo que se sirve a esta hora y
+   * sin pasar de lo que se lleva encima. Se abre en vivo: el local sigue
+   * mientras se elige. Esc, o no pedir nada, es «todavía no».
+   */
+  openOrder(menu: ServiceMenu, items: readonly MenuItem[], waiter: string, onDone: (picked: MenuItem[]) => void): void {
+    const { state } = this.services;
+    const course = (kind: MenuItem['kind'], picked: MenuItem[], title: string, none: string, next: (picked: MenuItem[]) => void): void => {
+      const list = items.filter((i) => i.kind === kind);
+      const spent = picked.reduce((sum, i) => sum + i.price, 0);
+      const options: MenuOption[] = list.map((i) => ({
+        label: i.name,
+        detail: euros(i.price),
+        disabled: spent + i.price > state.money ? `No te llega: llevas ${euros(state.money)}.` : undefined,
+      }));
+      options.push({ label: none });
+      this.services.menu.open(
+        `${menu.title} · ${title}`,
+        `${waiter} espera con la libreta.${spent > 0 ? ` Llevas pedido ${euros(spent)}.` : ''}`,
+        options,
+        (i) => next(i < list.length ? [...picked, list[i]] : picked),
+        () => {
+          this.services.menu.close();
+          onDone([]);
+        },
+        '',
+        0,
+        true,
+      );
+    };
+    course('food', [], 'de comer', 'Nada de comer', (picked) =>
+      course('drink', picked, 'de beber', picked.length > 0 ? 'Nada de beber' : 'Nada, todavía no', (all) => {
+        this.services.menu.close();
+        onDone(all);
+      }),
+    );
+  }
+
+  /**
+   * La cuenta en la mesa: pagar justo, pagar dejando algo de propina o pedir
+   * un momento (el camarero vuelve luego). `onPay` recibe lo que se paga, o
+   * null si todavía no. También en vivo.
+   */
+  openBill(total: number, onPay: (amount: number | null) => void): void {
+    const { state, menu } = this.services;
+    const tip = Math.ceil(total * 1.1 * 2) / 2;
+    const options: MenuOption[] = [
+      { label: 'Pagar', detail: euros(total), disabled: state.money < total ? 'No te llega.' : undefined },
+      { label: 'Pagar y dejar propina', detail: euros(tip), disabled: state.money < tip ? 'No te llega.' : undefined },
+      { label: 'Un momento' },
+    ];
+    menu.open(
+      'La cuenta',
+      `Son ${euros(total)}. Llevas ${euros(state.money)}.`,
+      options,
+      (i) => {
+        menu.close();
+        onPay(i === 0 ? total : i === 1 ? tip : null);
+      },
+      () => {
+        menu.close();
+        onPay(null);
+      },
+      '',
+      0,
+      true,
+    );
   }
 
   /**

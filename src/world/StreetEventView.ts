@@ -3,7 +3,7 @@ import { TILE } from '../config/constants';
 import type { Facing, LocationDef, TilePoint } from '../types/game';
 import type { Agent } from '../systems/Crowd';
 import type { Weather } from '../systems/Weather';
-import { StreetEvent, fighterPoses, type EventPhase, type Presence } from '../systems/StreetEvents';
+import { StreetEvent, fighterPoses, type EventPhase, type Night, type Presence } from '../systems/StreetEvents';
 import type { StreetEventDef } from '../data/streetEvents';
 import { PASSENGER_LOOKS } from '../data/npcs';
 import { Character } from '../entities/Character';
@@ -54,6 +54,14 @@ export class StreetEventView {
   phaseNow: EventPhase = 'none';
   ringActive = false;
   private present: Presence[] = [];
+  /**
+   * Retraso de cada uno (minutos de juego): quien habla con el jugador se para
+   * (su reloj no avanza) y, al despedirse, sigue desde donde estaba, un poco
+   * detrás de los demás; nunca se desliza ni salta. Se olvida al cambiar de noche.
+   */
+  private readonly lags = new Map<number, number>();
+  private lastT: number | null = null;
+  private lastNight: Night | null = null;
 
   constructor(scene: Phaser.Scene, loc: LocationDef, def: StreetEventDef, weather: () => Weather) {
     this.scene = scene;
@@ -98,7 +106,16 @@ export class StreetEventView {
   update(t: number, time: number): void {
     const night = this.event.nightAt(t);
     this.phaseNow = this.event.phase(t);
-    this.present = this.event.presentAt(t);
+    if (night !== this.lastNight) {
+      this.lags.clear();
+      this.lastNight = night;
+    }
+    const dt = this.lastT === null ? 0 : Math.max(0, t - this.lastT);
+    this.lastT = t;
+    for (const a of this.agents) if (a.talking) this.lags.set(a.id, (this.lags.get(a.id) ?? 0) + dt);
+    this.present = night.happens
+      ? night.members.map((m) => this.event.memberAt(night, m, t - (this.lags.get(m.id) ?? 0))).filter((p): p is Presence => p !== null)
+      : [];
     const lines = this.def.lines;
     const said = this.phaseNow === 'gathering' ? lines.gathering : this.phaseNow === 'fight' || this.phaseNow === 'break' ? lines.fight : lines.dispersing;
 
@@ -144,7 +161,7 @@ export class StreetEventView {
       const f = poses[i];
       sprite.anims.stop();
       sprite.setTexture(fightKey(look.id, facing, f.pose));
-      sprite.setX(sprite.x + (facing === 'right' ? f.dx : -f.dx));
+      sprite.shiftX(facing === 'right' ? f.dx : -f.dx);
       if (f.hit) flash = { x: sprite.x + (facing === 'right' ? 9 : -9), y: sprite.y - 15 };
     });
     this.ringActive = atRing === 2 && (this.phaseNow === 'fight' || this.phaseNow === 'break');

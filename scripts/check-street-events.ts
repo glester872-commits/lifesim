@@ -109,3 +109,63 @@ for (const def of STREET_EVENTS) {
 
   console.log(`check-street-events: ${def.id} · pelea ${Math.round(share * 100)} % de ${DAYS} noches, ${happened.filter((n) => n.raidAt !== null).length} con aviso del vigía, ${nights.filter((n) => n.why === 'rain').length} suspendidas por lluvia; corro medio ${avg(mild).toFixed(1)} templado / ${avg(wetOrCold).toFixed(1)} lluvia o frío / ${avg(warm).toFixed(1)} calor; hasta ${maxPeople} personas`);
 }
+
+// ------------------------------------------- herramientas de desarrollo
+// Una pelea forzada es una noche como las demás: gente, poses, corro y recogida. Fijada, no acaba;
+// soltada, se deshace; retirada, el patio queda vacío en el acto; reiniciada, vuelve el calendario.
+{
+  const def = STREET_EVENTS[0];
+  const loc = getLocation(def.location);
+  const ev = new StreetEvent(def, loc);
+  const ring = new Set(ev.ring.map(key));
+  // Un martes a mediodía, cuando por calendario no hay nada.
+  const t0 = 2 * 1440 + 12 * 60;
+  assert.equal(ev.phase(t0), 'none');
+  const forced = ev.devForce(t0);
+  assert.equal(forced.happens, true);
+  assert.equal(ev.phase(t0), 'gathering', 'recién forzada, el corro se está formando');
+  assert.equal(ev.phase(t0 + 7), 'fight', 'el primer asalto empieza en seis minutos');
+  const here = ev.presentAt(t0 + 7);
+  assert.ok(here.filter((p) => p.member.role === 'fighter' && !p.moving).length === 2, 'los dos que pelean, en su sitio');
+  assert.ok(here.filter((p) => p.member.role === 'spectator' && !p.moving).length >= 2, 'y un corro');
+  for (const p of here) {
+    assert.ok(isWalkable(loc, Math.round(p.x), Math.round(p.y)), 'forzada: nadie en una pared');
+    if (p.member.role !== 'fighter' && !p.moving) assert.ok(!ring.has(key({ tx: p.x, ty: p.y })), 'forzada: nadie parado en el corro');
+  }
+  assert.ok(fighterPoses(forced, t0 + 7 + 1.2).some((f) => f.pose !== 0), 'y pelean');
+  // Se acaba sola y se recoge.
+  assert.equal(ev.presentAt(forced.end + DISPERSE + 181).length, 0, 'forzada: al final no queda nadie');
+
+  // Fijada: seis horas después sigue la pelea; soltada, se deshace y el patio se vacía.
+  ev.devPin(t0, true);
+  assert.equal(ev.phase(t0 + 6 * 60), 'fight');
+  assert.equal(ev.devStatus(t0 + 6 * 60).pinned, true);
+  const release = t0 + 6 * 60 + 5;
+  ev.devPin(release, false);
+  assert.equal(ev.phase(release + 1), 'dispersing', 'soltada: se deshace');
+  assert.equal(ev.presentAt(release + DISPERSE + 181).length, 0, 'soltada: al rato, nadie');
+  // Al soltar no desaparece nadie: quien estaba (sentado o aún llegando) sigue ahí y se va andando.
+  {
+    const probe = new StreetEvent(def, loc);
+    probe.devForce(t0 + 3000);
+    const at = t0 + 3000 + 1; // recién forzada: parte del corro aún viene de camino
+    const before = new Set(probe.presentAt(at).map((p) => p.member.id));
+    probe.devPin(at, false);
+    const after = new Set(probe.presentAt(at + 0.01).map((p) => p.member.id));
+    assert.deepEqual([...before].filter((id) => !after.has(id)), [], 'soltada: nadie se esfuma en el sitio');
+    probe.devReset();
+  }
+
+  // Retirada: vacío en el acto, aunque el calendario diga que hay pelea esa noche.
+  const natural = Array.from({ length: 28 }, (_, i) => planNight(def, loc, i + 1)).find((n) => n.happens)!;
+  const mid = natural.fightAt + 5;
+  ev.devReset();
+  assert.ok(ev.presentAt(mid).length > 0, 'la noche del calendario tiene gente');
+  ev.devDespawn(mid);
+  assert.deepEqual([ev.phase(mid), ev.presentAt(mid).length, ev.devStatus(mid).cleared], ['none', 0, true], 'retirada: vacío en el acto');
+  // Reiniciada: vuelve la noche del calendario tal cual.
+  ev.devReset();
+  assert.ok(ev.presentAt(mid).length > 0, 'reiniciada: vuelve el calendario');
+  assert.deepEqual(ev.devStatus(mid), { phase: ev.phase(mid), forced: false, pinned: false, cleared: false, tonight: ev.devStatus(mid).tonight });
+  console.log('check-street-events: herramientas de desarrollo (forzar, fijar, soltar, retirar, reiniciar), OK');
+}

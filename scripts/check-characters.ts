@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { CHARACTERS, OUTINGS } from '../src/data/characters.ts';
 import { DAY_STARTS, catchUp, routineFor, tripsOf, whereabouts, whereaboutsIn, type Whereabouts } from '../src/systems/Characters.ts';
-import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
+import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
 import { isOpen, placeOfPoint } from '../src/systems/Places.ts';
 import { weekday } from '../src/systems/MetroDaily.ts';
 
@@ -13,7 +13,7 @@ const hhmm = (m: number): string => `${String(Math.floor(m / 60) % 24).padStart(
 
 /** Lo que tiene que cumplirse en cada instante: pisa suelo, no salta, tiene algo que decir y el sitio está abierto. */
 function checkMoment(speed: number, w: Whereabouts, prev: Whereabouts, day: number, m: number, at: string): void {
-  assert.ok(isWalkable(getLocation(w.location), Math.round(w.tx), Math.round(w.ty)), `${at}: dentro de algo en ${w.location} (${w.tx.toFixed(1)}, ${w.ty.toFixed(1)})`);
+  assert.ok(isStandable(getLocation(w.location), Math.round(w.tx), Math.round(w.ty)), `${at}: dentro de algo en ${w.location} (${w.tx.toFixed(1)}, ${w.ty.toFixed(1)})`);
   // Nadie se teletransporta: dentro de un sitio avanza como mucho lo que anda; entre sitios, por una puerta.
   if (w.location === prev.location) {
     const step = Math.hypot(w.tx - prev.tx, w.ty - prev.ty);

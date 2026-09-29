@@ -15,6 +15,8 @@ import { TILE } from '../config/constants.ts';
 import { PROPS, TILES } from '../world/tiles.ts';
 import { getNpc } from '../data/npcs.ts';
 import { getCatalog } from '../data/catalogs.ts';
+import { getStation } from '../data/stations.ts';
+import { furnitureAt } from '../data/seating.ts';
 
 // ------------------------------------------------------------- edificios
 
@@ -97,7 +99,7 @@ export function solidMask(loc: LocationDef): boolean[][] {
     if (b.doorX !== undefined && b.front) set(b.doorX, doorRow(b), false);
   }
   for (const p of loc.props) {
-    if (PROPS[p.kind].overhead || PROPS[p.kind].flat || PROPS[p.kind].seat) continue; // cuelga, está pintado o es un asiento: se pasa
+    if (PROPS[p.kind].overhead || PROPS[p.kind].flat) continue; // cuelga o está pintado: se pasa
     const w = PROPS[p.kind].tilesWide ?? 1;
     for (let x = p.tx; x < p.tx + w; x++) set(x, p.ty, true);
   }
@@ -121,14 +123,29 @@ export function isWalkable(loc: LocationDef, tx: number, ty: number): boolean {
   return maskOf(loc)[ty]?.[tx] === false;
 }
 
-/** Tramo recto entre centros de tile sin pisar nada sólido (muestreo cada cuarto de tile). */
+/** Donde puede estar alguien parado: suelo libre o encima de la máquina que usa (una cinta, un banco). */
+export function isStandable(loc: LocationDef, tx: number, ty: number): boolean {
+  return isWalkable(loc, tx, ty) || mountAt(loc, tx, ty);
+}
+
+/** Si en ese tile hay algo a lo que se sube quien lo usa (una máquina, un banco, una silla), en cualquiera de sus tiles de base. */
+export function mountAt(loc: LocationDef, tx: number, ty: number): boolean {
+  return loc.props.some((p) => PROPS[p.kind].mount && p.ty === ty && tx >= p.tx && tx < p.tx + (PROPS[p.kind].tilesWide ?? 1));
+}
+
+/**
+ * Tramo recto entre centros de tile sin pisar nada sólido (muestreo cada cuarto
+ * de tile). Sus extremos pueden estar encima de un asiento o una máquina: es a
+ * donde se sube quien acaba ahí.
+ */
 export function lineClear(loc: LocationDef, a: TilePoint, b: TilePoint): boolean {
   const steps = Math.max(1, Math.ceil(Math.hypot(b.tx - a.tx, b.ty - a.ty) * 4));
+  const end = (x: number, y: number): boolean => ((x === a.tx && y === a.ty) || (x === b.tx && y === b.ty)) && mountAt(loc, x, y);
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     const x = Math.floor(a.tx + 0.5 + (b.tx - a.tx) * t);
     const y = Math.floor(a.ty + 0.5 + (b.ty - a.ty) * t);
-    if (!isWalkable(loc, x, y)) return false;
+    if (!isWalkable(loc, x, y) && !end(x, y)) return false;
   }
   return true;
 }
@@ -170,13 +187,28 @@ function validate(loc: LocationDef): void {
     if (!isWalkable(loc, n.tx, n.ty)) throw new Error(`[${loc.id}] NPC "${n.id}" colocado en un tile sólido`);
   }
   for (const [id, p] of Object.entries(loc.points ?? {})) {
-    if (!isWalkable(loc, p.tx, p.ty)) throw new Error(`[${loc.id}] punto ${id} en ${p.tx},${p.ty} no es transitable`);
+    // Un puesto con máquina (data/stations.ts) va encima de ella; cualquier otro punto, en suelo libre.
+    const station = p.use ? getStation(p.use) : undefined;
+    if (p.use && !station) throw new Error(`[${loc.id}] punto ${id} usa un puesto desconocido: ${p.use}`);
+    const under = loc.props.find((q) => q.tx === p.tx && q.ty === p.ty && PROPS[q.kind].mount);
+    if (station?.mount && under?.kind !== station.mount) throw new Error(`[${loc.id}] punto ${id} (${p.use}) no está sobre un ${station.mount}`);
+    // Un asiento (data/seating.ts) va encima de su mueble y mira hacia donde se sienta en él.
+    if (p.kind === 'seat') {
+      const seat = furnitureAt(loc, p.tx, p.ty);
+      if (!seat) throw new Error(`[${loc.id}] asiento ${id} en ${p.tx},${p.ty} sin banco, silla ni sofá debajo`);
+      if (!p.facing || (seat.def.facing && p.facing !== seat.def.facing)) throw new Error(`[${loc.id}] asiento ${id} mira a ${p.facing}; en su ${seat.placement.kind} se mira a ${seat.def.facing}`);
+    } else if (!station?.mount && !isWalkable(loc, p.tx, p.ty)) throw new Error(`[${loc.id}] punto ${id} en ${p.tx},${p.ty} no es transitable`);
   }
   for (const [a, b] of loc.links ?? []) {
     const pa = loc.points?.[a];
     const pb = loc.points?.[b];
     if (!pa || !pb) throw new Error(`[${loc.id}] tramo ${a}–${b} con un punto inexistente`);
     if (!lineClear(loc, pa, pb)) throw new Error(`[${loc.id}] tramo ${a}–${b} atraviesa algo sólido`);
+  }
+  // Mesas con servicio: sus sillas son asientos de verdad y quien atiende tiene dónde ponerse.
+  for (const t of loc.tables ?? []) {
+    for (const seat of t.seats) if (loc.points?.[seat]?.kind !== 'seat') throw new Error(`[${loc.id}] mesa ${t.id}: ${seat} no es un asiento`);
+    if (!isWalkable(loc, t.service.tx, t.service.ty)) throw new Error(`[${loc.id}] mesa ${t.id}: quien atiende no cabe en ${t.service.tx},${t.service.ty}`);
   }
   if (loc.metro) validateMetro(loc, loc.metro);
   for (const t of loc.terminals ?? []) {
@@ -227,9 +259,9 @@ function validateMetro(loc: LocationDef, metro: MetroDef): void {
   for (const [what, p] of points) {
     if (!isWalkable(loc, p.tx, p.ty)) throw new Error(`[${loc.id}] metro: punto de ${what} bloqueado en ${p.tx},${p.ty}`);
   }
-  // Un asiento es justo lo contrario: tiene que haber un banco.
+  // Un asiento es justo lo contrario: tiene que haber un mueble para sentarse (data/seating.ts).
   for (const s of metro.seats) {
-    if (!loc.props.some((prop) => prop.kind === 'bench' && prop.tx === s.tx && prop.ty === s.ty)) {
+    if (!furnitureAt(loc, s.tx, s.ty)) {
       throw new Error(`[${loc.id}] metro: asiento sin banco en ${s.tx},${s.ty}`);
     }
   }

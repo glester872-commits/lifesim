@@ -36,6 +36,15 @@ export type PropKind =
   | 'tree'
   | 'bush'
   | 'bench'
+  | 'bench-up'
+  | 'chair-up'
+  | 'chair-down'
+  | 'chair-left'
+  | 'chair-right'
+  | 'stool'
+  // restaurante: mesa con mantel y fogones
+  | 'dining-table'
+  | 'stove'
   | 'lamp'
   | 'sign'
   | 'planter'
@@ -72,6 +81,18 @@ export type PropKind =
   | 'treadmill'
   | 'weights'
   | 'weight-bench'
+  // gimnasio: máquinas a las que se sube quien las usa (data/stations.ts) y lo que hay alrededor
+  | 'exercise-bike'
+  | 'rower'
+  | 'bench-press'
+  | 'squat-rack'
+  | 'cable-machine'
+  | 'plate-tree'
+  | 'kettlebells'
+  | 'yoga-mat'
+  | 'gym-towel'
+  | 'gym-bags'
+  | 'gym-sign'
   | 'lockers'
   | 'mirror'
   | 'clothes-rack'
@@ -346,11 +367,24 @@ export type PointKind =
   | 'work' // puesto de un empleado
   | 'path'; // nodo de paso del grafo de peatones
 
+/**
+ * Una mesa con servicio: sus asientos (puntos `seat`, data/seating.ts) y el
+ * tile libre junto a ella donde se para quien atiende a tomar nota, servir,
+ * cobrar o recoger.
+ */
+export interface TableDef {
+  id: string;
+  seats: readonly string[];
+  service: TilePoint;
+}
+
 export interface PointDef {
   tx: number;
   ty: number;
   kind: PointKind;
   facing?: Facing;
+  /** Puesto de uso (data/stations.ts): qué se hace aquí, cuánto rato y con qué movimiento. */
+  use?: string;
 }
 
 export interface LocationDef {
@@ -379,6 +413,8 @@ export interface LocationDef {
   terminals?: readonly TerminalDef[];
   /** Sitios donde se hace algo que lleva un rato: la cama, la cocina, la silla de la peluquería (data/activities.ts). */
   spots?: readonly SpotDef[];
+  /** Mesas con servicio (systems/TableService.ts): sus asientos y dónde se pone quien atiende. */
+  tables?: readonly TableDef[];
   /** Nombres de calles y zonas para el mapa (systems/WorldMap.ts): sólo la etiqueta y dónde va; la forma sale del suelo. */
   areas?: readonly { name: string; tx: number; ty: number }[];
   /** Interiores: focos de colores que barren esta zona en tiles (la pista de baile), al ritmo de la música. */
