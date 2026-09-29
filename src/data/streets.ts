@@ -37,6 +37,11 @@ export interface TripRule {
   hours?: readonly [number, number];
   /** Entre semana o fin de semana; la madrugada cuenta como la noche anterior. */
   days?: 'weekday' | 'weekend';
+  /**
+   * Sólo en estos momentos de la semana (systems/Calendar.rhythmAt): 'friday-evening',
+   * 'weekend-night', 'sunday-day'… Más fino que days; se pueden usar los dos.
+   */
+  rhythms?: readonly import('../systems/Calendar.ts').Rhythm[];
   from: Ends;
   to: Ends;
   /** Si el destino es un sitio para estar (banco, cola, corrillo): minutos de juego allí. */

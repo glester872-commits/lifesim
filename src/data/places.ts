@@ -28,6 +28,12 @@ export interface PlaceDef {
   /** Días que abre (0 lunes … 6 domingo), contados por el día en que abre: el sábado a las 03:00 es la noche del viernes. */
   days?: readonly number[];
   /**
+   * Horario propio de algunos días, por encima de `hours`/`days`: otro horario
+   * o 'closed'. Necesita `hours` (el de los demás días). El sábado que cierra
+   * más tarde, el domingo que no abre (systems/Places.hoursOn).
+   */
+  hoursByDay?: Readonly<Partial<Record<import('../systems/Calendar.ts').Weekday, readonly [number, number] | 'closed'>>>;
+  /**
    * Por qué entraría el jugador: lo que se consigue dentro que no se consigue
    * fuera. Un sitio con interior y con `why` tiene que cumplirlo (algo que
    * comprar o hacer, personal, gente según la hora): lo comprueba
@@ -55,7 +61,7 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'cafe', name: 'Cafetería Pausa', type: 'business', tags: ['food', 'social', WORK], building: 'cafe-door', anchors: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], capacity: 10, hours: [7, 22], why: 'Desayunar algo rápido y llevarse pan o bollería para casa.' },
   { id: 'gym', name: 'Gimnasio Forja', type: 'business', tags: ['sport', 'social', WORK], building: 'gym-door', capacity: 18, hours: [6, 23] },
   { id: 'clothing-store', name: 'Hilo · moda', type: 'business', tags: ['shop', 'fashion', WORK], building: 'fashion-door', capacity: 14, hours: [10, 21], why: 'Ropa de temporada: lo que compras te lo llevas puesto y se queda en tu armario.' },
-  { id: 'supermarket', name: 'Súper Rosales', type: 'business', tags: ['shop', 'food', WORK], building: 'super-door', capacity: 20, hours: [9, 22], why: 'La compra para cocinar en casa: comer por menos de lo que cuesta fuera.' },
+  { id: 'supermarket', name: 'Súper Rosales', type: 'business', tags: ['shop', 'food', WORK], building: 'super-door', capacity: 20, hours: [9, 22], hoursByDay: { sunday: [10, 15] }, why: 'La compra para cocinar en casa: comer por menos de lo que cuesta fuera.' },
   { id: 'restaurant', name: 'Casa Tomás', type: 'business', tags: ['food', 'social', WORK], building: 'restaurant-door', anchors: ['RESTAURANT_TERRACE_01'], capacity: 16, hours: [12, 24], why: 'Comer o cenar caliente sin cocinar, a cambio de dinero.' },
   { id: 'office', name: 'Edificio Atalaya', type: 'business', tags: [WORK], building: 'office-door', capacity: 20, hours: [8, 20] },
   // Jueves flojo; viernes y sábado hasta que amanece. De domingo a miércoles, persiana.

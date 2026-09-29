@@ -2,7 +2,8 @@
 import { TILE } from '../config/constants.ts';
 import { bandAt, type MoverType } from '../data/vehicles.ts';
 import type { LaneFlow, SignalDef, Vec2 } from '../types/game.ts';
-import { between, weekIndex, type Rng } from './MetroDaily.ts';
+import { between, type Rng } from './MetroDaily.ts';
+import { weekIndex } from './Calendar.ts';
 import { signalAt } from './Signals.ts';
 import { weatherAt } from './Weather.ts';
 

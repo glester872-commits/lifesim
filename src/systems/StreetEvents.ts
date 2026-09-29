@@ -3,7 +3,8 @@
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import type { EventSlot, StreetEventDef } from '../data/streetEvents.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
-import { between, hashSeed, seededRng, weekIndex, type Rng } from './MetroDaily.ts';
+import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
+import { weekIndex } from './Calendar.ts';
 import { isWalkable } from './LocationSystem.ts';
 import { weatherAt } from './Weather.ts';
 

@@ -1,6 +1,6 @@
 // Sin Phaser: lo usan WorldScene y scripts/check-economy.ts.
 import type { ActivityDef } from '../data/activities.ts';
-import { weekIndex } from './MetroDaily.ts';
+import { weekIndex } from './Calendar.ts';
 import { euros } from './Commerce.ts';
 import { getItem } from '../data/items.ts';
 

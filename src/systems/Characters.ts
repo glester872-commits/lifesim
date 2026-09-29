@@ -2,7 +2,8 @@
 import type { Facing, SignalDef, TilePoint } from '../types/game.ts';
 import { CHARACTERS, OUTINGS, type CharacterDef, type Routine, type Stop } from '../data/characters.ts';
 import { findPoint, worldRoute } from './Navigation.ts';
-import { hashSeed, seededRng, weekIndex } from './MetroDaily.ts';
+import { hashSeed, seededRng } from './MetroDaily.ts';
+import { weekIndex } from './Calendar.ts';
 import { getLocation } from './LocationSystem.ts';
 import { crossingOf, minutesUntilWalk } from './Signals.ts';
 
@@ -234,7 +235,10 @@ export function characterDay(absMinute: number): number {
 }
 
 function solo(def: CharacterDef, day: number, salt: string): Routine {
-  const options = def.routines.filter((r) => !r.outing && r.days.includes(weekIndex(day)));
+  const today = def.routines.filter((r) => !r.outing && r.days.includes(weekIndex(day)));
+  // Una excepción de ese día manda sobre las rutinas normales (Routine.override).
+  const overrides = today.filter((r) => r.override);
+  const options = overrides.length ? overrides : today;
   const total = options.reduce((s, r) => s + r.weight, 0);
   let roll = seededRng(hashSeed('routine', def.npc, day, salt))() * total;
   for (const r of options) {

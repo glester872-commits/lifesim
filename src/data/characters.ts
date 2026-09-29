@@ -1,3 +1,5 @@
+import { on, WEEKEND } from '../systems/Calendar.ts';
+
 /**
  * Personajes con nombre que viven en el barrio: van de un sitio a otro según
  * la hora. Cada parada es una hora de llegada y un punto con nombre; el camino
@@ -26,8 +28,17 @@ export interface Stop {
 
 export interface Routine {
   id: string;
-  /** Días en que puede tocar: 0 lunes … 6 domingo. */
+  /**
+   * Días en que puede tocar: 0 lunes … 6 domingo. Con nombre en los datos:
+   * on('monday', 'wednesday'), WEEKDAYS, WEEKEND (systems/Calendar).
+   */
   days: readonly number[];
+  /**
+   * Excepción de un día: si alguna rutina con override toca ese día, se elige
+   * sólo entre ellas y las normales no cuentan (el lunes de gimnasio que manda
+   * sobre el resto de lunes). Sin ello, compite por peso con las demás.
+   */
+  override?: true;
   /** Peso frente a las otras rutinas sueltas del mismo día. */
   weight: number;
   /**
@@ -68,7 +79,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
     routines: [
       {
         id: 'clase-online',
-        days: [0, 2],
+        days: on('monday', 'wednesday'),
         weight: 3,
         stops: [
           { at: '09:40', point: 'CAFE_TABLE_05', lines: ['¡Hola! ¿Qué haces por aquí?', 'Sin café no soy persona. Literal.'], going: ['Voy a por un café, que hoy no me despierto.', '¿Te vienes?'] },
@@ -87,7 +98,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // Días de facultad: sale en metro por la mañana y vuelve a comer tarde.
         id: 'facultad',
-        days: [1, 3],
+        days: on('tuesday', 'thursday'),
         weight: 3,
         stops: [
           inside('08:50', 'METRO_ENTRANCE', 'Voy tardísimo a clase, ¡luego hablamos!'),
@@ -103,7 +114,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // Día sin clase: recados por el barrio y tarde en el centro.
         id: 'recados',
-        days: [2, 3],
+        days: on('wednesday', 'thursday'),
         weight: 1,
         stops: [
           { at: '10:40', point: 'CAFE_WINDOW_SEAT', lines: ['Hoy no tengo clase. Día de recados.'], going: ['Café primero, recados después.'] },
@@ -117,7 +128,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // El jueves la sala abre floja: una copa y a casa pronto.
         id: 'jueves-orbita',
-        days: [3],
+        days: on('thursday'),
         weight: 1,
         stops: [
           inside('08:50', 'METRO_ENTRANCE', 'Voy tardísimo a clase, ¡luego hablamos!'),
@@ -131,7 +142,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'viernes-tranquilo',
-        days: [4],
+        days: on('friday'),
         weight: 2,
         stops: [
           { at: '10:00', point: 'CAFE_TABLE_05', lines: ['Viernes. Por fin.'], going: ['Café de viernes, que me lo he ganado.'] },
@@ -146,7 +157,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // Con Ada: cena en Casa Tomás y noche en la Sala Órbita.
         id: 'noche-viernes',
-        days: [4],
+        days: on('friday'),
         weight: 1,
         outing: 'noche-viernes',
         stops: [
@@ -164,7 +175,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'sabado-fiesta',
-        days: [5],
+        days: on('saturday'),
         weight: 2,
         stops: [
           { at: '11:30', point: 'CAFE_TABLE_05', lines: ['Brunch de sábado. Es sagrado.'], going: ['Voy a desayunar. A las once y media, sí.'] },
@@ -183,7 +194,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // Día de Carmen (miércoles sin clase o sábado): brunch en el Molinillo, Retales, Archivo y el flash del estudio.
         id: 'sabado-carmen',
-        days: [2, 5],
+        days: on('wednesday', 'saturday'),
         weight: 1,
         stops: [
           { at: '11:30', point: 'MOLINILLO_TERRACE_01', lines: ['Brunch en el Molinillo. El café de aquí es otra liga.'], going: ['Voy al Carmen, que hoy hay que mirar tiendas.'] },
@@ -198,7 +209,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'sabado-en-casa',
-        days: [5],
+        days: on('saturday'),
         weight: 1,
         stops: [
           { at: '12:00', point: 'PARK_BENCH_01', lines: ['Hoy no salgo. Plan de sofá.'], going: ['Paseo corto y a casa.'] },
@@ -210,7 +221,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'domingo',
-        days: [6],
+        days: on('sunday'),
         weight: 2,
         stops: [
           { at: '12:30', point: 'CAFE_TABLE_05', lines: ['Domingo de pijama... bueno, casi.'], going: ['Café y vuelvo a casa.'] },
@@ -222,7 +233,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // Hay días que no se sale de casa.
         id: 'domingo-en-casa',
-        days: [6],
+        days: on('sunday'),
         weight: 1,
         stops: [inside('06:00', SARA_HOME)],
       },
@@ -236,7 +247,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
     routines: [
       {
         id: 'academia',
-        days: [0, 1, 2, 3],
+        days: on('monday', 'tuesday', 'wednesday', 'thursday'),
         weight: 3,
         stops: [
           inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Llego tarde a la academia. Otra vez.'),
@@ -253,7 +264,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'practicas',
-        days: [1, 3],
+        days: on('tuesday', 'thursday'),
         weight: 2,
         stops: [
           inside('09:00', 'METRO_ENTRANCE', 'Hoy tengo prácticas en el centro.'),
@@ -266,7 +277,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'viernes-baloncesto',
-        days: [4],
+        days: on('friday'),
         weight: 1,
         stops: [
           inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Último día de la semana. Aguanta.'),
@@ -278,7 +289,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // Con Sara: cena en Casa Tomás y Órbita; se retira antes.
         id: 'noche-viernes',
-        days: [4],
+        days: on('friday'),
         weight: 1,
         outing: 'noche-viernes',
         stops: [
@@ -293,7 +304,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'finde-parque',
-        days: [5, 6],
+        days: WEEKEND,
         weight: 2,
         stops: [
           { at: '10:30', point: 'PARK_BENCH_02', lines: ['Fin de semana de parque y libro.'], going: ['Me voy al parque a leer.'] },
@@ -306,7 +317,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
       {
         // Sábado de rebuscar: al peso en Segunda Vuelta, café en el Molinillo y un rato de libro en el banco.
         id: 'sabado-carmen',
-        days: [5],
+        days: on('saturday'),
         weight: 1,
         stops: [
           { at: '10:40', point: 'VUELTA_BIN_01', lines: ['Al peso sale a nada. Hay que saber rebuscar.'], going: ['Voy a Segunda Vuelta, que los sábados reponen.'] },
@@ -318,10 +329,11 @@ export const CHARACTERS: readonly CharacterDef[] = [
       },
       {
         id: 'finde-en-casa',
-        days: [5, 6],
+        days: WEEKEND,
         weight: 1,
         stops: [inside('06:00', ADA_HOME)],
       },
     ],
   },
 ];
+

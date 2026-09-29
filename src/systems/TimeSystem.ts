@@ -1,5 +1,6 @@
-import { GAME_MINUTES_PER_REAL_SECOND, MAX_FRAME_MS } from '../config/constants';
-import type { GameState } from '../state/GameState';
+import { GAME_MINUTES_PER_REAL_SECOND, MAX_FRAME_MS } from '../config/constants.ts';
+import type { GameState } from '../state/GameState.ts';
+import { weekdayOf, type Midnight } from './Calendar.ts';
 
 const MINUTES_PER_DAY = 24 * 60;
 
@@ -45,18 +46,26 @@ export class TimeSystem {
     this.advanceMinutes(whole);
   }
 
+  /**
+   * Adelanta el reloj: el paso de cada frame, dormir, trabajar, el metro o un
+   * salto de depuración. Si cruza medianoches, avisa de cada una en orden
+   * (evento 'midnight', systems/Calendar) después de mover el reloj: quien
+   * escucha ya ve la hora nueva. Un salto de 30 horas avisa dos veces, no una;
+   * cargar una partida no avisa (no se cruza nada).
+   */
   advanceMinutes(minutes: number): void {
     if (minutes <= 0) return;
-    const total =
-      this.state.hour * 60 + this.state.minute + minutes;
+    const from = this.state.day;
+    const total = this.state.hour * 60 + this.state.minute + minutes;
     const days = Math.floor(total / MINUTES_PER_DAY);
     const rest = total % MINUTES_PER_DAY;
-    this.state.setClock(this.state.day + days, Math.floor(rest / 60), rest % 60);
+    this.state.setClock(from + days, Math.floor(rest / 60), rest % 60);
+    for (let day = from + 1; day <= from + days; day++) {
+      const midnight: Midnight = { day, weekday: weekdayOf(day), from, to: from + days };
+      this.state.emit('midnight', midnight);
+    }
   }
 }
 
-export function formatClock(day: number, hour: number, minute: number): string {
-  const hh = String(hour).padStart(2, '0');
-  const mm = String(minute).padStart(2, '0');
-  return `Día ${day} · ${hh}:${mm}`;
-}
+/** El formato del reloj vive con el calendario: «Lun · Día 3 · 08:42». */
+export { formatClock } from './Calendar.ts';

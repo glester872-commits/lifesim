@@ -86,13 +86,13 @@ export interface MetroDailyState {
   bandShiftMin: number;
 }
 
-const WEEK = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
-/** 0 = lunes … 6 = domingo. */
-export const weekIndex = (day: number): number => (((day - 1) % 7) + 7) % 7;
+// El día de la semana es del calendario del mundo (systems/Calendar); aquí se reexporta para quien ya lo usaba.
+export { weekIndex } from './Calendar.ts';
+import { WEEKDAY_LABEL, weekIndex, weekdayOf } from './Calendar.ts';
 
-/** El día 1 es lunes. */
+/** El nombre del día, en minúsculas: «lunes». El día 1 es lunes. */
 export function weekday(day: number): string {
-  return WEEK[weekIndex(day)];
+  return WEEKDAY_LABEL[weekdayOf(day)];
 }
 
 function rollDay(day: number, salt = ''): MetroDailyState {

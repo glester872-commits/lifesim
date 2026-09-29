@@ -6,7 +6,8 @@ import { STREET_PROFILES, type Ends, type StreetPost, type StreetProfile, type T
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import { PLACES } from '../data/places.ts';
 import type { Facing, LocationDef, SignalDef, TilePoint } from '../types/game.ts';
-import { between, hashSeed, seededRng, weekIndex, type Rng } from './MetroDaily.ts';
+import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
+import { nightOwner, rhythmAt, weekIndex } from './Calendar.ts';
 import { isOpen, placeInfo, placeOfPoint, type PlaceInfo } from './Places.ts';
 import { route, tilePath } from './Navigation.ts';
 import { besideTile, identity, nextCustomer } from './Service.ts';
@@ -48,8 +49,6 @@ export function weatherBias(rule: TripRule, w: Weather): number {
 }
 
 const MS_PER_GAME_MINUTE = 1000 / GAME_MINUTES_PER_REAL_SECOND;
-/** Hasta las 6 la madrugada es de la noche anterior: el sábado a las 3 sigue siendo viernes. */
-const NIGHT_ENDS = 6;
 /** Nadie se queda parado en la calzada, aunque se pueda pisar. */
 /** Cada cuánto (ms reales) la calle decide si sale alguien más. */
 const TICK: readonly [number, number] = [1_200, 2_600];
@@ -59,7 +58,8 @@ const PAUSE_CHANCE = 0.2;
 const JOG_SPEED: readonly [number, number] = [3.8, 4.6];
 const STROLL_SPEED: readonly [number, number] = [1.2, 1.6];
 
-export const logicalDay = (c: Clock): number => (c.hour < NIGHT_ENDS ? c.day - 1 : c.day);
+/** Hasta las 6 la madrugada es de la noche anterior: el sábado a las 3 sigue siendo viernes (systems/Calendar). */
+export const logicalDay = (c: Clock): number => nightOwner(c.day, c.hour);
 const hourOf = (c: Clock): number => c.hour + c.minute / 60;
 const inHours = (hours: readonly [number, number] | undefined, t: number): boolean =>
   !hours || (hours[0] <= hours[1] ? t >= hours[0] && t < hours[1] : t >= hours[0] || t < hours[1]);
@@ -657,11 +657,13 @@ export class StreetLife {
   private pickRule(clock: Clock, fromPoint?: string): TripRule | undefined {
     const t = hourOf(clock);
     const weekend = weekIndex(logicalDay(clock)) >= 5;
+    const rhythm = rhythmAt(clock.day, clock.hour);
     const weighted: [TripRule, number][] = [];
     for (const rule of this.profile.trips) {
       if (!inHours(rule.hours, t)) continue;
       if (rule.days === 'weekday' && weekend) continue;
       if (rule.days === 'weekend' && !weekend) continue;
+      if (rule.rhythms && !rule.rhythms.includes(rhythm)) continue;
       // Tope por tipo: el escaparate o la boca del metro no se llenan de golpe.
       if (rule.max && this.agents.filter((a) => a.rule === rule && !a.leader).length >= rule.max) continue;
       // Un viaje pesa lo que su regla por lo que tiran sus extremos: a una discoteca vacía no va nadie.
