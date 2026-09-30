@@ -4,6 +4,7 @@ import type { BikeType } from '../data/bikes';
 import { PASSENGER_LOOKS } from '../data/npcs';
 import type { Traffic, Vehicle } from '../systems/Traffic';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
+import { DEBUG } from '../config/debug';
 import { RIDER_H, RIDER_LAMPS, RIDER_STOPPED, RIDER_W, riderTexture, type RiderLook } from './CyclistArt';
 
 /** Px recorridos por cada cuarto de vuelta de pedal. */
@@ -82,7 +83,7 @@ export class CyclistView {
   private dbg: Phaser.GameObjects.Graphics | null = null;
 
   private drawDebug(): void {
-    if (!CyclistView.debug) {
+    if (!CyclistView.debug && !DEBUG.mode) {
       this.dbg?.clear();
       return;
     }

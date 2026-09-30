@@ -7,6 +7,8 @@ import { DialogueSystem } from './systems/DialogueSystem';
 import { SaveSystem } from './systems/SaveSystem';
 import { hasLocation, safePosition } from './systems/LocationSystem';
 import { findPoint, pointsOfKind, route, worldRoute } from './systems/Navigation';
+import { zoneActivity, zoneAt } from './systems/Zones';
+import { DEBUG } from './config/debug';
 import { placeInfo, placesOfType } from './systems/Places';
 import { forceWeather, weatherAt } from './systems/Weather';
 import { MetroEventManager } from './systems/MetroEventManager';
@@ -159,6 +161,12 @@ function devFight() {
 }
 
 if (import.meta.env.DEV) {
+  // F3: modo depuración (bordes y nombres de zonas, panel del metro, bicis). Apagado al arrancar; en producción no existe.
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'F3') return;
+    e.preventDefault();
+    DEBUG.mode = !DEBUG.mode;
+  });
   const events = services.metroEvents;
   const now = () => ({ day: state.day, hour: state.hour, minute: state.minute, money: state.money, energy: state.energy });
   Object.assign(window, {
@@ -172,6 +180,9 @@ if (import.meta.env.DEV) {
       resetMetroEvents: () => events.resetMetroEvents(),
       // Destinos del mundo para NPC futuros: lifesim.route('HOME_ENTRANCE', 'CAFE_ENTRANCE').
       findPoint,
+      // Zonas lógicas (data/zones.ts): lifesim.zoneAt('district', 48, 52), lifesim.zoneActivity(zona, {day, hour, minute}).
+      zoneAt,
+      zoneActivity,
       pointsOfKind,
       route,
       worldRoute,

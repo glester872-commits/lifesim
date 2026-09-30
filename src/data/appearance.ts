@@ -11,7 +11,8 @@
  */
 
 /** Peinados que sabe dibujar world/HumanArt.ts. */
-export type HairStyle = 'short' | 'bob' | 'curly' | 'bun' | 'buzz' | 'long';
+// afro, trenzas, rastas, coleta y calvo: los lleva la gente de la calle; la barbería sigue ofreciendo los de HAIRSTYLES.
+export type HairStyle = 'short' | 'bob' | 'curly' | 'bun' | 'buzz' | 'long' | 'afro' | 'braids' | 'locs' | 'ponytail' | 'bald';
 
 /** Un tatuaje hecho: dónde y cuál. */
 export interface TattooMark {

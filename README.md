@@ -242,6 +242,41 @@ ni acceso global al estado.
   veces se paran un momento y nunca se quedan quietos en la calzada. Los coches
   frenan por todos. Como en los locales, se reconstruye al entrar.
   `npm run simulate:streets`.
+- **Zonas lógicas** — `data/zones.ts` con `systems/Zones.ts`: el mismo mapa
+  continuo partido en zonas con nombre y tipo (plaza, parque, avenida, metro,
+  comercial, noche, terrazas, gimnasio, residencial, evento), sin muros ni
+  cargas. `zoneAt(location, tx, ty)` da la zona de un tile (la última que lo
+  contiene manda); `zoneActivity(zona, reloj)` su vida ahora (hora, día, fin de
+  semana, tiempo si es al aire libre y una variación fija por día);
+  `zonePull(zona, rol, reloj)` lo que atrae a cada tipo de viaje. StreetLife
+  pesa con eso los destinos: corredores y perros al parque por la tarde, cola
+  en la Órbita de madrugada. Cada zona apunta a su perfil visual de
+  `data/districts.ts` (`ambience`). Un barrio futuro es otra lista con su
+  `location`. Sólo se simula entero lo que está a 30 tiles del jugador; más
+  lejos, los paseantes avanzan a pasos gruesos y las zonas son un número.
+  Depuración: F3 (sólo en desarrollo; apagado al arrancar, `config/debug.ts`). `scripts/check-zones.ts`.
+  Volver a casa o irse del barrio no se pesa por zona: sólo los sitios donde se va a estar.
+- **Gente del barrio: identidad, cuerpo y relaciones** — `data/identity.ts`,
+  `systems/Population.ts` y `systems/People.ts`. 60 personas fijas (semilla
+  `POPULATION_SEED`): las 24 caras de siempre (`pasajero-N`, las de la pelea
+  sin tocar su dibujo) y 36 nuevas. Cada una tiene nombre, edad, identidad de
+  género (y si es trans), presentación, orientación (privada), cuerpo (siete
+  complexiones, tres alturas, postura, paso, bastón), intereses, carácter,
+  estilo de ropa, renta, trabajo y si vive aquí o está de visita. El aspecto
+  (piel en 12 tonos, textura y color de pelo, peinados afro, trenzas, rastas,
+  coleta o calvo, barba, cejas, mandíbula, gafas, piercing, auriculares,
+  pañuelo, tatuajes) sale de una paleta de origen que no se guarda en la
+  persona: nada de lo que hace la gente puede leerla (lo comprueba
+  `scripts/check-population.ts`). `world/HumanArt.ts` da el cuerpo a todas las
+  poses a la vez (`reshape`, `face`). Relaciones fijas: amistades (lo más
+  común), parejas, casados, saliendo, ex, hermanos, familia, compañeros de
+  trabajo, pisos compartidos, vecinos de vista y flechazos; una pareja sólo
+  existe si se atraen los dos. En la calle, quién hace cada viaje depende de
+  edad, intereses y bastón (`roleAffinity`), y un grupo (`TripRule.bond`:
+  pareja, amigos, familia, compañeros, gimnasio, turistas) sale de las
+  relaciones de quien lo lleva; al hablar con quien acompaña nombra a esa
+  persona. Inspector de desarrollo con F3 (la orientación sólo sale ahí). El
+  atlas de gente se reparte en dos columnas para no pasar de 4096 px.
 - **Sala Órbita, la discoteca** — el antiguo local en alquiler de la Calle
   Mayor. Abre jueves, viernes y sábado de 21:00 a 06:00 (`days` y horario que
   cruza la medianoche en `data/places.ts`); fuera de hora la puerta dice que está

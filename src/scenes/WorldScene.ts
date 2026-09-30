@@ -55,6 +55,9 @@ import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
 import { STREET_EVENTS } from '../data/streetEvents';
 import { Occlusion } from '../world/Occlusion';
+import { ZoneDebugView } from '../world/ZoneDebugView';
+import { PopulationInspector } from '../world/PopulationInspector';
+import { DEBUG } from '../config/debug';
 import { weatherAt } from '../systems/Weather';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
@@ -168,6 +171,10 @@ export class WorldScene extends Phaser.Scene {
   private lighting: Lighting | null = null;
   /** Lo alto que tapa al jugador se aclara mientras le tapa. */
   private occlusion: Occlusion | null = null;
+  /** Bordes y datos de las zonas (data/zones.ts): sólo con el modo depuración (config/debug.ts). */
+  private zoneDebug: ZoneDebugView | null = null;
+  /** Inspector de gente (world/PopulationInspector): también sólo con el modo depuración. */
+  private inspector: PopulationInspector | null = null;
   private crowdViews: CrowdView[] = [];
   /** Lo que hay en las mesas, el pase y la cocina de un local con servicio de mesa. */
   private serviceView: ServiceView | null = null;
@@ -396,6 +403,10 @@ export class WorldScene extends Phaser.Scene {
       autosave.remove();
       this.services.metroDebug?.hide();
       this.metro?.shutdown();
+      this.zoneDebug?.destroy();
+      this.zoneDebug = null;
+      this.inspector?.destroy();
+      this.inspector = null;
     });
   }
 
@@ -479,6 +490,25 @@ export class WorldScene extends Phaser.Scene {
     if (this.watching && (this.player.body as Phaser.Physics.Arcade.Body).speed > 1) this.stopWatching();
     this.lighting?.tick(time);
     this.occlusion?.update(this.player, delta);
+    // Modo depuración (F3 en desarrollo): se crea al encenderlo y desaparece del todo al apagarlo.
+    if (DEBUG.mode && !this.zoneDebug) this.zoneDebug = new ZoneDebugView(this, this.services.state.locationId);
+    else if (!DEBUG.mode && this.zoneDebug) {
+      this.zoneDebug.destroy();
+      this.zoneDebug = null;
+    }
+    this.zoneDebug?.update(this.playerTile(), this.clockNow());
+    if (DEBUG.mode && !this.inspector) this.inspector = new PopulationInspector();
+    else if (!DEBUG.mode && this.inspector) {
+      this.inspector.destroy();
+      this.inspector = null;
+    }
+    this.inspector?.update(
+      this.playerTile(),
+      this.services.state.locationId,
+      this.clockNow(),
+      [...(this.street?.agents ?? []), ...(this.crowd?.agents ?? [])],
+      this.characters.filter((c) => c.sprite.visible).map((c) => ({ name: c.sprite.def.name, tx: c.sprite.x / TILE, ty: c.sprite.y / TILE })),
+    );
     if (talking || liveMenu) {
       // Sentado, sigue respirando (y comiendo) mientras habla o elige.
       if (this.player.isSeated) this.player.seatedFrame(time, null, this.crowd?.service?.playerEating ?? false);

@@ -39,7 +39,7 @@ function variant(base: NpcLook, layer: Layer): NpcLook {
   }
   if (layer === 'light') return { ...same, cap: undefined, sleeves: undefined, sleeveLen: (h >>> 2) & 1 ? 2 : 0 };
   const hoodie = COATS[(h >>> 7) % COATS.length];
-  return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, cap: undefined, hood: shade(hoodie, 0.04), earrings: undefined };
+  return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, cap: undefined, hood: base.headscarf ?? shade(hoodie, 0.04), earrings: undefined };
 }
 
 /** Todas las versiones, para hornearlas en el atlas de gente con sus animaciones (world/TextureFactory). */

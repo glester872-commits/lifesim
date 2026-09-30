@@ -38,6 +38,17 @@ export interface HumanColors {
   /** Con frío: bufanda al cuello. Con lluvia sin paraguas: la capucha puesta. */
   scarf?: string;
   hood?: string;
+  /** Cuerpo y rasgos (NpcLook): reshape() y face() los pintan sobre cualquier pose. */
+  build?: NpcLook['build'];
+  height?: NpcLook['height'];
+  posture?: NpcLook['posture'];
+  facialHair?: NpcLook['facialHair'];
+  brows?: NpcLook['brows'];
+  jaw?: NpcLook['jaw'];
+  glasses?: NpcLook['glasses'];
+  piercing?: NpcLook['piercing'];
+  headphones?: string;
+  cane?: boolean;
 }
 
 /** Tinta en ese sitio, si se ve. */
@@ -113,6 +124,8 @@ export function colorsOf(look: NpcLook): HumanColors {
     trousers: look.trousers ?? TROUSERS[(h >>> 4) % TROUSERS.length],
     shoes: look.shoes ?? SHOES[(h >>> 8) % SHOES.length],
     hairStyle: look.hairStyle ?? (look.longHair ? 'long' : STYLES[(h >>> 12) % STYLES.length]),
+    // El pañuelo a la cabeza se dibuja como la capucha (cara al aire); con capucha de verdad, manda la capucha.
+    hood: look.hood ?? look.headscarf,
   };
 }
 
@@ -125,7 +138,123 @@ export function drawHuman(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors):
     drawBody(ctx, true, false, 'l', pose, c);
     ctx.restore();
   } else drawBody(ctx, facing === 'right', facing === 'up', 'r', pose, c);
+  if (c.cane && CANE_POSES.has(pose)) {
+    // Bastón en la mano de fuera, del puño al suelo.
+    const x = facing === 'left' ? 3 : facing === 'right' ? 12 : facing === 'up' ? 13 : 2;
+    px(ctx, '#5a3a26', x, 15, 1, 9);
+    px(ctx, '#7b5a3d', x, 15, 1, 1);
+  }
+  reshape(ctx, facing, pose, c);
   outline(ctx);
+}
+
+/** De pie o andando: con bastón. Sentado, en el gimnasio o peleando, no. */
+const CANE_POSES: ReadonlySet<Pose> = new Set<Pose>([0, 1, 2, 3, 5, 32, 34]);
+
+/**
+ * El cuerpo de cada cual sobre el mismo dibujo, para todas las poses a la vez:
+ * se mueven filas y columnas de píxeles ya pintados. Más ancho de hombros, de
+ * cadera o de tronco (duplicando el centro), más estrecho (quitándolo), más
+ * alto o más bajo (el tronco sube o baja un píxel sobre las piernas) y la
+ * espalda algo cargada de perfil. Tumbado no cambia. Sólo en lienzos de 16×24.
+ */
+function reshape(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors): void {
+  const build = c.build ?? 'average';
+  const height = c.height ?? 'average';
+  const stoop = c.posture === 'stooped' && (facing === 'left' || facing === 'right');
+  if ((build === 'average' && height === 'average' && !stoop) || pose === 11 || pose === 12) return;
+  const { width: w, height: h } = ctx.canvas;
+  if (w !== 16 || h !== 24) return;
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const row = (y: number): Uint8ClampedArray => d.slice(y * w * 4, (y + 1) * w * 4);
+  const put = (y: number, r: Uint8ClampedArray): void => d.set(r, y * w * 4);
+  const px4 = (r: Uint8ClampedArray, x: number): Uint8ClampedArray => (x < 0 || x >= w ? new Uint8ClampedArray(4) : r.slice(x * 4, x * 4 + 4));
+  const remap = (y0: number, y1: number, from: (x: number) => number): void => {
+    for (let y = y0; y <= y1; y++) {
+      const old = row(y);
+      const out = new Uint8ClampedArray(w * 4);
+      for (let x = 0; x < w; x++) out.set(px4(old, from(x)), x * 4);
+      put(y, out);
+    }
+  };
+  // Ensanchar: la mitad izquierda sale un píxel a la izquierda y la derecha, a la derecha; el centro se repite.
+  const widen = (y0: number, y1: number): void => remap(y0, y1, (x) => (x < 7 ? x + 1 : x > 8 ? x - 1 : x));
+  // Estrechar: las dos mitades se juntan un píxel cada una; el centro desaparece.
+  const narrow = (y0: number, y1: number): void => remap(y0, y1, (x) => (x < 8 ? x - 1 : x + 1));
+  if (build === 'thin') narrow(10, 21);
+  else if (build === 'athletic') widen(10, 13);
+  else if (build === 'muscular') {
+    widen(10, 16);
+    widen(10, 12);
+  } else if (build === 'stocky') widen(10, 21);
+  else if (build === 'curvy') widen(14, 19);
+  else if (build === 'heavy') {
+    widen(11, 18);
+    widen(13, 16);
+  }
+  if (height === 'tall') for (let y = 0; y < 16; y++) put(y, row(y + 1));
+  else if (height === 'short') for (let y = 17; y > 0; y--) put(y, row(y - 1));
+  if (height === 'short') put(0, new Uint8ClampedArray(w * 4));
+  if (stoop) {
+    // Cabeza y hombros un píxel hacia delante.
+    const dx = facing === 'right' ? 1 : -1;
+    remap(0, 10, (x) => x - dx);
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/** Cara: cejas, mandíbula, barba, gafas y pendiente; de frente o de perfil. Encima de la piel y debajo del pelo. */
+function face(ctx: Ctx, side: boolean, b: number, c: HumanColors): void {
+  const hair = c.hair;
+  const skinShade = shade(c.skin, -0.18);
+  if (side) {
+    if (c.facialHair === 'beard') px(ctx, hair, 8, 7 + b, 4, 2);
+    else if (c.facialHair === 'moustache') px(ctx, hair, 11, 7 + b, 1, 1);
+    else if (c.facialHair === 'stubble') px(ctx, skinShade, 8, 7 + b, 4, 2);
+    if (c.brows === 'thick') px(ctx, hair, 10, 4 + b, 2, 1);
+    if (c.glasses) px(ctx, c.glasses === 'dark' ? PALETTE.ink : '#3a3a44', 9, 5 + b, 4, 1);
+    if (c.piercing === 'nose') px(ctx, '#d8d2c4', 12, 6 + b, 1, 1);
+    if (c.headphones) px(ctx, c.headphones, 6, 4 + b, 2, 3);
+    return;
+  }
+  if (c.jaw === 'square') {
+    px(ctx, c.skin, 4, 8 + b, 1, 1);
+    px(ctx, shade(c.skin, -0.07), 11, 8 + b, 1, 1);
+  } else if (c.jaw === 'narrow') {
+    ctx.clearRect(5, 8 + b, 1, 1);
+    ctx.clearRect(10, 8 + b, 1, 1);
+  }
+  if (c.facialHair === 'beard') {
+    px(ctx, hair, 4, 6 + b, 1, 2);
+    px(ctx, hair, 11, 6 + b, 1, 2);
+    px(ctx, hair, 5, 7 + b, 6, 2);
+    px(ctx, shade(c.skin, -0.2), 7, 7 + b, 2, 1);
+  } else if (c.facialHair === 'moustache') px(ctx, hair, 6, 7 + b, 4, 1);
+  else if (c.facialHair === 'stubble') {
+    px(ctx, skinShade, 5, 8 + b, 6, 1);
+    px(ctx, skinShade, 6, 7 + b, 1, 1);
+    px(ctx, skinShade, 9, 7 + b, 1, 1);
+  }
+  if (c.brows === 'thick') {
+    px(ctx, hair, 5, 4 + b, 2, 1);
+    px(ctx, hair, 9, 4 + b, 2, 1);
+  } else if (c.brows === 'fine') {
+    px(ctx, shade(c.skin, -0.25), 6, 4 + b, 1, 1);
+    px(ctx, shade(c.skin, -0.25), 9, 4 + b, 1, 1);
+  }
+  if (c.glasses === 'dark') {
+    px(ctx, PALETTE.ink, 5, 5 + b, 2, 2);
+    px(ctx, PALETTE.ink, 9, 5 + b, 2, 2);
+    px(ctx, PALETTE.ink, 7, 5 + b, 2, 1);
+  } else if (c.glasses) px(ctx, '#3a3a44', 5, 5 + b, 6, 1);
+  if (c.piercing === 'nose') px(ctx, '#d8d2c4', 8, 6 + b, 1, 1);
+  else if (c.piercing === 'brow') px(ctx, '#d8d2c4', 10, 4 + b, 1, 1);
+  if (c.headphones) {
+    px(ctx, c.headphones, 3, 4 + b, 1, 3);
+    px(ctx, c.headphones, 12, 4 + b, 1, 3);
+    px(ctx, shade(c.headphones, -0.2), 5, b, 6, 1);
+  }
 }
 
 /**
@@ -358,6 +487,7 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, PALETTE.outline, 6, 5 + b + down, 1, 2 - down);
     px(ctx, PALETTE.outline, 9, 5 + b + down, 1, 2 - down);
     px(ctx, shade(c.skin, -0.14), 7, 7 + b, 2, 1); // boca, apenas
+    face(ctx, false, b, c);
   }
   hairFront(ctx, back, b, c);
   if (c.hood) {
@@ -461,6 +591,26 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
     if (back) px(ctx, hair, 4, 3 + b, 8, 3);
     return;
   }
+  if (style === 'bald') {
+    // Calvo: pelo sólo a los lados, sobre las orejas; de espaldas, la nuca. Un brillo en la coronilla.
+    px(ctx, hair, 4, 4 + b, 1, 2);
+    px(ctx, hair, 11, 4 + b, 1, 2);
+    if (back) px(ctx, hair, 4, 5 + b, 8, 2);
+    px(ctx, shade(c.skin, 0.1), 6, 2 + b, 2, 1);
+    hat(ctx, back, b, c);
+    return;
+  }
+  if (style === 'afro') {
+    // Volumen redondo alrededor de la cabeza; la cara queda al aire.
+    px(ctx, hair, 4, b - 1, 8, 1);
+    px(ctx, hair, 3, b, 10, 3);
+    px(ctx, hair, 2, 1 + b, 2, 6);
+    px(ctx, hair, 12, 1 + b, 2, 6);
+    px(ctx, lit, 4, b, 3, 1);
+    if (back) px(ctx, hair, 3, 3 + b, 10, 6);
+    hat(ctx, back, b, c);
+    return;
+  }
   // Base: casco de pelo con brillo arriba a la izquierda.
   px(ctx, hair, 5, 1 + b, 6, 1);
   px(ctx, hair, 4, 2 + b, 8, 2);
@@ -471,7 +621,26 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
     px(ctx, hair, 4, 5 + b, 1, 1);
     px(ctx, hair, 11, 4 + b, 1, 2);
   }
-  if (style === 'curly') {
+  if (style === 'braids' || style === 'locs') {
+    // Trenzas largas y finas o rastas más gruesas y cortas: mechones con su brillo alterno.
+    const len = style === 'braids' ? 10 : 8;
+    const w = style === 'braids' ? 1 : 2;
+    px(ctx, hair, 4 - w, 3 + b, w, len);
+    px(ctx, hair, 12, 3 + b, w, len);
+    for (let y = 4; y < 3 + len; y += 2) {
+      px(ctx, lit, 4 - w, y + b, 1, 1);
+      px(ctx, lit, 12, y + b, 1, 1);
+    }
+    if (back) {
+      px(ctx, hair, 4, 8 + b, 8, len - 4);
+      for (let x = 5; x < 12; x += 2) px(ctx, lit, x, 9 + b, 1, len - 6);
+    }
+  } else if (style === 'ponytail') {
+    if (back) {
+      px(ctx, hair, 7, 5 + b, 2, 7);
+      px(ctx, lit, 7, 6 + b, 1, 5);
+    }
+  } else if (style === 'curly') {
     px(ctx, hair, 3, 2 + b, 1, 4);
     px(ctx, hair, 12, 2 + b, 1, 4);
     px(ctx, hair, 5, b, 1, 1);
@@ -492,12 +661,15 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
       px(ctx, lit, 5, 12 + b, 6, 1);
     }
   }
-  if (c.cap) {
-    // Gorra: copa con brillo y, de frente, la visera sobre la frente.
-    px(ctx, c.cap, 4, b, 8, back ? 4 : 3);
-    px(ctx, shade(c.cap, 0.12), 5, b, 2, 1);
-    if (!back) px(ctx, shade(c.cap, -0.2), 4, 3 + b, 8, 1);
-  }
+  hat(ctx, back, b, c);
+}
+
+function hat(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
+  if (!c.cap) return;
+  // Gorra: copa con brillo y, de frente, la visera sobre la frente.
+  px(ctx, c.cap, 4, b, 8, back ? 4 : 3);
+  px(ctx, shade(c.cap, 0.12), 5, b, 2, 1);
+  if (!back) px(ctx, shade(c.cap, -0.2), 4, 3 + b, 8, 1);
 }
 
 /** De perfil se ve el brazo cercano: el derecho mirando a la derecha; el izquierdo, en espejo. */
@@ -539,12 +711,21 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   px(ctx, c.skin, 12, 5 + b, 1, 2);
   px(ctx, PALETTE.outline, 10, 5 + b, 1, 2);
   px(ctx, shade(c.skin, -0.12), 7, 6 + b, 1, 1);
+  face(ctx, true, b, c);
 
   const hair = c.hair;
   const style = c.hairStyle ?? 'short';
   if (style === 'buzz') {
     px(ctx, hair, 5, 1 + b, 6, 2);
     px(ctx, hair, 5, 3 + b, 2, 2);
+  } else if (style === 'bald') {
+    px(ctx, hair, 5, 4 + b, 2, 2);
+    px(ctx, shade(c.skin, 0.1), 7, 2 + b, 2, 1);
+  } else if (style === 'afro') {
+    px(ctx, hair, 4, b - 1, 8, 1);
+    px(ctx, hair, 3, b, 9, 3);
+    px(ctx, hair, 2, 1 + b, 4, 7);
+    px(ctx, shade(hair, 0.1), 5, b, 3, 1);
   } else {
     px(ctx, hair, 5, 1 + b, 6, 1);
     px(ctx, hair, 4, 2 + b, 8, 2);
@@ -552,6 +733,15 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, hair, 4, 4 + b, 3, 3);
     px(ctx, hair, 11, 4 + b, 1, 1);
     if (style === 'curly') px(ctx, hair, 3, 2 + b, 2, 5);
+    if (style === 'braids' || style === 'locs') {
+      const len = style === 'braids' ? 10 : 8;
+      px(ctx, hair, 3, 4 + b, style === 'braids' ? 2 : 3, len);
+      for (let y = 5; y < 4 + len; y += 2) px(ctx, shade(hair, 0.1), 3, y + b, 1, 1);
+    }
+    if (style === 'ponytail') {
+      px(ctx, hair, 2, 3 + b, 2, 1);
+      px(ctx, hair, 1, 4 + b, 2, 5);
+    }
     if (style === 'bun') px(ctx, hair, 3, 1 + b, 2, 2);
     if (style === 'bob') px(ctx, hair, 4, 7 + b, 3, 2);
     if (style === 'long') {

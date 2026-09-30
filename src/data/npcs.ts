@@ -1,4 +1,5 @@
 import type { NpcDef, NpcLook } from '../types/game.ts';
+import { authoredPerson, GENERATED_LOOKS } from '../systems/Population.ts';
 import { PALETTE } from '../config/constants.ts';
 
 const DEFS: readonly NpcDef[] = [
@@ -321,7 +322,8 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
  * Pasajeros anónimos de las estaciones. Sin nombre ni diálogo: son ambiente y
  * no se ofrecen como interactuables (nada de afordancias vacías).
  */
-export const PASSENGER_LOOKS: readonly NpcLook[] = [
+/** Las caras de siempre: pasajero-N (las de la pelea, entre ellas). */
+export const AUTHORED_PASSENGERS: readonly NpcLook[] = [
   { id: 'pasajero-1', cloth: '#7a6a52', clothDark: '#5c503e', hair: '#2a2430' },
   { id: 'pasajero-2', cloth: '#5a7a8c', clothDark: '#435c69', hair: '#4a3b2f' },
   { id: 'pasajero-3', cloth: '#8c4f4f', clothDark: '#693b3b', hair: '#1f1a15' },
@@ -347,4 +349,14 @@ export const PASSENGER_LOOKS: readonly NpcLook[] = [
   { id: 'pasajero-22', style: 'street', cloth: '#2a2830', clothDark: '#1c1a20', hair: '#c9b27a', earrings: '#d8d2c4', trousers: '#6a6d75' },
   { id: 'pasajero-23', style: 'sport', cloth: '#8aa05a', clothDark: '#687844', hair: '#3a3128', sleeves: '#e6e0d4', bag: '#7b5a3d' },
   { id: 'pasajero-24', style: 'street', cloth: '#5a4a7a', clothDark: '#43375c', hair: '#1f1a15', cap: '#e6e0d4', skin: '#b98462' },
+];
+
+/**
+ * Toda la gente anónima (calle, locales, metro): las caras de siempre, con su
+ * cuerpo (menos quien pelea: su dibujo no se toca), y detrás la gente nueva de
+ * systems/Population.ts. El índice es su identidad (systems/People.ts).
+ */
+export const PASSENGER_LOOKS: readonly NpcLook[] = [
+  ...AUTHORED_PASSENGERS.map((l) => ({ ...l, ...authoredPerson(l.id).body })),
+  ...GENERATED_LOOKS,
 ];

@@ -462,6 +462,23 @@ export interface NpcLook {
   hairStyle?: import('../data/appearance.ts').HairStyle;
   /** Tatuajes de fábrica que se ven (el brazo de quien tatúa): world/HumanArt.ts los pinta sobre la piel. */
   ink?: readonly { spot: import('../data/tattoos.ts').InkSpot; color: string }[];
+  /**
+   * Cuerpo y rasgos (data/identity.ts, systems/Population.ts). Sin ellos, el
+   * cuerpo de siempre: los personajes con nombre no cambian.
+   */
+  build?: import('../data/identity.ts').Build;
+  height?: import('../data/identity.ts').Height;
+  posture?: import('../data/identity.ts').Posture;
+  facialHair?: 'stubble' | 'moustache' | 'beard';
+  brows?: 'thick' | 'fine';
+  jaw?: 'square' | 'narrow';
+  glasses?: 'clear' | 'dark';
+  piercing?: 'nose' | 'brow';
+  headphones?: string;
+  /** Pañuelo a la cabeza: se pinta como la capucha, con la cara al aire. */
+  headscarf?: string;
+  /** Bastón al andar o estar de pie. */
+  cane?: boolean;
 }
 
 export interface NpcDef extends NpcLook {

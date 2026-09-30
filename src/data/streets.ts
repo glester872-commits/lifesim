@@ -53,6 +53,12 @@ export interface TripRule {
   /** Van juntos: [mín, máx] personas. */
   group?: readonly [number, number];
   /**
+   * Quiénes son entre sí (data/identity.ts): pareja, amigos, familia, compañeros,
+   * gimnasio, turistas. systems/People elige a quien acompaña entre sus relaciones.
+   * Sin él, un grupo son amigos.
+   */
+  bond?: readonly import('./identity.ts').Bond[];
+  /**
    * Puntos del grafo por los que pasa camino del destino, en orden (o al revés,
    * al azar): quien corre o saca al perro cruza el parque, no lo rodea.
    */
@@ -143,17 +149,17 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'errands', label: 'Alguien de recados', line: 'Me falta pan. Siempre me falta pan.', weight: 3, hours: [9.5, 21], from: HOMES_OR_CITY, to: { tags: ['shop'] } },
       { role: 'shopper', label: 'Alguien con bolsas', line: 'Sólo venía a mirar.', weight: 2, hours: [10, 21], from: { tags: ['shop'] }, to: HOMES_OR_CITY },
       { role: 'coffee', label: 'Alguien que va a por café', line: 'Un café y empiezo.', weight: 2, hours: [7, 21.5], from: HOMES_OR_CITY, to: { points: ['CAFE_ENTRANCE'] } },
-      { role: 'terrace', label: 'Alguien en la terraza', line: 'Aquí se está de maravilla.', weight: 2, hours: [10, 21.5], from: HOMES_OR_CITY, to: { points: ['CAFE_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2] },
-      { role: 'terrace-meal', label: 'Alguien comiendo fuera', line: 'Fuera se come mejor. Y se ve pasar a la gente.', weight: 2, hours: [13, 15.5], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [30, 60], stayState: 'EAT', group: [1, 2] },
-      { role: 'terrace-meal', label: 'Alguien cenando fuera', line: 'Con este tiempo, dentro ni loco.', weight: 2, hours: [20.5, 23], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [40, 70], stayState: 'EAT', group: [1, 2] },
+      { role: 'terrace', label: 'Alguien en la terraza', line: 'Aquí se está de maravilla.', weight: 2, hours: [10, 21.5], from: HOMES_OR_CITY, to: { points: ['CAFE_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
+      { role: 'terrace-meal', label: 'Alguien comiendo fuera', line: 'Fuera se come mejor. Y se ve pasar a la gente.', weight: 2, hours: [13, 15.5], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [30, 60], stayState: 'EAT', group: [1, 2], bond: ['coworkers', 'friends', 'couple'] },
+      { role: 'terrace-meal', label: 'Alguien cenando fuera', line: 'Con este tiempo, dentro ni loco.', weight: 2, hours: [20.5, 23], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [40, 70], stayState: 'EAT', group: [1, 2], bond: ['couple', 'friends', 'family'] },
       { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Hoy toca pierna. Por desgracia.', weight: 2, hours: [6.5, 9], from: HOMES, to: { points: ['GYM_ENTRANCE'] } },
-      { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Si no voy ahora, no voy.', weight: 3, hours: [17, 21.5], from: { types: ['residence', 'transit'] }, to: { points: ['GYM_ENTRANCE'] } },
-      { role: 'diner', label: 'Alguien que va a comer', line: 'Menú del día y a correr.', weight: 3, hours: [13, 15.5], from: { tags: ['work'], edge: true }, to: { points: ['RESTAURANT_ENTRANCE'] }, group: [1, 3] },
-      { role: 'diner', label: 'Alguien que va a cenar', line: 'Hemos reservado. Creo.', weight: 3, hours: [20, 23], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_ENTRANCE'] }, group: [2, 3] },
+      { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Si no voy ahora, no voy.', weight: 3, hours: [17, 21.5], from: { types: ['residence', 'transit'] }, to: { points: ['GYM_ENTRANCE'] }, group: [1, 2], bond: ['gym'] },
+      { role: 'diner', label: 'Alguien que va a comer', line: 'Menú del día y a correr.', weight: 3, hours: [13, 15.5], from: { tags: ['work'], edge: true }, to: { points: ['RESTAURANT_ENTRANCE'] }, group: [1, 3], bond: ['coworkers', 'friends'] },
+      { role: 'diner', label: 'Alguien que va a cenar', line: 'Hemos reservado. Creo.', weight: 3, hours: [20, 23], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_ENTRANCE'] }, group: [2, 3], bond: ['couple', 'friends', 'family'] },
       // Estar en la calle: bancos, la fuente, el parque, la parada.
-      { role: 'stroller', label: 'Alguien paseando', line: 'Hace buena tarde para no hacer nada.', weight: 2, hours: [10, 21.5], from: HOMES_OR_CITY, to: { points: ['PLAZA_BENCH_', 'PLAZA_FOUNTAIN', 'NEWS_KIOSK'] }, stay: [8, 25], group: [1, 3] },
+      { role: 'stroller', label: 'Alguien paseando', line: 'Hace buena tarde para no hacer nada.', weight: 2, hours: [10, 21.5], from: HOMES_OR_CITY, to: { points: ['PLAZA_BENCH_', 'PLAZA_FOUNTAIN', 'NEWS_KIOSK'] }, stay: [8, 25], group: [1, 3], bond: ['family', 'friends', 'couple'] },
       // El parque: corredores y perros a primera hora, lectores y corrillos a mediodía, más gente por la tarde.
-      { role: 'park', label: 'Alguien en el parque', line: 'Vengo a que me dé el aire.', weight: 1.5, hours: [9, 20.5], from: HOMES, to: { points: ['PARK_BENCH_', 'PARK_COURT'] }, stay: [15, 40], group: [1, 3] },
+      { role: 'park', label: 'Alguien en el parque', line: 'Vengo a que me dé el aire.', weight: 1.5, hours: [9, 20.5], from: HOMES, to: { points: ['PARK_BENCH_', 'PARK_COURT'] }, stay: [15, 40], group: [1, 3], bond: ['friends', 'family'] },
       { role: 'jogger', label: 'Alguien corriendo', line: 'No me pares, que pierdo el ritmo.', weight: 3, hours: [6.5, 9.5], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'jog', pause: 0 },
       { role: 'jogger', label: 'Alguien corriendo', line: 'Cinco kilómetros más y ceno.', weight: 1.5, hours: [18.5, 21.5], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'jog', pause: 0 },
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'No muerde. Bueno, casi nunca.', weight: 3, hours: [6.5, 10], from: HOMES, to: HOMES, via: ['park-w', 'park-e'], pace: 'stroll', dog: true, pause: 0.6 },
@@ -161,36 +167,38 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última vuelta y a casa.', weight: 3, hours: [19, 23.5], from: HOMES, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'stroll', dog: true, pause: 0.6 },
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'Vamos, que hace frío.', weight: 1, hours: [7, 22], from: HOMES, to: HOMES, pace: 'stroll', dog: true, pause: 0.5 },
       { role: 'reader', label: 'Alguien leyendo', line: 'Me quedan veinte páginas. Déjame acabar.', weight: 1.5, hours: [10, 19.5], from: HOMES_OR_CITY, to: { points: ['PARK_BENCH_', 'PLAZA_BENCH_'] }, stay: [20, 50], stayState: 'READ' },
-      { role: 'park-talk', label: 'Gente charlando', line: '¿Y entonces qué le dijiste?', weight: 1.5, hours: [10.5, 21], from: HOMES_OR_CITY, to: { points: ['PARK_TALK_'] }, stay: [8, 20], stayState: 'TALK', group: [2, 2] },
+      { role: 'park-talk', label: 'Gente charlando', line: '¿Y entonces qué le dijiste?', weight: 1.5, hours: [10.5, 21], from: HOMES_OR_CITY, to: { points: ['PARK_TALK_'] }, stay: [8, 20], stayState: 'TALK', group: [2, 2], bond: ['friends'] },
       { role: 'park-wait', label: 'Alguien esperando', line: 'Me han dicho a las seis. Son las seis y diez.', weight: 1, hours: [9, 21], from: HOMES_OR_CITY, to: { points: ['PARK_WAIT_'] }, stay: [4, 12], stayState: 'PHONE' },
-      { role: 'park-stroll', label: 'Gente paseando', line: 'Damos la vuelta al parque y volvemos.', weight: 2, hours: [11, 21], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'stroll', group: [1, 2] },
+      { role: 'park-stroll', label: 'Gente paseando', line: 'Damos la vuelta al parque y volvemos.', weight: 2, hours: [11, 21], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'stroll', group: [1, 2], bond: ['couple', 'friends', 'family'] },
       // Escaparates: se para a mirar; a veces entra después.
       { role: 'window-shopper', label: 'Alguien mirando escaparates', line: 'Sólo miro. De verdad.', weight: 3, hours: [10, 21], days: 'weekday', from: HOMES_OR_CITY, to: WINDOWS, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['shop'], types: ['residence'], edge: true }, group: [1, 2], max: 5 },
       { role: 'window-shopper', label: 'Alguien mirando escaparates', line: 'Este me lo pruebo. O no.', weight: 5, hours: [10, 21], days: 'weekend', from: HOMES_OR_CITY, to: WINDOWS, stay: [1, 5], stayState: 'BROWSE', then: { tags: ['shop'], types: ['residence'], edge: true }, group: [1, 3], max: 7 },
       // Calle del Carmen: escaparates, cola en la puerta de Archivo, parejas y pandillas de paseo, la terraza y el banco.
       { role: 'carmen-browse', label: 'Alguien mirando escaparates', line: 'Aquí siempre encuentro algo que no buscaba.', weight: 3, hours: [11, 21], from: HOMES_OR_CITY, to: CARMEN_WINDOWS, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['carmen', 'shop'], types: ['residence'], edge: true }, group: [1, 3], max: 5 },
-      { role: 'carmen-browse', label: 'Gente de tiendas', line: 'Una vuelta por el Carmen y a casa. Eso decimos siempre.', weight: 4, hours: [11, 21], days: 'weekend', from: HOMES_OR_CITY, to: CARMEN_WINDOWS, stay: [2, 5], stayState: 'BROWSE', then: CARMEN, group: [2, 3], max: 6 },
+      { role: 'carmen-browse', label: 'Gente de tiendas', line: 'Una vuelta por el Carmen y a casa. Eso decimos siempre.', weight: 4, hours: [11, 21], days: 'weekend', from: HOMES_OR_CITY, to: CARMEN_WINDOWS, stay: [2, 5], stayState: 'BROWSE', then: CARMEN, group: [2, 3], max: 6, bond: ['friends', 'couple'] },
       { role: 'carmen-wait', label: 'Alguien esperando en la puerta', line: 'Abren a las doce. Llevo aquí desde las once y media.', weight: 2, hours: [11, 20], from: HOMES_OR_CITY, to: { points: ['CARMEN_WAIT_'] }, stay: [5, 15], stayState: 'PHONE', then: CARMEN, group: [1, 2], max: 4 },
-      { role: 'carmen-couple', label: 'Una pareja paseando', line: 'Íbamos a mirar sólo una tienda.', weight: 2, hours: [11, 22], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['carmen-75', 'carmen-106'], pace: 'stroll', group: [2, 2] },
-      { role: 'carmen-friends', label: 'Gente charlando', line: '¿Has visto lo que ha sacado Archivo? Ni de broma lo pago.', weight: 2, hours: [16, 22.5], from: HOMES_OR_CITY, to: { points: ['CARMEN_TALK_'] }, stay: [8, 20], stayState: 'TALK', group: [2, 3], max: 3 },
+      { role: 'carmen-couple', label: 'Una pareja paseando', line: 'Íbamos a mirar sólo una tienda.', weight: 2, hours: [11, 22], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['carmen-75', 'carmen-106'], pace: 'stroll', group: [2, 2], bond: ['couple'] },
+      { role: 'carmen-friends', label: 'Gente charlando', line: '¿Has visto lo que ha sacado Archivo? Ni de broma lo pago.', weight: 2, hours: [16, 22.5], from: HOMES_OR_CITY, to: { points: ['CARMEN_TALK_'] }, stay: [8, 20], stayState: 'TALK', group: [2, 3], max: 3, bond: ['friends'] },
       { role: 'carmen-bench', label: 'Alguien sentado', line: 'Se está bien aquí. Pasa gente interesante.', weight: 1, hours: [10, 21], from: HOMES_OR_CITY, to: { points: ['CARMEN_BENCH_'] }, stay: [10, 30], stayState: 'READ' },
-      { role: 'terrace', label: 'Alguien en la terraza del Molinillo', line: 'El mejor café del barrio. No se lo digas a Nilo.', weight: 2, hours: [9, 19.5], from: HOMES_OR_CITY, to: { points: ['MOLINILLO_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2] },
+      { role: 'terrace', label: 'Alguien en la terraza del Molinillo', line: 'El mejor café del barrio. No se lo digas a Nilo.', weight: 2, hours: [9, 19.5], from: HOMES_OR_CITY, to: { points: ['MOLINILLO_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
       { role: 'tattoo-client', label: 'Alguien con cita en el estudio', line: 'Tengo cita a y media. Estoy tranquilo. Muy tranquilo.', weight: 1, hours: [12, 20], days: 'weekday', from: HOMES_OR_CITY, to: { points: ['TINTA_ENTRANCE'] } },
       // El metro: quien sale de un tren y quien espera a alguien que llega en el siguiente.
       { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Qué agobio de vagón.', weight: 2, hours: [6.5, 1.5], from: TRANSIT, to: { types: ['residence'], tags: ['shop', 'work'], edge: true } },
       { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Me ha dicho que ya sale del metro.', weight: 2, hours: [8, 23], from: HOMES_OR_CITY, to: { points: ['METRO_MEET_'] }, stay: [4, 12], stayState: 'PHONE', then: TRANSIT, max: 2 },
       // Fin de semana: brunch en la terraza y más paseo.
-      { role: 'brunch', label: 'Gente de brunch', line: 'Otro café y nos vamos. Eso dijimos hace una hora.', weight: 4, hours: [10, 13.5], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['CAFE_TERRACE_'] }, stay: [30, 60], stayState: 'DRINK', group: [2, 3] },
-      { role: 'park-stroll', label: 'Gente paseando', line: 'Sábado sin plan. El mejor plan.', weight: 4, hours: [10.5, 20], days: 'weekend', from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'stroll', group: [1, 3] },
+      { role: 'brunch', label: 'Gente de brunch', line: 'Otro café y nos vamos. Eso dijimos hace una hora.', weight: 4, hours: [10, 13.5], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['CAFE_TERRACE_'] }, stay: [30, 60], stayState: 'DRINK', group: [2, 3], bond: ['friends', 'couple'] },
+      { role: 'park-stroll', label: 'Gente paseando', line: 'Sábado sin plan. El mejor plan.', weight: 4, hours: [10.5, 20], days: 'weekend', from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'stroll', group: [1, 3], bond: ['family', 'couple', 'friends'] },
       { role: 'bus', label: 'Alguien esperando el bus', line: 'Dice ocho minutos desde hace veinte.', weight: 1, hours: [6.5, 23], from: HOMES, to: { points: ['BUS_STOP'] }, stay: [4, 12], then: CITY },
+      // Gente de visita: en grupo, a la plaza a ver la fuente y el quiosco, y otra vez a la ciudad.
+      { role: 'tourist', label: 'Gente de visita', line: 'Perdona, ¿la Plaza de la Fuente es esta? La del mapa.', weight: 1.5, hours: [10, 20.5], from: CITY, to: { points: ['PLAZA_FOUNTAIN', 'NEWS_KIOSK', 'PLAZA_BENCH_'] }, stay: [6, 15], then: CITY, group: [2, 3], bond: ['tourists'] },
       // Quien sólo cruza el barrio, a cualquier hora.
       { role: 'passer', label: 'Alguien de paso', line: 'Perdona, voy con prisa.', weight: 2, from: CITY, to: CITY },
       { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'Ya es tardísimo...', weight: 1, hours: [22, 6], from: { types: ['transit'], edge: true }, to: HOMES },
       // La noche: cola en la puerta, corrillo fuera y gente saliendo de madrugada.
-      { role: 'club-queue', label: 'Alguien en la cola', line: 'Dicen que hoy pincha alguien bueno.', weight: 4, hours: [22, 3.5], from: ANYWHERE_HOME, to: { points: ['CLUB_QUEUE_'] }, stay: [3, 8], then: NIGHT_OUT, group: [1, 3] },
-      { role: 'club-goer', label: 'Alguien que sale de fiesta', line: '¡Esta noche no se duerme!', weight: 2, hours: [23, 3], from: ANYWHERE_HOME, to: NIGHT_OUT, group: [2, 3] },
-      { role: 'club-smoke', label: 'Alguien tomando el aire', line: 'Salgo un momento, que dentro no se respira.', weight: 2, hours: [23.5, 5.5], from: NIGHT_OUT, to: { points: ['CLUB_SMOKE_'] }, stay: [5, 12], then: NIGHT_OUT, group: [2, 3] },
-      { role: 'club-leaving', label: 'Alguien saliendo de la discoteca', line: 'Me duelen los pies. Ha merecido la pena.', weight: 4, hours: [2.5, 6], from: NIGHT_OUT, to: ANYWHERE_HOME, group: [1, 3] },
+      { role: 'club-queue', label: 'Alguien en la cola', line: 'Dicen que hoy pincha alguien bueno.', weight: 4, hours: [22, 3.5], from: ANYWHERE_HOME, to: { points: ['CLUB_QUEUE_'] }, stay: [3, 8], then: NIGHT_OUT, group: [1, 3], bond: ['friends', 'couple'] },
+      { role: 'club-goer', label: 'Alguien que sale de fiesta', line: '¡Esta noche no se duerme!', weight: 2, hours: [23, 3], from: ANYWHERE_HOME, to: NIGHT_OUT, group: [2, 3], bond: ['friends', 'couple'] },
+      { role: 'club-smoke', label: 'Alguien tomando el aire', line: 'Salgo un momento, que dentro no se respira.', weight: 2, hours: [23.5, 5.5], from: NIGHT_OUT, to: { points: ['CLUB_SMOKE_'] }, stay: [5, 12], then: NIGHT_OUT, group: [2, 3], bond: ['friends'] },
+      { role: 'club-leaving', label: 'Alguien saliendo de la discoteca', line: 'Me duelen los pies. Ha merecido la pena.', weight: 4, hours: [2.5, 6], from: NIGHT_OUT, to: ANYWHERE_HOME, group: [1, 3], bond: ['friends', 'couple'] },
     ],
   },
 ];

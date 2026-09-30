@@ -517,13 +517,19 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
  * persona y otra. Una fila por aspecto, una celda por dirección y pose.
  */
 export const PEOPLE = 'people';
+/** Lado máximo del atlas de gente, en px. */
+const ATLAS_MAX = 4096;
 export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
 
 function buildPeople(scene: Phaser.Scene): void {
   if (scene.textures.exists(PEOPLE)) return;
   // Con las versiones de abrigo, verano y capucha de cada cara (world/WeatherLooks): se hornean una vez.
   const looks = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS];
-  const atlas = scene.textures.createCanvas(PEOPLE, FACINGS.length * POSES.length * PLAYER_W, looks.length * PLAYER_H);
+  // Las filas se reparten en columnas para no pasar de 4096 px de alto (el tope de muchos móviles).
+  const rowW = FACINGS.length * POSES.length * PLAYER_W;
+  const columns = Math.ceil((looks.length * PLAYER_H) / ATLAS_MAX);
+  const perColumn = Math.ceil(looks.length / columns);
+  const atlas = scene.textures.createCanvas(PEOPLE, columns * rowW, perColumn * PLAYER_H);
   if (!atlas) return;
   const ctx = atlas.getContext();
   ctx.imageSmoothingEnabled = false;
@@ -539,8 +545,8 @@ function buildPeople(scene: Phaser.Scene): void {
       POSES.forEach((pose, i) => {
         c.clearRect(0, 0, PLAYER_W, PLAYER_H);
         drawHuman(c, facing, pose, colors);
-        const x = (f * POSES.length + i) * PLAYER_W;
-        const y = row * PLAYER_H;
+        const x = Math.floor(row / perColumn) * rowW + (f * POSES.length + i) * PLAYER_W;
+        const y = (row % perColumn) * PLAYER_H;
         ctx.drawImage(cell, x, y);
         atlas.add(personFrame(look.id, facing, pose), 0, x, y, PLAYER_W, PLAYER_H);
       }),

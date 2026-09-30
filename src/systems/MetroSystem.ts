@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_MINUTES_PER_REAL_SECOND, MAX_FRAME_MS, TILE } from '../config/constants';
 import { CROWD_PROFILES, type MetroConfig } from '../config/metro';
+import { DEBUG } from '../config/debug';
 import type { MetroDef, NpcDef, NpcLook, TilePoint, Vec2 } from '../types/game';
 import { getNpc, PASSENGER_LOOKS } from '../data/npcs';
 import { ANNOUNCEMENTS } from '../data/announcements';
@@ -189,6 +190,10 @@ export class MetroSystem {
     if (event) this.runEvent(event);
 
     if (!this.debug) return;
+    if (!DEBUG.mode) {
+      this.debug.hide();
+      return;
+    }
     this.debugTimer -= dt;
     if (this.debugTimer > 0) return;
     this.debugTimer = DEBUG_REFRESH_MS;
