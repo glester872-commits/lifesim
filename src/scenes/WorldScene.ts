@@ -62,7 +62,8 @@ import { DEBUG } from '../config/debug';
 import { weatherAt } from '../systems/Weather';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
-import { PLAYER_H } from '../world/TextureFactory';
+import { CAR_H, CAR_W, PLAYER_H } from '../world/TextureFactory';
+import { TRAIN_CARS } from '../entities/Train';
 import type { Services } from '../services';
 
 export interface WorldSceneData {
@@ -356,13 +357,23 @@ export class WorldScene extends Phaser.Scene {
     this.lighting = new Lighting(this, def, built, state);
     // Lo pequeño que se mueve solo: hojas, vaho, vapor, polvo, humo, el aire del tren (world/Atmosphere).
     const edgeY = def.metro ? def.metro.edgeRow * TILE + 12 : 0;
+    // Ruedas del tren (el borde de abajo de los coches) y sus bogies, dos por coche: de ahí saltan las chispas al frenar.
+    const wheelsY = def.metro ? def.metro.trackRow * TILE + CAR_H - 3 : 0;
+    const bogies = Array.from({ length: TRAIN_CARS }, (_, c) => [c * CAR_W + 12, c * CAR_W + CAR_W - 12]).flat();
     this.atmosphere = new Atmosphere(this, def, {
       weather: () => weatherAt(state.day, state.hour + state.minute / 60),
       hour: () => state.hour + state.minute / 60,
       day: () => state.day,
       traffic: () => this.traffic,
-      train: () => (this.metro ? { train: this.metro.train, doors: this.metro.doorSpots, edgeY } : null),
+      train: () => (this.metro ? { train: this.metro.train, doors: this.metro.doorSpots, edgeY, wheelsY, bogies } : null),
+      walkers: () => {
+        const feet = this.street?.agents.map((a) => ({ x: a.x * TILE + TILE / 2, y: a.y * TILE + TILE, moving: a.moving })) ?? [];
+        if (def.kind === 'exterior') feet.push({ x: this.player.x, y: this.player.y, moving: (this.player.body as Phaser.Physics.Arcade.Body).speed > 1 });
+        return feet;
+      },
     });
+    // Una paloma que echa a volar levanta alguna pluma y polvo.
+    if (this.wildlife) this.wildlife.onTakeoff = (x, y) => this.atmosphere?.burst('feather', x, y, 3);
 
     const camera = this.cameras.main;
     camera.setBackgroundColor(PALETTE.ink);

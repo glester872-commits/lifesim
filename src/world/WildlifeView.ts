@@ -34,6 +34,17 @@ export class WildlifeView {
   private readonly dogSprites = new Map<number, DogSprite>();
   private readonly birdSprites: BirdSprite[];
 
+  /**
+   * Estado de cada paloma el frame anterior: al echar a volar (la espante quien
+   * la espante: gente, perros o el jugador) avisa, y world/Atmosphere levanta
+   * plumas y polvo. No en cada despegue: una bandada entera saliendo a la vez
+   * daría una nube; sale en alrededor de un despegue de cada tres y, tras una
+   * tanda, hay un respiro.
+   */
+  private readonly lastState: string[] = [];
+  private nextFeathers = 0;
+  onTakeoff: ((x: number, y: number) => void) | null = null;
+
   constructor(scene: Phaser.Scene, loc: LocationDef, street: StreetLife, day: number, hour: number, player: TilePoint) {
     this.scene = scene;
     this.street = street;
@@ -62,6 +73,12 @@ export class WildlifeView {
   }
 
   private drawBird(b: Pigeon, s: BirdSprite, time: number): void {
+    const before = this.lastState[b.id];
+    if (b.state === 'flee' && before !== undefined && before !== 'flee' && time >= this.nextFeathers && Math.random() < 0.35) {
+      this.nextFeathers = time + 1500;
+      this.onTakeoff?.(b.x * TILE + TILE / 2, b.y * TILE + TILE - 2);
+    }
+    this.lastState[b.id] = b.state;
     const visible = b.state !== 'away';
     s.body.setVisible(visible);
     s.shadow.setVisible(visible);

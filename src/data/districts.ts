@@ -54,7 +54,7 @@ export interface DistrictProfile {
 }
 
 /** Efectos de ambiente que una zona puede subir o bajar. */
-export type AmbientFx = 'leaf' | 'paper' | 'steam';
+export type AmbientFx = 'leaf' | 'paper' | 'steam' | 'glint';
 
 export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
   // Calma: color apagado, luz de casa, poco rótulo; lo que hay en la acera es de vecinos.
@@ -88,7 +88,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     crowd: { street: 5, everyday: 1.5, smart: 0.6, sport: 0.3 },
     vehicles: { all: { casual: 1.6, rental: 1.4, commuter: 0.7 } },
     facades: ['res-*', 'tattoo', 'vintage', 'coffee', 'records', 'streetwear', 'thrift', 'print'],
-    ambience: { leaf: 1.2, paper: 1.6, steam: 1 },
+    ambience: { leaf: 1.2, paper: 1.6, steam: 1, glint: 1.2 },
   },
   // Noche: de día pasa desapercibida; al caer la luz es la zona más oscura con la luz más rosada.
   nightlife: {
@@ -99,7 +99,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     crowd: { street: 3, smart: 2, everyday: 1 },
     vehicles: { night: { taxi: 1.8 }, dawn: { taxi: 1.5 } },
     facades: ['club', 'wine', 'fruit', 'hair', 'pharmacy', 'res-*'],
-    ambience: { leaf: 0.3, paper: 2, steam: 1.4 },
+    ambience: { leaf: 0.3, paper: 2, steam: 1.4, glint: 1.5 },
   },
   // Parque: verde en el suelo, luz más suave y fría de noche; bordes blandos con arbusto y hoja.
   park: {
@@ -110,7 +110,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     crowd: { sport: 4, everyday: 2.5, smart: 0.3, street: 0.8 },
     vehicles: { all: { casual: 1.5, commuter: 0.8, courier: 0.6 } },
     facades: ['civic', 'wine', 'res-*'],
-    ambience: { leaf: 2.5, paper: 0.3, steam: 0.3 },
+    ambience: { leaf: 2.5, paper: 0.3, steam: 0.3, glint: 0.6 },
   },
   // Boca de metro: acero y granito, luz más neutra; la gente de paso de cualquier sitio.
   transit: {
