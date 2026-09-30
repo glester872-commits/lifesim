@@ -400,7 +400,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    const { clock, dialogue, menu, map } = this.services;
+    const { clock, dialogue, menu, map, input } = this.services;
+    input.beginFrame();
 
     // El mapa es un modo de interfaz, como el menú: el jugador se para, nada responde a la E y el
     // mundo espera (ni reloj ni gente) hasta cerrarlo. M o Esc lo cierran; su botón, también.
@@ -408,6 +409,7 @@ export class WorldScene extends Phaser.Scene {
       this.player.halt();
       this.prompt.setVisible(false);
       this.services.hint.hide();
+      input.setContext({ action: null, back: false, busy: true });
       if (this.pressedAny(['map', 'cancel'])) map.close();
       return;
     }
@@ -424,6 +426,7 @@ export class WorldScene extends Phaser.Scene {
       this.player.halt();
       this.prompt.setVisible(false);
       this.services.hint.hide();
+      input.setContext({ action: 'Elegir', back: true, busy: true });
       if (this.pressedAny(['up', 'upAlt'])) menu.move(-1);
       else if (this.pressedAny(['down', 'downAlt'])) menu.move(1);
       else if (this.pressedAny(['interact', 'advance', 'advanceAlt'])) menu.confirm();
@@ -441,6 +444,8 @@ export class WorldScene extends Phaser.Scene {
       this.player.halt();
       this.prompt.setVisible(false);
       this.services.hint.hide();
+      // Con opciones se elige tocándolas (ui/DialogueBox); si no, el botón de acción sigue.
+      input.setContext({ action: dialogue.choices.length > 0 ? null : 'Seguir', back: false, busy: true });
       const picked = ['one', 'two', 'three'].findIndex((name) => this.pressedAny([name]));
       if (picked >= 0) dialogue.choose(picked);
       else if (this.pressedAny(['interact', 'advance', 'advanceAlt'])) dialogue.advance();
@@ -484,19 +489,22 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    // Teclas y joystick, al mismo movimiento: las teclas por su lado y el stick, analógico.
     this.player.move({
-      up: this.held('up') || this.held('upAlt'),
-      down: this.held('down') || this.held('downAlt'),
-      left: this.held('left') || this.held('leftAlt'),
-      right: this.held('right') || this.held('rightAlt'),
+      up: this.keyHeld('up') || this.keyHeld('upAlt'),
+      down: this.keyHeld('down') || this.keyHeld('downAlt'),
+      left: this.keyHeld('left') || this.keyHeld('leftAlt'),
+      right: this.keyHeld('right') || this.keyHeld('rightAlt'),
+      analog: input.stick,
     });
 
     this.syncState();
 
     const target = this.nearestInteractable();
     this.updatePrompt(target);
+    input.setContext({ action: this.actionLabel(target), back: false, busy: false });
 
-    if (target && Phaser.Input.Keyboard.JustDown(this.keys.interact)) {
+    if (target && this.pressedAny(['interact'])) {
       this.interact(target);
     } else if (this.pressedAny(['bag'])) {
       this.player.halt();
@@ -561,15 +569,39 @@ export class WorldScene extends Phaser.Scene {
     }) as Keys;
   }
 
-  private held(name: string): boolean {
+  /** Sólo el teclado: andar con teclas (el stick entra aparte, analógico, en Player.move). */
+  private keyHeld(name: string): boolean {
     return this.keys[name]?.isDown ?? false;
+  }
+
+  /** Teclado o controles táctiles (systems/PlayerInput): mismos nombres, misma acción. */
+  private held(name: string): boolean {
+    return this.keyHeld(name) || this.services.input.isHeld(name);
   }
 
   private pressedAny(names: string[]): boolean {
     return names.some((name) => {
       const key = this.keys[name];
-      return key ? Phaser.Input.Keyboard.JustDown(key) : false;
+      return (key ? Phaser.Input.Keyboard.JustDown(key) : false) || this.services.input.consume(name);
     });
+  }
+
+  /**
+   * Qué hace ahora el botón táctil de acción, con lo que tiene cerca: el mismo
+   * objetivo al que respondería la E. Un solo botón que cambia de nombre, no
+   * uno por cada cosa.
+   */
+  private actionLabel(target: Interactable | null): string | null {
+    if (!target) return null;
+    switch (target.kind) {
+      case 'npc': return 'Hablar';
+      case 'portal': return target.portal.train ? 'Subir' : target.portal.label?.startsWith('Salir') ? 'Salir' : 'Entrar';
+      case 'seat': return 'Sentarse';
+      case 'terminal': return 'Comprar';
+      case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
+      case 'inspect':
+      case 'event': return 'Mirar';
+    }
   }
 
   /**
@@ -754,7 +786,8 @@ export class WorldScene extends Phaser.Scene {
       this.services.hint.show(status ? `${status} · levantarse` : 'Levantarse');
       this.prompt.setPosition(this.player.x, this.player.y - PLAYER_H - 8).setVisible(true);
     }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.interact)) {
+    this.services.input.setContext({ action: target ? this.actionLabel(target) : 'Levantarse', back: false, busy: false });
+    if (this.pressedAny(['interact'])) {
       if (target) this.interact(target);
       else this.standUp();
     } else if (this.pressedAny(['cancel', 'cancelAlt'])) this.standUp();

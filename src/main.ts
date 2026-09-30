@@ -25,6 +25,8 @@ import { Announcer } from './ui/Announcer';
 import { PlaceBanner } from './ui/PlaceBanner';
 import { Menu } from './ui/Menu';
 import { MapScreen } from './ui/MapScreen';
+import { MobileControls } from './ui/MobileControls';
+import { PlayerInput } from './systems/PlayerInput';
 import { METRO_CONFIG } from './config/metro';
 import type { Services } from './services';
 
@@ -59,6 +61,7 @@ const services: Services = {
   menu,
   // No se abre encima de un diálogo o un menú: primero se termina lo que se estaba haciendo.
   map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen),
+  input: new PlayerInput(),
 };
 
 // La paleta vive en TypeScript; el CSS la consume desde aquí para no duplicarla.
@@ -71,6 +74,8 @@ css.setProperty('--accent', PALETTE.glassLit);
 
 new HUD(requireEl('#hud'), state);
 new DialogueBox(requireEl('#dialogue'), services.dialogue);
+// Joystick y botón de acción en pantallas táctiles; en un PC con ratón no aparecen.
+new MobileControls(requireEl('#touch'), services.input);
 
 /**
  * El lienzo va a la resolución física de la pantalla y el CSS lo estira a la

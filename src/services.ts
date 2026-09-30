@@ -9,6 +9,7 @@ import type { PlaceBanner } from './ui/PlaceBanner';
 import type { MetroEventManager } from './systems/MetroEventManager';
 import type { Menu } from './ui/Menu';
 import type { MapScreen } from './ui/MapScreen';
+import type { PlayerInput } from './systems/PlayerInput';
 
 /** Sistemas compartidos; se inyectan en las Scenes por constructor. */
 export interface Services {
@@ -26,4 +27,6 @@ export interface Services {
   menu: Menu;
   /** Mapa del barrio (tecla M o su botón): abierto, el mundo se para como con un menú. */
   map: MapScreen;
+  /** Joystick y botones táctiles (ui/MobileControls): el bucle los lee junto al teclado. */
+  input: PlayerInput;
 }

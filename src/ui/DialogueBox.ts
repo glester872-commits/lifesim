@@ -25,6 +25,10 @@ export class DialogueBox {
     this.textEl = this.pick('.dialogue__text');
     this.hintEl = this.pick('.dialogue__hint');
     this.choicesEl = this.pick('.dialogue__choices');
+    // Tocar el panel sigue la conversación (como la E); con respuestas, hay que elegir una.
+    this.pick('.dialogue__panel').addEventListener('click', () => {
+      if (dialogue.isOpen && dialogue.choices.length === 0) dialogue.advance();
+    });
 
     dialogue.on('open', (speaker: string, line: string) => {
       this.speakerEl.textContent = speaker;
@@ -48,6 +52,11 @@ export class DialogueBox {
       ...choices.map((label, i) => {
         const item = document.createElement('li');
         item.textContent = `${i + 1}. ${label}`;
+        // Tocar una respuesta es elegirla, como su número.
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.dialogue.choose(i);
+        });
         return item;
       }),
     );

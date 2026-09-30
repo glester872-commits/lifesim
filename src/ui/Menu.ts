@@ -122,6 +122,8 @@ export class Menu {
         detail.className = 'menu__detail';
         detail.textContent = o.detail ?? '';
         li.append(label, detail);
+        // Con el dedo (o el ratón), tocar una opción es elegirla: lo mismo que su número.
+        li.addEventListener('click', () => this.confirm(i));
         return li;
       }),
     );

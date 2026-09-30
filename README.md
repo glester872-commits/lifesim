@@ -67,6 +67,17 @@ npm run preview  # sirve dist/
 Cuando algo es interactuable aparece un indicador `E` sobre la cabeza del
 personaje.
 
+**En móvil** (puntero táctil, o en cuanto se toca la pantalla): joystick abajo
+a la izquierda, analógico y en 360° (poco empujado, se anda despacio), y un
+botón de acción abajo a la derecha que hace lo mismo que la `E` y dice qué
+hará según lo que tengas cerca (Hablar, Entrar, Salir, Sentarse, Comprar,
+Subir, Seguir, Levantarse…). Con un menú abierto aparece **Volver** (`Esc`);
+las opciones de menús y diálogos se tocan directamente. El mapa es su botón de
+siempre. Todo pasa por la misma capa de entrada que el teclado
+(`systems/PlayerInput.ts`, que escribe `ui/MobileControls.ts` y lee
+`WorldScene`): no hay un segundo sistema de movimiento. En un PC con ratón los
+controles táctiles no aparecen.
+
 ## Arquitectura
 
 Capas separadas a propósito:
@@ -596,9 +607,10 @@ Conocidas y deliberadas:
   va a 55–59 fps en la calle y a 60 dentro (Chrome de escritorio, sábado a las
   18:00), con ~220 cuerpos estáticos y ~630 objetos. Con varias veces ese tamaño tocaría trocear en zonas o
   descartar props fuera de cámara.
-- **Sin audio, sin controles táctiles, sin menús.**
-- El objetivo es escritorio; el canvas se adapta a la ventana, pero no hay
-  interfaz pensada para móvil.
+- **Sin audio ni menú principal.**
+- **Móvil: el joystick no repite en los menús.** Mantenerlo empujado mueve la
+  selección una vez; para bajar varias opciones se empuja varias veces o se
+  toca la opción directamente.
 
 ## Roadmap conceptual
 

@@ -9,7 +9,15 @@ export interface MoveInput {
   down: boolean;
   left: boolean;
   right: boolean;
+  /**
+   * El joystick táctil (systems/PlayerInput): dirección en 360° y cuánto se
+   * empuja (largo de 0 a 1). Sólo cuenta si no hay teclas pulsadas.
+   */
+  analog?: { readonly x: number; readonly y: number };
 }
+
+/** Con el stick apenas empujado se anda despacio; a fondo, al paso de siempre. */
+const MIN_ANALOG_PACE = 0.35;
 
 /** Al llegar al asiento, un instante a medio sentarse antes de apoyarse del todo (lo mismo que la gente). */
 const SIT_DOWN_MS = 260;
@@ -66,8 +74,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   move(input: MoveInput): void {
     if (this.seat) return;
-    const vx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    const vy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+    let vx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    let vy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+    // Las teclas mandan; sin ellas, el stick: su dirección y, según lo que se empuje, más o menos deprisa.
+    let pace = 1;
+    let fromStick = false;
+    const push = input.analog ? Math.hypot(input.analog.x, input.analog.y) : 0;
+    if (vx === 0 && vy === 0 && input.analog && push > 0) {
+      vx = input.analog.x;
+      vy = input.analog.y;
+      pace = MIN_ANALOG_PACE + (1 - MIN_ANALOG_PACE) * Math.min(1, push);
+      fromStick = true;
+    }
 
     if (vx === 0 && vy === 0) {
       this.halt();
@@ -76,10 +94,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     const length = Math.hypot(vx, vy);
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setVelocity((vx / length) * PLAYER_SPEED, (vy / length) * PLAYER_SPEED);
+    body.setVelocity((vx / length) * PLAYER_SPEED * pace, (vy / length) * PLAYER_SPEED * pace);
 
-    this.dir = vx !== 0 ? (vx > 0 ? 'right' : 'left') : vy > 0 ? 'down' : 'up';
+    // Con teclas, el lado manda en diagonal (como siempre); con el stick, el eje hacia el que más se empuja.
+    const horizontal = fromStick ? Math.abs(vx) >= Math.abs(vy) : vx !== 0;
+    this.dir = horizontal ? (vx > 0 ? 'right' : 'left') : vy > 0 ? 'down' : 'up';
     this.anims.play(`player-walk-${this.dir}`, true);
+    // El paso, al compás de la velocidad: despacio no resbalan los pies.
+    this.anims.timeScale = pace;
     this.sync();
   }
 
@@ -87,7 +109,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Sentado sigue sentado aunque se abra un menú o una conversación.
     if (this.seat) return;
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-    // Quieto no es congelado: respira.
+    // Quieto no es congelado: respira (a su ritmo, aunque viniera andando despacio con el stick).
+    this.anims.timeScale = 1;
     this.anims.play(`player-idle-${this.dir}`, true);
     this.sync();
   }
