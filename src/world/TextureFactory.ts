@@ -11,6 +11,7 @@ import { buildStreetTextures } from './StreetArt';
 import { buildVehicleTextures } from './VehicleArt';
 import { buildWeatherTextures } from './WeatherView';
 import { buildAtmosphereTextures } from './Atmosphere';
+import { buildAmbientTextures } from './AmbientArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
@@ -334,12 +335,21 @@ function drawTable(ctx: Ctx): void {
   px(ctx, PALETTE.woodLit, 5, 5, 4, 2);
 }
 
+/**
+ * Barra o mostrador: encimera de madera con el canto al sol y su grosor, la
+ * sombra que echa el vuelo sobre el frente, frente de madera oscura en paneles
+ * y zócalo en sombra. Se lee como un mueble con volumen, no como una franja
+ * más del suelo.
+ */
 function drawCounter(ctx: Ctx): void {
-  px(ctx, PALETTE.stone, 0, 6, TILE, 10);
-  px(ctx, PALETTE.wood, 0, 4, TILE, 3);
-  px(ctx, PALETTE.woodLit, 0, 4, TILE, 1);
-  px(ctx, shade(PALETTE.stone, -0.08), 0, 10, TILE, 1);
-  px(ctx, shade(PALETTE.stone, -0.08), 8, 11, 1, 5);
+  px(ctx, PALETTE.wood, 0, 3, TILE, 4);
+  px(ctx, PALETTE.woodLit, 0, 3, TILE, 1);
+  px(ctx, shade(PALETTE.wood, -0.14), 0, 6, TILE, 1);
+  px(ctx, PALETTE.woodDark, 0, 7, TILE, 8);
+  px(ctx, shade(PALETTE.woodDark, -0.28), 0, 7, TILE, 1);
+  px(ctx, shade(PALETTE.woodDark, 0.1), 2, 9, 5, 4);
+  px(ctx, shade(PALETTE.woodDark, 0.1), 9, 9, 5, 4);
+  px(ctx, shade(PALETTE.woodDark, -0.32), 0, 15, TILE, 1);
 }
 
 /** Torniquete: cuerpo metálico a la altura de la cadera y piloto de validación. */
@@ -691,6 +701,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   buildVehicleTextures(scene);
   buildWeatherTextures(scene);
   buildAtmosphereTextures(scene);
+  buildAmbientTextures(scene);
 }
 
 /**

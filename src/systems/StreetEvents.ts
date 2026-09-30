@@ -1,7 +1,7 @@
 // Sin Phaser: world/StreetEventView.ts lo pinta y scripts/check-street-events.ts
 // lo recorre noche a noche con exactamente esta lógica.
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
-import type { EventSlot, StreetEventDef } from '../data/streetEvents.ts';
+import type { EventSlot, FighterProfile, StreetEventDef } from '../data/streetEvents.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
 import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { weekIndex } from './Calendar.ts';
@@ -18,7 +18,7 @@ import { weatherAt } from './Weather.ts';
  */
 
 export type EventPhase = 'none' | 'gathering' | 'fight' | 'break' | 'dispersing';
-export type Role = 'fighter' | 'spectator' | 'watcher' | 'lookout';
+export type Role = 'fighter' | 'spectator' | 'watcher' | 'lookout' | 'bookmaker';
 
 /** Minutos de juego: corrillo antes de empezar, asalto, descanso entre asaltos y rato en que el patio se vacía. */
 export const GATHER = 40;
@@ -29,8 +29,7 @@ export const DISPERSE = 30;
 export const WALK = 0.75;
 export const FLEE = 1.6;
 /** Un golpe cada tanto: el compás de la pelea, en minutos de juego (0,6 min = 0,3 s). */
-const BEAT = 0.6;
-const BEATS = 8;
+const EXCHANGE = 2.8;
 
 export interface Member {
   id: number;
@@ -46,6 +45,9 @@ export interface Member {
   seed: number;
   /** Se va con el aviso del vigía: deprisa. */
   fast: boolean;
+  /** Lado al que anima (0 rojo, 1 azul) y apuesta puramente ambiental, sin tocar la cartera del jugador. */
+  support?: 0 | 1;
+  bet?: { side: 0 | 1; stake: 5 | 10 | 20 };
 }
 
 export interface Night {
@@ -59,6 +61,8 @@ export interface Night {
   /** El vigía avisa: a partir de aquí todos se van. */
   raidAt: number | null;
   members: Member[];
+  fighters: readonly [FighterProfile, FighterProfile];
+  winner: 0 | 1;
 }
 
 export interface Presence {
@@ -70,14 +74,42 @@ export interface Presence {
   moving: boolean;
   /** Lo que hace parado: CHEER, TALK, WATCH, WAIT o FIGHT; andando, WALK. */
   state: string;
+  shout?: string;
+  betting?: boolean;
 }
 
 export interface FighterPose {
-  pose: 0 | 8 | 9 | 10;
-  /** Px hacia el rival (negativo: hacia atrás). */
+  pose: 0 | 7 | 8 | 9 | 10 | 27 | 28 | 29 | 30 | 31;
+  /** Px hacia el rival (negativo: retroceso), siempre dentro del collider existente. */
   dx: number;
-  /** En este compás un golpe llega: el destello pequeño entre los dos. */
   hit: boolean;
+}
+
+export type FightStage = 'waiting' | 'face-off' | 'argument' | 'stance' | 'exchange' | 'overwhelmed' | 'finish' | 'break' | 'ended';
+export interface FightFrame {
+  stage: FightStage;
+  poses: [FighterPose, FighterPose];
+  attacker: 0 | 1;
+  strong: boolean;
+  /** El golpe ya ha conectado: ventana breve para impactos y reacciones. Un esquive nunca da impacto. */
+  contact: boolean;
+  dodged: boolean;
+  comic: 'PUNCH!' | 'POW!' | 'BAM!' | 'OUCH!' | null;
+  id: string;
+}
+
+/** Adultos del mismo género. El rival más parecido prima sobre una pareja aleatoria. */
+export function matchFighters(roster: readonly FighterProfile[], seed: number): [FighterProfile, FighterProfile] {
+  const adults = roster.filter((p) => p.age >= 18 && (p.gender === 'man' || p.gender === 'woman') && PASSENGER_LOOKS.some((l) => l.id === p.look));
+  const eligible = adults.filter((a) => adults.some((b) => a.look !== b.look && a.gender === b.gender));
+  if (!eligible.length) throw new Error('Pelea clandestina: faltan dos adultos compatibles; no se usará una pareja arbitraria.');
+  const rng = seededRng(seed);
+  const a = eligible[Math.floor(rng() * eligible.length)];
+  const candidates = adults.filter((b) => b.look !== a.look && b.gender === a.gender);
+  const difference = (b: FighterProfile): number => Math.abs(a.body - b.body) * 3 + Math.abs(a.physical - b.physical);
+  const best = Math.min(...candidates.map(difference));
+  const nearest = candidates.filter((b) => difference(b) === best);
+  return [a, nearest[Math.floor(rng() * nearest.length)]];
 }
 
 function hash(...parts: number[]): number {
@@ -120,7 +152,10 @@ export function planNight(def: StreetEventDef, loc: LocationDef, day: number, fo
   const end = fightAt + fightLen;
   // Las tiradas de la noche, siempre en el mismo orden: cambiar una regla no cambia el resto.
   const [roll, raidRoll, raidWhen] = [rng(), rng(), rng()];
-  const base = { day, start, fightAt, rounds: bouts, end, raidAt: null, members: [] };
+  const fighters = matchFighters(def.fighterRoster, hashSeed(def.id, day, start, 'pair'));
+  const advantage = (fighters[0].physical - fighters[1].physical) * 0.08;
+  const winner: 0 | 1 = seededRng(hashSeed(def.id, day, start, 'result'))() < 0.5 + advantage ? 0 : 1;
+  const base = { day, start, fightAt, rounds: bouts, end, raidAt: null, members: [], fighters, winner };
   if (!force && !def.days.includes(weekIndex(day))) return { ...base, happens: false, why: 'weekday' };
   if (!force && roll >= def.chance) return { ...base, happens: false, why: 'chance' };
   const w = weatherAt(Math.floor(fightAt / 1440), (fightAt % 1440) / 60);
@@ -137,8 +172,8 @@ export function planNight(def: StreetEventDef, loc: LocationDef, day: number, fo
 
   const entries = def.entries.map((id) => loc.points?.[id]).filter((p): p is NonNullable<typeof p> => !!p);
   const looks = shuffled(PASSENGER_LOOKS.map((_, i) => i), rng);
-  // Quien pelea viene en ropa de calle o de deporte.
-  const fighterLooks = looks.filter((i) => ['street', 'sport'].includes(PASSENGER_LOOKS[i].style ?? ''));
+  // El aspecto viene del perfil adulto emparejado, nunca de un fallback sin metadatos.
+  const fighterLooks = fighters.map((f) => PASSENGER_LOOKS.findIndex((l) => l.id === f.look));
   const members: Member[] = [];
   const add = (role: Role, slot: EventSlot, arrive: number, leave: number, look: number): void => {
     const entry = entries[Math.floor(rng() * entries.length)];
@@ -148,7 +183,7 @@ export function planNight(def: StreetEventDef, loc: LocationDef, day: number, fo
     const left = warned ? raidAt + rng() * 1.5 : leave;
     members.push({ id: members.length + 1, role, slot, entry, exit, arrive, leave: Math.max(arrive + 4, left), look, seed: Math.floor(rng() * 1e6), fast: warned });
   };
-  def.fighters.forEach((slot, i) => add('fighter', slot, start + between(rng, 8, 20), stop + between(rng, 4, 12), fighterLooks[i] ?? looks[i]));
+  def.fighters.forEach((slot, i) => add('fighter', slot, start + between(rng, 8, 20), stop + between(rng, 4, 12), fighterLooks[i]));
   const taken = new Set(members.map((m) => m.look));
   const nextLook = (): number => {
     const i = looks.find((l) => !taken.has(l)) ?? looks[0];
@@ -162,6 +197,17 @@ export function planNight(def: StreetEventDef, loc: LocationDef, day: number, fo
   }
   for (const slot of def.watchers.slice(0, 1 + Math.floor(rng() * def.watchers.length))) {
     add('watcher', slot, fightAt + between(rng, 5, 25), end - between(rng, 0, 20), nextLook());
+  }
+  if (def.bookmaker) add('bookmaker', def.bookmaker, start + 8, end + 12, nextLook());
+  // Al menos dos apuestas en cada noche; el resto mira o anima sin apostar.
+  let bettors = 0;
+  for (const m of members) {
+    if (m.role === 'fighter' || m.role === 'lookout' || m.role === 'bookmaker') continue;
+    m.support = (m.seed % 2) as 0 | 1;
+    if (m.role === 'spectator' && (bettors < 2 || hash(m.seed, 17) < 0.4)) {
+      m.bet = { side: m.support, stake: ([5, 10, 20] as const)[m.seed % 3] };
+      bettors++;
+    }
   }
   if (def.lookout) add('lookout', def.lookout, start - 5, (raidAt ?? end) + (raidAt !== null ? 3 : 10), nextLook());
   return { ...base, raidAt, members, happens: true, why: 'ok' };
@@ -183,43 +229,91 @@ function toward(from: TilePoint, to: TilePoint): Facing {
   return Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? 'right' : 'left') : dy >= 0 ? 'down' : 'up';
 }
 
-/**
- * La pelea, compás a compás: un ataque por ciclo de ocho compases, a veces
- * esquivado. Acercarse, golpear, encajar y retroceder, recuperar la guardia.
- * Al final de cada asalto, uno retrocede y el otro baja la guardia. Nada más.
- */
-export function fighterPoses(n: Night, t: number): [FighterPose, FighterPose] {
+/** Una sola secuencia para pelea natural, forzada, render y público; toda sale del reloj. */
+export function fightFrame(n: Night, t: number): FightFrame {
   const phase = phaseAt(n, t);
-  if (phase === 'break') return [{ pose: 0, dx: -6, hit: false }, { pose: 0, dx: -6, hit: false }];
+  const ready = (dx = 8): [FighterPose, FighterPose] => [{ pose: 8, dx, hit: false }, { pose: 8, dx, hit: false }];
+  const still = (pose: FighterPose['pose'], dx = 0): [FighterPose, FighterPose] => [{ pose, dx, hit: false }, { pose, dx, hit: false }];
+  const base: FightFrame = { stage: 'waiting', poses: still(0), attacker: n.winner, strong: false, contact: false, dodged: false, comic: null, id: '' };
+  if (phase === 'break') return { ...base, stage: 'break', poses: still(29, -2) };
+  if (phase === 'gathering') {
+    const left = n.fightAt - t;
+    return left > 6 ? base : { ...base, stage: left > 3 ? 'face-off' : 'argument', poses: still(left > 3 ? 0 : 31, 6) };
+  }
   if (phase !== 'fight') {
-    // Calentando antes de empezar: de vez en cuando se ponen en guardia.
-    const pose = phase === 'gathering' && Math.floor(t / 3) % 3 === 0 ? 8 : 0;
-    return [{ pose, dx: 0, hit: false }, { pose, dx: 0, hit: false }];
+    const poses = still(0, -2);
+    if (phase === 'dispersing' && n.raidAt === null && t < n.end + 5) {
+      poses[n.winner] = { pose: 30, dx: 4, hit: false };
+      poses[1 - n.winner] = { pose: 29, dx: -6, hit: false };
+    }
+    return { ...base, stage: 'ended', poses };
   }
   const round = n.rounds.findIndex(([a, b]) => t >= a && t < b);
   const r = t - n.rounds[round][0];
-  if (r > ROUND - 2) {
-    const loser = hash(n.day, round) < 0.5 ? 0 : 1;
-    const out: [FighterPose, FighterPose] = [{ pose: 8, dx: 0, hit: false }, { pose: 8, dx: 0, hit: false }];
-    out[loser] = { pose: r > ROUND - 1 ? 0 : 10, dx: -8, hit: false };
-    return out;
+  if (r < 1.5) return { ...base, stage: 'face-off', poses: still(0, 6) };
+  if (r < 3) return { ...base, stage: 'argument', poses: still(31, 6) };
+  if (r < 4.5) return { ...base, stage: 'stance', poses: ready() };
+  if (r >= ROUND - 2) {
+    const poses = ready();
+    const final = round === n.rounds.length - 1;
+    poses[n.winner] = { pose: final ? 30 : 8, dx: 8, hit: false };
+    poses[1 - n.winner] = { pose: 29, dx: -6, hit: false };
+    return { ...base, stage: 'finish', poses };
   }
-  const cycle = Math.floor(r / (BEAT * BEATS));
-  const beat = Math.floor((r % (BEAT * BEATS)) / BEAT);
-  const att = hash(n.day, round, cycle) < 0.5 ? 0 : 1;
-  const dodge = hash(n.day, round, cycle, 7) < 0.35;
-  const a: FighterPose = { pose: 8, dx: 0, hit: false };
-  const d: FighterPose = { pose: 8, dx: 0, hit: false };
-  if (beat === 1) a.dx = 3;
-  else if (beat === 2) {
-    Object.assign(a, { pose: 9, dx: 4, hit: !dodge });
-    Object.assign(d, dodge ? { pose: 8, dx: -3 } : { pose: 10, dx: -2 });
-  } else if (beat === 3) {
-    a.dx = 2;
-    Object.assign(d, dodge ? { pose: 8, dx: -2 } : { pose: 10, dx: -5 });
-  } else if (beat === 4) d.dx = -3;
-  else if (beat === 7) a.pose = d.pose = 0;
-  return att === 0 ? [a, d] : [d, a];
+  const cycle = Math.floor((r - 4.5) / EXCHANGE);
+  const beat = (r - 4.5) % EXCHANGE;
+  // El atacante y la fuerza se fijan al empezar el intercambio, nunca a mitad de un golpe.
+  const late = 4.5 + cycle * EXCHANGE >= ROUND - 9;
+  const attacker: 0 | 1 = late ? n.winner : hash(n.day, n.start, round, cycle) < 0.5 ? 0 : 1;
+  const dodge = !late && hash(n.day, n.start, round, cycle, 7) < 0.3;
+  const strong = late || hash(n.day, n.start, round, cycle, 19) < 0.2;
+  const a: FighterPose = { pose: 8, dx: 8, hit: false };
+  const d: FighterPose = { pose: late ? 29 : 8, dx: late ? 3 : 8, hit: false };
+  const contact = !dodge && beat >= 0.75 && beat < 1.55;
+  if (beat < 0.75) Object.assign(a, { pose: 27, dx: 6 + beat * 4 });
+  else if (beat < 1.1) {
+    Object.assign(a, { pose: 9, dx: 14, hit: !dodge });
+    Object.assign(d, dodge ? { pose: 28, dx: 1 } : { pose: 10, dx: 7 - (beat - 0.75) * (strong ? 24 : 12) });
+  } else if (beat < 1.8) {
+    Object.assign(a, { pose: 8, dx: 12 - (beat - 1.1) * 5 });
+    Object.assign(d, dodge ? { pose: 28, dx: 1 + (beat - 1.1) * 6 } : { pose: strong ? 29 : 10, dx: (strong ? -4 : 2) + (beat - 1.1) * 4 });
+  }
+  const words = ['PUNCH!', 'POW!', 'BAM!', 'OUCH!'] as const;
+  const comic = contact && hash(n.day, n.start, round, cycle, 23) < 0.48 ? words[hashSeed(n.day, round, cycle, 31) % words.length] : null;
+  return { ...base, stage: late ? 'overwhelmed' : 'exchange', poses: attacker === 0 ? [a, d] : [d, a], attacker, strong, contact, dodged: dodge && beat >= 0.75 && beat < 1.8, comic, id: n.day + ':' + n.start + ':' + round + ':' + cycle };
+}
+
+export function fighterPoses(n: Night, t: number): [FighterPose, FighterPose] {
+  return fightFrame(n, t).poses;
+}
+
+/** Comentarios y gestos del mismo público: las apuestas son ambiente, no una economía nueva. */
+export function crowdCue(n: Night, m: Member, t: number): { state: string; shout?: string; betting?: boolean } {
+  const frame = fightFrame(n, t);
+  const phase = phaseAt(n, t);
+  const side = m.bet?.side ?? m.support ?? 0;
+  const name = n.fighters[side].nickname;
+  const moment = Math.floor(t / 2);
+  const talks = hash(m.seed, moment) < 0.38;
+  if (m.role === 'bookmaker') {
+    const settle = n.raidAt === null && t >= n.end;
+    return { state: talks ? 'TALK' : 'WATCH', betting: phase === 'gathering' || phase === 'break' || settle,
+      shout: talks ? n.raidAt !== null && t >= n.raidAt ? 'Guardad los billetes.' : settle ? 'Paga a ' + n.fighters[n.winner].nickname + '.' : phase === 'gathering' || phase === 'break' ? 'Cinco, diez... apuntado.' : undefined : undefined };
+  }
+  const finalEnd = n.rounds[n.rounds.length - 1][1];
+  if (n.raidAt === null && ((phase === 'dispersing' && t < n.end + 6) || frame.stage === 'finish' && t >= finalEnd - 2)) {
+    const won = side === n.winner;
+    return { state: won ? 'CHEER' : 'TALK', betting: !!m.bet, shout: talks ? m.bet ? won ? '¡Cobro!' : 'Adiós a mis ' + m.bet.stake + '...' : won ? '¡' + name + '!' : 'La próxima.' : undefined };
+  }
+  if (phase === 'fight' && frame.contact) {
+    const backing = side === frame.attacker;
+    const loud = frame.strong || hash(m.seed, Math.floor(t / 0.6)) < 0.5;
+    return { state: loud ? 'CHEER' : 'WATCH', shout: loud && talks ? backing ? '¡' + name + '!' : frame.strong ? '¡Aguanta, ' + name + '!' : '¡Uy!' : undefined };
+  }
+  if (m.bet && (phase === 'gathering' || phase === 'break') && talks) return { state: 'TALK', betting: true, shout: '€' + m.bet.stake + ' a ' + name + '.' };
+  if (m.bet && phase === 'fight' && !frame.contact && talks && m.seed % 3 === moment % 3) return { state: 'TALK', betting: true, shout: '€' + m.bet.stake + ' a ' + name + '.' };
+  if (frame.stage === 'argument' && talks) return { state: 'TALK', shout: '¡Basta de hablar!' };
+  return { state: phase === 'fight' && hash(m.seed, moment) < 0.25 ? 'CHEER' : talks ? 'TALK' : 'WATCH', shout: phase === 'fight' && talks && m.seed % 3 === 0 ? '¡Vamos, ' + name + '!' : undefined };
 }
 
 /** Cuándo se ha ido el último: el fin (o el aviso), el rato de recoger y lo que tarda en salir andando. */
@@ -370,7 +464,7 @@ export class StreetEvent {
     let p = this.paths.get(key);
     if (!p) {
       const ring = this.ring.map((r) => `${r.tx},${r.ty}`);
-      const slots = [...this.def.spectators, ...this.def.watchers, ...(this.def.lookout ? [this.def.lookout] : [])].map((s) => `${s.tx},${s.ty}`);
+      const slots = [...this.def.spectators, ...this.def.watchers, ...(this.def.bookmaker ? [this.def.bookmaker] : []), ...(this.def.lookout ? [this.def.lookout] : [])].map((s) => `${s.tx},${s.ty}`);
       p = this.bfs(from, to, new Set([...ring, ...slots])) ?? this.bfs(from, to, new Set(ring)) ?? [from, to];
       this.paths.set(key, p);
     }
@@ -436,22 +530,13 @@ export class StreetEvent {
       if (n.raidAt !== null && t >= n.raidAt - 1) return { ...at, dir: 'up', state: 'TALK' };
       return { ...at, state: 'WAIT' };
     }
-    if (m.role === 'watcher') return { ...at, state: hash(m.seed, Math.floor(t / 6)) < 0.3 ? 'WAIT' : 'WATCH' };
-    if (phase === 'fight') {
-      const round = n.rounds.find(([a, b]) => t >= a && t < b)!;
-      // Al final del asalto jalea casi todo el mundo; durante, a ratos y cada uno cuando le da.
-      const cheer = t > round[1] - 2 ? 0.75 : 0.28;
-      const state = hash(m.seed, Math.floor(t / 1.2)) < cheer ? 'CHEER' : 'WATCH';
-      // Se acerca y se echa atrás, un cuarto de tile como mucho, despacio y a su aire.
-      const lean = 0.22 * Math.sin(t / (2.5 + (m.seed % 4)) + m.seed);
-      const dx = this.center.tx - m.slot.tx;
-      const dy = this.center.ty - m.slot.ty;
-      const len = Math.hypot(dx, dy) || 1;
-      return { ...at, x: m.slot.tx + (dx / len) * lean, y: m.slot.ty + (dy / len) * lean, state };
-    }
-    // Esperando, entre asaltos o recogiendo: charlan con el de al lado a ratos.
-    if (hash(m.seed, Math.floor(t / 4)) < 0.4) return { ...at, dir: m.seed % 2 ? 'left' : 'right', state: 'TALK' };
-    return { ...at, state: 'WATCH' };
+    const cue = crowdCue(n, m, t);
+    // Un paso mínimo de emoción, sin abandonar el tile ni entrar en la pelea.
+    const lean = phase === 'fight' ? 0.16 * Math.sin(t / (2.5 + (m.seed % 4)) + m.seed) : 0;
+    const dx = this.center.tx - m.slot.tx;
+    const dy = this.center.ty - m.slot.ty;
+    const len = Math.hypot(dx, dy) || 1;
+    return { ...at, x: m.slot.tx + (dx / len) * lean, y: m.slot.ty + (dy / len) * lean, ...cue };
   }
 }
 

@@ -94,6 +94,8 @@ export interface Agent {
   leader?: Agent;
   /** Cómo se le ve moverse: corriendo (un corredor del parque). Sólo lo usa quien lo pinta. */
   gait?: 'jog';
+  /** Ms que lleva andando sin pararse: el arranque va de menos a más (stride). */
+  walkMs?: number;
   /** Punto del que lleva el grupo al que ya ha respondido. */
   following?: string;
   /** Prefijos del paso en curso: el grupo busca sitio del mismo tipo, al lado. */
@@ -387,7 +389,7 @@ export class Crowd {
     const dx = target.tx - a.x;
     const dy = target.ty - a.y;
     const dist = Math.hypot(dx, dy);
-    const reach = (a.speed * deltaMs) / 1000;
+    const reach = stride(a, deltaMs, a.path.length === 1 ? dist : Infinity);
     a.moving = true;
     if (dist > 0) a.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
     if (dist <= reach) {
@@ -681,6 +683,23 @@ export class Crowd {
   private distance(a: TilePoint, b: TilePoint): number {
     return Math.hypot(a.tx - b.tx, a.ty - b.ty);
   }
+}
+
+/** Del paso inicial al de crucero, en ms; y a cuántos tiles del final empieza a frenar. */
+const ACCEL_MS = 280;
+const BRAKE_TILES = 0.6;
+
+/**
+ * Lo que avanza alguien este frame: arranca a un tercio y llega a su paso en
+ * ACCEL_MS; en el último tramo frena hasta la mitad antes de pararse. Nadie
+ * pasa de quieto a paso de crucero (ni al revés) de un frame a otro.
+ * `remaining`: lo que le queda hasta pararse (Infinity si aún quedan tramos).
+ */
+export function stride(a: Agent, deltaMs: number, remaining: number): number {
+  a.walkMs = a.moving ? (a.walkMs ?? 0) + deltaMs : deltaMs;
+  const start = Math.min(1, 0.35 + (0.65 * a.walkMs) / ACCEL_MS);
+  const brake = remaining < BRAKE_TILES ? Math.max(0.5, remaining / BRAKE_TILES) : 1;
+  return (a.speed * Math.min(start, brake) * deltaMs) / 1000;
 }
 
 function facingTo(from: TilePoint, to: TilePoint): Facing {

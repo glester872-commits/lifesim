@@ -1,11 +1,14 @@
 import type Phaser from 'phaser';
 import type { Agent } from '../systems/Crowd';
 import { Character, activityAt } from '../entities/Character';
-import { seatAt } from '../systems/Seating';
+import { atTable, seatAt } from '../systems/Seating';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import type { NpcDef } from '../types/game';
 import type { Weather } from '../systems/Weather';
 import { dressedLook, umbrellaFor } from './WeatherLooks';
+import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
+import { placeOfPoint } from '../systems/Places';
+import type { AmbientPlacement } from '../entities/Character';
 
 /** Margen en px alrededor de la cámara dentro del cual la gente ya tiene sprite. */
 const MARGIN = 96;
@@ -31,12 +34,21 @@ export class CrowdView {
   /** En la calle: con lluvia, paraguas. Dentro de un local, nadie lo lleva abierto. */
   private readonly outdoor: boolean;
 
-  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean) {
+  /** Gestos de ambiente (systems/AmbientActions): sólo si quien crea la vista da la hora. El corro de una pelea lleva los suyos. */
+  private readonly ambient: AmbientDirector | null;
+
+  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean, hour?: () => number) {
     this.scene = scene;
     this.crowd = crowd;
     this.weather = weather;
     this.outdoor = outdoor;
+    this.ambient = hour ? new AmbientDirector(hour) : null;
     this.sync(0);
+  }
+
+  /** Decisiones de gesto tomadas (depuración: no debe crecer cada frame). */
+  get ambientDecisions(): number {
+    return this.ambient?.decisions ?? 0;
   }
 
   /** Quien está ahora en la sala, para hablar con ellos. */
@@ -73,14 +85,55 @@ export class CrowdView {
       const activity = settled ? activityAt(a.point, a.state, a.id) : a.gait === 'jog' ? 'run' : waiting ? activityAt(undefined, 'WAIT', a.id) : 'idle';
       // El paraguas se abre al empezar a llover y se cierra al parar; la capucha no lleva paraguas.
       sprite.umbrella = this.outdoor && !a.staffRole ? umbrellaFor(a.id, w, sprite.def.id.endsWith('~hood')) : null;
-      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift: settled ? seatAt(a.point)?.lift : 0, carry: a.carry }, time);
+      const ambient = this.ambientOf(a, activity, time);
+      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift: settled ? seatAt(a.point)?.lift : 0, carry: a.carry, ambient }, time);
     }
     for (const [id, sprite] of this.sprites) {
       if (here.has(id)) continue;
+      // Fuera de la vista no se lleva su gesto: al volver, elige otro a mitad.
+      this.ambient?.forget(id);
       sprite.place(null);
       this.pool.push(sprite);
       this.sprites.delete(id);
     }
+  }
+
+  /**
+   * Su gesto de ambiente, si le toca: la gente que va a lo suyo (no quien
+   * trabaja, lleva la bandeja o habla con el jugador). El director sólo decide
+   * al aparecer, al cambiar de situación o al acabar el gesto; el resto de
+   * frames devuelve el que ya tenía.
+   */
+  private ambientOf(a: Agent, activity: string, time: number): AmbientPlacement | undefined {
+    if (!this.ambient || a.kind === 'staff' || a.staffRole || a.carry || a.talking) return undefined;
+    const situation = ambientSituation(activity, a.state, a.moving);
+    if (!situation) return undefined;
+    const context = `${situation.posture}|${situation.context}|${a.point ?? ''}`;
+    const choice = this.ambient.at(a.id, context, time, () => ({
+      ...situation,
+      seed: a.id,
+      outdoor: this.outdoor,
+      tags: a.point ? (placeOfPoint(a.point)?.tags ?? []) : [],
+      role: a.role,
+      companion: situation.posture === 'walk' ? undefined : this.companionOf(a),
+    }));
+    return choice && { frame: ambientFrame(choice, time), start: choice.start, companion: choice.companion, table: atTable(a.point) };
+  }
+
+  /** Hacia dónde queda quien viene con él (su grupo), si está parado a su lado. */
+  private companionOf(a: Agent): ReturnType<typeof facingTowards> | undefined {
+    let best: Agent | undefined;
+    let bestD = 2.6;
+    for (const o of this.crowd.agents) {
+      if (o === a || o.moving) continue;
+      const together = o.leader === a || a.leader === o || (!!a.leader && o.leader === a.leader);
+      const d = Math.hypot(o.x - a.x, o.y - a.y);
+      if (together && d < bestD) {
+        best = o;
+        bestD = d;
+      }
+    }
+    return best && facingTowards(a, best);
   }
 }
 

@@ -3,10 +3,11 @@
 // que cambian de una noche a otra y que se recogen solos. Recorre 140 noches.
 // `node scripts/check-street-events.ts`.
 import assert from 'node:assert/strict';
-import { STREET_EVENTS } from '../src/data/streetEvents.ts';
+import { FIGHTER_PROFILES, STREET_EVENTS } from '../src/data/streetEvents.ts';
+import { PASSENGER_LOOKS } from '../src/data/npcs.ts';
 import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
 import { districtAt } from '../src/systems/Districts.ts';
-import { DISPERSE, StreetEvent, fighterPoses, phaseAt, planNight, type Night } from '../src/systems/StreetEvents.ts';
+import { DISPERSE, ROUND, StreetEvent, crowdCue, fightFrame, matchFighters, fighterPoses, phaseAt, planNight, type Night } from '../src/systems/StreetEvents.ts';
 import { weatherAt } from '../src/systems/Weather.ts';
 import { weekIndex } from '../src/systems/MetroDaily.ts';
 import type { TilePoint } from '../src/types/game.ts';
@@ -18,7 +19,7 @@ for (const def of STREET_EVENTS) {
   const loc = getLocation(def.location);
   const ev = new StreetEvent(def, loc);
   const ring = new Set(ev.ring.map(key));
-  const slots = [...def.fighters, ...def.spectators, ...def.watchers, ...(def.lookout ? [def.lookout] : [])];
+  const slots = [...def.fighters, ...def.spectators, ...def.watchers, ...(def.bookmaker ? [def.bookmaker] : []), ...(def.lookout ? [def.lookout] : [])];
 
   // --- el sitio
   for (const s of slots) assert.ok(isWalkable(loc, s.tx, s.ty), `${def.id}: sitio ${key(s)} no se pisa`);
@@ -168,4 +169,93 @@ for (const def of STREET_EVENTS) {
   assert.ok(ev.presentAt(mid).length > 0, 'reiniciada: vuelve el calendario');
   assert.deepEqual(ev.devStatus(mid), { phase: ev.phase(mid), forced: false, pinned: false, cleared: false, tonight: ev.devStatus(mid).tonight });
   console.log('check-street-events: herramientas de desarrollo (forzar, fijar, soltar, retirar, reiniciar), OK');
+}
+
+// ------------------------------------------- parejas, flujo y apuestas del evento existente
+{
+  const def = STREET_EVENTS[0];
+  const loc = getLocation(def.location);
+  const sexes = new Set<string>();
+  assert.equal(new Set(FIGHTER_PROFILES.map((p) => p.look)).size, FIGHTER_PROFILES.length, 'perfiles duplicados');
+  for (let seed = 0; seed < 1000; seed++) {
+    const [a, b] = matchFighters(def.fighterRoster, seed);
+    assert.ok(a.age >= 18 && b.age >= 18, 'una persona menor entra en la pelea');
+    assert.equal(a.gender, b.gender, 'pelea entre hombre y mujer');
+    assert.notEqual(a.look, b.look, 'pelea contra la misma persona');
+    assert.deepEqual(matchFighters(def.fighterRoster, seed), [a, b], 'pareja no determinista');
+    const score = (p: typeof a): number => Math.abs(a.body - p.body) * 3 + Math.abs(a.physical - p.physical);
+    const possible = def.fighterRoster.filter((p) => p.age >= 18 && p.gender === a.gender && p.look !== a.look);
+    assert.equal(score(b), Math.min(...possible.map(score)), 'se ignora un rival más compatible');
+    sexes.add(a.gender);
+  }
+  assert.equal(sexes.size, 2, 'no hay variedad de parejas');
+  const men = FIGHTER_PROFILES.filter((p) => p.gender === 'man');
+  const women = FIGHTER_PROFILES.filter((p) => p.gender === 'woman');
+  assert.throws(() => matchFighters([men[0], { ...men[1], age: 17 }], 0), /adultos compatibles/);
+  assert.throws(() => matchFighters([men[0], women[0]], 0), /adultos compatibles/);
+  const stages = new Set<string>();
+  const contacts = new Set<string>();
+  const comics = new Set<string>();
+  const words = new Set<string>();
+  let dodges = 0;
+  let strong = 0;
+  let winnerFans = 0;
+  let loserFans = 0;
+  for (let day = 1; day <= 40; day++) {
+    const n = planNight(def, loc, day, { start: day * 1440 + 21 * 60 });
+    const fighters = n.members.filter((m) => m.role === 'fighter');
+    assert.equal(fighters.length, 2);
+    const bookmaker = n.members.filter((m) => m.role === 'bookmaker');
+    assert.equal(bookmaker.length, 1, 'falta la libreta');
+    assert.ok(n.members.filter((m) => m.bet).length >= 2, 'no hay gente apostando');
+    assert.deepEqual(fighters.map((m) => PASSENGER_LOOKS[m.look].id), n.fighters.map((p) => p.look), 'los sprites no son la pareja adulta elegida');
+    for (let t = n.fightAt - 6; t < n.end + 6; t += 0.1) {
+      const frame = fightFrame(n, t);
+      stages.add(frame.stage);
+      assert.deepEqual(fightFrame(n, t), frame, 'al recargar cambia la pelea');
+      assert.deepEqual(fighterPoses(n, t), frame.poses, 'hay un segundo flujo de pelea');
+      for (const pose of frame.poses) assert.ok(pose.dx >= -8 && pose.dx <= 14, 'el desplazamiento sale de la huella existente');
+      if (frame.contact) contacts.add(frame.id);
+      if (frame.dodged) { dodges++; assert.equal(frame.contact, false); assert.equal(frame.comic, null, 'un esquive muestra impacto'); }
+      if (frame.comic) { comics.add(frame.id); words.add(frame.comic); assert.equal(frame.contact, true, 'texto sin golpe'); }
+      if (frame.strong && frame.contact) strong++;
+      if (frame.stage === 'overwhelmed') assert.equal(frame.attacker, n.winner, 'nadie está siendo acorralado');
+    }
+    const firstEnd = n.rounds[0][1] - 0.5;
+    for (const m of n.members.filter((m) => m.bet)) {
+      const cue = crowdCue(n, m, firstEnd);
+      assert.notEqual(cue.shout, '¡Cobro!', 'las apuestas se pagan antes del último asalto');
+      assert.ok(!cue.shout?.startsWith('Adiós'), 'las apuestas se pierden antes del resultado');
+    }
+    for (let cycle = 0; cycle < 6; cycle++) {
+      const at = n.fightAt + 4.5 + cycle * 2.8;
+      const before = fightFrame(n, at + 0.6);
+      const after = fightFrame(n, at + 1.2);
+      assert.equal(before.attacker, after.attacker, 'cambia quien golpea a mitad del intercambio');
+      assert.equal(before.strong, after.strong, 'cambia la fuerza a mitad del intercambio');
+    }
+    const final = n.rounds[n.rounds.length - 1];
+    const end = fightFrame(n, final[0] + ROUND - 0.5);
+    assert.equal(end.stage, 'finish');
+    assert.equal(end.poses[n.winner].pose, 30, 'falta la victoria');
+    assert.equal(end.poses[1 - n.winner].pose, 29, 'falta el perdedor cansado');
+    for (const m of n.members.filter((m) => m.bet)) {
+      for (let t = n.end; t < n.end + 5; t += 0.2) {
+        const cue = crowdCue(n, m, t);
+        if (cue.shout === '¡Cobro!') winnerFans++;
+        if (cue.shout?.startsWith('Adiós')) loserFans++;
+      }
+    }
+    assert.ok(crowdCue(n, bookmaker[0], n.start + 20).betting, 'la libreta no acepta apuestas');
+    const interrupted = { ...n, raidAt: n.fightAt + 10 };
+    const interruptedFrame = fightFrame(interrupted, interrupted.raidAt + 1);
+    assert.equal(interruptedFrame.stage, 'ended');
+    assert.equal(interruptedFrame.comic, null, 'queda un impacto tras el aviso');
+    assert.ok(!interruptedFrame.poses.some((p) => p.pose === 30), 'se proclama ganador de una pelea interrumpida');
+  }
+  for (const stage of ['face-off', 'argument', 'stance', 'exchange', 'overwhelmed', 'finish', 'break', 'ended']) assert.ok(stages.has(stage), 'falta ' + stage);
+  assert.ok(contacts.size > 0 && comics.size > 0 && comics.size < contacts.size, 'texto en cada golpe o nunca');
+  assert.equal(words.size, 4, 'faltan palabras de cómic');
+  assert.ok(dodges > 0 && strong > 0 && winnerFans > 0 && loserFans > 0, 'faltan esquives, golpes fuertes o reacciones a las apuestas');
+  console.log('check-street-events: 1000 parejas adultas compatibles; flujo, esquives, golpes, cómic ocasional, apuestas y final/interrupción, OK');
 }

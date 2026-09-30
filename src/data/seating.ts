@@ -14,8 +14,12 @@ import { PROPS } from '../world/tiles.ts';
  * aquí, su PropKind en world/tiles.ts (con `mount`) y su dibujo.
  */
 
-/** Lo que se hace sentado sin nada que hacer: entities/Character lo anima. */
-export type SeatIdle = 'rest' | 'phone' | 'watch' | 'smoke' | 'read' | 'talk';
+/**
+ * Lo que se hace sentado sin nada que hacer: entities/Character lo anima. Es
+ * el punto de partida; encima, los gestos de ambiente (data/ambientActions.ts)
+ * lo matizan: fumar, un sorbo, girarse hacia quien acompaña.
+ */
+export type SeatIdle = 'rest' | 'phone' | 'watch' | 'read' | 'talk';
 
 export interface SeatDef {
   name: string;
@@ -28,7 +32,7 @@ export interface SeatDef {
 }
 
 const INDOOR: readonly SeatIdle[] = ['rest', 'phone', 'read', 'talk'];
-const STREET: readonly SeatIdle[] = ['rest', 'phone', 'watch', 'smoke', 'read'];
+const STREET: readonly SeatIdle[] = ['rest', 'phone', 'watch', 'read'];
 
 export const SEATS: Partial<Record<PropKind, SeatDef>> = {
   // Banco de calle con el respaldo al norte: se sienta mirando al sur. 'bench-up', al revés.

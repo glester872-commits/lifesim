@@ -1,12 +1,13 @@
 import type { NpcLook } from '../types/game';
-import { PASSENGER_LOOKS } from '../data/npcs';
+import { getNpc, PASSENGER_LOOKS } from '../data/npcs';
+import { CHARACTERS } from '../data/characters';
 import { HEAVY_RAIN, type Weather } from '../systems/Weather';
 import { colorsOf } from './HumanArt';
 import { shade } from './paint';
 
 /**
- * La ropa de la gente anónima según el tiempo. Cada cara de la lista
- * (PASSENGER_LOOKS) tiene tres versiones más, horneadas al arrancar con su
+ * La ropa de peatones anónimos y personajes con rutina según el tiempo.
+ * Cada cara tiene tres versiones más, horneadas al arrancar con su
  * misma piel, pelo y pantalón: abrigada (abrigo y a veces bufanda), ligera
  * (manga corta o tirantes) y con la capucha puesta. Quién se pone qué sale de
  * su semilla y del tiempo que hace, por probabilidad: con frío no todo el mundo
@@ -31,18 +32,19 @@ function variant(base: NpcLook, layer: Layer): NpcLook {
   const c = colorsOf(base);
   const h = hash(base.id);
   // Lo que es de la persona, no de la ropa, queda fijo aunque cambie el id.
-  const same: NpcLook = { id: `${base.id}~${layer}`, cloth: base.cloth, clothDark: base.clothDark, hair: base.hair, skin: c.skin, trousers: c.trousers, hairStyle: c.hairStyle, earrings: base.earrings, bag: base.bag, cap: base.cap };
+  const same: NpcLook = { ...base, id: `${base.id}~${layer}`, skin: c.skin, trousers: c.trousers, shoes: c.shoes, hairStyle: c.hairStyle };
   if (layer === 'coat') {
     const coat = COATS[h % COATS.length];
-    return { ...same, cloth: coat, clothDark: shade(coat, -0.1), scarf: (h >>> 5) & 1 ? SCARVES[(h >>> 3) % SCARVES.length] : undefined };
+    return { ...same, cloth: coat, clothDark: shade(coat, -0.1), sleeves: undefined, sleeveLen: undefined, scarf: (h >>> 5) & 1 ? SCARVES[(h >>> 3) % SCARVES.length] : undefined };
   }
-  if (layer === 'light') return { ...same, cap: undefined, sleeveLen: (h >>> 2) & 1 ? 2 : 0 };
+  if (layer === 'light') return { ...same, cap: undefined, sleeves: undefined, sleeveLen: (h >>> 2) & 1 ? 2 : 0 };
   const hoodie = COATS[(h >>> 7) % COATS.length];
-  return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), cap: undefined, hood: shade(hoodie, 0.04), earrings: undefined };
+  return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, cap: undefined, hood: shade(hoodie, 0.04), earrings: undefined };
 }
 
 /** Todas las versiones, para hornearlas en el atlas de gente con sus animaciones (world/TextureFactory). */
-export const WEATHER_LOOKS: readonly NpcLook[] = PASSENGER_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l)));
+const BASE_LOOKS = [...PASSENGER_LOOKS, ...CHARACTERS.map((c) => getNpc(c.npc))];
+export const WEATHER_LOOKS: readonly NpcLook[] = BASE_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l)));
 const BY_ID = new Map(WEATHER_LOOKS.map((l) => [l.id, l]));
 
 /** Azar fijo de cada persona para cada decisión: la misma persona decide igual con el mismo tiempo. */
@@ -65,6 +67,16 @@ export function layerFor(seed: number, w: Weather): Layer | null {
 /** La cara que se pinta: la de siempre o su versión para el tiempo que hace. */
 export function dressedLook(base: NpcLook, seed: number, w: Weather): NpcLook {
   const layer = layerFor(seed, w);
+  return (layer && BY_ID.get(`${base.id}~${layer}`)) || base;
+}
+
+/**
+ * Quien sigue una rutina fija sale incluso con frío o calor: siempre adapta
+ * la capa en los extremos. Con tiempo templado decide igual que un peatón.
+ * Reutiliza los mismos aspectos; nombre y diálogo siguen en el NpcDef original.
+ */
+export function characterLook(base: NpcLook, seed: number, w: Weather): NpcLook {
+  const layer = w.temp === 'cold' ? 'coat' : w.temp === 'warm' ? 'light' : layerFor(seed, w);
   return (layer && BY_ID.get(`${base.id}~${layer}`)) || base;
 }
 

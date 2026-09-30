@@ -217,6 +217,9 @@ ni acceso global al estado.
   del reloj: no se simula fuera de cámara ni se guarda. Donde están paradas es
   suyo: la gente del local o de la calle no se sienta encima. `npm run check`
   recorre cada rutina y ocho semanas seguidas.
+  Fuera, Sara y Ada eligen abrigo, ropa ligera o capucha y paraguas con el mismo
+  clima y criterio determinista que los peatones; dentro recuperan su ropa base
+  y cierran el paraguas. Cambiar de capa conserva su identidad y conversación.
 - **Gente en la calle** — `systems/StreetLife.ts` con `data/streets.ts`: cuánta
   gente hay según hora y día (la madrugada cuenta con la noche anterior) y qué
   viajes hace, siempre de un sitio con sentido a otro: de casa al metro por la
@@ -247,6 +250,32 @@ ni acceso global al estado.
   corriendo en la cinta, con el móvil en colas y descansos, charlando en
   mostradores y reuniones. Al salir del local nadie se simula: al volver se
   reconstruye desde la hora.
+- **Gestos de ambiente** — `data/ambientActions.ts` con
+  `systems/AmbientActions.ts`: lo que la gente hace mientras está en lo suyo,
+  para que no se quede mirando al frente. Cada gesto es una entrada de datos:
+  postura (de pie, sentado, andando), con qué situación casa (comer, tomar
+  algo, charlar, esperar, leer, descansar, mirar escaparates, andar), peso por
+  franja del día, si es sólo al aire libre, si pide un rasgo (fumar, hacer
+  fotos) o alguien al lado, y sus tramos de poses: entrada, bucle y salida.
+  Fumar es uno más: sacar el cigarro, encenderlo, caladas con el brazo abajo
+  entre una y otra y apagarlo; nunca dentro de un local, sólo quien fuma (uno de
+  cada cinco; casi todos los que salen de la discoteca a tomar el aire), más de
+  noche y en la puerta de los bares. El humo (`world/SmokeFx.ts`) es un único
+  emisor por escena con tope de volutas: nace donde se suelta, sube, deriva con
+  la brisa y se desvanece, así que quien fuma andando lo deja atrás. En la
+  terraza se bebe a sorbos, se mira el móvil, se fuma y, en pareja, se giran el
+  uno hacia el otro un rato. Por la mañana hay café para llevar y estiramientos;
+  por la tarde, bolsas de quien sale de las tiendas y fotos; de noche, humo en
+  la puerta de la discoteca. El gesto matiza lo que el sistema de cada uno ya
+  dice (Crowd, StreetLife, Characters) y nunca lo contradice: las máquinas del
+  gimnasio, bailar, cenar servido o trotar se quedan como están. No se decide
+  cada frame: el director elige al aparecer alguien en cámara, al cambiar de
+  situación o al acabar el gesto, y el gesto es función del tiempo; quien sale
+  de la vista se olvida y al volver retoma a mitad de otro. Sara y Ada usan el
+  mismo sistema, con su rasgo fijo por id. Un gesto nuevo (leer, portátil,
+  selfie, pasear al perro, helado, música) es una entrada más y, si lleva algo
+  en la mano que no existe, su dibujo en `world/AmbientArt.ts`.
+  `npm run check` lo prueba con `scripts/check-ambient.ts`.
 - **Interiores con carácter** — props de pared (ventana, cuadro, reloj, pizarra,
   neón, balda) sobre la fila de muro, de barra (cafetera, vitrina) sobre el
   mostrador y del techo (`overhead`: colgantes y tubos, que ni colisionan ni
@@ -408,7 +437,14 @@ ni acceso global al estado.
   contorno de un píxel, luz del noroeste, perfil izquierdo en espejo del
   derecho, cuatro poses (quieto, dos pasos, respiración) y peinado, piel y
   pantalón que salen del id cuando el aspecto no los fija. Paso a 8 fps en
-  cuatro tiempos; quieto, respira.
+  cuatro tiempos; quieto, respira. El compás del paso sale de la velocidad a la
+  que va cada uno (el pie no resbala: quien pasea da pasos más lentos que quien
+  tiene prisa), arrancan y frenan en unos cientos de ms (`stride` en
+  systems/Crowd.ts), una media vuelta pasa un instante por un perfil, al
+  pararse el reposo empieza de pie y al levantarse de un asiento se incorporan
+  antes de andar. Lo que sostienen va en la mano dibujada (de perfil, junto al
+  tronco) y apunta hacia fuera; a una mesa no se giran a mirar a otro lado.
+  Dentro, el suelo se oscurece al pie de muros y mostradores (oclusión horneada).
 - **Escala única** — el zoom sale de la ventana, no del sitio: un píxel mide lo
   mismo en la calle, en el metro y en casa.
 
@@ -457,6 +493,7 @@ src/
     PassengerAI.ts        máquina de estados de un pasajero
     SecurityAI.ts         máquina de estados del vigilante
     MetroEventManager.ts  eventos de viaje: condiciones, cooldowns, memoria, cadenas (puro)
+    AmbientActions.ts     gestos de ambiente: rasgos, elección por contexto y hora, tramos, director (puro)
   entities/
     Player.ts             movimiento, orientación, animación
     NPC.ts                personaje estático interactuable
@@ -474,6 +511,8 @@ src/
     Lighting.ts           color del cielo por hora, farolas y ventanas de noche; luz de cada interior
     CrowdView.ts          pinta la gente de los locales (systems/Crowd.ts)
     HumanArt.ts           personas: proporciones, peinados, poses y contorno
+    AmbientArt.ts         lo que se lleva en un gesto: cigarro, vaso para llevar, bolsas, voluta
+    SmokeFx.ts            el humo: un emisor de partículas por escena, con tope
     paint.ts              primitivas de dibujo y fuentes de píxel
     LocationBuilder.ts    suelo y edificios horneados, props, colisiones agrupadas
     tiles.ts              leyenda de terreno y props
@@ -496,6 +535,8 @@ src/
     npcs.ts               dieciocho personajes (Marco, Iker y Rocío vigilan) + 12 aspectos de pasajero
     announcements.ts      textos de megafonía por contexto
     metroEvents.ts        16 eventos de viaje en la Línea 2
+    ambientActions.ts     los gestos de ambiente: condiciones y tramos de cada uno
+scripts/check-ambient.ts  gestos: dónde se fuma y quién, hora del día, terraza, que no se decida cada frame
 scripts/check-world.ts    recorre el mundo: todo alcanzable, grafo, lugares y cinco rutinas de NPC
 scripts/check-metro.ts    varios ciclos completos del tren
 scripts/simulate-metro-days.ts  npm run simulate: días completos, con checks de variedad
@@ -573,3 +614,26 @@ personales con riesgo y retorno, relaciones persistentes, eventos.
 El principio que ordena todo eso: **LIFE//SIM no debe convertirse en hacer clic
 en botones para subir estadísticas.** Si el jugador quiere trabajar, se desplaza
 al trabajo.
+
+## Pelea clandestina · actualización del Prompt 31
+
+Se amplía el evento existente del patio de la Mayor. Usa perfiles de adultos
+con género, tamaño y nivel físico explícitos: sólo enfrenta dos personas distintas
+del mismo género y prefiere el rival más parecido disponible. No deduce esos datos
+del pelo ni usa una pareja aleatoria sin metadatos como alternativa.
+
+Cada asalto muestra cara a cara, tensión, guardia, golpes cargados, esquives,
+retroceso y presión sobre uno de los dos; el último termina con un ganador y un
+perdedor cansado, sin heridas ni sangre. Los golpes que conectan producen destellos
+y, sólo algunas veces, PUNCH!, POW!, BAM! u OUCH! Los esquives no producen impacto.
+
+El mismo público anima a un lado, comenta los golpes, enseña billetes y reacciona
+al resultado. Una persona lleva la libreta en un hueco del patio. Las apuestas
+son ambiente de NPC: no hay apuestas del jugador ni cambios en su cartera. Cajas,
+la lámpara de pinza, el callejón oculto y una pintada mantienen el lugar improvisado.
+Los efectos usan un pozo fijo y desaparecen al retirar el evento o cambiar de escena.
+
+En desarrollo siguen funcionando lifesim.fight.force(), .goto(), .pin(true/false),
+.despawn() y .resetCooldown(). El primer asalto empieza seis minutos de juego
+(unos tres segundos reales) después de forzarlo. npm run check comprueba parejas,
+flujo, cómic, apuestas, caminos y recogida usando el mismo evento que el juego.

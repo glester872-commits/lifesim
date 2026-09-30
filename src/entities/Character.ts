@@ -8,6 +8,9 @@ import type { Pose } from '../world/HumanArt';
 import { getStation, STATIONS, type Motion, type StationDef } from '../data/stations';
 import type { SeatIdle } from '../data/seating';
 import { seatAt, seatIdle } from '../systems/Seating';
+import type { AmbientFrame } from '../systems/AmbientActions';
+import type { AmbientLook, AmbientProp } from '../data/ambientActions';
+import { SmokeFx } from '../world/SmokeFx';
 
 /**
  * Lo que se ve hacer a alguien parado. No es IA: sale del sitio donde está
@@ -15,7 +18,7 @@ import { seatAt, seatIdle } from '../systems/Seating';
  */
 export type Activity =
   | 'idle' | 'sit' | 'read' | 'run' | 'lift' | 'phone' | 'talk' | 'dance' | 'eat' | 'drink' | 'sip' | 'cheer'
-  | 'sit-phone' | 'sit-talk' | 'smoke' | 'watch' | 'dine'
+  | 'sit-phone' | 'sit-talk' | 'watch' | 'dine'
   | Motion;
 
 /** La música de la sala: 120 pulsaciones. Todos bailan al mismo compás, cada uno a su manera. */
@@ -59,6 +62,33 @@ export interface Placement {
   lift?: number;
   /** Lo que lleva en las manos quien sirve (systems/TableService): la bandeja o la vajilla sucia. */
   carry?: 'tray' | 'dishes';
+  /** Un gesto de ambiente en curso (systems/AmbientActions): manda sobre la actividad al pintarse. */
+  ambient?: AmbientPlacement;
+}
+
+/** El tramo del gesto, cuándo empezó (para soltar cada bocanada una sola vez) y hacia dónde queda quien acompaña. */
+export interface AmbientPlacement {
+  frame: AmbientFrame;
+  start: number;
+  companion?: Facing;
+  /** Sentado a una mesa o una barra (no en un banco): no se gira a mirar a otro lado. */
+  table?: boolean;
+}
+
+/** El dibujo de cada cosa que se lleva en un gesto (world/AmbientArt y los de siempre). */
+const PROP_TEXTURE: Readonly<Record<AmbientProp, string>> = {
+  cigarette: 'fx-cigarette', cup: 'fx-cup', mug: 'fx-mug', plate: 'fx-plate', book: 'fx-book', bags: 'fx-bags', glow: 'fx-phone',
+};
+
+/** Hacia dónde mira en un tramo: a un lado (cada uno el suyo), al otro, o hacia quien le acompaña. */
+function lookTowards(look: AmbientLook | undefined, base: Facing, companion: Facing | undefined, seed: number): Facing {
+  if (!look) return base;
+  if (look === 'companion') return companion ?? base;
+  const vertical = base === 'up' || base === 'down';
+  const aside: Facing = vertical ? (seed % 2 ? 'left' : 'right') : 'down';
+  if (look === 'aside') return aside;
+  // Al otro lado; de perfil, vuelve a mirar al frente.
+  return vertical ? (aside === 'left' ? 'right' : 'left') : base;
 }
 
 /** Dónde queda la mesa según hacia dónde mira quien está sentado, en px desde sus pies. */
@@ -68,14 +98,25 @@ const TABLE_OFFSET: Readonly<Record<Facing, readonly [number, number]>> = { up: 
  * Sentado (data/seating.ts): descansando, leyendo, comiendo o bebiendo a la
  * mesa, con el móvil, charlando, fumando o mirando pasar a la gente.
  */
-const SEATED: ReadonlySet<Activity> = new Set(['sit', 'read', 'eat', 'drink', 'sit-phone', 'sit-talk', 'smoke', 'watch', 'dine']);
+const SEATED: ReadonlySet<Activity> = new Set(['sit', 'read', 'eat', 'drink', 'sit-phone', 'sit-talk', 'watch', 'dine']);
 const WAITING = new Set(['WAIT', 'QUEUE', 'REST', 'BREAK']);
 // Quien atiende una mesa también habla: toma nota, sirve, cobra (systems/TableService).
 const TALKING = new Set(['MEETING', 'ORDER', 'CHECK_IN', 'CHECKOUT', 'TALK', 'TAKING_ORDER', 'TAKING_PAYMENT', 'SERVING']);
 /** Lo que se hace sentado sin nada más que hacer, como se ve. */
-const SEAT_IDLE: Readonly<Record<SeatIdle, Activity>> = { rest: 'sit', phone: 'sit-phone', watch: 'watch', smoke: 'smoke', read: 'read', talk: 'sit-talk' };
+const SEAT_IDLE: Readonly<Record<SeatIdle, Activity>> = { rest: 'sit', phone: 'sit-phone', watch: 'watch', read: 'read', talk: 'sit-talk' };
 /** Al llegar al asiento, un instante a medio sentarse antes de apoyarse del todo. */
 const SIT_DOWN_MS = 260;
+/** Al levantarse, un instante de pie antes de echar a andar. */
+const RISE_MS = 220;
+/** Una media vuelta pasa por un perfil durante esto. */
+const TURN_MS = 90;
+/**
+ * Velocidad (tiles/s) a la que el paso de 8 fps no resbala: cuatro pasos por
+ * segundo de medio tile. Corriendo, la zancada es más larga.
+ */
+const WALK_REF = 2;
+const RUN_REF = 2.6;
+const OPPOSITE: Readonly<Record<Facing, Facing>> = { up: 'down', down: 'up', left: 'right', right: 'left' };
 
 /**
  * Actividad visible en un punto: en un asiento o un puesto de mesa, sentado;
@@ -116,6 +157,8 @@ export function activityAt(point: string | undefined, state: string | undefined,
  */
 export class Character extends Phaser.GameObjects.Sprite {
   def: NpcDef;
+  /** La capa visual puede cambiar sin cambiar la identidad ni el diálogo. */
+  private lookId: string;
   /**
    * Hacia dónde está el jugador mientras hablan. Sólo cambia cómo se le ve:
    * quien lo mueve (Crowd, StreetLife, WorldScene) es quien lo tiene quieto.
@@ -134,10 +177,26 @@ export class Character extends Phaser.GameObjects.Sprite {
   /** Lo que va con la máquina mientras se usa: debajo de la persona (jaula vacía, banda) y encima (la barra). Se crean al usarse. */
   private under?: Phaser.GameObjects.Image;
   private over?: Phaser.GameObjects.Image;
+  /** El último tramo que soltó humo y el último compás del hilo de la punta: cada bocanada, una vez. */
+  private puffToken = '';
+  private trailBeat = -1;
+  /** El paso: dónde estaba el frame anterior y a qué velocidad va de verdad (tiles/s, suavizada). */
+  private lastPos: { tx: number; ty: number; time: number } | null = null;
+  private speed = 0;
+  /** Media vuelta: hacia dónde mira de verdad, por qué perfil pasa y hasta cuándo. */
+  private facing: Facing | null = null;
+  private turnVia: Facing = 'left';
+  private turnUntil = 0;
+  /** Se acaba de levantar de un asiento: hasta cuándo se le ve incorporarse antes de andar. */
+  private riseUntil = 0;
+  private wasSeated = false;
+  /** Acaba de pararse: el reposo empieza de pie y quieto, no a mitad de una respiración. */
+  private settle = false;
 
   constructor(scene: Phaser.Scene, def: NpcDef, seed = 0) {
     super(scene, 0, 0, PEOPLE, personFrame(def.id, 'down'));
     this.def = def;
+    this.lookId = def.id;
     this.seed = seed;
     scene.add.existing(this);
     this.setOrigin(0.5, 1);
@@ -187,21 +246,68 @@ export class Character extends Phaser.GameObjects.Sprite {
     this.shadow.setX(this.shadow.x + dx);
   }
 
+  /** Cambia sólo el aspecto; conserva charla, actividad y posición. */
+  setLook(id: string): void {
+    this.lookId = id;
+  }
+
   /** El pozo de world/CrowdView: el mismo sprite pasa a ser otra persona. */
   reuse(def: NpcDef, seed: number): void {
     this.def = def;
+    this.lookId = def.id;
     this.seed = seed;
     this.talkingTo = null;
     this.umbrella = null;
     this.doing = null;
+    this.puffToken = '';
+    this.lastPos = null;
+    this.speed = 0;
+    this.facing = null;
+    this.wasSeated = false;
     this.anims.stop();
   }
 
-  /** Empieza un bucle desde un punto propio (por semilla), no desde el primer frame como todos. */
+  /**
+   * Empieza un bucle desde un punto propio (por semilla), no desde el primer
+   * frame como todos; salvo al pararse, que el reposo empieza de pie y quieto.
+   */
   private loop(key: string): void {
     if (this.anims.currentAnim?.key === key && this.anims.isPlaying) return;
     this.anims.play(key);
-    this.anims.setProgress(((this.seed * 0.618034) % 1 + 1) % 1);
+    this.anims.setProgress(this.settle ? 0 : ((this.seed * 0.618034) % 1 + 1) % 1);
+    this.settle = false;
+  }
+
+  /**
+   * El compás del paso sale de la velocidad a la que va de verdad: quien pasea
+   * da pasos más lentos que quien tiene prisa, y el pie no resbala sobre el
+   * suelo. Cada uno con su zancada (por semilla).
+   */
+  private cadence(run: boolean): number {
+    const stride = 0.94 + (this.seed % 5) * 0.03;
+    return Math.min(2.4, Math.max(0.5, this.speed / (run ? RUN_REF : WALK_REF))) / stride;
+  }
+
+  /**
+   * Hacia dónde se le ve mirar: una media vuelta (de subir a bajar, de ir a
+   * la izquierda a ir a la derecha) pasa un instante por un perfil en vez de
+   * darse la vuelta de golpe.
+   */
+  private turned(dir: Facing, time: number): Facing {
+    if (this.facing && dir === OPPOSITE[this.facing] && time >= this.turnUntil) {
+      this.turnVia = dir === 'up' || dir === 'down' ? (this.seed % 2 ? 'left' : 'right') : 'down';
+      this.turnUntil = time + TURN_MS;
+    }
+    this.facing = dir;
+    return time < this.turnUntil ? this.turnVia : dir;
+  }
+
+  /** Recién levantado: de pie, un instante, antes de echar a andar. */
+  private rising(where: Placement, time: number): boolean {
+    if (!where.moving || time >= this.riseUntil) return false;
+    this.anims.stop();
+    this.setTexture(PEOPLE, personFrame(this.lookId, where.dir, 3));
+    return true;
   }
 
   /** null: está en otro sitio o dentro de un edificio. */
@@ -214,16 +320,36 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.gear('under', null);
       this.gear('over', null);
       this.doing = null;
+      this.lastPos = null;
+      this.facing = null;
       this.anims.stop();
       return;
     }
+    // El icono es de todos (móvil, plato, bocadillo): sólo lo que se sostiene en un gesto va en espejo.
+    this.icon.setFlipX(false);
+    // La velocidad de verdad, de un frame a otro (un salto de más de un tile y medio es aparecer, no andar).
+    const dt = this.lastPos ? time - this.lastPos.time : 0;
+    if (this.lastPos && dt > 0 && dt < 250) {
+      const d = Math.hypot(where.tx - this.lastPos.tx, where.ty - this.lastPos.ty);
+      if (d < 1.5) this.speed += ((d / dt) * 1000 - this.speed) * Math.min(1, dt / 120);
+    }
+    this.lastPos = { tx: where.tx, ty: where.ty, time };
     // En un puesto: primero se coloca (de pie o sentado en la máquina), luego trabaja y,
     // si va por series, descansa entre una y otra sin bajarse; con el móvil, a veces.
     const asked = where.moving ? 'walk' : (where.activity ?? 'idle');
     if (asked !== this.doing) {
+      // Al pararse, el reposo empieza de pie; al levantarse de un asiento, se incorpora antes de andar.
+      if (this.doing === 'walk') this.settle = true;
+      if (asked === 'walk' && this.wasSeated) this.riseUntil = time + RISE_MS;
       this.doing = asked;
       this.since = time;
     }
+    this.wasSeated = !where.moving && SEATED.has(where.activity ?? 'idle');
+    // Media vuelta por un perfil (sentado se gira el cuerpo entero, no hace falta).
+    if (!this.wasSeated) {
+      const dir = this.turned(where.dir, time);
+      if (dir !== where.dir) where = { ...where, dir };
+    } else this.facing = where.dir;
     const station = where.moving || this.talkingTo ? undefined : STATION_OF.get(asked);
     if (station) {
       const t = time - this.since;
@@ -244,18 +370,26 @@ export class Character extends Phaser.GameObjects.Sprite {
     if (this.umbrella !== null && !seated) this.umbrellaImg.setTexture(`fx-umbrella-${this.umbrella}`).setPosition(x, y - 19).setDepth(y + 2).setVisible(true);
     else this.umbrellaImg.setVisible(false);
 
-    const id = this.def.id;
+    const id = this.lookId;
+    // Un gesto de ambiente lo pinta todo a su manera; hablando con el jugador, no.
+    if (where.ambient && !this.talkingTo) {
+      this.drawAmbient(where, where.ambient, x, y, lift, time);
+      return;
+    }
     // Andando se le ve andar; si corre (un corredor del parque), correr.
     const activity = where.moving ? (where.activity === 'run' ? 'run' : 'walk') : (where.activity ?? 'idle');
     // Cada uno a su compás: ni todos respiran a la vez ni todos dan el paso al mismo tiempo.
     // En la cinta, uno de cada tres camina a paso ligero; los demás corren.
     const pace = activity === 'run' ? 1.6 : activity === 'treadmill' ? (this.seed % 3 === 0 ? 1.05 : 1.75) : 1;
-    this.anims.timeScale = pace * (0.9 + (this.seed % 5) * 0.05);
+    // Andando o corriendo por el suelo, el compás sale de la velocidad; en la cinta, del ritmo de la máquina.
+    this.anims.timeScale = where.moving ? this.cadence(activity === 'run') : pace * (0.9 + (this.seed % 5) * 0.05);
     const reps = REPS[activity];
     let under: string | null = null;
     let over: string | null = null;
     let barY = 0;
-    if (activity === 'walk' || activity === 'run' || activity === 'treadmill') {
+    if (activity === 'walk' && this.rising(where, time)) {
+      // Recién levantado: de pie un instante (rising ya pone la pose).
+    } else if (activity === 'walk' || activity === 'run' || activity === 'treadmill') {
       this.loop(`npc-${id}-walk-${where.dir}`);
       // La banda corre hacia atrás bajo los pies, al paso de quien va encima.
       if (activity === 'treadmill') under = `fx-belt-${Math.floor(time / (pace > 1.5 ? 70 : 120)) % 2}`;
@@ -336,12 +470,6 @@ export class Character extends Phaser.GameObjects.Sprite {
     } else if ((activity === 'phone' || activity === 'sit-phone') && where.dir === 'up') {
       // De espaldas no se ve el móvil del sprite: el brillo de la pantalla, junto a la mano.
       this.icon.setTexture('fx-phone').setPosition(x + 4, top - (activity === 'sit-phone' ? 6 : 9)).setDepth(y + 1).setVisible(true);
-    } else if (activity === 'smoke') {
-      // El cigarro en la mano, que sube a la boca de vez en cuando; al bajarlo, una bocanada que se va.
-      const drag = every(time, this.seed * 11, 5_200 + (this.seed % 4) * 600, 900);
-      const side = where.dir === 'left' ? -5 : 5;
-      this.icon.setTexture('fx-cigarette').setPosition(x + side, top - (drag ? 12 : 7)).setDepth(y + 1).setVisible(true);
-      if (every(time + 900, this.seed * 11, 5_200 + (this.seed % 4) * 600, 1_400)) over = 'fx-smoke';
     } else if (activity === 'read') {
       // El libro abierto en el regazo; de espaldas asoma a un lado.
       const side = where.dir === 'up' ? 5 : where.dir === 'left' ? -3 : 3;
@@ -365,6 +493,81 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.gear('over', over, x + side, y - 12, where.dir === 'up' ? y - 0.5 : y + 0.5);
       return;
     }
-    this.gear('over', over, over === 'fx-smoke' ? x + (where.dir === 'left' ? -3 : 3) : x, over === 'fx-smoke' ? top - 25 : y - 24 + barY, y + 0.5);
+    this.gear('over', over, x, y - 24 + barY, y + 0.5);
+  }
+
+  /**
+   * Un gesto de ambiente (data/ambientActions.ts): la pose del tramo, hacia
+   * dónde mira, lo que lleva y dónde (la mano, la boca, la mesa, el regazo) y
+   * el humo. Andando sigue andando y sólo cambia lo que lleva en la mano.
+   */
+  private drawAmbient(where: Placement, amb: AmbientPlacement, x: number, y: number, lift: number, time: number): void {
+    const { step } = amb.frame;
+    const id = this.lookId;
+    const seated = !where.moving && SEATED.has(where.activity ?? 'idle');
+    // A una mesa no se da la espalda al plato: sentado ahí sólo se gira hacia quien le acompaña.
+    const look = seated && amb.table && step.look !== 'companion' ? undefined : step.look;
+    const dir = where.moving ? where.dir : lookTowards(look, where.dir, amb.companion, this.seed);
+    const top = y - lift;
+    this.anims.timeScale = where.moving ? this.cadence(false) : 0.9 + (this.seed % 5) * 0.05;
+    if (where.moving) {
+      if (!this.rising(where, time)) this.loop(`npc-${id}-walk-${dir}`);
+    }
+    else if (seated) {
+      // Sentado: al llegar, un instante a medio sentarse; luego la pose del tramo o respirar.
+      this.anims.stop();
+      const settling = time - this.since < SIT_DOWN_MS;
+      const breath = every(time, this.seed, 3_600 + (this.seed % 4) * 350, 520);
+      this.setTexture(PEOPLE, personFrame(id, dir, settling ? 3 : (step.sitPose ?? (breath ? 24 : 4))));
+      if (lift) this.setY(this.y - lift);
+    } else if (step.pose !== undefined) {
+      this.anims.stop();
+      this.setTexture(PEOPLE, personFrame(id, dir, step.pose));
+    } else this.loop(`npc-${id}-idle-${dir}`);
+
+    // La mano cercana, la boca y la mesa, en px desde los pies (sentado, tres más abajo el tronco).
+    // Sacado de los píxeles de world/HumanArt: de frente y de espaldas las manos cuelgan en las
+    // columnas 3 y 12 (±4 px del centro); de perfil, el brazo cercano cae junto al tronco (±2, un
+    // poco adelantado para que lo que sostiene asome por delante). Con la mano en la boca (32/33),
+    // la mano llega a la columna 6 de frente y a la 11 de perfil.
+    const side = dir === 'left' ? -2 : dir === 'right' ? 2 : dir === 'up' ? 4 : -4;
+    const hand = { x: x + side, y: top - (seated ? 6 : 8) };
+    // En la boca, lo que se sostiene sale de la mano hacia fuera: de frente, hacia un lado; de perfil, por delante de la cara.
+    const mouth = { x: x + (dir === 'left' ? -6 : dir === 'right' ? 6 : dir === 'up' ? 4 : -4), y: top - (seated ? 12 : 15) };
+    // De espaldas, lo que va en la boca queda tras la cabeza; lo de la mano, no: la mano asoma por fuera del tronco.
+    const front = y + 1;
+    let at: { x: number; y: number; depth: number } | null = null;
+    if (step.at === 'hand') at = { ...hand, y: hand.y + (step.prop === 'bags' ? 6 : 0), depth: front };
+    else if (step.at === 'mouth') at = { ...mouth, depth: dir === 'up' ? y - 0.5 : front };
+    else if (step.at === 'table') {
+      const [ox, oy] = TABLE_OFFSET[where.dir];
+      at = { x: x + ox, y: y + oy, depth: y + oy + 12 };
+    } else if (step.at === 'lap') at = { x: x + (where.dir === 'up' ? 5 : where.dir === 'left' ? -3 : 3), y: y - 6, depth: y + 1 };
+
+    // El móvil ya va dibujado en las manos de frente y de perfil: de espaldas o andando, su brillo.
+    const glowHidden = step.prop === 'glow' && !where.moving && dir !== 'up';
+    // Lo que se sostiene apunta hacia fuera (la brasa del cigarro, el asa): hacia la izquierda si está a la izquierda del cuerpo.
+    const outward = step.at === 'mouth' ? dir === 'left' || dir === 'down' : step.at === 'hand' && side < 0;
+    if (step.prop && at && !glowHidden) this.icon.setTexture(PROP_TEXTURE[step.prop]).setPosition(at.x, at.y).setDepth(at.depth).setFlipX(outward).setVisible(true);
+    else if (step.talk && Math.floor((time + this.seed * 700) / 1800) % 3 !== 2) {
+      this.icon.setTexture('fx-talk').setPosition(x + 5, top - (seated ? 21 : 24)).setDepth(y + 1).setVisible(true);
+    } else this.icon.setVisible(false);
+
+    // El humo: una bocanada al empezar el tramo que la tiene; un hilo suelto de la punta mientras se sostiene.
+    if (step.puff || step.trail) {
+      const smoke = SmokeFx.of(this.scene);
+      const token = `${amb.start}|${amb.frame.key}`;
+      if (step.puff && token !== this.puffToken) {
+        this.puffToken = token;
+        smoke.puff(mouth.x, mouth.y - 1, step.puff);
+      }
+      const beat = Math.floor((time + this.seed * 97) / 520);
+      if (step.trail && at && beat !== this.trailBeat) {
+        this.trailBeat = beat;
+        smoke.wisp(at.x + (side > 0 ? 2 : -2), at.y - 1);
+      }
+    }
+    this.gear('under', null);
+    this.gear('over', null);
   }
 }

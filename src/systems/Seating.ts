@@ -57,6 +57,12 @@ export function seatsIn(loc: LocationDef): Seat[] {
   return seats;
 }
 
+/** Si el asiento de ese punto da a una mesa o una barra (una silla, un taburete) y no es un banco o un sofá. */
+export function atTable(pointId: string | undefined): boolean {
+  const kind = seatAt(pointId)?.furniture;
+  return !!kind && (kind.startsWith('chair-') || kind === 'stool');
+}
+
 /** Lo que hace sentado quien no tiene otra cosa que hacer: uno de los del mueble, siempre el mismo para la misma persona. */
 export function seatIdle(seat: Seat, seed: number): SeatIdle {
   return seat.def.idle[Math.abs(seed) % seat.def.idle.length];

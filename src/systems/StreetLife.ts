@@ -12,7 +12,7 @@ import { isOpen, placeInfo, placeOfPoint, type PlaceInfo } from './Places.ts';
 import { route, tilePath } from './Navigation.ts';
 import { besideTile, identity, nextCustomer } from './Service.ts';
 import { ROADWAY, isWalkable } from './LocationSystem.ts';
-import { levelAt, profileFor, type Agent, type Clock } from './Crowd.ts';
+import { levelAt, profileFor, stride, type Agent, type Clock } from './Crowd.ts';
 import { DOG_LOOKS } from '../data/wildlife.ts';
 import { lookWeights, profileAt } from './Districts.ts';
 import { crossingOf, signalAt, waitSpots } from './Signals.ts';
@@ -425,7 +425,7 @@ export class StreetLife {
     const dx = target.tx - a.x;
     const dy = target.ty - a.y;
     const dist = Math.hypot(dx, dy);
-    const reach = (a.speed * deltaMs) / 1000;
+    const reach = stride(a, deltaMs, a.path.length === 1 ? dist : Infinity);
     a.moving = true;
     if (dist > 0) a.dir = facingTo({ tx: a.x, ty: a.y }, target);
     if (dist > reach) {

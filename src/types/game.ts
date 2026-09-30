@@ -446,6 +446,8 @@ export interface NpcLook {
   /** Brazos al aire (tirantes) o manga de otro color. */
   sleeves?: string;
   trousers?: string;
+  /** Calzado fijo al cambiar de capa; sin él, sale del id. */
+  shoes?: string;
   /** Manchas sobre el pantalón (leopardo). */
   spots?: string;
   longHair?: boolean;

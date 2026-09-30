@@ -16,6 +16,30 @@ export interface EventSlot extends TilePoint {
   facing?: Facing;
 }
 
+/** Perfiles explícitos: nunca se deducen edad, género o nivel del pelo o de la ropa. */
+export interface FighterProfile {
+  look: string;
+  nickname: string;
+  age: number;
+  gender: 'man' | 'woman';
+  /** Categoría de tamaño y nivel físico: 1 ligero/iniciación, 2 medio, 3 fuerte/experimentado. */
+  body: 1 | 2 | 3;
+  physical: 1 | 2 | 3;
+}
+
+export const FIGHTER_PROFILES: readonly FighterProfile[] = [
+  { look: 'pasajero-4', nickname: 'Muro', age: 27, gender: 'man', body: 2, physical: 2 },
+  { look: 'pasajero-11', nickname: 'Sur', age: 29, gender: 'man', body: 2, physical: 2 },
+  { look: 'pasajero-14', nickname: 'Cobre', age: 24, gender: 'man', body: 2, physical: 1 },
+  { look: 'pasajero-17', nickname: 'Norte', age: 32, gender: 'man', body: 3, physical: 3 },
+  { look: 'pasajero-24', nickname: 'Humo', age: 26, gender: 'man', body: 3, physical: 2 },
+  { look: 'pasajero-12', nickname: 'Lince', age: 25, gender: 'woman', body: 2, physical: 2 },
+  { look: 'pasajero-15', nickname: 'Ámbar', age: 28, gender: 'woman', body: 2, physical: 2 },
+  { look: 'pasajero-18', nickname: 'Roca', age: 31, gender: 'woman', body: 3, physical: 3 },
+  { look: 'pasajero-22', nickname: 'Chispa', age: 23, gender: 'woman', body: 2, physical: 1 },
+  { look: 'pasajero-23', nickname: 'Trueno', age: 30, gender: 'woman', body: 3, physical: 2 },
+];
+
 export interface StreetEventDef {
   id: string;
   type: 'clandestine-fight';
@@ -31,6 +55,10 @@ export interface StreetEventDef {
   entries: readonly string[];
   /** Los dos que pelean, de perfil y mirándose: el primero mira a la derecha. */
   fighters: readonly [EventSlot, EventSlot];
+  /** Participantes adultos identificados, con emparejamiento compatible. */
+  fighterRoster: readonly FighterProfile[];
+  /** Organiza las apuestas, fuera de la pelea y sin cerrar el callejón. */
+  bookmaker?: EventSlot;
   /** El corro: huecos sueltos alrededor, sin cerrar el paso. */
   spectators: readonly EventSlot[];
   /** Quien mira desde lejos, sin meterse. */
@@ -82,6 +110,8 @@ export const STREET_EVENTS: readonly StreetEventDef[] = [
     covered: false,
     entries: ['EDGE_MAYOR_E', 'EDGE_MAYOR_W'],
     fighters: [{ tx: 79, ty: 2, facing: 'right' }, { tx: 81, ty: 2, facing: 'left' }],
+    fighterRoster: FIGHTER_PROFILES,
+    bookmaker: { tx: 74, ty: 1, facing: 'right' },
     spectators: [
       // Detrás de los dos, en columnas alternas; delante, sólo a los lados: el hueco de delante queda libre y se les ve pelear.
       { tx: 78, ty: 1 }, { tx: 80, ty: 1 }, { tx: 82, ty: 1 }, { tx: 77, ty: 1 }, { tx: 83, ty: 1 },
@@ -98,13 +128,13 @@ export const STREET_EVENTS: readonly StreetEventDef[] = [
     raid: 0.15,
     weather: { cancelRain: 0.55, lightRainCrowd: 0.6, coldBelow: 8, coldCrowd: 0.75, warmAbove: 20, warmExtra: 3 },
     lines: {
-      gathering: ['Todavía no ha empezado. Espera, que ahora viene el otro.', 'Tú no eres de aquí, ¿no? Tranquilo, mientras no saques el móvil.'],
-      fight: ['¡Venga, venga! Uy, esa ha dolido.', 'No te pongas tan cerca, que no es un espectáculo.', 'El del gris lleva dos noches ganando.'],
+      gathering: ['No saques el móvil. Aquí no hay cartel ni entrada.', 'Son mayores, misma categoría. El de la libreta comprueba las parejas.', 'Unos miran; otros doblan un billete y eligen un lado.'],
+      fight: ['¡Venga! Esa sí que ha llegado.', 'No te pongas tan cerca. Deja libre el paso.', 'Se ha agachado justo a tiempo.', 'Ahora está contra las cuerdas... bueno, contra las cajas.'],
       dispersing: ['Se acabó por hoy. Mejor no quedarse.', 'La próxima, el jueves. O no. Ya se sabrá.'],
       lookout: ['Yo no he visto nada. Tú tampoco.', 'Si viene alguien, silbo. Tú a lo tuyo.'],
       arrive: {
         gathering: 'Al fondo del callejón, gente esperando en corro. Hablan bajo.',
-        fight: 'En el patio de atrás, un corro alrededor de dos que pelean. Nadie grita demasiado.',
+        fight: 'Dos se enfrentan en el patio. Un corro los anima; alguien apunta apuestas en una libreta.',
         break: 'Entre asalto y asalto: los dos respiran y el corro comenta.',
         dispersing: 'El corro se deshace. Alguien recoge los vasos.',
       },

@@ -114,24 +114,7 @@ function drawBenchUpFront(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 12, 4, 2, 6);
 }
 
-/** El cigarro en la mano: papel blanco y la brasa. */
-function drawCigarette(ctx: Ctx): void {
-  px(ctx, PALETTE.white, 0, 0, 3, 1);
-  px(ctx, '#e0703a', 3, 0, 1, 1);
-}
-
-/** Una bocanada de humo que sube: tres volutas grises, más claras arriba. */
-function drawSmoke(ctx: Ctx): void {
-  ctx.globalAlpha = 0.55;
-  px(ctx, '#c9c6c0', 2, 5, 3, 2);
-  px(ctx, '#d8d5cf', 1, 3, 2, 2);
-  px(ctx, '#e6e3de', 3, 0, 2, 2);
-  ctx.globalAlpha = 1;
-}
-
 export function buildSeatTextures(scene: Phaser.Scene): void {
-  make(scene, 'fx-cigarette', 4, 1, drawCigarette);
-  make(scene, 'fx-smoke', 6, 7, drawSmoke);
   make(scene, 'prop-chair-down', TILE, TILE * 2, drawChairDown);
   make(scene, 'prop-chair-up', TILE, TILE, drawChairUp);
   make(scene, 'prop-chair-up-front', TILE, TILE, drawChairUpFront);

@@ -30,7 +30,7 @@ import { MetroSystem } from '../systems/MetroSystem';
 import { METRO_CONFIG } from '../config/metro';
 import { buildLocation } from '../world/LocationBuilder';
 import { Player } from '../entities/Player';
-import { seatAt, seatsIn, type Seat } from '../systems/Seating';
+import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
 import { getNpc } from '../data/npcs';
@@ -39,7 +39,9 @@ import { catchUp, whereabouts, type Whereabouts } from '../systems/Characters';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Clock } from '../systems/Crowd';
 import { StreetLife, streetProfileFor } from '../systems/StreetLife';
-import { hoursLabel, isOpen, placeForInterior } from '../systems/Places';
+import { hoursLabel, isOpen, placeForInterior, placeOfPoint } from '../systems/Places';
+import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
+import type { AmbientPlacement, Placement } from '../entities/Character';
 import { stopAtStation } from '../systems/Transit';
 import { Menus } from './Menus';
 import { CrowdView } from '../world/CrowdView';
@@ -47,6 +49,8 @@ import { ServiceView } from '../world/ServiceView';
 import type { PlayerCall } from '../systems/TableService';
 import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
+import { characterLook, umbrellaFor } from '../world/WeatherLooks';
+import { hashSeed } from '../systems/MetroDaily';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
 import { STREET_EVENTS } from '../data/streetEvents';
@@ -139,6 +143,8 @@ export class WorldScene extends Phaser.Scene {
     /** Minutos que va por detrás de su horario desde la última charla. */
     lag: number;
   }[] = [];
+  /** Gestos de ambiente de los personajes con nombre (systems/AmbientActions), igual que la gente de CrowdView. */
+  private characterAmbient: AmbientDirector | null = null;
   /** Suelta a quien atiende al jugador: al cerrar el diálogo vuelve a lo suyo. */
   private endTalk: (() => void) | null = null;
   /** Gente del local (data/population.ts), sólo en interiores con perfil y mientras el jugador está dentro. */
@@ -198,6 +204,7 @@ export class WorldScene extends Phaser.Scene {
       this.interactables.push({ kind: 'npc', sprite: entry.sprite, def: entry.sprite.def, lines });
       return entry;
     });
+    this.characterAmbient = new AmbientDirector(() => this.services.state.hour + this.services.state.minute / 60);
 
     let position: Vec2;
     let facing: Facing;
@@ -300,7 +307,8 @@ export class WorldScene extends Phaser.Scene {
     if (service) service.onPlayer = (call) => this.tableCall(call);
     this.street?.populate(this.clockNow(), this.playerTile());
     const weather = (): ReturnType<typeof weatherAt> => weatherAt(this.services.state.day, this.services.state.hour + this.services.state.minute / 60);
-    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street));
+    const hourNow = (): number => this.services.state.hour + this.services.state.minute / 60;
+    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street, hourNow));
     // Lo que pasa en sitios escondidos algunas noches (data/streetEvents.ts): su corro es gente como la de la calle.
     this.streetEvents = STREET_EVENTS.filter((e) => e.location === def.id).map((e) => new StreetEventView(this, def, e, weather));
     this.crowdViews.push(...this.streetEvents.map((e) => e.crowd));
@@ -572,6 +580,8 @@ export class WorldScene extends Phaser.Scene {
   private placeCharacters(deltaMs = 0): void {
     const now = this.absMinute();
     const here = this.services.state.locationId;
+    const outdoor = getLocation(here).kind === 'exterior';
+    const weather = weatherAt(this.services.state.day, this.services.clock.minuteOfDay / 60);
     const claimed = new Set<string>();
     const heading = new Set<string>();
     for (const c of this.characters) {
@@ -579,11 +589,18 @@ export class WorldScene extends Phaser.Scene {
       const w = whereabouts(c.def, c.heldAt ?? now - c.lag);
       c.now = w;
       const visible = w.location === here && !w.inside;
+      const seed = hashSeed('weather', c.def.npc);
+      const look = outdoor ? characterLook(c.sprite.def, seed, weather) : c.sprite.def;
+      c.sprite.setLook(look.id);
+      c.sprite.umbrella = outdoor ? umbrellaFor(seed, weather, !!look.hood) : null;
       if (visible && !w.moving) claimed.add(w.stop.point);
       if (visible && seatAt(w.stop.point)) heading.add(w.stop.point);
       // Parado en un semáforo: de pie, sin la actividad del sitio al que va. Cada uno, su semilla y la altura de su asiento.
       const activity = w.waiting ? 'idle' : activityAt(w.stop.point, undefined, this.characters.indexOf(c));
-      c.sprite.place(visible ? { ...w, moving: w.moving && !w.waiting, activity, lift: w.moving ? 0 : seatAt(w.stop.point)?.lift } : null, this.time.now);
+      const where: Placement | null = visible ? { ...w, moving: w.moving && !w.waiting, activity, lift: w.moving ? 0 : seatAt(w.stop.point)?.lift } : null;
+      if (where) where.ambient = this.characterAmbientOf(c.def.npc, where, w.stop.point, outdoor);
+      else this.characterAmbient?.forget(c.def.npc);
+      c.sprite.place(where, this.time.now);
     }
     this.charactersOn = heading;
     // Un personaje con nombre viene a su sitio de siempre y el jugador está sentado ahí: se levanta.
@@ -592,6 +609,30 @@ export class WorldScene extends Phaser.Scene {
     if (this.seatedOn && !this.seatedOn.seat.id.startsWith('metro:')) claimed.add(this.seatedOn.seat.id);
     this.crowd?.claim(claimed);
     this.street?.claim(claimed);
+  }
+
+  /**
+   * El gesto de ambiente de un personaje con nombre: el mismo sistema que la
+   * gente de la calle, con su rasgo fijo (sale de su id) y su compañía (otro
+   * personaje parado a su lado, p. ej. en la cena del viernes).
+   */
+  private characterAmbientOf(npc: string, where: Placement, point: string, outdoor: boolean): AmbientPlacement | undefined {
+    const situation = this.characterAmbient && ambientSituation(where.activity ?? 'idle', undefined, where.moving);
+    if (!situation || !this.characterAmbient) return undefined;
+    const context = `${situation.posture}|${situation.context}|${where.moving ? '' : point}`;
+    const choice = this.characterAmbient.at(npc, context, this.time.now, () => {
+      const mate = where.moving
+        ? undefined
+        : this.characters.find((o) => o.def.npc !== npc && o.now && !o.now.moving && !o.now.inside && Math.hypot(o.now.tx - where.tx, o.now.ty - where.ty) < 2.6);
+      return {
+        ...situation,
+        seed: hashSeed('ambient', npc),
+        outdoor,
+        tags: where.moving ? [] : (placeOfPoint(point)?.tags ?? []),
+        companion: mate?.now ? facingTowards({ x: where.tx, y: where.ty }, { x: mate.now.tx, y: mate.now.ty }) : undefined,
+      };
+    });
+    return choice && { frame: ambientFrame(choice, this.time.now), start: choice.start, companion: choice.companion, table: !where.moving && atTable(point) };
   }
 
   /** Día y minuto con la fracción en curso: el semáforo cambia a su segundo, no a saltos de minuto. */

@@ -136,6 +136,28 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
     }
   });
 
+  // Oclusión de la sala: el suelo se oscurece un poco al pie de cada muro, en degradado de cuatro
+  // píxeles (a los lados, bajo la cara del fondo, que ya lleva dos, y antes del muro de delante), y
+  // bajo lo sólido que está en el suelo (una barra, un mostrador). La sala deja de parecer un plano.
+  if (def.kind === 'interior') {
+    const floor = (x: number, y: number): boolean => !!TILES[at(x, y)] && !TILES[at(x, y)].solid;
+    const wall = (x: number, y: number): boolean => at(x, y) === 'W';
+    const solid = (x: number, y: number): boolean => !!TILES[at(x, y)]?.solid;
+    const FALL = [0.16, 0.1, 0.06, 0.03];
+    def.ground.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) {
+        if (!floor(x, y)) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        if (wall(x - 1, y)) FALL.forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(px + i, py, 1, TILE));
+        if (wall(x + 1, y)) FALL.forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(px + TILE - 1 - i, py, 1, TILE));
+        if (wall(x, y - 1)) [0.12, 0.08, 0.05, 0.025].forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(px, py + 2 + i, TILE, 1));
+        else if (solid(x, y - 1)) [0.28, 0.14, 0.07, 0.03].forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(px, py + i, TILE, 1));
+        if (wall(x, y + 1)) [0.03, 0.06, 0.09].forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(px, py + TILE - 3 + i, TILE, 1));
+      }
+    });
+  }
+
   // Contacto: la línea oscura donde la fachada toca la acera y, debajo, la penumbra del alero que se
   // desvanece en cuatro filas (oclusión ambiental: no depende del sol, que va aparte en Lighting).
   for (const b of def.buildings ?? []) {
