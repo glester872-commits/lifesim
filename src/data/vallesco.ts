@@ -414,6 +414,15 @@ const BASE: LocationDef = {
     { profile: 'nightlife', tx: 10, ty: 16, w: 12, h: 10 }, // la puerta de la Sala Órbita, con su cola
     { profile: 'nightlife', tx: 27, ty: 49, w: 9, h: 6 }, // La Cepa, junto al parque
   ],
+  // Escena de muestra (design/ART_BIBLE §15): la plazuela del metro con su tramo de avenida y los edificios
+  // de alrededor. Ahí se prueba el estándar visual nuevo antes de llevarlo al resto del barrio.
+  showcase: { tx: 12, ty: 27, w: 40, h: 22 },
+  // Primer plano: una copa en la esquina de abajo a la izquierda y otra pequeña arriba, vistas desde la plazuela.
+  // Ninguna sobre tu portal (Olmo 7): se cruza cada día y no debe taparse.
+  foreground: [
+    { kind: 'canopy', x: 322, y: 760 },
+    { kind: 'canopy-small', x: 312, y: 560 },
+  ],
   // Carriles de circulación en medio; en los bordes (31 y 34), un carril bici por sentido.
   // De madrugada, uno por carril (taxis y el camión de la basura); en hora punta, tres.
   // La avenida tiene parada: pasa algo más de autobús que en otra avenida.

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { lampShadow } from '../world/LampShadows';
 import { every } from '../world/Motion';
 import { TILE } from '../config/constants';
 import type { Facing, NpcDef } from '../types/game';
@@ -165,6 +166,8 @@ export class Character extends Phaser.GameObjects.Sprite {
    */
   talkingTo: Facing | null = null;
   private readonly shadow: Phaser.GameObjects.Image;
+  /** De noche, la sombra larga que le echa la farola más cercana (world/LampShadows). */
+  private readonly lampShade: Phaser.GameObjects.Image;
   private readonly icon: Phaser.GameObjects.Image;
   /** Paraguas abierto (world/WeatherView lo dibuja; world/CrowdView decide quién lo lleva). */
   private readonly umbrellaImg: Phaser.GameObjects.Image;
@@ -201,10 +204,12 @@ export class Character extends Phaser.GameObjects.Sprite {
     scene.add.existing(this);
     this.setOrigin(0.5, 1);
     this.shadow = scene.add.image(0, 0, 'fx-shadow').setOrigin(0.5, 0.5);
+    this.lampShade = scene.add.image(0, 0, 'fx-shadow-long').setOrigin(0, 0.5).setVisible(false);
     this.icon = scene.add.image(0, 0, 'fx-phone').setOrigin(0.5, 1).setVisible(false);
     this.umbrellaImg = scene.add.image(0, 0, 'fx-umbrella-0').setOrigin(0.5, 1).setVisible(false);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       this.shadow.destroy();
+      this.lampShade.destroy();
       this.icon.destroy();
       this.umbrellaImg.destroy();
       this.under?.destroy();
@@ -314,6 +319,7 @@ export class Character extends Phaser.GameObjects.Sprite {
   place(where: Placement | null, time = 0): void {
     this.setVisible(where !== null);
     this.shadow.setVisible(where !== null);
+    if (!where) this.lampShade.setVisible(false);
     if (!where) {
       this.icon.setVisible(false);
       this.umbrellaImg.setVisible(false);
@@ -364,6 +370,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     const y = where.ty * TILE + TILE;
     this.setPosition(x, y).setDepth(y);
     this.shadow.setPosition(x, y - 1).setDepth(y - 1);
+    lampShadow(this.lampShade, x, y);
     const lift = !where.moving && SEATED.has(where.activity ?? 'idle') ? (where.lift ?? 0) : 0;
     // El paraguas va por encima de la cabeza, andando o de pie; sentado en una mesa, cerrado.
     const seated = SEATED.has(where.activity ?? 'idle') && !where.moving;

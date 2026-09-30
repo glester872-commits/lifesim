@@ -11,6 +11,9 @@ import { gradeAt, hex, profileAt, zonesOf } from '../systems/Districts';
 import { every, wave } from './Motion';
 import { backRows, facadeRows } from '../systems/LocationSystem';
 import { DISTRICTS, type DistrictProfile } from '../data/districts';
+import { QUALITY } from '../config/quality';
+import { windowKind, windowRank } from './Detail';
+import { LAMP_LIGHT } from './LampShadows';
 
 /** Canal a canal: `a` por `b` (0xffffff no cambia nada). */
 function multiply(a: number, b: number): number {
@@ -45,7 +48,7 @@ const wetGround = (sky: number, wet: number): number => multiply(sky, mix(0xffff
 
 /** [hora, color del cielo]. Entre dos puntos se interpola. */
 /** Noche azul pizarra, no añil: la sombra deja leer el suelo y la gente (design/visual-reference). */
-const NIGHT = 0x566090;
+const NIGHT = 0x4c5686;
 const SKY: readonly (readonly [number, number])[] = [
   [0, NIGHT],
   [5.5, NIGHT],
@@ -154,8 +157,6 @@ export function homeLightsAt(hour: number): number {
   return HOME_LIGHTS[HOME_LIGHTS.length - 1][1];
 }
 
-/** Número fijo de cada ventana (0–1): decide a qué hora se apaga. */
-const windowRank = (i: number): number => ((Math.imul(i + 1, 2654435761) >>> 0) % 1000) / 1000;
 
 /**
  * Charco de luz elíptico (2:1, el suelo visto desde arriba) en anillos
@@ -196,8 +197,6 @@ interface LightSource {
  */
 const WARM = 0xffc27a;
 const COOL = 0xa8d4ff;
-/** El mapa de luz va a media resolución: los anillos son escalonados y a 2 px no se nota. */
-const LM_SCALE = 2;
 const LIGHT_MASK = 'fx-lightmask';
 const MASK_SIZE = 64;
 
@@ -273,10 +272,27 @@ export class Lighting {
   private readonly zones: { x: number; y: number; w: number; h: number; profile: DistrictProfile }[];
   /** Color y fuerza de farola y escaparate donde cae (px de mundo): la temperatura de cada zona. */
   private readonly lampAt: (x: number, y: number) => readonly [number, number];
+  /**
+   * Píxeles de mundo por píxel del mapa de luz (config/quality.ts): a 1, las sombras
+   * del sol salen nítidas; a 2, cuesta la cuarta parte y se ven más suaves.
+   */
+  private readonly lm: number = QUALITY.lightmapScale;
+  /** Ventanas con la tele puesta: su luz sube y baja un poco, cada una a su ritmo. */
+  private screens: { x: number; y: number; w: number; h: number; seed: number }[] = [];
+  /** Linternas de farola de la calle (px de mundo): las polillas vuelan a su alrededor. */
+  private readonly lampHeads: { x: number; y: number }[] = [];
+  /** El pie de cada farola: de ahí salen las sombras largas de la gente (world/LampShadows). */
+  private readonly lampFeet: { x: number; y: number }[] = [];
+  /** Lo que se mueve en la luz cada frame (tele, polillas): una sola capa aditiva, vacía de día. */
+  private fx: Phaser.GameObjects.Graphics | null = null;
+  private fxAt = 0;
+  private fxEmpty = true;
+  private readonly camera: Phaser.Cameras.Scene2D.Camera;
 
   constructor(scene: Phaser.Scene, def: LocationDef, built: { widthPx: number; heightPx: number; windows: readonly WindowSpot[]; glows: readonly GlowSpot[] }, state: GameState) {
     const { widthPx, heightPx } = built;
     this.state = state;
+    this.camera = scene.cameras.main;
     this.indoor = def.kind === 'interior';
     this.ambient = def.ambient ? Number.parseInt(def.ambient.slice(1), 16) : 0xffffff;
     this.room = placeForInterior(def.id);
@@ -314,7 +330,17 @@ export class Lighting {
         // Charco definido, no un baño: entre farola y farola queda la penumbra azul de la noche (design/visual-reference).
         const [w, h] = prop.light.pool ? [prop.light.pool[0] * 2.3, prop.light.pool[1] * 3.0] : [84, 50];
         const [warm, strength] = this.lampAt(x, baseY);
-        this.fixedSources.push({ x, y: baseY, w, h, color: prop.light.cool ? COOL : warm, strength: prop.light.cool ? 0.6 : strength });
+        const color = prop.light.cool ? COOL : warm;
+        if (prop.light.pool && !prop.light.cool) {
+          this.lampHeads.push({ x, y });
+          this.lampFeet.push({ x, y: baseY });
+        }
+        const s = prop.light.cool ? 0.6 : strength;
+        // Una farola en capas (config/quality.ts): primero lo que alcanza a la fachada de al lado, a la altura
+        // de la linterna; luego el charco; encima, el núcleo casi blanco al pie. Sin halos gigantes: todo en el suelo y el muro.
+        if (QUALITY.layeredLamps && prop.light.pool) this.fixedSources.push({ x, y: y + 10, w: w * 0.8, h: h * 1.5, color, strength: s * 0.32 });
+        this.fixedSources.push({ x, y: baseY, w, h, color, strength: s });
+        if (QUALITY.layeredLamps && prop.light.pool) this.fixedSources.push({ x, y: baseY - 1, w: w * 0.36, h: h * 0.34, color: mix(color, 0xffffff, 0.4), strength: Math.min(1, s * 1.05) });
       } else if (prop.light.pool) {
         const [w, h] = prop.light.pool;
         const pool = scene.add.image(x, baseY, poolTexture(scene, w, h)).setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
@@ -341,6 +367,8 @@ export class Lighting {
         // La boca de metro, siempre encendida, alumbra la acera de delante.
         const src = scene.textures.get(g.key).getSourceImage();
         this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height, w: src.width * 1.8, h: src.height * 1.4, color: WARM, strength: 0.75 });
+        // Y por la escalera sube la luz fría de los tubos de abajo: el hueco se ve encendido, no un agujero.
+        this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height * 0.62, w: src.width * 0.55, h: src.height * 0.55, color: 0xdcecff, strength: 0.8 });
       }
     }
 
@@ -360,16 +388,17 @@ export class Lighting {
       makeLightMask(scene);
       this.shade.setVisible(false);
       this.lightmap = scene.add
-        .renderTexture(0, 0, Math.ceil(widthPx / LM_SCALE), Math.ceil(heightPx / LM_SCALE))
+        .renderTexture(0, 0, Math.ceil(widthPx / this.lm), Math.ceil(heightPx / this.lm))
         .setOrigin(0, 0)
-        .setScale(LM_SCALE)
+        .setScale(this.lm)
         .setDepth(DEPTH)
         .setBlendMode(Phaser.BlendModes.MULTIPLY);
       this.lightmap.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
       this.roofBrush = new Phaser.GameObjects.Rectangle(scene, 0, 0, 1, 1, 0xffffff).setOrigin(0, 0);
       // Las sombras se dibujan en coordenadas del mundo y se reducen al mapa de luz al pintarlas.
-      this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / LM_SCALE);
+      this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / this.lm);
       this.reflections = scene.add.graphics().setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
+      this.fx = scene.add.graphics().setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
     }
 
     // Los focos son de la sala abierta: a la hora de cierre se apagan aunque sigas dentro.
@@ -382,8 +411,10 @@ export class Lighting {
       state.off('change', update);
       this.shadows?.destroy();
       this.reflections?.destroy();
+      this.fx?.destroy();
       this.roofBrush?.destroy();
     });
+    LAMP_LIGHT.lamps = this.lampFeet;
     this.update();
   }
 
@@ -437,6 +468,7 @@ export class Lighting {
    */
   private relight(night: number, homes: number, wet: number): void {
     const g = this.windows.clear();
+    this.screens = [];
     const sources: LightSource[] = [];
     this.windowSpots.forEach((w, i) => {
       const place = PLACE_OF_BUILDING.get(w.building);
@@ -444,8 +476,10 @@ export class Lighting {
       if (!lit) return;
       // El local abierto se ve de lejos: su color, más fuerte que una casa.
       const [body, top, pool] = w.shop ? [0.7, 0.45, 0.6] : [0.5, 0.3, 0.35];
-      g.fillStyle(w.shop ? w.tone : 0xd08a3a, body).fillRect(w.x, w.y, w.w, w.h);
-      g.fillStyle(w.shop ? 0xffffff : 0xf0c070, top).fillRect(w.x, w.y, w.w, 1);
+      if (w.shop) {
+        g.fillStyle(w.tone, body).fillRect(w.x, w.y, w.w, w.h);
+        g.fillStyle(0xffffff, top).fillRect(w.x, w.y, w.w, 1);
+      } else this.homeWindow(g, w, i);
       // Y un poco de esa luz cae en la acera, al pie del cristal.
       const warm = this.lampAt(w.x + w.w / 2, w.y + w.h + 6)[0];
       sources.push({ x: w.x + w.w / 2, y: w.y + w.h + 6, w: w.w * 2 + 20, h: 26, color: w.shop ? mix(warm, w.tone, 0.6) : warm, strength: pool });
@@ -463,13 +497,47 @@ export class Lighting {
     this.windows.setAlpha(night).setVisible(night > 0.05);
     // Con el suelo mojado, cada luz fuerte se repite debajo en una raya vertical: el reflejo, falso y barato.
     const r = this.reflections?.clear();
-    if (r && wet > 0.15 && night > 0.05) {
+    if (r && QUALITY.reflections && wet > 0.15 && night > 0.05) {
       for (const l of [...this.fixedSources, ...sources]) {
         if (l.strength < 0.5) continue;
         r.fillStyle(l.color, 0.18 * wet * l.strength).fillRect(Math.round(l.x) - 1, Math.round(l.y) + 3, 3, 14);
         r.fillStyle(l.color, 0.1 * wet * l.strength).fillRect(Math.round(l.x) - 2, Math.round(l.y) + 6, 5, 6);
       }
     }
+  }
+
+  /**
+   * Una ventana de casa con luz, cada una a su manera y siempre igual (su número
+   * fijo): lámpara cálida, luz de fondo tenue, el azul de una tele, cortinas
+   * corridas o persiana a medias; y en alguna, alguien de pie al trasluz. Un
+   * poco de esa luz se queda en el muro alrededor del hueco.
+   */
+  private homeWindow(g: Phaser.GameObjects.Graphics, w: WindowSpot, i: number): void {
+    const kind = windowKind(i);
+    const color = kind === 'tv' ? 0x7fa8d8 : kind === 'dim' ? 0xa86a30 : 0xd08a3a;
+    const alpha = kind === 'dim' ? 0.34 : kind === 'tv' ? 0.42 : 0.5;
+    // El muro de alrededor recoge algo de luz: un marco tenue, no un halo.
+    g.fillStyle(color, 0.07).fillRect(w.x - 2, w.y - 1, w.w + 4, w.h + 3);
+    const someone = w.h >= 8 && w.w >= 4 && windowRank(i * 13 + 5) < 0.14;
+    const cx = w.x + Math.floor(w.w / 2);
+    for (let y = w.y; y < w.y + w.h; y++) {
+      // Persiana a medias: la mitad de arriba con sus lamas.
+      if (kind === 'blinds' && y < w.y + w.h * 0.55 && (y - w.y) % 2 === 1) continue;
+      // Alguien al trasluz: cabeza de dos y hombros de cuatro, apoyado en el alféizar.
+      const row = y - (w.y + w.h - 5);
+      if (someone && row >= 0) {
+        const [l, r] = row < 2 ? [cx - 1, cx + 1] : [cx - 2, cx + 2];
+        g.fillStyle(color, alpha).fillRect(w.x, y, l - w.x, 1).fillRect(r, y, w.x + w.w - r, 1);
+        continue;
+      }
+      g.fillStyle(color, alpha).fillRect(w.x, y, w.w, 1);
+    }
+    if (kind === 'curtain') {
+      // Cortinas recogidas a los lados: la tela deja pasar menos luz.
+      g.fillStyle(0x6a3a24, 0.35).fillRect(w.x, w.y, 1, w.h).fillRect(w.x + w.w - 1, w.y, 1, w.h);
+    }
+    g.fillStyle(kind === 'tv' ? 0xc8e0ff : 0xf0c070, 0.3).fillRect(w.x, w.y, w.w, 1);
+    if (kind === 'tv') this.screens.push({ x: w.x, y: w.y, w: w.w, h: w.h, seed: i });
   }
 
   /** Las sombras del sol en coordenadas del mundo: la barrida de cada huella hacia donde cae la sombra. */
@@ -483,7 +551,17 @@ export class Lighting {
       const side = ox >= 0 ? r : l;
       g.fillPoints([{ x: side, y: t }, { x: side + ox, y: t + oy }, { x: side + ox, y: b + oy }, { x: side, y: b }] as Phaser.Types.Math.Vector2Like[], true);
       g.fillPoints([{ x: l, y: b }, { x: r, y: b }, { x: r + ox, y: b + oy }, { x: l + ox, y: b + oy }] as Phaser.Types.Math.Vector2Like[], true);
-      if (c.blob) g.fillEllipse(c.x + c.w / 2 + ox, c.y + oy - 2, c.blob[0], c.blob[1]);
+      if (c.blob) {
+        // La copa no es un óvalo: cuatro lóbulos fijos por árbol (del sitio donde está), y la luz se cuela entre ellos.
+        const [bw, bh] = c.blob;
+        const cx = c.x + c.w / 2 + ox;
+        const cy = c.y + oy - 2;
+        const seed = Math.imul(Math.round(c.x) * 73 + Math.round(c.y), 2654435761) >>> 0;
+        for (let k = 0; k < 4; k++) {
+          const r = (n: number): number => ((seed >>> (k * 7 + n)) & 31) / 31 - 0.5;
+          g.fillEllipse(cx + r(0) * bw * 0.5, cy + r(3) * bh * 0.45, bw * (0.55 + (r(1) + 0.5) * 0.2), bh * (0.55 + (r(2) + 0.5) * 0.25));
+        }
+      }
     }
     return g;
   }
@@ -502,9 +580,9 @@ export class Lighting {
     if (night >= 0.05) {
       map.beginDraw();
       for (const l of [...this.fixedSources, ...this.dynamicSources]) {
-        map.stamp(LIGHT_MASK, undefined, l.x / LM_SCALE, l.y / LM_SCALE, {
-          scaleX: l.w / MASK_SIZE / LM_SCALE,
-          scaleY: l.h / MASK_SIZE / LM_SCALE,
+        map.stamp(LIGHT_MASK, undefined, l.x / this.lm, l.y / this.lm, {
+          scaleX: l.w / MASK_SIZE / this.lm,
+          scaleY: l.h / MASK_SIZE / this.lm,
           tint: l.color,
           alpha: Math.min(1, night * l.strength),
           blendMode: Phaser.BlendModes.NORMAL,
@@ -515,7 +593,7 @@ export class Lighting {
     }
     // Con un rectángulo propio (fusión normal): fill() heredaría la suma de la última luz.
     const roof = this.roofBrush.setFillStyle(sky);
-    for (const r of this.roofs) map.draw(roof.setPosition(r.x / LM_SCALE, r.y / LM_SCALE).setSize(r.w / LM_SCALE, r.h / LM_SCALE));
+    for (const r of this.roofs) map.draw(roof.setPosition(r.x / this.lm, r.y / this.lm).setSize(r.w / this.lm, r.h / this.lm));
   }
 
   /**
@@ -530,7 +608,7 @@ export class Lighting {
       brush.setFillStyle(multiply(ground, gradeAt(z.profile, hour)));
       [1 / 3, 1 / 2, 1].forEach((alpha, i) => {
         const inset = i * TILE;
-        brush.setAlpha(alpha).setPosition((z.x + inset) / LM_SCALE, (z.y + inset) / LM_SCALE).setSize((z.w - inset * 2) / LM_SCALE, (z.h - inset * 2) / LM_SCALE);
+        brush.setAlpha(alpha).setPosition((z.x + inset) / this.lm, (z.y + inset) / this.lm).setSize((z.w - inset * 2) / this.lm, (z.h - inset * 2) / this.lm);
         map.draw(brush);
       });
     }
@@ -545,6 +623,8 @@ export class Lighting {
       for (const light of this.lights) light.setAlpha(0.5).setVisible(open);
       for (const e of this.emissives) e.img.setAlpha(1).setVisible(open);
       this.windows.setVisible(false);
+      LAMP_LIGHT.night = 0;
+      LAMP_LIGHT.sky = 0xffffff;
       return;
     }
     const hour = this.state.hour + this.state.minute / 60;
@@ -567,6 +647,8 @@ export class Lighting {
     this.windows.setAlpha(night).setVisible(night > 0.05);
     for (const light of this.lights) light.setAlpha(night).setVisible(night > 0.05);
     this.night = night;
+    LAMP_LIGHT.night = night;
+    LAMP_LIGHT.sky = sky;
     for (const e of this.emissives) {
       const on = night > 0.05 && (!e.place || this.opened(e.place));
       e.img.setAlpha(night).setVisible(on);
@@ -587,5 +669,40 @@ export class Lighting {
       e.img.setAlpha(this.night * (stutter && Math.floor(time / 70) % 3 === 0 ? 0.25 : 1));
     }
     if (this.reflections?.visible) this.reflections.setAlpha(0.7 + 0.3 * wave(time, 1900));
+    this.animateLight(time);
+  }
+
+  /**
+   * La tele de algunas casas (su luz sube y baja, cada una a su ritmo) y, en
+   * calidad alta, dos o tres polillas alrededor de cada farola encendida que se
+   * ve. Sólo de noche y sólo lo que está en cámara: de día la capa está vacía.
+   */
+  private animateLight(time: number): void {
+    // A 30 veces por segundo basta para un parpadeo y unas polillas; vacía, ni se toca.
+    if (!this.fx || time - this.fxAt < 33) return;
+    this.fxAt = time;
+    const idle = this.night < 0.05 || (this.screens.length === 0 && (!QUALITY.moths || this.night < 0.4));
+    if (idle) {
+      if (!this.fxEmpty) this.fx.clear();
+      this.fxEmpty = true;
+      return;
+    }
+    this.fxEmpty = false;
+    const g = this.fx.clear();
+    for (const s of this.screens) {
+      const k = 0.5 + 0.5 * Math.sin(time / (170 + (s.seed % 5) * 40) + s.seed) * Math.sin(time / 1300 + s.seed * 3);
+      g.fillStyle(0x9cc4ff, 0.14 * k * this.night).fillRect(s.x, s.y, s.w, s.h);
+    }
+    if (!QUALITY.moths || this.night < 0.4) return;
+    const view = this.camera.worldView;
+    for (const [i, l] of this.lampHeads.entries()) {
+      if (l.x < view.x - 16 || l.x > view.right + 16 || l.y < view.y - 16 || l.y > view.bottom + 16) continue;
+      for (let m = 0; m < 3; m++) {
+        const t = time / (520 + m * 170) + i * 1.7 + m * 2.1;
+        const x = l.x + Math.sin(t) * (4 + m * 2) + Math.sin(t * 2.7) * 1.5;
+        const y = l.y - 2 + Math.cos(t * 1.3) * (3 + m) + Math.sin(t * 3.1);
+        g.fillStyle(0xfff0c8, 0.55 * this.night).fillRect(Math.round(x), Math.round(y), 1, 1);
+      }
+    }
   }
 }

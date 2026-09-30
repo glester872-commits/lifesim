@@ -15,6 +15,9 @@ interface Parts {
   roof: Phaser.GameObjects.Image;
   /** El haz de los faros en el suelo, de noche. */
   beam: Phaser.GameObjects.Image;
+  /** Con el asfalto mojado, el faro y el piloto repetidos en el agua: una raya vertical tenue. */
+  glint: Phaser.GameObjects.Image;
+  tailGlint: Phaser.GameObjects.Image;
 }
 
 /**
@@ -28,16 +31,21 @@ export class TrafficView {
   private readonly hour: () => number;
   private readonly parts = new Map<Vehicle<VehicleType>, Parts>();
   private readonly pool: Parts[] = [];
+  /** Cuánto de mojado está el suelo (0–1): sin él, seco. */
+  private readonly wet: () => number;
 
-  constructor(scene: Phaser.Scene, traffic: Traffic<VehicleType>, hour: () => number) {
+  constructor(scene: Phaser.Scene, traffic: Traffic<VehicleType>, hour: () => number, wet: () => number = () => 0) {
     this.scene = scene;
     this.traffic = traffic;
     this.hour = hour;
+    this.wet = wet;
     this.sync(0);
   }
 
   sync(time: number): void {
     const night = nightAt(this.hour());
+    const wet = this.wet();
+    const glinting = night > 0.25 && wet > 0.25;
     const alive = new Set(this.traffic.vehicles);
     for (const [v, parts] of this.parts) {
       if (alive.has(v)) continue;
@@ -63,7 +71,9 @@ export class TrafficView {
       const [tx, ty] = at(lamps.tail, 1);
       p.head.setPosition(hx, hy).setVisible(night > 0.25);
       p.tail.setPosition(tx, ty).setVisible(v.braking || night > 0.25).setAlpha(v.braking ? 1 : 0.6);
-      p.beam.setPosition(hx + v.dir * 14, bottom - 3).setVisible(night > 0.25).setAlpha(night * 0.5);
+      p.beam.setPosition(hx + v.dir * 14, bottom - 3).setVisible(night > 0.25).setAlpha(night * (0.5 + wet * 0.25));
+      p.glint.setPosition(hx + v.dir * 3, bottom + 5).setVisible(glinting).setAlpha(night * wet * 0.55);
+      p.tailGlint.setPosition(tx, bottom + 4).setVisible(glinting).setAlpha(night * wet * (v.braking ? 0.5 : 0.28));
       if (lamps.roof) {
         const [rx, ry] = at(lamps.roof, 2);
         // La rotativa gira siempre; el verde de libre del taxi, de noche.
@@ -82,6 +92,8 @@ export class TrafficView {
       tail: s.add.image(0, 0, 'veh-tail').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
       roof: s.add.image(0, 0, 'veh-roof-taxi').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
       beam: s.add.image(0, 0, 'fx-light').setScale(0.5, 0.18).setTint(0xfff0c8).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
+      glint: s.add.image(0, 0, 'fx-light').setScale(0.07, 0.42).setTint(0xfff0c8).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
+      tailGlint: s.add.image(0, 0, 'fx-light').setScale(0.06, 0.32).setTint(0xff5a44).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
     };
     p.body.setTexture(vehicleKey(v.type, v.color)).setFlipX(v.dir < 0);
     p.roof.setTexture(v.type.trim?.roof === 'beacon' ? 'veh-roof-beacon' : 'veh-roof-taxi');

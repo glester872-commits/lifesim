@@ -137,3 +137,63 @@ no cuesta nada por frame y nunca tapa a nadie.
 Cada zona varía dentro de esta biblia, nunca fuera: velo del suelo, guion de
 color por hora, temperatura de farola, kit de calle, gente y tráfico. Reglas y
 cómo añadir un barrio: `design/DISTRICTS.md`.
+
+## 14. Visual V3 · corte vertical (plazuela del metro)
+
+Antes/después en `design/vertical-slice/` (mismo sábado, 12:00, 20:50, 23:30 y
+23:30 con lluvia; y móvil de noche). Lo que suma V3, para todo el mapa porque
+es motor, no decorado:
+
+- **Farola en tres capas** (`Lighting`): lavado tenue de fachada a la altura de
+  la linterna, el charco de siempre y un núcleo casi blanco al pie. La noche
+  (`NIGHT #4c5686`) es algo más honda: entre farola y farola, penumbra.
+- **Ventanas con carácter** (`Detail.windowKind`, compartido de día y de noche):
+  cálida, tenue, tele azul que parpadea, cortinas, persiana a medias; alguna
+  con alguien al trasluz; un marco tenue de luz en el muro. De día, las mismas
+  cortinas y persianas, macetas en el alféizar y algún aparato de aire.
+- **Tejados con volumen**: todo lo que sobresale lleva cara de arriba con luz,
+  cara sur oscura y sombra al sureste (`dropShadow`); azoteas sin rejilla de
+  parches, con canalización. Hasta ocho piezas por tejado, nunca solapadas.
+- **Suelo usado** (`Detail.wear`): manchas tenues (α ≤ 0,08), más delante de
+  las puertas, cuneta junto al bordillo, aceite en la calzada. Bajantes en las
+  esquinas de las fachadas de vecinos.
+- **Sombras**: la copa proyecta cuatro lóbulos fijos, no un óvalo; en calidad
+  alta el mapa de luz va a resolución completa y la sombra del sol sale nítida.
+- **Charcos** que reflejan el cielo (franja en diagonal, canto con luz), no agujeros.
+- **Micro-vida**: polillas en las farolas (calidad alta), tele que parpadea.
+- **Calidad** (`config/quality.ts`): high / medium / low, un solo motor.
+
+### Control de calidad de piezas
+
+Antes de añadir una pieza: escala §3, luz del noroeste, sombra al sureste, paleta
+`PALETTE`, contorno y bisel como sus vecinas. Nada que se lea peor que lo que ya
+hay; si hace falta algo provisional, se marca `// placeholder:` en el código.
+
+## 15. Segunda pasada · escena de muestra (`LocationDef.showcase`)
+
+La escena de muestra es un rectángulo de datos (Vallesco: la plazuela del metro,
+`tx 12, ty 27, w 40, h 22`). Dentro, y sólo dentro, se prueba el estándar
+siguiente antes de llevarlo al resto del mapa:
+
+- **Acera de baldosa grande** (`Surfaces.sidewalkV3`): hiladas de 8 px con piezas
+  de 12–24 px a matajunta que nunca caen en la rejilla de los tiles.
+- **Fachada con hueco** (`Detail.showcaseDepth`): sombra del dintel y la jamba
+  sobre el cristal, dintel con luz, sombra del alféizar, churretes; imposta de la
+  planta baja marcada; sombra del alero; humedad en la base.
+- **Oclusión** más larga y suave al pie y a los lados de los edificios, y anillos
+  de sombra bajo cada prop y cada copa.
+- **Primer plano** (`world/Foreground`, `LocationDef.foreground`): pocas copas en
+  las esquinas, con paralaje ×1,15, teñidas con el cielo de la hora; si tapan al
+  jugador, casi desaparecen. Nunca sobre una puerta que se cruce a diario.
+
+Lo que no es del mapa sino de todos (y por eso ya vale en todo el barrio):
+
+- **Cámara** algo más cerca: encuadre mínimo 315 × 270 px (≈ 20 × 17 tiles), zoom a medios pasos (3, 3,5, 4…). Se probó 4 (demasiado cerca) y se eligió 3,5 en una pantalla de 948 px de alto: a 3,5 un píxel de arte ocupa 3 o 4 de pantalla, alternos, y al jugar no se nota.
+- **Personas**: sombra de contacto en tres anillos (18 × 6), sombra larga de la
+  farola más cercana de noche (`world/LampShadows`), hombro con luz, cuello,
+  cinturón, pierna iluminada, puntera y volumen de pelo.
+- **Turismos**: costado con volumen, cristal con reflejos, pasos de rueda, faros y
+  pilotos con carcasa, sombra en dos tonos; con el asfalto mojado, el reflejo de
+  faros y pilotos en el suelo.
+- **Boca de metro**: peldaños con vuelo y desgaste, paredes de la bajada en
+  sombra, marco de acero del rótulo, pilares con fondo, luz fría que sube.

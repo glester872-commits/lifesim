@@ -57,6 +57,7 @@ import { STREET_EVENTS } from '../data/streetEvents';
 import { Occlusion } from '../world/Occlusion';
 import { ZoneDebugView } from '../world/ZoneDebugView';
 import { PopulationInspector } from '../world/PopulationInspector';
+import { ForegroundView } from '../world/Foreground';
 import { DEBUG } from '../config/debug';
 import { weatherAt } from '../systems/Weather';
 import { WildlifeView } from '../world/WildlifeView';
@@ -171,6 +172,8 @@ export class WorldScene extends Phaser.Scene {
   private lighting: Lighting | null = null;
   /** Lo alto que tapa al jugador se aclara mientras le tapa. */
   private occlusion: Occlusion | null = null;
+  /** Copas en primer plano con paralaje (LocationDef.foreground). */
+  private foreground: ForegroundView | null = null;
   /** Bordes y datos de las zonas (data/zones.ts): sólo con el modo depuración (config/debug.ts). */
   private zoneDebug: ZoneDebugView | null = null;
   /** Inspector de gente (world/PopulationInspector): también sólo con el modo depuración. */
@@ -338,12 +341,13 @@ export class WorldScene extends Phaser.Scene {
     const hour = (): number => this.services.clock.minuteOfDay / 60;
     this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx) : null;
     this.traffic?.populate(this.trafficClock());
-    this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour) : null;
+    this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour, () => weatherAt(state.day, hour()).wet) : null;
     this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx) : null;
     this.bikes?.populate(this.trafficClock());
     this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
     this.occlusion = new Occlusion(this);
+    this.foreground = new ForegroundView(this, def);
     // Dentro no llueve: al entrar en un local el tiempo se queda en la calle, y el mundo sigue.
     this.weatherView = def.kind === 'exterior'
       ? new WeatherView(this, def, () => weatherAt(state.day, state.hour + state.minute / 60), () => state.hour + state.minute / 60, () => [...this.crowdViews.flatMap((v) => v.people), ...this.characters.map((c) => c.sprite)])
@@ -490,6 +494,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.watching && (this.player.body as Phaser.Physics.Arcade.Body).speed > 1) this.stopWatching();
     this.lighting?.tick(time);
     this.occlusion?.update(this.player, delta);
+    this.foreground?.update(this.player, delta);
     // Modo depuración (F3 en desarrollo): se crea al encenderlo y desaparece del todo al apagarlo.
     if (DEBUG.mode && !this.zoneDebug) this.zoneDebug = new ZoneDebugView(this, this.services.state.locationId);
     else if (!DEBUG.mode && this.zoneDebug) {
@@ -555,7 +560,8 @@ export class WorldScene extends Phaser.Scene {
     // En vertical el encuadre gira: el lado largo de la pantalla lleva el lado
     // largo del encuadre. Si no, un móvil de pie ve el triple de mundo y la gente sale diminuta.
     const [long, short] = width >= height ? [width, height] : [height, width];
-    const zoom = Phaser.Math.Clamp(Math.round(Math.min(long / VIEW_WIDTH, short / VIEW_HEIGHT)), CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+    // A medios pasos: entre 3 y 4 hay un 3,5 (ver VIEW_WIDTH).
+    const zoom = Phaser.Math.Clamp(Math.round(Math.min(long / VIEW_WIDTH, short / VIEW_HEIGHT) * 2) / 2, CAMERA_ZOOM, MAX_CAMERA_ZOOM);
     camera.setZoom(zoom);
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);

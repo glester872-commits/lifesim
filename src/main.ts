@@ -9,6 +9,7 @@ import { hasLocation, safePosition } from './systems/LocationSystem';
 import { findPoint, pointsOfKind, route, worldRoute } from './systems/Navigation';
 import { zoneActivity, zoneAt } from './systems/Zones';
 import { DEBUG } from './config/debug';
+import { QUALITY, setQuality, type QualityLevel } from './config/quality';
 import { placeInfo, placesOfType } from './systems/Places';
 import { forceWeather, weatherAt } from './systems/Weather';
 import { MetroEventManager } from './systems/MetroEventManager';
@@ -183,6 +184,15 @@ if (import.meta.env.DEV) {
       // Zonas lógicas (data/zones.ts): lifesim.zoneAt('district', 48, 52), lifesim.zoneActivity(zona, {day, hour, minute}).
       zoneAt,
       zoneActivity,
+      // Calidad gráfica (config/quality.ts): lifesim.quality('low'|'medium'|'high') la cambia y rehace el sitio; sin nada, dice la actual.
+      quality: (level?: QualityLevel) => {
+        if (level) {
+          setQuality(level);
+          const world = game.scene.getScene('World');
+          world.scene.restart({ locationId: state.locationId, position: { x: state.position.x, y: state.position.y }, facing: state.facing });
+        }
+        return { ...QUALITY };
+      },
       pointsOfKind,
       route,
       worldRoute,

@@ -423,6 +423,18 @@ export interface LocationDef {
   district?: import('../data/districts.ts').DistrictId;
   /** Zonas con otra identidad, en tiles; la última que contiene un tile manda (design/DISTRICTS.md). */
   zones?: readonly DistrictZone[];
+  /**
+   * Escena de muestra (design/ART_BIBLE §15), en tiles: dentro, el suelo, las
+   * fachadas, la oclusión, el primer plano y los árboles usan el estándar
+   * visual nuevo antes de llevarlo al resto del mapa. Sin ella, nada cambia.
+   */
+  showcase?: { tx: number; ty: number; w: number; h: number };
+  /**
+   * Primer plano con paralaje (world/Foreground): copas que asoman por el borde
+   * de la cámara cuando se mira la escena de muestra. x, y: dónde se ven con la
+   * cámara centrada en la escena (px de mundo).
+   */
+  foreground?: readonly { kind: 'canopy' | 'canopy-small'; x: number; y: number; flip?: boolean }[];
 }
 
 export interface DistrictZone {

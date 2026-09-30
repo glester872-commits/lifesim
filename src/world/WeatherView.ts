@@ -56,15 +56,18 @@ export function buildWeatherTextures(scene: Phaser.Scene): void {
     px(ctx, '#ffffff', 0, 1, 4, 1);
     px(ctx, '#ffffff', 1, 2, 2, 1);
   });
-  // Charcos: agua oscura con el borde del cielo arriba a la izquierda; elipses escalonadas, sin degradado.
+  // Charcos: agua que refleja el cielo, no un agujero. Borde mojado más oscuro que el suelo, el agua
+  // gris azulada, una franja de cielo en diagonal y el canto de luz arriba a la izquierda. Escalonado, sin degradado.
   const puddle = (key: string, w: number, h: number): void =>
     make(scene, key, w, h, (ctx) => {
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
           const d = Math.hypot((x + 0.5 - w / 2) / (w / 2), (y + 0.5 - h / 2) / (h / 2));
           if (d >= 1) continue;
-          const rim = d > 0.72 && (y < h / 2 || x < w / 3);
-          px(ctx, rim ? '#a9b8cc' : d > 0.8 ? '#334055' : '#27303f', x, y);
+          const rim = d > 0.74 && (y < h / 2 || x < w / 3);
+          // El cielo se refleja en una banda que cruza en diagonal, más ancha que un píxel.
+          const band = Math.abs((x / w) * 1.6 - y / h - 0.35) < 0.18 && d < 0.8;
+          px(ctx, rim ? '#9fb0c6' : d > 0.84 ? '#2c3444' : band ? '#6f7e98' : '#465269', x, y);
         }
       }
     });

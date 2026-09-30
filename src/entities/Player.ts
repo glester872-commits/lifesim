@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { lampShadow } from '../world/LampShadows';
 import { PLAYER_BODY, PLAYER_SPEED } from '../config/constants';
 import type { Facing } from '../types/game';
 import { PLAYER_H, PLAYER_W } from '../world/TextureFactory';
@@ -37,6 +38,8 @@ const MAX_GLIDE_MS = 420;
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private dir: Facing;
   private readonly shadow: Phaser.GameObjects.Image;
+  /** De noche, la sombra larga de la farola más cercana (world/LampShadows). */
+  private readonly lampShade: Phaser.GameObjects.Image;
   /** Sentado o yendo a sentarse o a levantarse: no anda con las teclas. */
   private seat: { facing: Facing; lift: number; since: number; settled: boolean } | null = null;
 
@@ -54,7 +57,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     body.setCollideWorldBounds(true);
 
     this.shadow = scene.add.image(x, y, 'fx-shadow').setOrigin(0.5, 0.5);
-    this.once(Phaser.GameObjects.Events.DESTROY, () => this.shadow.destroy());
+    this.lampShade = scene.add.image(x, y, 'fx-shadow-long').setOrigin(0, 0.5).setVisible(false);
+    this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.shadow.destroy();
+      this.lampShade.destroy();
+    });
     this.sync();
   }
 
@@ -187,5 +194,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private sync(): void {
     this.setDepth(this.y);
     this.shadow.setPosition(this.x, this.y - 1).setDepth(this.y - 1);
+    lampShadow(this.lampShade, this.x, this.y, this.visible);
   }
 }

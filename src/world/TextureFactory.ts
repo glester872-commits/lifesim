@@ -433,13 +433,38 @@ function drawDoorLight(ctx: Ctx): void {
 
 // ------------------------------------------------------------- personajes
 
-/** Sombra de contacto bajo los pies: núcleo más oscuro y borde suave, en dos tonos (ART_BIBLE §5). */
+/**
+ * Sombra de contacto bajo los pies (ART_BIBLE §5): tres anillos escalonados,
+ * el núcleo oscuro justo donde apoyan los pies (la oclusión) y un borde que se
+ * funde con el suelo. La persona pisa, no flota.
+ */
 function drawShadow(ctx: Ctx): void {
-  ctx.globalAlpha = 0.2;
-  px(ctx, PALETTE.ink, 2, 0, 10, 5);
-  px(ctx, PALETTE.ink, 0, 1, 14, 3);
-  ctx.globalAlpha = 0.22;
-  px(ctx, PALETTE.ink, 3, 1, 8, 3);
+  const w = 18;
+  const h = 6;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const d = Math.hypot((x + 0.5 - w / 2) / (w / 2), (y + 0.5 - h / 2) / (h / 2));
+      const a = d < 0.45 ? 0.42 : d < 0.72 ? 0.26 : d < 1 ? 0.1 : 0;
+      if (a === 0) continue;
+      ctx.globalAlpha = a;
+      px(ctx, PALETTE.ink, x, y);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Sombra de farola (world/LampShadows): nace en los pies (izquierda) y se deshace hacia la punta. */
+function drawLongShadow(ctx: Ctx): void {
+  const w = 20;
+  const h = 5;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const across = Math.abs(y + 0.5 - h / 2) / (h / 2);
+      if (across > 1 - (x / w) * 0.4) continue;
+      ctx.globalAlpha = 0.5 * (1 - x / w) * (across < 0.5 ? 1 : 0.55);
+      px(ctx, PALETTE.ink, x, y);
+    }
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -696,7 +721,8 @@ export function buildTextures(scene: Phaser.Scene): void {
     px(ctx, shade(PALETTE.white, -0.3), 1, 1, 1, 1);
     px(ctx, shade(PALETTE.white, -0.3), 4, 1, 1, 1);
   });
-  make(scene, 'fx-shadow', 14, 5, drawShadow);
+  make(scene, 'fx-shadow', 18, 6, drawShadow);
+  make(scene, 'fx-shadow-long', 20, 5, drawLongShadow);
   make(scene, 'ui-prompt', TILE, TILE, drawPrompt);
 
   buildPropTextures(scene);

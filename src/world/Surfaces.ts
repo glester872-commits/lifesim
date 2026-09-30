@@ -26,6 +26,8 @@ export interface Site {
   ground: readonly string[];
   props: readonly PropPlacement[];
   buildings: readonly BuildingDef[];
+  /** Escena de muestra (LocationDef.showcase): su acera usa la baldosa grande. */
+  showcase?: { tx: number; ty: number; w: number; h: number };
 }
 
 interface Paint {
@@ -38,6 +40,7 @@ interface Paint {
   at: (tx: number, ty: number) => string;
   built: (tx: number, ty: number) => boolean;
   cells: readonly (readonly [number, number])[];
+  showcase?: Site['showcase'];
 }
 
 interface Material {
@@ -156,9 +159,12 @@ function slabs(style: SlabStyle): Material['paint'] {
  * piezas largas; al pie de una fachada, la mugre de la pared; y de vez en
  * cuando una baldosa cambiada, más nueva que sus vecinas.
  */
-function sidewalk({ ctx, cells, at, built }: Paint): void {
+function sidewalk({ ctx, cells, at, built, showcase }: Paint): void {
   const base = PALETTE.pavement;
+  const inShow = (tx: number, ty: number): boolean => !!showcase && tx >= showcase.tx && tx < showcase.tx + showcase.w && ty >= showcase.ty && ty < showcase.ty + showcase.h;
+  sidewalkV3(ctx, cells.filter(([x, y]) => inShow(x, y)), at, built);
   for (const [tx, ty] of cells) {
+    if (inShow(tx, ty)) continue;
     const X = tx * TILE;
     const Y = ty * TILE;
     px(ctx, shade(base, -0.15), X, Y, TILE, TILE);
@@ -185,6 +191,52 @@ function sidewalk({ ctx, cells, at, built }: Paint): void {
       px(ctx, PALETTE.ink, X, Y, TILE, 1);
       ctx.globalAlpha = 0.14;
       px(ctx, PALETTE.ink, X, Y + 1, TILE, 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+/**
+ * Acera de la escena de muestra: baldosa grande en hiladas de 8 px con piezas
+ * de 12 a 24 px a matajunta, que no caen nunca en la rejilla de los tiles (cada
+ * hilada empieza en su sitio). Junta suave, tono por pieza, alguna repuesta y
+ * más desgaste junto al bordillo. Deja de leerse como cuadrícula.
+ */
+function sidewalkV3(ctx: Ctx, cells: readonly (readonly [number, number])[], at: Paint['at'], built: Paint['built']): void {
+  const base = PALETTE.pavement;
+  const LENGTHS = [12, 16, 20, 24, 16, 20] as const;
+  for (const [tx, ty] of cells) {
+    const X = tx * TILE;
+    const Y = ty * TILE;
+    px(ctx, shade(base, -0.12), X, Y, TILE, TILE);
+    const kerbBelow = ROAD.has(at(tx, ty + 1));
+    for (let row = 0; row < 2; row++) {
+      const y = Y + row * 8;
+      const course = y / 8;
+      // Junto al bordillo, la hilada de piezas largas de siempre (bordillo de acera).
+      const lengths = row === 1 && kerbBelow ? ([32, 28] as const) : LENGTHS;
+      let x = -Math.floor(hash(course, 3, 901) * 24);
+      let k = 0;
+      while (x < X + TILE) {
+        const len = lengths[Math.floor(hash(course, k, 907) * lengths.length)];
+        if (x + len > X) {
+          const r = (n: number): number => hash(x, y, n + 911);
+          let tone = shade(base, batch(x, y, 64, 5) * 0.045 + (r(1) - 0.5) * 0.045);
+          if (r(2) < 0.02) tone = mix(shade(base, 0.05), COOL_TINT, 0.18);
+          else if (r(2) > 0.94) tone = mix(tone, WARM_TINT, 0.1);
+          const cx = Math.max(x, X);
+          const w = Math.min(x + len, X + TILE) - cx - (x + len <= X + TILE ? 1 : 0);
+          if (w > 0) slab(ctx, cx, y, w, 7, tone, r, kerbBelow ? 0.05 : 0.025);
+        }
+        x += len;
+        k++;
+      }
+    }
+    if (built(tx, ty - 1)) {
+      ctx.globalAlpha = 0.22;
+      px(ctx, PALETTE.ink, X, Y, TILE, 1);
+      ctx.globalAlpha = 0.1;
+      px(ctx, PALETTE.ink, X, Y + 1, TILE, 3);
       ctx.globalAlpha = 1;
     }
   }
@@ -587,7 +639,7 @@ export function paintSurfaces(scene: Phaser.Scene, rt: Phaser.GameObjects.Render
     any = true;
     const box = { x0: cx0 * TILE, y0: cy0 * TILE, x1: cx1 * TILE, y1: cy1 * TILE };
     lctx.clearRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
-    m.paint({ ctx: lctx, ...box, at, built, cells });
+    m.paint({ ctx: lctx, ...box, at, built, cells, showcase: site.showcase });
     // Sólo sus celdas pasan al lienzo final.
     ctx.save();
     ctx.beginPath();

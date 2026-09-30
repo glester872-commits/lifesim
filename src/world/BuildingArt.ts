@@ -149,12 +149,17 @@ function drawRoofArea(ctx: Ctx, look: Look, style: BuildingStyle, tone: number, 
     for (let y = 0; y < h; y += 8) {
       for (let x = 0; x < w; x += 8) {
         const r = (k: number): number => noise(seed + x, y, k);
-        const t = shade(base, weather(x, y) + (r(1) - 0.5) * 0.04);
+        // Más intemperie que en la teja: la azotea es grande y plana, y sin manchas amplias se lee como una rejilla.
+        const t = shade(base, weather(x, y) * 1.8 + (r(1) - 0.5) * 0.035);
         px(ctx, t, x, y, 8, 8);
         px(ctx, shade(t, 0.03), x, y, 8, 1);
         px(ctx, shade(t, -0.06), x, y + 7, 8, 1);
         px(ctx, shade(t, -0.05), x + 7, y, 1, 7);
-        if (r(2) < 0.05) px(ctx, shade(t, -0.07), x + 1, y + 2, 6, 4); // parche sellado
+        // Parche sellado: pocos y de forma irregular (a pares de losas cuadradas se leían como lunares).
+        if (r(2) < 0.012) {
+          px(ctx, shade(t, -0.05), x + 1, y + 2, 5 + Math.floor(r(5) * 5), 3);
+          px(ctx, shade(t, -0.05), x + 2, y + 5, 3, 1);
+        }
         else if (r(2) < 0.22) px(ctx, look.roofLit, x + 1 + Math.floor(r(3) * 6), y + 1 + Math.floor(r(4) * 6));
       }
     }
@@ -164,6 +169,17 @@ function drawRoofArea(ctx: Ctx, look: Look, style: BuildingStyle, tone: number, 
       for (let x = 3; x < w - 3; x++) if (batch(x, y, 14, seed + 9) > 0.55) px(ctx, PALETTE.ink, x, y);
     }
     ctx.globalAlpha = 1;
+    // Una canalización que cruza la azotea hasta el pretil, con su sombra: tubo de luz y soporte cada dos losas.
+    if (style !== 'metro' && w >= TILE * 4 && h >= TILE * 3) {
+      const cy = 10 + ((seed >>> 4) % Math.max(1, h - 20));
+      const x0 = 6 + ((seed >>> 9) % Math.max(1, Math.floor(w / 3)));
+      px(ctx, shade(PALETTE.metal, 0.05), x0, cy, w - x0 - 4, 1);
+      px(ctx, PALETTE.metalLit, x0, cy - 1, w - x0 - 4, 1);
+      ctx.globalAlpha = 0.2;
+      px(ctx, PALETTE.ink, x0 + 1, cy + 1, w - x0 - 5, 1);
+      ctx.globalAlpha = 1;
+      for (let x = x0 + 4; x < w - 6; x += 16) px(ctx, shade(PALETTE.metal, -0.2), x, cy - 1, 1, 3);
+    }
     // Sumidero en una esquina, con su rejilla.
     const dx = seed % 2 ? w - 9 : 5;
     px(ctx, shade(PALETTE.ink, 0.05), dx, h - 9, 4, 4);
@@ -871,35 +887,112 @@ function drawAtm(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 5, 12, 6, 1);
 }
 
-type Deco = 'chimney' | 'ac' | 'skylight' | 'solar' | 'tank' | 'antenna' | 'terrace';
+type Deco = 'chimney' | 'ac' | 'skylight' | 'solar' | 'tank' | 'vent' | 'hatch' | 'antenna' | 'terrace';
 
+/**
+ * Sombra de algo que sobresale del tejado: hacia el sureste (luz del noroeste,
+ * ART_BIBLE §5), dos píxeles a la derecha y dos debajo, sin negro.
+ */
+function dropShadow(ctx: Ctx, x: number, y: number, w: number, h: number): void {
+  ctx.globalAlpha = 0.26;
+  px(ctx, PALETTE.ink, x + w, y + 1, 2, h);
+  px(ctx, PALETTE.ink, x + 1, y + h, w + 1, 2);
+  ctx.globalAlpha = 0.12;
+  px(ctx, PALETTE.ink, x + w + 2, y + 2, 1, h);
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * Lo que hay encima de un tejado, con volumen: la cara de arriba con la luz,
+ * la del sur más oscura (la que se ve de canto) y su sombra en el tejado.
+ */
 function drawDeco(ctx: Ctx, deco: Deco): void {
   switch (deco) {
-    case 'chimney':
-      px(ctx, PALETTE.brick, 5, 3, 6, 10);
-      px(ctx, PALETTE.brickLit, 5, 3, 6, 2);
-      px(ctx, PALETTE.ink, 6, 3, 4, 1);
+    case 'chimney': {
+      // Chimenea de ladrillo: la boca arriba, el cañón con sus hiladas y el sombrerete.
+      dropShadow(ctx, 5, 3, 6, 10);
+      px(ctx, PALETTE.brick, 5, 6, 6, 7);
+      for (let y = 7; y < 13; y += 2) px(ctx, shade(PALETTE.brick, -0.12), 5, y, 6, 1);
+      px(ctx, shade(PALETTE.brick, -0.2), 10, 6, 1, 7);
+      px(ctx, PALETTE.brickLit, 5, 3, 6, 3);
+      px(ctx, shade(PALETTE.brickLit, 0.1), 5, 3, 6, 1);
+      px(ctx, PALETTE.ink, 6, 4, 4, 1);
+      px(ctx, shade(PALETTE.stone, 0.05), 4, 2, 8, 1);
       break;
-    case 'ac':
-      px(ctx, shade(PALETTE.white, -0.25), 2, 4, 12, 9);
-      px(ctx, shade(PALETTE.white, -0.1), 2, 4, 12, 1);
-      px(ctx, PALETTE.metal, 4, 6, 6, 5);
-      px(ctx, PALETTE.ink, 6, 8, 2, 1);
+    }
+    case 'ac': {
+      // Condensadora: tapa clara, frente con el ventilador y la rejilla, y el tubo que baja.
+      dropShadow(ctx, 2, 4, 12, 9);
+      px(ctx, shade(PALETTE.white, -0.12), 2, 4, 12, 3);
+      px(ctx, shade(PALETTE.white, -0.02), 2, 4, 12, 1);
+      px(ctx, shade(PALETTE.white, -0.3), 2, 7, 12, 6);
+      px(ctx, shade(PALETTE.white, -0.42), 13, 7, 1, 6);
+      px(ctx, PALETTE.metal, 4, 8, 5, 4);
+      px(ctx, shade(PALETTE.metal, -0.2), 5, 9, 3, 2);
+      px(ctx, PALETTE.metalLit, 6, 9, 1, 1);
+      for (let y = 8; y < 12; y += 1) px(ctx, shade(PALETTE.white, -0.38), 10, y, 2, 1);
+      px(ctx, shade(PALETTE.metal, -0.1), 14, 10, 1, 4);
       break;
-    case 'skylight':
-      px(ctx, PALETTE.metal, 2, 2, 12, 12);
-      px(ctx, shade(PALETTE.glass, 0.1), 3, 3, 10, 10);
-      px(ctx, PALETTE.glassLit, 3, 3, 10, 1);
+    }
+    case 'skylight': {
+      // Claraboya: marco levantado y el cielo en el cristal, en diagonal.
+      dropShadow(ctx, 2, 3, 12, 10);
+      px(ctx, PALETTE.metalLit, 2, 3, 12, 10);
+      px(ctx, PALETTE.metal, 2, 12, 12, 1);
+      px(ctx, PALETTE.metal, 13, 3, 1, 10);
+      px(ctx, shade(PALETTE.glass, 0.08), 3, 4, 10, 8);
+      for (let i = 0; i < 5; i++) px(ctx, shade(PALETTE.glassLit, -0.2), 4 + i, 10 - i, 2, 1);
+      px(ctx, PALETTE.glassLit, 3, 4, 10, 1);
+      px(ctx, PALETTE.metal, 8, 4, 1, 8);
       break;
-    case 'solar':
+    }
+    case 'solar': {
+      // Placa inclinada hacia el sur: celdas con su cuadrícula, el canto de arriba con luz y las patas.
+      dropShadow(ctx, 1, 3, 14, 10);
+      px(ctx, PALETTE.metal, 2, 12, 1, 2);
+      px(ctx, PALETTE.metal, 13, 12, 1, 2);
       px(ctx, PALETTE.ink, 1, 3, 14, 10);
-      for (let x = 2; x < 15; x += 4) for (let y = 4; y < 13; y += 3) px(ctx, '#2a3d6b', x, y, 3, 2);
+      for (let x = 2; x < 15; x += 3) for (let y = 4; y < 12; y += 2) px(ctx, (x + y) % 4 ? '#2a3d6b' : '#324a80', x, y, 2, 1);
+      px(ctx, '#5a74b0', 1, 3, 14, 1);
+      px(ctx, shade(PALETTE.ink, 0.2), 1, 12, 14, 1);
       break;
-    case 'tank':
-      px(ctx, PALETTE.metalLit, 3, 3, 10, 10);
-      px(ctx, PALETTE.metal, 4, 4, 8, 8);
-      px(ctx, PALETTE.metalLit, 4, 4, 8, 1);
+    }
+    case 'tank': {
+      // Depósito redondo: tapa elíptica con luz, cuerpo con dos zunchos, escalerilla.
+      dropShadow(ctx, 3, 3, 10, 10);
+      px(ctx, PALETTE.metal, 3, 6, 10, 7);
+      px(ctx, shade(PALETTE.metal, -0.15), 11, 6, 2, 7);
+      px(ctx, shade(PALETTE.metal, -0.2), 3, 8, 10, 1);
+      px(ctx, shade(PALETTE.metal, -0.2), 3, 11, 10, 1);
+      px(ctx, PALETTE.metalLit, 4, 3, 8, 3);
+      px(ctx, PALETTE.metalLit, 3, 4, 10, 2);
+      px(ctx, shade(PALETTE.metalLit, 0.12), 5, 3, 4, 1);
+      px(ctx, PALETTE.ink, 2, 6, 1, 7);
+      for (let y = 7; y < 13; y += 2) px(ctx, PALETTE.ink, 1, y, 2, 1);
       break;
+    }
+    case 'vent': {
+      // Tubo de ventilación con su sombrerete, y un segundo más pequeño.
+      dropShadow(ctx, 6, 5, 4, 8);
+      px(ctx, PALETTE.metal, 7, 7, 2, 6);
+      px(ctx, PALETTE.metalLit, 7, 7, 1, 6);
+      px(ctx, PALETTE.metalLit, 5, 5, 6, 2);
+      px(ctx, shade(PALETTE.metal, -0.15), 5, 6, 6, 1);
+      dropShadow(ctx, 11, 10, 2, 3);
+      px(ctx, PALETTE.metal, 11, 10, 2, 3);
+      px(ctx, PALETTE.metalLit, 11, 10, 2, 1);
+      break;
+    }
+    case 'hatch': {
+      // Trampilla de acceso: una caja baja con la tapa en pendiente y el asa.
+      dropShadow(ctx, 3, 4, 10, 8);
+      px(ctx, shade(PALETTE.stone, -0.05), 3, 8, 10, 4);
+      px(ctx, shade(PALETTE.stone, -0.2), 12, 8, 1, 4);
+      px(ctx, PALETTE.metalLit, 3, 4, 10, 4);
+      px(ctx, shade(PALETTE.metalLit, 0.1), 3, 4, 10, 1);
+      px(ctx, PALETTE.ink, 7, 6, 2, 1);
+      break;
+    }
   }
 }
 
@@ -946,7 +1039,7 @@ export function buildBuildingTextures(scene: Phaser.Scene): void {
   }
   const signs = [...new Set(STYLES.flatMap((s) => (LOOKS[s].sign ? [LOOKS[s].sign] : [])))];
   for (const s of signs) make(scene, `bs-sign-${s}`, TILE, TILE, (ctx) => drawSign(ctx, s));
-  for (const d of ['chimney', 'ac', 'skylight', 'solar', 'tank'] as const) make(scene, `bs-deco-${d}`, TILE, TILE, (ctx) => drawDeco(ctx, d));
+  for (const d of ['chimney', 'ac', 'skylight', 'solar', 'tank', 'vent', 'hatch'] as const) make(scene, `bs-deco-${d}`, TILE, TILE, (ctx) => drawDeco(ctx, d));
   make(scene, 'bs-deco-dormer', TILE, TILE, drawDormer);
   make(scene, 'bs-deco-antenna', TILE, TILE, drawAntenna);
   make(scene, 'bs-deco-terrace', TILE, TILE, drawTerrace);
@@ -967,9 +1060,9 @@ function hash(text: string): number {
 }
 
 const DECO_BY_STYLE: Partial<Record<BuildingStyle, readonly Deco[]>> = {
-  gym: ['ac', 'solar', 'skylight'],
-  office: ['solar', 'ac', 'skylight'],
-  super: ['ac', 'ac', 'skylight'],
+  gym: ['ac', 'solar', 'skylight', 'vent', 'ac'],
+  office: ['solar', 'ac', 'skylight', 'hatch', 'ac'],
+  super: ['ac', 'ac', 'skylight', 'vent'],
   study: ['skylight', 'chimney'],
   metro: [],
   works: [],
@@ -1186,19 +1279,23 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
       if (tiled && b.front === 's' && seg.w >= 4 && b.style !== 'works') {
         draw('bs-deco-dormer', seg.x0 + 1 + (seg.seed % (seg.w - 2)), roofBottom);
       }
-      const decos = DECO_BY_STYLE[b.style] ?? (tiled ? (['chimney', 'antenna', 'chimney', 'skylight'] as const) : (['ac', 'tank', 'antenna', 'terrace', 'solar', 'ac'] as const));
+      const decos = DECO_BY_STYLE[b.style] ?? (tiled ? (['chimney', 'antenna', 'chimney', 'skylight', 'vent'] as const) : (['ac', 'tank', 'antenna', 'terrace', 'solar', 'ac', 'vent', 'hatch', 'ac'] as const));
       if (decos.length === 0 || seg.w < 4 || roofRows < 3) continue;
       // Patio de luces: como mucho uno por edificio, en la mitad de ellos, y cada uno en su sitio del tejado.
       const hasPatio = !patioDone && seg.w >= 6 && roofRows >= 5 && seg.seed % 2 === 0;
       const patio = hasPatio ? { tx: seg.x0 + 1 + (seg.seed >>> 5) % (seg.w - 3), ty: roofTop + 1 + (seg.seed >>> 9) % (roofRows - 3) } : null;
       if (patio) patioDone = true;
       if (patio) rt.batchDraw('bs-patio', patio.tx * TILE, patio.ty * TILE);
-      const count = Math.min(4, Math.max(1, Math.floor((seg.w * roofRows) / 24)));
-      for (let n = 0; n < count; n++) {
+      // Una pieza cada doce tiles de tejado, hasta ocho; nunca una encima de otra (un tile libre alrededor).
+      const count = Math.min(8, Math.max(1, Math.floor((seg.w * roofRows) / 12)));
+      const placed: { x: number; y: number }[] = [];
+      for (let n = 0; n < count * 2 && placed.length < count; n++) {
         const s = hash(`${b.id}:${seg.x0}:${n}`);
         const x = seg.x0 + 1 + (s % Math.max(1, seg.w - 2));
         const y = roofTop + 1 + ((s >>> 8) % Math.max(1, roofRows - 3));
         if (patio && x >= patio.tx - 1 && x <= patio.tx + 2 && y >= patio.ty - 1 && y <= patio.ty + 2) continue;
+        if (placed.some((p) => Math.abs(p.x - x) <= 1 && Math.abs(p.y - y) <= 1)) continue;
+        placed.push({ x, y });
         draw(`bs-deco-${decos[(s >>> 16) % decos.length]}`, x, y);
       }
     }

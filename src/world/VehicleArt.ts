@@ -18,7 +18,8 @@ export interface VehicleLamps {
   roof?: readonly [number, number];
 }
 
-const SHADOW = 'rgba(0,0,0,0.32)';
+const SHADOW = 'rgba(12,10,20,0.34)';
+const SHADOW_SOFT = 'rgba(12,10,20,0.16)';
 const HEAD = '#f4ecd0';
 const TAIL = '#9e2f2a';
 const TINT = shade(PALETTE.glass, -0.25);
@@ -39,18 +40,27 @@ function slab(p: Paint, x: number, y: number, w: number, h: number, color = p.bo
   px(p.ctx, shade(color, 0.12), x, y, w, 1);
 }
 
+/** Rueda: neumático con su flanco, llanta con luz arriba a la izquierda y el paso de rueda en sombra encima. */
 function wheel(p: Paint, cx: number): void {
   const y = p.H - 5;
+  px(p.ctx, shade(p.body, -0.34), cx - 4, y - 1, 8, 1);
   px(p.ctx, PALETTE.ink, cx - 3, y + 1, 6, 3);
   px(p.ctx, PALETTE.ink, cx - 2, y, 4, 5);
+  px(p.ctx, shade(PALETTE.ink, 0.16), cx - 3, y + 1, 1, 2);
   px(p.ctx, PALETTE.metal, cx - 1, y + 1, 2, 2);
   px(p.ctx, shade(PALETTE.metal, 0.3), cx - 1, y + 1, 1, 1);
+  px(p.ctx, shade(PALETTE.metal, -0.25), cx, y + 2, 1, 1);
 }
 
 /** Faros, pilotos y parachoques a la altura `y` del costado. */
 function ends(p: Paint, y: number): VehicleLamps {
+  // Faro con su carcasa y piloto con el cristal más oscuro abajo: se leen apagados, de día.
+  px(p.ctx, shade(p.body, -0.3), p.L - 3, y - 1, 2, 4);
   px(p.ctx, HEAD, p.L - 2, y, 1, 2);
+  px(p.ctx, '#ffffff', p.L - 2, y, 1, 1);
+  px(p.ctx, shade(p.body, -0.3), 1, y - 1, 2, 4);
   px(p.ctx, TAIL, 1, y, 1, 2);
+  px(p.ctx, shade(TAIL, 0.3), 1, y, 1, 1);
   px(p.ctx, shade(PALETTE.metal, -0.2), p.L - 2, p.H - 6, 2, 2);
   px(p.ctx, shade(PALETTE.metal, -0.2), 0, p.H - 6, 2, 2);
   return { head: [p.L - 2, y], tail: [1, y] };
@@ -63,12 +73,27 @@ function car(p: Paint, t: VehicleType, a: number, b: number, bodyTop: number): V
   const xb = Math.round(L * b);
   slab(p, xa, 1, xb - xa, bodyTop);
   px(ctx, p.lit, xa + 1, 1, xb - xa - 2, 1);
+  // Cristal: más oscuro abajo, dos reflejos del cielo en diagonal y el pilar entre puertas.
   px(ctx, TINT, xa + 1, 2, xb - xa - 2, bodyTop - 2);
+  px(ctx, shade(TINT, -0.2), xa + 1, bodyTop - 1, xb - xa - 2, 1);
   px(ctx, PALETTE.glassLit, xa + 1, 2, xb - xa - 3, 1);
-  px(ctx, p.body, xa + Math.round((xb - xa) / 2), 2, 1, bodyTop - 2);
+  for (let i = 0; i < bodyTop - 3; i++) {
+    px(ctx, shade(PALETTE.glassLit, -0.15), xa + 3 + i, 3 + i, 1, 1);
+    px(ctx, shade(PALETTE.glassLit, -0.3), xa + 5 + i, 3 + i, 1, 1);
+  }
+  px(ctx, shade(p.body, -0.1), xa + Math.round((xb - xa) / 2), 2, 1, bodyTop - 2);
   slab(p, 1, bodyTop, L - 2, H - 4 - bodyTop);
+  // Volumen del costado: el filo de arriba con luz, la línea de cintura, la parte baja en sombra.
+  px(ctx, shade(p.body, 0.2), 2, bodyTop, L - 4, 1);
+  px(ctx, shade(p.body, 0.08), 2, bodyTop + 2, L - 4, 1);
+  px(ctx, shade(p.body, -0.08), 1, H - 9, L - 2, 2);
   px(ctx, p.dark, 1, H - 7, L - 2, 2);
   px(ctx, p.dark, xa + Math.round((xb - xa) / 2), bodyTop + 1, 1, H - 8 - bodyTop);
+  // Tiradores y retrovisor.
+  px(ctx, shade(p.body, 0.3), xa + Math.round((xb - xa) / 2) + 3, bodyTop + 3, 2, 1);
+  px(ctx, shade(p.body, 0.3), xa + 2, bodyTop + 3, 2, 1);
+  px(ctx, PALETTE.outline, xb, bodyTop - 1, 2, 2);
+  px(ctx, p.body, xb, bodyTop - 1, 1, 1);
   if (t.trim?.stripe) {
     // La banda roja en diagonal de las puertas delanteras.
     const x0 = Math.round(L * 0.55);
@@ -199,7 +224,9 @@ function pickup(p: Paint, t: VehicleType): VehicleLamps {
 /** Dibuja el tipo con esa carrocería y devuelve dónde quedan sus luces. */
 export function drawVehicle(ctx: Ctx, t: VehicleType, body: string): VehicleLamps {
   const p: Paint = { ctx, L: t.length, H: t.height, body, lit: shade(body, 0.14), dark: shade(body, -0.16) };
-  px(ctx, SHADOW, 3, p.H - 3, p.L - 2, 3);
+  // Sombra de contacto en dos tonos: el núcleo bajo las ruedas y el borde que se funde con el asfalto.
+  px(ctx, SHADOW_SOFT, 1, p.H - 4, p.L + 1, 4);
+  px(ctx, SHADOW, 3, p.H - 3, p.L - 4, 2);
   switch (t.shape) {
     case 'hatch': return car(p, t, 0.16, 0.66, 6);
     case 'sedan': return car(p, t, 0.3, 0.72, 6);

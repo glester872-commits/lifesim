@@ -473,6 +473,20 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   px(ctx, c.clothDark, 10, 11 + b, 2, 5 - b);
   px(ctx, c.clothDark, 4, 16, 8, 1);
   if (!back) px(ctx, shade(c.skin, -0.06), 7, 10 + b, 2, 1); // escote
+  // Volumen de la ropa: el hombro con luz, el cuello marcado, un pliegue al centro y el cinturón que
+  // separa tronco y piernas. Un píxel cada cosa: se lee a distancia sin recargar.
+  px(ctx, shade(c.cloth, 0.16), 4, 10 + b, 3, 1);
+  if (!back) {
+    px(ctx, shade(c.cloth, -0.2), 6, 10 + b, 1, 1);
+    px(ctx, shade(c.cloth, -0.2), 9, 10 + b, 1, 1);
+    if (b < 3) px(ctx, shade(c.cloth, -0.07), 8, 12 + b, 1, 3);
+  }
+  if (b < 3) px(ctx, shade(c.trousers, -0.32), 5, 17, 6, 1);
+  if (!seated(pose) && pose !== 13 && pose !== 14) {
+    px(ctx, shade(c.trousers, 0.1), 5, 18, 1, 4 - stepL);
+    px(ctx, shade(c.shoes, 0.3), 5, 22 - liftL, 1, 1);
+    px(ctx, shade(c.shoes, 0.3), 8, 22 - liftR, 1, 1);
+  }
 
   // Cuello y cabeza redondeada.
   px(ctx, shade(c.skin, -0.1), 7, 9 + b, 2, 1);
@@ -611,10 +625,12 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
     hat(ctx, back, b, c);
     return;
   }
-  // Base: casco de pelo con brillo arriba a la izquierda.
+  // Base: casco de pelo con brillo arriba a la izquierda, un mechón de luz y el borde de abajo en sombra (volumen).
   px(ctx, hair, 5, 1 + b, 6, 1);
   px(ctx, hair, 4, 2 + b, 8, 2);
   px(ctx, lit, 5, 2 + b, 2, 1);
+  px(ctx, shade(hair, 0.18), 6, 1 + b, 1, 1);
+  px(ctx, shade(hair, -0.14), 9, 3 + b, 3, 1);
   if (back) px(ctx, hair, 4, 4 + b, 8, 4);
   else {
     px(ctx, hair, 4, 4 + b, 3, 1); // flequillo de lado
@@ -698,10 +714,14 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, c.shoes, 6, 22, 5, 2);
   }
 
-  // Tronco de perfil.
+  // Tronco de perfil, con el hombro al sol y el cinturón.
   px(ctx, c.cloth, 5, 10 + b, 6, 7 - b);
   px(ctx, shade(c.cloth, 0.06), 5, 10 + b, 2, 6 - b);
   px(ctx, c.clothDark, 5, 16, 6, 1);
+  px(ctx, shade(c.cloth, 0.16), 5, 10 + b, 4, 1);
+  px(ctx, shade(c.cloth, -0.1), 10, 11 + b, 1, 5 - Math.min(b, 4));
+  if (b < 3) px(ctx, shade(c.trousers, -0.32), 5, 17, 6, 1);
+  if (!seated(pose)) px(ctx, shade(c.shoes, 0.3), step ? 12 : 10, 22, 1, 1);
 
   // Cabeza de perfil: nuca, oreja, ojo y nariz hacia delante.
   px(ctx, shade(c.skin, -0.1), 7, 9 + b, 2, 1);

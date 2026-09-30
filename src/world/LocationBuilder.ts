@@ -8,6 +8,7 @@ import { bakeBuildings, type GlowSpot, type WindowSpot } from './BuildingArt';
 import { painted, paintSurfaces } from './Surfaces';
 import { hex, zonesOf } from '../systems/Districts';
 import { DISTRICTS } from '../data/districts';
+import { bakeDetail } from './Detail';
 
 export interface BuiltLocation {
   widthPx: number;
@@ -67,6 +68,8 @@ export function solidRects(mask: readonly (readonly boolean[])[]): Rect[] {
 const WALKWAY = new Set([',', '~', 'c', 'P', 'T']);
 const ROADWAY = new Set(['.', ':', '=', 'b']);
 const SHADOW = 0x140f1c;
+/** Matices de copa: multiplican, así que blanco es el dibujo tal cual y los demás lo desvían un poco. */
+const CANOPY_TINTS = [0xffffff, 0xf2faea, 0xfff4e4, 0xeef2ec, 0xf8fff2] as const;
 /** Pavimentos de plaza con cenefa donde tocan otro suelo (ART_BIBLE §8); la franja podotáctil no la corta. */
 const BORDERED = new Set(['P', '~']);
 const BORDER_OK = new Set(['P', '~', 'T']);
@@ -198,7 +201,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   const solids = scene.physics.add.staticGroup();
 
   // Losas, baldosa y asfalto se pintan en coordenadas de mundo (world/Surfaces); el resto, por tile.
-  paintSurfaces(scene, ground, { ground: def.ground, props: def.props, buildings: def.buildings ?? [] });
+  paintSurfaces(scene, ground, { ground: def.ground, props: def.props, buildings: def.buildings ?? [], showcase: def.showcase });
   ground.beginDraw();
   for (let ty = 0; ty < rows; ty++) {
     const row = def.ground[ty];
@@ -226,6 +229,8 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   const windows = bakeBuildings(ground, def.buildings ?? [], glows);
   ground.endDraw();
   bakeKerbsAndShadows(scene, ground, def);
+  // Lo que hace que la calle parezca usada y las casas habitadas (world/Detail): cortinas, bajantes, desgaste.
+  bakeDetail(scene, ground, def, windows);
 
   for (const placement of def.props) {
     const prop = PROPS[placement.kind];
@@ -233,7 +238,10 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const width = (prop.tilesWide ?? 1) * TILE;
     const baseY = placement.ty * TILE + TILE;
     // Lo del techo, por encima de la gente (y por debajo de la luz de world/Lighting).
-    scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.mount ? seat(baseY) : standing(baseY));
+    const img = scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.mount ? seat(baseY) : standing(baseY));
+    // Árboles: además de su variante de dibujo, un matiz propio (más verde, más cálido, más apagado) por sitio.
+    // Sin espejo: la luz del arte viene siempre del noroeste.
+    if (prop.castBlob) img.setTint(CANOPY_TINTS[(placement.tx * 7 + placement.ty * 13) % CANOPY_TINTS.length]);
     // El respaldo que queda por delante de quien se sienta (una silla vista desde detrás) va encima de él.
     if (prop.front) scene.add.image(placement.tx * TILE + width / 2, baseY, prop.front).setOrigin(0.5, 1).setDepth(standing(baseY) + 1);
   }

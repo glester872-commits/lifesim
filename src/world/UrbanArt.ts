@@ -402,8 +402,13 @@ function drawMetroHero(ctx: Ctx): void {
   px(ctx, stone, 0, 0, W, 4);
   px(ctx, shade(stone, 0.1), 0, 0, W, 1);
   px(ctx, PALETTE.ink, 9, 3, W - 18, 12);
+  // Marco de acero de la banda del rótulo: se lee como una caja con fondo, no como una pegatina.
+  px(ctx, STEEL, 9, 3, W - 18, 1);
+  px(ctx, STEEL_LIT, 9, 3, W - 18, 1);
+  px(ctx, shade(STEEL, -0.3), 9, 14, W - 18, 1);
   px(ctx, NAVY, 10, 4, W - 20, 10);
   px(ctx, shade(NAVY, 0.1), 10, 4, W - 20, 1);
+  px(ctx, shade(NAVY, -0.15), 10, 13, W - 20, 1);
   metroLogo(ctx, 16, 4, false);
   drawWord(ctx, 'METRO', 32, 5, shade(PALETTE.white, -0.15));
   px(ctx, LINE_RED, 9, 14, W - 18, 1);
@@ -419,13 +424,25 @@ function drawMetroHero(ctx: Ctx): void {
   const sw = W - 52;
   px(ctx, PALETTE.ink, sx, 26, sw, 10);
   px(ctx, shade(PALETTE.stone, -0.3), sx + 6, 34, sw - 12, 2);
-  // Escalera: de abajo (la calle, clara) hacia arriba (la boca, oscura); cada peldaño con su canto.
+  // Escalera: de abajo (la calle, clara) hacia arriba (la boca, oscura). Cada peldaño con el canto al
+  // sol, la sombra de su vuelo sobre el de debajo, el centro gastado de tanto pisar y los extremos
+  // oscuros donde tocan las paredes de la bajada.
   for (let k = 0; k < 9; k++) {
     const y = H - 3 - k * 3;
-    const tone = -0.02 - k * 0.07;
+    const tone = -0.02 - k * 0.075;
     px(ctx, shade(PALETTE.stone, tone), sx, y - 2, sw, 3);
-    px(ctx, shade(PALETTE.stone, tone + 0.06), sx, y - 2, sw, 1);
+    px(ctx, shade(PALETTE.stone, tone + 0.07), sx, y - 2, sw, 1);
+    px(ctx, shade(PALETTE.stone, tone - 0.1), sx, y, sw, 1);
+    px(ctx, shade(PALETTE.stone, tone + 0.03), sx + Math.floor(sw / 2) - 3, y - 1, 6, 1);
+    px(ctx, shade(PALETTE.stone, tone - 0.14), sx, y - 2, 2, 3);
+    px(ctx, shade(PALETTE.stone, tone - 0.1), sx + sw - 2, y - 2, 2, 3);
   }
+  // Las paredes de la bajada, por dentro: la de la izquierda en sombra (luz del noroeste).
+  ctx.globalAlpha = 0.35;
+  px(ctx, PALETTE.ink, sx, 30, 2, H - 32);
+  ctx.globalAlpha = 0.18;
+  px(ctx, PALETTE.ink, sx + 2, 30, 1, H - 32);
+  ctx.globalAlpha = 1;
   // Pretiles de granito a los dos lados de la bajada, con su barandilla de acero.
   for (const x of [9, W - 26]) {
     px(ctx, GRANITE, x, 42, 17, H - 42);
@@ -438,9 +455,18 @@ function drawMetroHero(ctx: Ctx): void {
     px(ctx, STEEL_LIT, x, 30, 1, 1);
     for (let y = 34; y < H; y += 6) px(ctx, STEEL_LIT, x, y, 1, 1);
   }
-  // Pasamanos que bajan con la escalera.
+  // Pasamanos que bajan con la escalera, con su sombra en los peldaños.
   px(ctx, STEEL_LIT, sx + 2, 32, 1, H - 34);
   px(ctx, STEEL_LIT, sx + sw - 3, 32, 1, H - 34);
+  ctx.globalAlpha = 0.25;
+  px(ctx, PALETTE.ink, sx + 3, 33, 1, H - 35);
+  px(ctx, PALETTE.ink, sx + sw - 2, 33, 1, H - 35);
+  ctx.globalAlpha = 1;
+  // Los pilares por dentro del hueco, en sombra: el pórtico tiene fondo.
+  ctx.globalAlpha = 0.3;
+  px(ctx, PALETTE.ink, 9, 15, 2, 27);
+  px(ctx, PALETTE.ink, W - 11, 15, 2, 27);
+  ctx.globalAlpha = 1;
   // Apliques al pie de los pilares.
   px(ctx, PALETTE.ink, 10, 46, 4, 4);
   px(ctx, PALETTE.amberDim, 11, 47, 2, 2);
@@ -469,6 +495,11 @@ function drawMetroHeroGlow(ctx: Ctx): void {
   for (let k = 0; k < 5; k++) {
     ctx.globalAlpha = 0.34 - k * 0.06;
     px(ctx, '#bfe8ff', 27, 35 - k, W - 54, 1);
+  }
+  // La luz fría sube por los peldaños de arriba, cada vez más débil hacia la calle.
+  for (let k = 0; k < 5; k++) {
+    ctx.globalAlpha = 0.2 - k * 0.035;
+    px(ctx, '#cfeeff', 27, 37 + k * 3, W - 54, 1);
   }
   ctx.globalAlpha = 0.18;
   px(ctx, WARM, 26, 42, W - 52, H - 44);
