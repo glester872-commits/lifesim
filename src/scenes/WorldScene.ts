@@ -62,6 +62,9 @@ import { PopUpView } from '../world/PopUpView';
 import { StringLightsView } from '../world/StringLights';
 import { DEBUG } from '../config/debug';
 import { weatherAt } from '../systems/Weather';
+import { ChatLog, Conversation, placeOf, weatherKind, type ChatTurn } from '../systems/Chat';
+import { NAMED_VOICES } from '../data/chatNamed';
+import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
 import { PLAYER_H } from '../world/TextureFactory';
@@ -189,6 +192,8 @@ export class WorldScene extends Phaser.Scene {
   private serviceView: ServiceView | null = null;
   /** Sentado a una mesa con servicio y ya apuntado en ella: el camarero sabe que está. */
   private dining = false;
+  /** Lo que se ha dicho en las charlas de calle (systems/Chat): la gente anónima se olvida al cambiar de sitio; quien tiene nombre, no. */
+  private readonly chatLog = new ChatLog();
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
   /** Compras, bolsa, destino del tren y sitios sin mapa. */
@@ -318,6 +323,7 @@ export class WorldScene extends Phaser.Scene {
     this.crowd?.populate(this.clockNow(), this.playerTile());
     // Servicio de mesa (systems/TableService): lo que hay en las mesas y lo que el camarero le dice al jugador.
     this.dining = false;
+    this.chatLog.forgetCrowd();
     // Dentro, el servicio del comedor; fuera, el de la terraza (la calle lleva el suyo): el mismo TableService y el mismo flujo.
     const service = this.tableService;
     this.serviceView = service ? new ServiceView(this, service, def, profile?.tableService ?? null) : null;
@@ -1010,8 +1016,10 @@ export class WorldScene extends Phaser.Scene {
       const offer = this.offerOf(target.sprite);
       if (offer) this.menus.openOffer(offer, target.def.name);
       else {
+        const talk = this.conversationWith(target.sprite);
         this.startTalk(target.sprite);
-        this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
+        if (talk) this.say(target.def.name, target.sprite, talk, talk.open(), target.def.id);
+        else this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
       }
     }
     else this.openDialogue(target.name, target.lines);
@@ -1059,6 +1067,61 @@ export class WorldScene extends Phaser.Scene {
 
   private openDialogue(speaker: string, lines: readonly string[]): void {
     this.services.dialogue.start(speaker, lines);
+  }
+
+  /**
+   * La charla de calle con esta persona (systems/Chat): una persona anónima de la calle o de un local, o un personaje
+   * con rutina que tiene voz propia (data/chatNamed.ts). Con el resto (personal con nombre, vigilantes...), no hay:
+   * dicen lo suyo de siempre.
+   */
+  private conversationWith(sprite: Phaser.GameObjects.Sprite): Conversation | null {
+    if (!(sprite instanceof Character)) return null;
+    const { state } = this.services;
+    const w = weatherAt(state.day, state.hour + state.minute / 60);
+    const when = { day: state.day, hour: state.hour, minute: state.minute, weather: weatherKind(w) };
+    const tile = { tx: Math.floor(sprite.x / TILE), ty: Math.floor(sprite.y / TILE) };
+    const place = placeOf(state.locationId, zoneAt(state.locationId, tile.tx, tile.ty)?.type);
+    const named = this.characters.find((c) => c.sprite === sprite);
+    if (named) {
+      const id = named.def.npc;
+      if (!NAMED_VOICES[id]) return null;
+      // A quien ya has visto varias veces le suenas, y a quien has tratado mucho, es tu amigo (EventMemory, que se guarda).
+      const met = state.events.importantNPCsMet[id];
+      const rel = met && (met.encounters >= 5 || met.affinity >= 3) ? 2 : met && met.encounters >= 2 ? 1 : 0;
+      return new Conversation({ who: id, named: id, role: named.now?.moving ? 'stroller' : 'park-talk', place, group: false, rel, ...when }, this.chatLog);
+    }
+    const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
+    if (!agent || agent.npc || agent.staffRole) return null;
+    const key = `c:${state.locationId}:${agent.id}`;
+    const together = agent.leader !== undefined || [...(this.crowd?.agents ?? []), ...(this.street?.agents ?? [])].some((o) => o.leader === agent);
+    return new Conversation({ who: key, identity: agent.look, role: agent.role, state: agent.state, place, group: together, rel: this.chatLog.chatsWith(key) > 0 ? 1 : 0, ...when }, this.chatLog);
+  }
+
+  /** Una vuelta de la charla: lo que dice, y si hay respuestas, qué eligió el jugador y lo que contesta. */
+  private say(speaker: string, sprite: Phaser.GameObjects.Sprite, talk: Conversation, turn: ChatTurn, namedId?: string): void {
+    const { dialogue } = this.services;
+    if (turn.options.length === 0) {
+      dialogue.start(speaker, turn.lines);
+      this.noteMeeting(talk, namedId);
+      return;
+    }
+    dialogue.ask(speaker, turn.lines, turn.options.map((o) => o.label), (i) => {
+      // Elegir cierra el diálogo y con él la pausa de quien habla: se le vuelve a parar para seguir.
+      this.startTalk(sprite);
+      this.say(speaker, sprite, talk, talk.choose(turn.options[i].id), namedId);
+    });
+  }
+
+  /** Al acabar la charla con un personaje con nombre, se anota que se han visto (se guarda con la partida). */
+  private noteMeeting(talk: Conversation, id?: string): void {
+    const named = this.characters.find((c) => c.def.npc === id);
+    if (!named || !id || !NAMED_VOICES[id]) return;
+    const { state } = this.services;
+    const met = (state.events.importantNPCsMet[id] ??= { name: named.sprite.def.name, firstDay: state.day, lastDay: state.day, encounters: 0, affinity: 0 });
+    met.encounters += 1;
+    met.lastDay = state.day;
+    met.affinity += talk.positives * 0.25;
+    this.persist();
   }
 
   private travel(portal: PortalDef): void {

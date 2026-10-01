@@ -42,10 +42,45 @@ function variant(base: NpcLook, layer: Layer): NpcLook {
   return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, cap: undefined, hood: base.headscarf ?? shade(hoodie, 0.04), earrings: undefined };
 }
 
+// Ropa de entrenar (vestuario del gimnasio): camisetas, tirantes, pantalón corto o largo y zapatillas, en varios
+// colores. Cada persona tiene la suya, fija (sale de su id): la misma cara siempre entrena igual, y entre todos no hay dos iguales
+// de seguido. Su piel, pelo, rasgos y cuerpo no cambian: sólo lo que lleva puesto. La de calle es la cara de siempre.
+const GYM_TOPS = ['#e8e8ee', '#2f6fa8', '#c0493f', '#2f8a5a', '#e0a030', '#6a4aa8', '#2b2d33', '#d86a9a', '#4fb0c0', '#8a9aa8', '#e86a3a'] as const;
+const GYM_BOTTOMS = ['#1c1c22', '#3a3f4a', '#23305a', '#5a2f3a', '#2f4a3a', '#4a4a52', '#6a6a76'] as const;
+const GYM_SHOES = ['#f2f2f2', '#d9d9e0', '#20202a', '#e86a3a', '#3f8fd8', '#c0d84a'] as const;
+
+/** La misma persona en ropa de entrenar: camiseta, tirantes o manga corta; pantalón y zapatillas deportivos. */
+function gymVariant(base: NpcLook): NpcLook {
+  const c = colorsOf(base);
+  const h = hash(`gym:${base.id}`);
+  const top = GYM_TOPS[h % GYM_TOPS.length];
+  const style = (h >>> 4) % 3;
+  return {
+    ...base,
+    id: `${base.id}~gym`,
+    cloth: top,
+    clothDark: shade(top, -0.12),
+    skin: c.skin,
+    hairStyle: c.hairStyle,
+    // Tirantes (los brazos al aire), manga corta o camiseta a medio brazo.
+    sleeves: style === 0 ? c.skin : undefined,
+    sleeveLen: style === 1 ? 2 : style === 2 ? 3 : undefined,
+    trousers: GYM_BOTTOMS[(h >>> 8) % GYM_BOTTOMS.length],
+    shoes: GYM_SHOES[(h >>> 13) % GYM_SHOES.length],
+    cap: undefined, hood: undefined, scarf: undefined, bag: undefined, headscarf: undefined,
+  };
+}
+
 /** Todas las versiones, para hornearlas en el atlas de gente con sus animaciones (world/TextureFactory). */
 const BASE_LOOKS = [...PASSENGER_LOOKS, ...CHARACTERS.map((c) => getNpc(c.npc))];
-export const WEATHER_LOOKS: readonly NpcLook[] = BASE_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l)));
+const GYM_LOOKS: readonly NpcLook[] = PASSENGER_LOOKS.map(gymVariant);
+export const WEATHER_LOOKS: readonly NpcLook[] = [...BASE_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l))), ...GYM_LOOKS];
 const BY_ID = new Map(WEATHER_LOOKS.map((l) => [l.id, l]));
+
+/** Su aspecto con la ropa de entrenar puesta (world/CrowdView, al cambiarse en el vestuario). */
+export function gymLook(base: NpcLook): NpcLook {
+  return BY_ID.get(`${base.id}~gym`) ?? base;
+}
 
 /** Azar fijo de cada persona para cada decisión: la misma persona decide igual con el mismo tiempo. */
 const roll = (seed: number, what: string): number => (hash(`${what}:${seed}`) % 1000) / 1000;

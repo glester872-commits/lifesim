@@ -94,6 +94,12 @@ export type PropKind =
   | 'gym-bags'
   | 'gym-sign'
   | 'lockers'
+  // vestuarios del gimnasio
+  | 'sink'
+  | 'toilet'
+  | 'shower'
+  | 'sign-men'
+  | 'sign-women'
   | 'mirror'
   | 'clothes-rack'
   | 'mannequin'

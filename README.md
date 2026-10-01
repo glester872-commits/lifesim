@@ -701,3 +701,19 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 - **Asientos** (`systems/SeatRegistry.ts`): cada silla, banco o taburete es `available`, `reserved` u `occupied` y tiene un único dueño. Quien decide sentarse reserva en el mismo instante, pasa a `occupied` al llegar y lo suelta al levantarse, cancelar, no encontrar ruta o irse. Sólo el dueño suelta. `sweep` recoge reservas huérfanas (dueño inexistente, que va a otra parte o que lleva demasiado de camino). Lo usan `Crowd` (interiores) y `StreetLife` (calle); un personaje con nombre que se adelanta cancela también a quien iba de camino (`claim`).
 - **Terraza de Casa Tomás**: la calle lleva su propio `TableService` (el mismo del comedor, activado por `StreetProfile.tableService`) con dos mesas (`LocationDef.tables` del distrito). El camarero de la terraza sale por la puerta, atiende con la misma carta, cocina, entrega y cuenta; la barra a la que va y vuelve es su sitio junto a la puerta. Si el jugador se levanta antes de que llegue o a medias de pedir, la mesa y el camarero quedan libres.
 - **Pruebas**: `scripts/check-seats.ts` y `scripts/check-terrace.ts` (parte de `npm run check`).
+
+## Gimnasio con vestuarios
+
+- **Distribución** (`data/interiors.ts`, `GYM`): la sala de máquinas y el vestíbulo, y a la derecha, tras un muro con una puerta cada uno, el vestuario de hombres (arriba) y el de mujeres (debajo), separados por otro muro. Cada uno: taquillas con ocho puntos de cambio (`GYM_CHANGE_M_`/`GYM_CHANGE_F_`), lavabos con espejo, banco, aseo y cuatro cubículos de ducha con tabiques (`GYM_SHOWER_M_`/`GYM_SHOWER_F_`). Muros, puertas y colisiones son los de siempre (`W`, `D`, props sólidos).
+- **Rutina** (`data/population.ts`, `systems/Crowd.ts`): el mismo plan de pasos de siempre, con `PlanStep.outfit`. Entran con su ropa de calle, fichan, van al vestuario de su identidad (`{s}` = M o F según `Identity.gender`), reservan una taquilla (el mismo `SeatRegistry` que las sillas), se cambian, entrenan en lo que haya libre, a veces se duchan (en la ducha no se ve a quien está dentro) y vuelven a la ropa de calle en su taquilla. Si cierra el local o se va su grupo con el chándal puesto, pasan antes por el vestuario (`PopulationProfile.changeBack`).
+- **Ropa** (`world/WeatherLooks.ts`, `world/CrowdView.ts`): cada cara tiene su versión de entrenar (`~gym`: camiseta, tirantes o manga corta, pantalón y zapatillas) horneada en el atlas; la de calle no se toca, sólo cambia el sprite.
+- **Prueba**: `scripts/check-gym.ts`.
+
+## Conversación de calle contextual
+
+- **Contenido** (`data/chat.ts`, `chatLines.ts`, `chatReplies.ts`, `chatNamed.ts`): ~650 frases con etiquetas (tema, estilo de habla, ánimo, actividad, lugar, hora, día, tiempo, intereses, relación, solo/grupo). Más frases = más datos, no más lógica.
+- **Motor** (`systems/Chat.ts`): al abrir la charla y en cada respuesta filtra por contexto, elige con peso y recuerda lo dicho. No hay proceso continuo ni IA externa.
+- **Estilo**: sale del temperamento de la identidad (`data/identity.ts`), nunca del aspecto; cambia la longitud, cuánto aguanta la charla y qué opciones se ofrecen.
+- **Anti-repetición** (`ChatLog`): memoria por persona (la gente anónima, corta y sólo mientras está en la sala; los personajes con nombre, larga) más una memoria común de lo último dicho a cualquiera.
+- **Personajes con nombre**: Sara y Ada (`NAMED_VOICES`) mezclan frases propias, su relación sube con `EventMemory.importantNPCsMet` (se guarda con la partida).
+- **Prueba**: `scripts/check-chat.ts`.

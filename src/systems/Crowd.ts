@@ -14,6 +14,7 @@ import { besideTile, identity, nextCustomer } from './Service.ts';
 import { getStation, type Occupancy, type StationDef } from '../data/stations.ts';
 import { TableService } from './TableService.ts';
 import { SeatRegistry } from './SeatRegistry.ts';
+import { IDENTITIES } from './People.ts';
 
 /** Una reserva a la que no se llega en este tiempo (ms de reloj de la sala) se da por perdida. */
 const RESERVE_TTL_MS = 90_000;
@@ -112,6 +113,18 @@ export interface Agent {
   talking?: boolean;
   /** Lo que lleva en las manos quien sirve: la bandeja con lo pedido o la vajilla sucia (systems/TableService). */
   carry?: 'tray' | 'dishes';
+  /** Lleva la ropa de entrenar (se la ha puesto en el vestuario). Su aspecto de calle no se toca: es `look`. */
+  sport?: boolean;
+  /** Se cambia en el paso que hace ahora (PlanStep.outfit): la ropa cambia a mitad, o al acabar el paso, siempre en su sitio. */
+  pendingOutfit?: 'gym' | 'street';
+  /** Ms que lleva en el sitio antes de que se note el cambio de ropa. */
+  changeLeft?: number;
+  /** El punto de cambio donde dejó su ropa: vuelve a él si sigue libre. */
+  locker?: string;
+  /** Ya va de camino a recuperar la ropa de calle antes de irse (PopulationProfile.changeBack). */
+  rescued?: boolean;
+  /** Veces seguidas que no encontró sitio para un paso que no se puede saltar (un cambio de ropa). */
+  waits?: number;
 }
 
 export interface CrowdStats {
@@ -156,7 +169,9 @@ export class Crowd {
     this.door = { tx: exit.tx, ty: exit.ty };
     const prefixes = [...profile.visitors.flatMap((v) => v.plan.map((s) => s.points)), ...profile.staff.flatMap((s) => [s.points, s.serves ?? []])];
     for (const points of prefixes) {
-      if (points.length > 0 && this.pointsMatching(points).length === 0) throw new Error(`[${loc.id}] ningún punto para ${points.join(', ')}`);
+      // `{s}`: el vestuario de cada cual (M o F); los dos tienen que existir.
+      const both = points.flatMap((p) => (p.includes('{s}') ? [p.replace('{s}', 'M'), p.replace('{s}', 'F')] : [p]));
+      if (points.length > 0 && both.some((p) => this.pointsMatching([p]).length === 0)) throw new Error(`[${loc.id}] ningún punto para ${points.join(', ')}`);
     }
     // Servicio de mesa (systems/TableService.ts): si el local lo tiene, sus camareros y sus mesas van por él.
     this.service = profile.tableService && loc.tables
@@ -237,30 +252,36 @@ export class Crowd {
       // Entra a mitad del plan: unos acaban de llegar, otros están a punto de irse.
       // Si en ese paso no queda sitio (la recepción es una), prueba en los demás.
       const start = Math.floor(this.rng() * plan.length);
+      // La cara primero: de su identidad sale el vestuario que le toca.
+      const look = this.pickLook();
       let skip = -1;
       let point: string | undefined;
       for (let k = 0; k < plan.length && !point; k++) {
         skip = (start + k) % plan.length;
-        point = this.freePoint(plan[skip].points, far);
+        point = this.freePoint(this.expand(plan[skip].points, look), far);
       }
       if (!point) continue;
       const step = plan[skip];
-      const agent = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(point));
+      const agent = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(point), look);
       agent.plan = plan.slice(skip + 1);
       agent.stepPoints = step.points;
       this.occupy(agent, point, step.state);
+      this.dressFor(agent, plan, skip);
       agent.timer = this.duration(step, point) * (0.2 + this.rng() * 0.8);
       this.service?.adopt(point, agent);
       placed++;
       // Su grupo, ya sentado a su lado (en una mesa con servicio, en la misma mesa).
       for (let k = 1; k < this.partySize(role, target - placed + 1); k++) {
+        const mateLook = this.pickLook();
         const near = this.service?.tableOf(point)
           ? this.service.mateSeat(agent, (s) => this.seats.has(s) || this.claimed.has(s))
-          : this.freePointNear(step.points, this.pointAt(point), far);
+          : this.freePointNear(this.expand(step.points, mateLook), this.pointAt(point), far);
         if (!near) break;
-        const mate = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(near));
+        const mate = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(near), mateLook);
         mate.leader = agent;
         mate.following = point;
+        mate.sport = agent.sport;
+        mate.pendingOutfit = agent.pendingOutfit;
         this.occupy(mate, near, step.state);
         this.service?.adopt(near, mate);
         placed++;
@@ -359,6 +380,11 @@ export class Crowd {
     a.moving = false;
     // Llegó a su asiento: de reservado a ocupado.
     if (a.point) this.seats.occupy(a.point, a.id);
+    // Cambiándose de ropa: pasado un momento en su taquilla, ya lleva la otra.
+    if (a.pendingOutfit) {
+      a.changeLeft = (a.changeLeft ?? 900) - deltaMs;
+      if (a.changeLeft <= 0) this.applyOutfit(a);
+    }
     if (a.leaving) return;
     // Camarero de un servicio de mesa: decide él qué hace (systems/TableService).
     if (this.service?.drives(a)) {
@@ -388,15 +414,19 @@ export class Crowd {
     if (!lead.point || lead.point === a.following || !lead.stepPoints) return;
     a.following = lead.point;
     // En una mesa con servicio, a otra silla de la misma mesa; si no, al sitio libre más cercano.
+    // Si se estaba cambiando de ropa, acaba el cambio antes de seguirle: nadie se pone el chándal a medio pasillo.
+    this.applyOutfit(a);
     const near = this.service?.tableOf(lead.point)
       ? this.service.mateSeat(lead, (s) => s === a.point || this.seats.has(s) || this.claimed.has(s))
-      : this.freePointNear(lead.stepPoints, this.pointAt(lead.point), (id) => id !== a.point);
+      : this.freePointNear(this.expand(lead.stepPoints, a.look), this.pointAt(lead.point), (id) => id !== a.point);
     if (!near) return;
     if (!this.goTo(a, near, lead.state)) {
       a.following = undefined;
       return;
     }
     this.service?.reserve(near, a);
+    a.pendingOutfit = lead.pendingOutfit;
+    a.changeLeft = undefined;
   }
 
   private walk(a: Agent, deltaMs: number): void {
@@ -429,30 +459,51 @@ export class Crowd {
   // -------------------------------------------------------------- planes
 
   private nextVisitorStep(a: Agent): void {
+    // Acaba el paso en el que se cambiaba: lo que quede por ponerse, puesto (sigue en su taquilla).
+    this.applyOutfit(a);
     // Antes de dejar una máquina, se incorpora, recoge y se baja: nadie sale andando de una postura tumbado.
     if (a.point && a.state !== 'FINISH' && this.stationOf(a.point)) {
       a.state = 'FINISH';
       a.timer = between(this.rng, 900, 1_700);
       return;
     }
+    // Nadie sale a la calle en ropa de deporte: si tiene que irse (cierra el local, se va quien lo lleva) o acabó el
+    // plan con ella puesta, primero vuelve a su vestuario a cambiarse.
+    if ((a.leaveSoon || a.plan.length === 0) && a.sport && !a.rescued && this.profile.changeBack) {
+      a.rescued = true;
+      a.leaveSoon = false;
+      a.leader = undefined;
+      a.plan = [this.profile.changeBack];
+    }
     if (a.leaveSoon || a.plan.length === 0) {
       this.leave(a);
       return;
     }
     const step = a.plan[0];
-    const point = this.freePoint(step.points, (id) => id !== a.point && this.seatOk(id, a));
+    const prefixes = this.expand(step.points, a.look);
+    // Su taquilla de antes, si sigue libre; si no, otra del mismo vestuario.
+    const own = step.outfit === 'street' && a.locker && !this.seats.has(a.locker) && !this.claimed.has(a.locker) ? a.locker : undefined;
+    const point = own ?? this.freePoint(prefixes, (id) => id !== a.point && this.seatOk(id, a));
     if (!point && !a.point) {
       // Acaba de entrar y no hay sitio: se da la vuelta en vez de quedarse en la puerta.
       this.leave(a);
       return;
     }
     if (!point) {
-      // Todo ocupado: espera en su sitio y lo vuelve a intentar; si sigue, se salta el paso.
+      // Todo ocupado: espera en su sitio y lo vuelve a intentar; si sigue, se salta el paso. Un cambio de ropa no se
+      // salta (esperaría con la ropa equivocada): espera su turno y, si no llega, se va.
       a.state = 'WAIT';
       a.timer = between(this.rng, 1_500, 3_500);
-      if (this.rng() < 0.25) a.plan.shift();
+      if (step.outfit) {
+        a.waits = (a.waits ?? 0) + 1;
+        if (a.waits > 14) {
+          a.plan = [];
+          a.rescued = true;
+        }
+      } else if (this.rng() < 0.25) a.plan.shift();
       return;
     }
+    a.waits = 0;
     if (!this.goTo(a, point, step.state)) {
       // Se le adelantaron o no hay ruta: sin asiento, espera un momento y lo intenta con otro.
       a.state = 'WAIT';
@@ -462,7 +513,46 @@ export class Crowd {
     a.plan.shift();
     this.service?.reserve(point, a);
     a.stepPoints = step.points;
+    a.pendingOutfit = step.outfit;
+    a.changeLeft = undefined;
+    if (step.outfit === 'gym') a.locker = point;
     a.timer = this.duration(step, point) + between(this.rng, ...POPULATION.reaction);
+  }
+
+  // ------------------------------------------------------------- vestuario
+
+  /** El vestuario de cada cual, de su identidad (género); sin él (no binario), de donde le toque por su cara, siempre el mismo. */
+  private sideOfLook(look: number): 'M' | 'F' {
+    const gender = IDENTITIES[look]?.gender;
+    return gender === 'woman' ? 'F' : gender === 'man' ? 'M' : look % 2 === 0 ? 'M' : 'F';
+  }
+
+  /** Los prefijos de un paso, con `{s}` vuelto M o F según quien lo hace. */
+  private expand(prefixes: readonly string[], look: number): readonly string[] {
+    if (!prefixes.some((p) => p.includes('{s}'))) return prefixes;
+    const side = this.sideOfLook(look);
+    return prefixes.map((p) => p.replace('{s}', side));
+  }
+
+  /** Ponerse lo que tocaba en el paso que acaba: la ropa de entrenar, o la de calle. */
+  private applyOutfit(a: Agent): void {
+    if (!a.pendingOutfit) return;
+    a.sport = a.pendingOutfit === 'gym';
+    a.pendingOutfit = undefined;
+    a.changeLeft = undefined;
+  }
+
+  /**
+   * Con qué ropa aparece quien entra a mitad de su plan: la de entrenar si ya
+   * pasó por el cambio de ida y aún no por el de vuelta; y, si está en pleno
+   * cambio, con la que lleva al empezarlo (el cambio se nota a mitad).
+   */
+  private dressFor(a: Agent, plan: readonly PlanStep[], at: number): void {
+    let sport = false;
+    for (let i = 0; i < at; i++) if (plan[i].outfit) sport = plan[i].outfit === 'gym';
+    a.sport = sport;
+    a.pendingOutfit = plan[at].outfit;
+    if (a.pendingOutfit) a.locker = a.point;
   }
 
   /**
@@ -597,11 +687,16 @@ export class Crowd {
 
   // -------------------------------------------------------- altas y bajas
 
-  private newAgent(kind: Agent['kind'], role: string, label: string, line: string, at: TilePoint): Agent {
+  /** Una cara que no esté ya en la sala mientras haya: dos gemelos en el mismo local se notan. */
+  private pickLook(): number {
     const used = new Set(this.agents.map((a) => a.look));
     let look = Math.floor(this.rng() * PASSENGER_LOOKS.length);
-    // Caras distintas mientras haya: dos gemelos en la misma sala se notan.
     for (let i = 0; i < PASSENGER_LOOKS.length && used.has(look); i++) look = (look + 1) % PASSENGER_LOOKS.length;
+    return look;
+  }
+
+  private newAgent(kind: Agent['kind'], role: string, label: string, line: string, at: TilePoint, chosen?: number): Agent {
+    const look = chosen ?? this.pickLook();
     const agent: Agent = {
       id: this.nextId++, kind, role, label, line, look,
       x: at.tx, y: at.ty, dir: 'up', moving: false, state: 'ENTER',

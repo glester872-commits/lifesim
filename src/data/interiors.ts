@@ -62,19 +62,75 @@ const BENCHES = machines('bench-press', 'GYM_BENCH_', 'bench-press', 'down', [[1
 const RACKS = machines('squat-rack', 'GYM_SQUAT_', 'squat-rack', 'up', [[11, 3]]);
 const MATS: [number, number][] = [[10, 10], [11, 10], [12, 10], [13, 10]];
 
+// Vestuarios: un ala a la derecha del gimnasio, con su propia pared y una puerta a cada uno desde la sala (x = 25).
+// El de hombres, arriba; el de mujeres, debajo, con un muro entre los dos. Dentro de cada uno, de norte a sur:
+// taquillas con sus puntos de cambio delante, un pasillo, y al fondo los bancos, el aseo y los cubículos de ducha
+// (muros de media altura entre ellos). Las duchas y los lavabos están dentro, nunca junto a las máquinas.
+const GYM_W = 42;
+const GYM_H = 17;
+const WING_X0 = 26;
+const WING_X1 = 40;
+/** Primera fila de suelo de cada vestuario: arriba, el de hombres; debajo del muro de la fila 8, el de mujeres. */
+const LOCKER_TOP: Readonly<Record<'M' | 'F', number>> = { M: 2, F: 9 };
+
+/** Suelo del gimnasio: la sala, el vestíbulo de baldosa y el ala de vestuarios con sus muros, puertas y cubículos. */
+function gymGround(): string[] {
+  const rows = room(GYM_W, GYM_H, 18, (x, y) => (x <= 17 && y <= 12 ? 'm' : 't')).map((r) => r.split(''));
+  const set = (x: number, y: number, c: string): void => {
+    rows[y][x] = c;
+  };
+  // El muro entre la sala y el ala, con una puerta a cada vestuario; y el muro que separa un vestuario del otro.
+  for (let y = 2; y <= GYM_H - 3; y++) set(25, y, 'W');
+  for (const side of ['M', 'F'] as const) set(25, LOCKER_TOP[side] + 2, 'D');
+  for (let x = WING_X0; x <= WING_X1; x++) set(x, 8, 'W');
+  // Medios muros (de la fila 4 a la 5 de cada vestuario): entre cubículos de ducha y alrededor del aseo.
+  for (const side of ['M', 'F'] as const) {
+    for (const x of [26, 28, 33, 35, 37, 39]) for (const dy of [4, 5]) set(x, LOCKER_TOP[side] + dy, 'W');
+  }
+  return rows.map((r) => r.join(''));
+}
+
+/** Un vestuario: sus taquillas con los puntos de cambio, lavabos con espejo, bancos, aseo y cuatro duchas. */
+function lockerRoom(side: 'M' | 'F') {
+  const y0 = LOCKER_TOP[side];
+  const props: PropPlacement[] = [
+    // Taquillas contra la pared del fondo (la fila base es la y0 + 1); los puntos de cambio, delante de cada tile.
+    ...many('lockers', [[27, y0 + 1], [29, y0 + 1], [31, y0 + 1], [33, y0 + 1]]),
+    // Lavabos con su espejo en la pared de encima.
+    ...many('mirror', [[36, y0 - 1], [38, y0 - 1]]),
+    ...many('sink', [[36, y0], [38, y0]]),
+    // Banco corrido al fondo, el aseo en su cubículo y una ducha al fondo de cada cubículo.
+    ...many('bench', [[29, y0 + 5], [30, y0 + 5], [31, y0 + 5], [32, y0 + 5]]),
+    at('toilet', 27, y0 + 5),
+    ...many('shower', [[34, y0 + 5], [36, y0 + 5], [38, y0 + 5], [40, y0 + 5]]),
+    ...many('tube-light', [[28, y0 + 3], [33, y0 + 3], [38, y0 + 3]]),
+    at(side === 'M' ? 'sign-men' : 'sign-women', 25, y0 + 1),
+  ];
+  const points: Record<string, PointDef> = {};
+  for (let i = 0; i < 8; i++) points[`GYM_CHANGE_${side}_${TWO(i)}`] = p(27 + i, y0 + 2, 'work', 'up');
+  for (let i = 0; i < 4; i++) points[`GYM_SHOWER_${side}_${TWO(i)}`] = p(34 + i * 2, y0 + 4, 'work', 'down');
+  return { props, points };
+}
+const MEN = lockerRoom('M');
+const WOMEN = lockerRoom('F');
+
 /**
  * Gimnasio Forja. Cardio a la izquierda frente al espejo (cintas, bicis y
  * remos), peso libre a la derecha (jaula, dos bancos de press, polea y el
- * estante de mancuernas), esterillas para estirar, y recepción, fuente y
- * taquillas en la parte de baldosa. Cada máquina es un puesto de
- * data/stations.ts: quien la usa se sube, y nadie más la coge.
+ * estante de mancuernas), esterillas para estirar, y recepción y fuente en la
+ * parte de baldosa. Cada máquina es un puesto de data/stations.ts: quien la
+ * usa se sube, y nadie más la coge. A la derecha, detrás de su pared y su
+ * puerta, los vestuarios de hombres y de mujeres, cada uno con sus taquillas,
+ * lavabos, aseo y duchas (GYM_CHANGE_M_, GYM_CHANGE_F_, GYM_SHOWER_M_...): la
+ * gente entra vestida de calle, se cambia ahí y sale a entrenar
+ * (systems/Crowd, data/population.ts).
  */
 export const GYM: LocationDef = {
   id: 'gym',
   name: 'Gimnasio Forja',
   kind: 'interior',
   // Caucho en la sala; baldosa en recepción y vestuario.
-  ground: room(26, 15, 18, (x) => (x <= 17 ? 'm' : 't')),
+  ground: gymGround(),
   props: [
     // Espejo corrido detrás del cardio y del peso libre; la jaula y la polea, delante de él.
     ...many('mirror', [[1, 1], [3, 1], [5, 1], [7, 1], [9, 1], [11, 1], [13, 1], [15, 1]]),
@@ -95,8 +151,8 @@ export const GYM: LocationDef = {
     // Lo que deja la gente por ahí: toallas, botellas y un disco suelto; y las bolsas junto a las taquillas.
     ...many('gym-towel', [[5, 4], [14, 9], [8, 8], [3, 11]]),
     at('gym-bags', 19, 5),
-    at('lockers', 21, 3),
-    at('lockers', 23, 3),
+    ...MEN.props,
+    ...WOMEN.props,
     ...many('counter', [[20, 10], [21, 10], [22, 10]]),
     at('cooler', 24, 9),
     ...many('plant', [[24, 6], [1, 12]]),
@@ -104,11 +160,11 @@ export const GYM: LocationDef = {
     ...many('tube-light', [[3, 5], [7, 5], [3, 8], [7, 8], [12, 5], [15, 6], [11, 12], [21, 7]]),
   ],
   ambient: '#e2ebff',
-  ...exitTo('gym-door', 18, 15),
+  ...exitTo('gym-door', 18, GYM_H),
   // Nadie colocado a mano: la gente la pone data/population.ts según la hora.
   npcs: [],
   points: {
-    GYM_EXIT: p(18, 12, 'exit', 'up'),
+    GYM_EXIT: p(18, 14, 'exit', 'up'),
     GYM_RECEPTION: p(21, 11, 'interact', 'up'),
     GYM_STAFF: p(21, 9, 'work', 'down'),
     GYM_TRAINING_ZONE: p(9, 8, 'meet'),
@@ -130,8 +186,8 @@ export const GYM: LocationDef = {
     GYM_REST_01: p(8, 12, 'wait', 'up'),
     GYM_REST_02: p(14, 12, 'wait', 'up'),
     GYM_REST_03: p(17, 8, 'wait', 'left'),
-    GYM_LOCKERS: p(21, 4, 'interact', 'up'),
-    GYM_LOCKERS_02: p(23, 4, 'interact', 'up'),
+    ...MEN.points,
+    ...WOMEN.points,
     GYM_COACH_01: p(9, 4, 'work', 'down'),
     GYM_COACH_02: p(14, 6, 'work', 'left'),
   },

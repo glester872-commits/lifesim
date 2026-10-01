@@ -19,6 +19,12 @@ export interface PlanStep {
   repeat?: readonly [number, number];
   /** Probabilidad de hacer el paso; sin ella, siempre. */
   chance?: number;
+  /**
+   * Se cambia de ropa en este paso: 'gym' se pone la de entrenar; 'street' recupera la de calle. Ocurre en el sitio,
+   * a mitad del paso, y nunca se salta (si no hay taquilla libre, espera). El prefijo `{s}` de un punto vale por el
+   * vestuario que le toca a quien lo hace (M o F, de su identidad): GYM_CHANGE_{s}_ es GYM_CHANGE_M_ o GYM_CHANGE_F_.
+   */
+  outfit?: 'gym' | 'street';
 }
 
 export interface VisitorRole {
@@ -67,6 +73,11 @@ export interface PopulationProfile {
   staff: readonly StaffRole[];
   visitors: readonly VisitorRole[];
   /**
+   * El paso con el que quien lleva la ropa de entrenar vuelve a la de calle si tiene que irse antes de acabar su plan
+   * (cierra el local, se va quien lo lleva): nadie sale por la puerta en ropa de deporte.
+   */
+  changeBack?: PlanStep;
+  /**
    * Servicio de mesa (systems/TableService.ts): la carta, el pase donde sale lo
    * de cocina y el puesto de quien cocina. Con él, los camareros (oficio
    * `serve`) toman nota, llevan, cobran y recogen en las mesas del interior
@@ -75,6 +86,13 @@ export interface PopulationProfile {
    */
   tableService?: { menu: string; pass: string; kitchen: string };
 }
+
+// Gimnasio: entrar, cambiarse en su vestuario, entrenar, (a veces) ducharse y volver a la ropa de calle. Cada punto lleva
+// el vestuario que le toca a quien lo hace ({s}). Una ducha o un cambio pide un rato más que una máquina: se ve.
+const CHECK_IN: PlanStep = { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] };
+const CHANGE_IN: PlanStep = { state: 'CHANGE', points: ['GYM_CHANGE_{s}_'], minutes: [5, 7], outfit: 'gym' };
+const SHOWER: PlanStep = { state: 'SHOWER', points: ['GYM_SHOWER_{s}_'], minutes: [6, 10] };
+const CHANGE_OUT: PlanStep = { state: 'CHANGE', points: ['GYM_CHANGE_{s}_'], minutes: [5, 7], outfit: 'street' };
 
 export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   {
@@ -91,57 +109,71 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     // Cuánto dura cada máquina lo dice su puesto (data/stations.ts); aquí, a qué va cada uno y en qué orden.
     visitors: [
       {
-        // Antes de trabajar, sobre todo cardio: entrar, cinta o bici, un trago y a la ducha.
+        // Antes de trabajar, sobre todo cardio: entrar, cambiarse, cinta o bici, un trago y a la ducha (casi siempre).
         role: 'gym_early', label: 'Alguien que entrena antes de trabajar', line: 'A las nueve fichando. Voy justo.', weight: 4, hours: [6, 9.5],
         plan: [
-          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
+          CHECK_IN,
+          CHANGE_IN,
           { state: 'CARDIO', points: ['GYM_TREADMILL_', 'GYM_BIKE_', 'GYM_ROW_'], minutes: [15, 25], repeat: [1, 2] },
           { state: 'STRETCH', points: ['GYM_MAT_'], minutes: [5, 8], chance: 0.4 },
           { state: 'DRINK', points: ['GYM_WATER'], minutes: [1, 2], chance: 0.6 },
+          { ...SHOWER, chance: 0.8 },
+          CHANGE_OUT,
         ],
       },
       {
         role: 'gym_cardio', label: 'Alguien haciendo cardio', line: 'Llevo cuatro kilómetros. No me hagas perder la cuenta.', weight: 3,
         plan: [
-          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
-          { state: 'CHANGE', points: ['GYM_LOCKERS'], minutes: [2, 4], chance: 0.6 },
+          CHECK_IN,
+          CHANGE_IN,
           { state: 'CARDIO', points: ['GYM_TREADMILL_', 'GYM_BIKE_', 'GYM_ROW_'], minutes: [15, 25], repeat: [1, 3] },
           { state: 'DRINK', points: ['GYM_WATER'], minutes: [1, 2], chance: 0.6 },
           { state: 'STRETCH', points: ['GYM_MAT_'], minutes: [5, 8], chance: 0.5 },
+          { ...SHOWER, chance: 0.4 },
+          CHANGE_OUT,
         ],
       },
       {
         // Peso: calienta un poco, va de una máquina a otra y descansa con el móvil entre medias.
         role: 'gym_lifter', label: 'Alguien entrenando', line: 'Ahora no, que pierdo la cuenta de la serie.', weight: 3,
         plan: [
-          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
-          { state: 'CHANGE', points: ['GYM_LOCKERS'], minutes: [2, 4], chance: 0.8 },
+          CHECK_IN,
+          CHANGE_IN,
           { state: 'WARM_UP', points: ['GYM_TREADMILL_', 'GYM_BIKE_'], minutes: [5, 8], chance: 0.4 },
           { state: 'LIFT', points: ['GYM_BENCH_', 'GYM_SQUAT_', 'GYM_WEIGHTS_', 'GYM_CABLE_'], minutes: [8, 14], repeat: [2, 4] },
           { state: 'REST', points: ['GYM_REST_'], minutes: [2, 4], chance: 0.5 },
           { state: 'DRINK', points: ['GYM_WATER'], minutes: [1, 2], chance: 0.7 },
+          { ...SHOWER, chance: 0.5 },
+          CHANGE_OUT,
         ],
       },
       {
-        // Estirar y poco más: la esterilla, algo de bici y un rato de móvil.
+        // Estirar y poco más: la esterilla, algo de bici y un rato de móvil. Casi nadie se ducha después.
         role: 'gym_mobility', label: 'Alguien estirando', line: 'Esto también es entrenar, aunque no lo parezca.', weight: 1,
         plan: [
-          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
+          CHECK_IN,
+          CHANGE_IN,
           { state: 'STRETCH', points: ['GYM_MAT_'], minutes: [8, 14], repeat: [1, 2] },
           { state: 'CARDIO', points: ['GYM_BIKE_'], minutes: [10, 15], chance: 0.5 },
           { state: 'REST', points: ['GYM_REST_'], minutes: [2, 4], chance: 0.5 },
+          { ...SHOWER, chance: 0.15 },
+          CHANGE_OUT,
         ],
       },
       {
-        // Dos que vienen juntos por la tarde: máquinas contiguas, un rato de charla y se van a la vez.
+        // Dos que vienen juntos por la tarde: se cambian cada uno en su vestuario, máquinas contiguas, charla y se van a la vez.
         role: 'gym_buddies', label: 'Alguien entrenando con un colega', line: 'Venga, la última y nos vamos.', weight: 1, hours: [16, 22], party: [2, 2],
         plan: [
-          { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minutes: [1, 2] },
+          CHECK_IN,
+          CHANGE_IN,
           { state: 'LIFT', points: ['GYM_BENCH_', 'GYM_WEIGHTS_', 'GYM_SQUAT_'], minutes: [8, 14], repeat: [2, 3] },
           { state: 'TALK', points: ['GYM_CHAT_'], minutes: [2, 4], chance: 0.8 },
+          { ...SHOWER, chance: 0.5 },
+          CHANGE_OUT,
         ],
       },
     ],
+    changeBack: CHANGE_OUT,
   },
   {
     place: 'cafe',

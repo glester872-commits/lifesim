@@ -380,6 +380,60 @@ function drawGymBags(ctx: Ctx): void {
   px(ctx, PALETTE.ink, 20, 8, 6, 1);
 }
 
+/** Lavabo contra la pared: encimera, pila blanca y el grifo. El espejo va en el muro de encima. */
+function drawSink(ctx: Ctx): void {
+  px(ctx, '#8b95a3', 1, 6, 14, 9);
+  px(ctx, '#b9c3d0', 1, 6, 14, 1);
+  px(ctx, '#f1f4f8', 3, 7, 10, 5);
+  px(ctx, '#cfd6e0', 3, 11, 10, 1);
+  px(ctx, '#6f7a88', 4, 8, 8, 2);
+  px(ctx, PALETTE.metalLit, 7, 3, 2, 4);
+  px(ctx, PALETTE.metalLit, 6, 3, 4, 1);
+  px(ctx, '#5a6472', 2, 14, 12, 1);
+}
+
+/** Inodoro visto de frente: cisterna en la pared y taza delante. */
+function drawToilet(ctx: Ctx): void {
+  px(ctx, '#dfe5ec', 4, 1, 8, 6);
+  px(ctx, '#f6f8fb', 4, 1, 8, 1);
+  px(ctx, PALETTE.metalLit, 7, 2, 2, 1);
+  px(ctx, '#f1f4f8', 3, 7, 10, 6);
+  px(ctx, '#cfd6e0', 3, 12, 10, 1);
+  px(ctx, '#aab4c1', 5, 8, 6, 3);
+  px(ctx, '#8b95a3', 4, 14, 8, 1);
+}
+
+/** Ducha en el fondo del cubículo: azulejo claro, tubo, alcachofa y gotas. */
+function drawShower(ctx: Ctx): void {
+  px(ctx, '#aebfce', 0, 0, 16, 16);
+  for (let y = 3; y < 16; y += 4) px(ctx, '#93a6b8', 0, y, 16, 1);
+  for (let x = 3; x < 16; x += 4) px(ctx, '#93a6b8', x, 0, 1, 16);
+  px(ctx, PALETTE.metalLit, 7, 0, 2, 5);
+  px(ctx, PALETTE.metalLit, 5, 5, 6, 2);
+  px(ctx, PALETTE.metal, 5, 7, 6, 1);
+  for (const x of [5, 7, 9, 10]) px(ctx, '#cfe6f2', x, 9 + (x % 3), 1, 3);
+  px(ctx, '#5a6472', 6, 14, 4, 1);
+}
+
+/** Cartel de la puerta del vestuario: placa de color con el pictograma. */
+function drawRestroomSign(ctx: Ctx, women: boolean): void {
+  const color = women ? '#c25d8a' : '#3f78b8';
+  px(ctx, shade(color, -0.3), 3, 2, 10, 12);
+  px(ctx, color, 4, 3, 8, 10);
+  px(ctx, shade(color, 0.18), 4, 3, 8, 1);
+  px(ctx, PALETTE.white, 7, 4, 2, 2);
+  if (women) {
+    px(ctx, PALETTE.white, 6, 6, 4, 3);
+    px(ctx, PALETTE.white, 5, 9, 6, 1);
+    px(ctx, PALETTE.white, 7, 10, 1, 2);
+    px(ctx, PALETTE.white, 9, 10, 1, 2);
+  } else {
+    px(ctx, PALETTE.white, 6, 6, 4, 4);
+    px(ctx, PALETTE.white, 6, 10, 1, 2);
+    px(ctx, PALETTE.white, 9, 10, 1, 2);
+  }
+}
+
 export function buildGymTextures(scene: Phaser.Scene): void {
   for (let v = 0; v < 2; v++) make(scene, `tile-gym-floor-${v}`, TILE, TILE, (ctx) => drawGymFloor(ctx, v));
   for (let v = 0; v < 3; v++) {
@@ -388,6 +442,11 @@ export function buildGymTextures(scene: Phaser.Scene): void {
     make(scene, `prop-gym-towel-${v}`, TILE, TILE, (ctx) => drawGymTowel(ctx, v));
   }
   make(scene, 'prop-gym-sign', TILE * 3, TILE, drawGymSign);
+  make(scene, 'prop-sink', TILE, TILE, drawSink);
+  make(scene, 'prop-toilet', TILE, TILE, drawToilet);
+  make(scene, 'prop-shower', TILE, TILE, drawShower);
+  make(scene, 'prop-sign-men', TILE, TILE, (ctx) => drawRestroomSign(ctx, false));
+  make(scene, 'prop-sign-women', TILE, TILE, (ctx) => drawRestroomSign(ctx, true));
   make(scene, 'prop-treadmill', TILE, TILE * 2, drawTreadmill);
   make(scene, 'prop-exercise-bike', TILE, TILE * 2, drawExerciseBike);
   make(scene, 'prop-rower', TILE * 2, TILE, drawRower);

@@ -157,6 +157,12 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // En la pared.
   'gym-sign': { key: 'prop-gym-sign', tilesHigh: 1, tilesWide: 3, light: { dy: 8, cool: true } },
   lockers: { key: 'prop-lockers', tilesHigh: 2, tilesWide: 2 },
+  // Vestuarios (data/interiors.ts: GYM): lavabo contra la pared, inodoro, ducha y el cartel de cada puerta.
+  sink: { key: 'prop-sink', tilesHigh: 1 },
+  toilet: { key: 'prop-toilet', tilesHigh: 1 },
+  shower: { key: 'prop-shower', tilesHigh: 1 },
+  'sign-men': { key: 'prop-sign-men', tilesHigh: 1 },
+  'sign-women': { key: 'prop-sign-women', tilesHigh: 1 },
   mirror: { key: 'prop-mirror', tilesHigh: 1, tilesWide: 2, variants: 3 },
   'clothes-rack': { key: 'prop-clothes-rack', tilesHigh: 2, tilesWide: 2 },
   mannequin: { key: 'prop-mannequin', tilesHigh: 2 },

@@ -137,7 +137,8 @@ for (const n of gymWeek) assert.ok(n >= POPULATION.levels.HIGH[0] && n <= profil
 
 // Al cerrar se vacía: primero los visitantes, luego el personal.
 {
-  const r = run('gym', at(2, '22:40'), 80, 5);
+  // Cierra a las 23:00; quien sigue con ropa de deporte vuelve antes al vestuario a cambiarse: se vacía algo más tarde.
+  const r = run('gym', at(2, '22:40'), 100, 5);
   console.log(`gimnasio 22:40 → ${hhmm(r.clock)}: ${r.final.visitors} visitantes, ${r.final.staff} personal`);
   assert.equal(r.final.visitors + r.final.staff, 0, 'el gimnasio cerrado sigue con gente');
 }

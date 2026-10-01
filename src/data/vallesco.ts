@@ -454,12 +454,8 @@ const BASE: LocationDef = {
     { x0: 97 * 16 + 8, y0: 47 * 16 - 49, x1: 107 * 16 + 8, y1: 47 * 16 - 49, sag: 8 },
     { x0: 84 * 16 + 8, y0: 49 * 16 - 49, x1: 100 * 16 + 8, y1: 49 * 16 - 49, sag: 10 },
   ],
-  // Primer plano: una copa en la esquina de abajo a la izquierda y otra pequeña arriba, vistas desde la plazuela.
-  // Ninguna sobre tu portal (Olmo 7): se cruza cada día y no debe taparse.
-  foreground: [
-    { kind: 'canopy', x: 322, y: 760 },
-    { kind: 'canopy-small', x: 312, y: 560 },
-  ],
+  // Sin copas de primer plano (LocationDef.foreground): eran masas de hojas sin tronco, por encima de todo, que
+  // flotaban sobre la calle, los coches y los contenedores de la plazuela. Los árboles son los del mundo, con su base en el suelo.
   // Carriles de circulación en medio; en los bordes (31 y 34), un carril bici por sentido.
   // De madrugada, uno por carril (taxis y el camión de la basura); en hora punta, tres.
   // La avenida tiene parada: pasa algo más de autobús que en otra avenida.

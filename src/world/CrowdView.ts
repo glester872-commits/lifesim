@@ -5,7 +5,7 @@ import { atTable, seatAt } from '../systems/Seating';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import type { NpcDef } from '../types/game';
 import type { Weather } from '../systems/Weather';
-import { dressedLook, umbrellaFor } from './WeatherLooks';
+import { dressedLook, gymLook, umbrellaFor } from './WeatherLooks';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
 import { placeOfPoint } from '../systems/Places';
 import type { AmbientPlacement } from '../entities/Character';
@@ -29,6 +29,8 @@ export class CrowdView {
   private readonly crowd: { readonly agents: readonly Agent[] };
   private readonly sprites = new Map<number, Character>();
   private readonly pool: Character[] = [];
+  /** Quién lleva ahora la ropa de entrenar en pantalla: para cambiarle el aspecto al sprite cuando se cambia. */
+  private readonly sportOn = new Set<number>();
   /** El tiempo que hace: la ropa de quien aparece y, fuera, quién abre el paraguas. */
   private readonly weather: () => Weather;
   /** En la calle: con lluvia, paraguas. Dentro de un local, nadie lo lleva abierto. */
@@ -70,6 +72,8 @@ export class CrowdView {
       const px = a.x * 16 + 8;
       const py = a.y * 16 + 16;
       if (px < view.x - MARGIN || px > view.right + MARGIN || py < view.y - MARGIN || py > view.bottom + MARGIN + 24) continue;
+      // En la ducha no se ve: la puerta del cubículo la tapa (sale cuando acaba, ya andando).
+      if (a.state === 'SHOWER' && !a.moving && a.path.length === 0) continue;
       here.add(a.id);
       let sprite = this.sprites.get(a.id);
       if (!sprite) {
@@ -77,6 +81,15 @@ export class CrowdView {
         if (sprite) sprite.reuse(defOf(a, w), a.id);
         else sprite = new Character(this.scene, defOf(a, w), a.id);
         this.sprites.set(a.id, sprite);
+        if (a.sport) this.sportOn.add(a.id);
+        else this.sportOn.delete(a.id);
+      }
+      // Se ha cambiado de ropa en el vestuario: el mismo sprite pasa a la ropa de entrenar, o vuelve a la de calle.
+      if (!!a.sport !== this.sportOn.has(a.id)) {
+        const base = PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
+        sprite.setLook((a.sport ? gymLook(base) : dressedLook(base, a.id, w)).id);
+        if (a.sport) this.sportOn.add(a.id);
+        else this.sportOn.delete(a.id);
       }
       // Sólo quien ha llegado a su sitio hace algo; entrando o saliendo, camina.
       const settled = !a.moving && !a.leaving && a.path.length === 0;
@@ -144,6 +157,7 @@ export class CrowdView {
 function defOf(a: Agent, w: Weather): NpcDef {
   if (a.npc) return getNpc(a.npc);
   const uniform = a.uniform ? UNIFORM_LOOKS.find((l) => l.id === a.uniform) : undefined;
-  const look = uniform ?? dressedLook(PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length], a.id, w);
+  const base = PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
+  const look = uniform ?? (a.sport ? gymLook(base) : dressedLook(base, a.id, w));
   return { ...look, name: a.label, lines: [a.line] };
 }
