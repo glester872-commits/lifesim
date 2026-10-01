@@ -47,8 +47,11 @@ const wetGround = (sky: number, wet: number): number => multiply(sky, mix(0xffff
  */
 
 /** [hora, color del cielo]. Entre dos puntos se interpola. */
-/** Noche azul pizarra, no añil: la sombra deja leer el suelo y la gente (design/visual-reference). */
-const NIGHT = 0x4c5686;
+/**
+ * Noche azul pizarra, no añil: la sombra deja leer el suelo y la gente (design/visual-reference).
+ * Algo más honda que el crepúsculo para que el charco de cada farola se despegue de lo que no alumbra.
+ */
+const NIGHT = 0x414a7c;
 const SKY: readonly (readonly [number, number])[] = [
   [0, NIGHT],
   [5.5, NIGHT],
@@ -198,6 +201,10 @@ interface LightSource {
 const WARM = 0xffc27a;
 const COOL = 0xa8d4ff;
 const LIGHT_MASK = 'fx-lightmask';
+/** Píxeles de mundo por píxel de la capa de resplandor: es una luz muy suave, se filtra en lineal. */
+const GLOW_SCALE = 4;
+/** Cuánto de cada luz se suma encima (0–1): lo justo para que el suelo bajo la farola se lea encendido, sin bloom. */
+const GLOW = 0.2;
 const MASK_SIZE = 64;
 
 /** Caída suave y fuerte en el centro: el mapa de luz se filtra en lineal, la luz es lo único que no va a píxel. */
@@ -264,6 +271,13 @@ export class Lighting {
   private shadows: Phaser.GameObjects.Graphics | null = null;
   /** Reflejos del suelo mojado: el farol y el escaparate repetidos en el agua, en vertical y tenues. */
   private reflections: Phaser.GameObjects.Graphics | null = null;
+  /**
+   * El resplandor: lo que el mapa de luz no puede hacer. Multiplicando, una farola
+   * como mucho devuelve al suelo su color de día; sumando un poco de su luz, el
+   * granito bajo ella brilla dorado como en la referencia. A 1/4 de resolución y
+   * repintado sólo cuando se repinta el mapa de luz: de coste por frame, nada.
+   */
+  private glow: Phaser.GameObjects.RenderTexture | null = null;
   /** Lo último pintado: si no cambia, no se repinta. */
   private lastKey = '';
   private readonly roofs: { x: number; y: number; w: number; h: number }[] = [];
@@ -401,6 +415,15 @@ export class Lighting {
       // Las sombras se dibujan en coordenadas del mundo y se reducen al mapa de luz al pintarlas.
       this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / this.lm);
       this.reflections = scene.add.graphics().setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
+      if (QUALITY.glow) {
+        this.glow = scene.add
+          .renderTexture(0, 0, Math.ceil(widthPx / GLOW_SCALE), Math.ceil(heightPx / GLOW_SCALE))
+          .setOrigin(0, 0)
+          .setScale(GLOW_SCALE)
+          .setDepth(DEPTH + 1)
+          .setBlendMode(Phaser.BlendModes.ADD);
+        this.glow.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+      }
       this.fx = scene.add.graphics().setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
     }
 
@@ -478,7 +501,8 @@ export class Lighting {
       const lit = w.shop ? !!place && this.opened(place) : windowRank(i) < homes;
       if (!lit) return;
       // El local abierto se ve de lejos: su color, más fuerte que una casa.
-      const [body, top, pool] = w.shop ? [0.7, 0.45, 0.6] : [0.5, 0.3, 0.35];
+      // La luz que cae a la acera: la de un local, bien visible; la de una casa, un charco tenue que se suma a la calle.
+      const [body, top, pool] = w.shop ? [0.7, 0.45, 0.75] : [0.5, 0.3, 0.42];
       if (w.shop) {
         g.fillStyle(w.tone, body).fillRect(w.x, w.y, w.w, w.h);
         g.fillStyle(0xffffff, top).fillRect(w.x, w.y, w.w, 1);
@@ -597,6 +621,31 @@ export class Lighting {
     // Con un rectángulo propio (fusión normal): fill() heredaría la suma de la última luz.
     const roof = this.roofBrush.setFillStyle(sky);
     for (const r of this.roofs) map.draw(roof.setPosition(r.x / this.lm, r.y / this.lm).setSize(r.w / this.lm, r.h / this.lm));
+    this.paintGlow(night);
+  }
+
+  /** El resplandor de cada luz encendida, algo más recogido que su charco; los tejados, sin él. */
+  private paintGlow(night: number): void {
+    const glow = this.glow;
+    if (!glow) return;
+    glow.clear();
+    glow.setVisible(night >= 0.05);
+    if (night < 0.05) return;
+    glow.beginDraw();
+    for (const l of [...this.fixedSources, ...this.dynamicSources]) {
+      if (l.strength < 0.3) continue;
+      glow.stamp(LIGHT_MASK, undefined, l.x / GLOW_SCALE, l.y / GLOW_SCALE, {
+        scaleX: (l.w * 0.8) / MASK_SIZE / GLOW_SCALE,
+        scaleY: (l.h * 0.8) / MASK_SIZE / GLOW_SCALE,
+        tint: l.color,
+        alpha: Math.min(1, night * l.strength * GLOW),
+        blendMode: Phaser.BlendModes.ADD,
+        skipBatch: true,
+      });
+    }
+    glow.endDraw();
+    const roof = this.roofBrush!.setFillStyle(0xffffff);
+    for (const r of this.roofs) glow.erase(roof.setPosition(r.x / GLOW_SCALE, r.y / GLOW_SCALE).setSize(r.w / GLOW_SCALE, r.h / GLOW_SCALE));
   }
 
   /**

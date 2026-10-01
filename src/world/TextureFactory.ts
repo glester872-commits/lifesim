@@ -440,12 +440,14 @@ function drawDoorLight(ctx: Ctx): void {
  * funde con el suelo. La persona pisa, no flota.
  */
 function drawShadow(ctx: Ctx): void {
-  const w = 18;
-  const h = 6;
+  // Ajustada a la silueta de world/HumanArt (hombros de 10 px, pies de 6): un núcleo oscuro bajo
+  // los pies, que es lo que la planta en el suelo, y un halo corto alrededor.
+  const w = 14;
+  const h = 5;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const d = Math.hypot((x + 0.5 - w / 2) / (w / 2), (y + 0.5 - h / 2) / (h / 2));
-      const a = d < 0.45 ? 0.42 : d < 0.72 ? 0.26 : d < 1 ? 0.1 : 0;
+      const a = d < 0.42 ? 0.5 : d < 0.7 ? 0.3 : d < 1 ? 0.12 : 0;
       if (a === 0) continue;
       ctx.globalAlpha = a;
       px(ctx, PALETTE.ink, x, y);
@@ -761,7 +763,7 @@ export function buildTextures(scene: Phaser.Scene): void {
     px(ctx, shade(PALETTE.white, -0.3), 1, 1, 1, 1);
     px(ctx, shade(PALETTE.white, -0.3), 4, 1, 1, 1);
   });
-  make(scene, 'fx-shadow', 18, 6, drawShadow);
+  make(scene, 'fx-shadow', 14, 5, drawShadow);
   make(scene, 'fx-shadow-long', 20, 5, drawLongShadow);
   make(scene, 'ui-prompt', TILE, TILE, drawPrompt);
 

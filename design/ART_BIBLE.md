@@ -29,7 +29,7 @@ ella y usa sus mismas piezas y reglas. Todo sigue dibujándose por código desde
 
 | Cosa | Tamaño | Notas |
 |---|---|---|
-| Persona | 16 × 24 px | Cabeza ~6 px, contorno de 1 px, pies en el borde inferior del tile. |
+| Persona | 16 × 24 px | ~3,5 cabezas: cabeza 6 × 7 px (pelo 1–3, ojos en la fila 4), hombros de 8 px más anchos que la cabeza, cintura, piernas de 7 filas (15–21) y zapatos con suela (22–23). Contorno de color (selout), casi negro sólo bajo los pies. Ver `world/HumanArt.drawFrontBack`. |
 | Banco | 2 tiles de ancho, ~20 px de alto con respaldo | Asiento a ~7 px del suelo. |
 | Farola | 1 tile de ancho, **52 px** (~3,6 m) | La luz sale de la linterna; el charco cae en el suelo. |
 | Árbol de calle (plátano) | copa ~40 px de ancho, **56 px** de alto | Tronco de 4 px sobre alcorque de hierro. |
@@ -64,7 +64,7 @@ no cuesta nada por frame y nunca tapa a nadie.
   franja inclinada hacia el sureste de largo ≈ la mitad de la altura, α ~0,16,
   horneada. La copa de un árbol proyecta además una mancha al final.
 - **Edificios:** banda de 5 px al este y 3 px al sur.
-- **Personas:** sombra dinámica de dos tonos bajo los pies; nunca desaparece.
+- **Personas:** sombra dinámica bajo los pies (14 × 5, núcleo α 0,5 donde pisan); nunca desaparece.
 
 ## 6. Paleta y ambiente
 
@@ -76,6 +76,8 @@ no cuesta nada por frame y nunca tapa a nadie.
   hierro en verde casi negro (`iron`), madera en ocres, vegetación en tres tonos
   de verde más una luz. Acentos saturados (rojo, amarillo, cian) sólo en cosas
   pequeñas: una bici, una flor, un rótulo.
+- **Noche honda, luz que se despega:** cielo nocturno `#414a7c`; el charco de cada
+  farola y escaparate se ve dorado gracias al resplandor (§7), no a un cielo más claro.
 
 ## 7. Luz
 
@@ -85,8 +87,15 @@ no cuesta nada por frame y nunca tapa a nadie.
 - **Emisivos:** lo que brilla (rótulos, pantallas, ventanas encendidas) se dibuja
   encima de la sombra de la hora; de día es invisible y manda el arte normal.
 - **Ventanas:** una parte fija de los cristales de fachada se enciende de noche.
+- **Resplandor** (`QUALITY.glow`, alto y medio): el mapa de luz multiplica, así que
+  una farola sólo devuelve al suelo su color de día. Encima va una capa aditiva a
+  1/4 de resolución con el 20 % de cada luz (más recogida que su charco): el granito
+  bajo la farola brilla dorado sin bloom. Se repinta sólo cuando cambia la luz;
+  los tejados quedan fuera.
+- **Calles con farolas:** una calle de noche sin farolas es un agujero. Avenida y
+  calles principales llevan una cada ~12 tiles, al tresbolillo entre los árboles.
 - **Presupuesto:** ≤ 40 imágenes de luz por mapa. Nada de post-proceso a pantalla
-  completa, ni bloom, ni sombras en tiempo real.
+  completa más allá del resplandor, ni bloom, ni sombras en tiempo real.
 
 ## 8. Materiales de suelo
 

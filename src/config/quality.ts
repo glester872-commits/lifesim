@@ -23,12 +23,14 @@ export interface QualityFlags {
   reflections: boolean;
   /** Polillas alrededor de las farolas encendidas. */
   moths: boolean;
+  /** Resplandor cálido sumado bajo farolas y escaparates de noche (una capa a 1/4, repintada sólo al cambiar la luz). */
+  glow: boolean;
 }
 
 const FLAGS: Readonly<Record<QualityLevel, Omit<QualityFlags, 'level'>>> = {
-  high: { lightmapScale: 1, layeredLamps: true, reflections: true, moths: true },
-  medium: { lightmapScale: 2, layeredLamps: true, reflections: true, moths: false },
-  low: { lightmapScale: 2, layeredLamps: false, reflections: false, moths: false },
+  high: { lightmapScale: 1, layeredLamps: true, reflections: true, moths: true, glow: true },
+  medium: { lightmapScale: 2, layeredLamps: true, reflections: true, moths: false, glow: true },
+  low: { lightmapScale: 2, layeredLamps: false, reflections: false, moths: false, glow: false },
 };
 
 const KEY = 'lifesim.quality';

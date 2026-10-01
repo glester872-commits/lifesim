@@ -106,7 +106,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Restaurante: mesa con mantel (lo que se pide lo pone world/ServiceView encima) y fogones de dos tiles.
   'dining-table': { key: 'prop-dining-table', tilesHigh: 1 },
   stove: { key: 'prop-stove', tilesHigh: 2, tilesWide: 2 },
-  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 18 }, shadow: [8, 3] },
+  // Con charco, como la farola alta: de noche la acera bajo ella se lee encendida, no sólo el farol.
+  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 18, pool: [52, 24] }, shadow: [8, 3], cast: 12 },
   sign: { key: 'prop-sign', tilesHigh: 2 },
   planter: { key: 'prop-planter', tilesHigh: 1 },
   bed: { key: 'prop-bed', tilesHigh: 2 },

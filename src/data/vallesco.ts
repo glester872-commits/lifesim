@@ -164,6 +164,9 @@ const PROPS: readonly PropPlacement[] = [
   ...row('produce', 18, [3, 4, 8, 18, 20]),
   ...row('lamp', 16, [11, 21, 47]),
   ...row('lamp', 18, [34, 67]),
+  // Avenida: farolas altas en el bordillo de las dos aceras, al tresbolillo entre los árboles; de noche, un charco cada doce tiles.
+  ...row('street-lamp', 29, [10, 32, 44, 68, 78, 90, 102]),
+  ...row('street-lamp', 35, [12, 33, 43, 66, 84, 96, 106]),
   at('bin', 12, 18), at('bin', 48, 18), at('vending', 29, 16),
 
   // Trasera del súper y solar entre manzanas
