@@ -194,6 +194,8 @@ export class WorldScene extends Phaser.Scene {
   private dining = false;
   /** Lo que se ha dicho en las charlas de calle (systems/Chat): la gente anónima se olvida al cambiar de sitio; quien tiene nombre, no. */
   private readonly chatLog = new ChatLog();
+  /** Cierra ya la charla de calle en curso (Esc o Q), sin pasar por ninguna respuesta. Sólo mientras hay una. */
+  private chatEnd: (() => void) | null = null;
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
   /** Compras, bolsa, destino del tren y sitios sin mapa. */
@@ -406,6 +408,7 @@ export class WorldScene extends Phaser.Scene {
     const onDialogueClose = (): void => {
       this.endTalk?.();
       this.endTalk = null;
+      this.chatEnd = null;
     };
     dialogue.on('close', onDialogueClose);
 
@@ -476,8 +479,10 @@ export class WorldScene extends Phaser.Scene {
       this.services.hint.hide();
       // Con opciones se elige tocándolas (ui/DialogueBox); si no, el botón de acción sigue.
       input.setContext({ action: dialogue.choices.length > 0 ? null : 'Seguir', back: false, busy: true });
-      const picked = ['one', 'two', 'three'].findIndex((name) => this.pressedAny([name]));
+      // Cada respuesta tiene su número (la despedida es la última, y ya no se queda sin tecla); Esc o Q cierran la charla de calle.
+      const picked = DIGITS.findIndex((name) => this.pressedAny([name]));
       if (picked >= 0) dialogue.choose(picked);
+      else if (this.chatEnd && this.pressedAny(['cancel', 'cancelAlt'])) this.chatEnd();
       else if (this.pressedAny(['interact', 'advance', 'advanceAlt'])) dialogue.advance();
     }
 
@@ -1105,11 +1110,16 @@ export class WorldScene extends Phaser.Scene {
       this.noteMeeting(talk, namedId);
       return;
     }
-    dialogue.ask(speaker, turn.lines, turn.options.map((o) => o.label), (i) => {
+    // Con respuestas, todo lo que dice va en una sola frase: se ven desde el principio, incluida la despedida.
+    dialogue.ask(speaker, [turn.lines.join(' ')], turn.options.map((o) => o.label), (i) => {
       // Elegir cierra el diálogo y con él la pausa de quien habla: se le vuelve a parar para seguir.
       this.startTalk(sprite);
       this.say(speaker, sprite, talk, talk.choose(turn.options[i].id), namedId);
     });
+    this.chatEnd = () => {
+      this.noteMeeting(talk, namedId);
+      dialogue.close();
+    };
   }
 
   /** Al acabar la charla con un personaje con nombre, se anota que se han visto (se guarda con la partida). */

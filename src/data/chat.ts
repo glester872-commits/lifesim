@@ -119,3 +119,22 @@ function hashOf(text: string): string {
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return (h >>> 0).toString(36);
 }
+
+/**
+ * Cómo se despide el jugador: la opción de terminar la charla está siempre, desde la primera frase, y su texto cambia
+ * según la relación, la hora y el ánimo (la lógica es siempre la misma: `bye`). `r`: sólo si le conoce; `m`: ánimo.
+ */
+export interface ByeLabel {
+  text: string;
+  r?: 1 | 2;
+  h?: readonly [number, number];
+  m?: readonly Mood[];
+}
+
+export const BYE_LABELS: readonly ByeLabel[] = [
+  { text: 'Despedirse' }, { text: 'Nos vemos' }, { text: 'Bueno, me voy' }, { text: 'Hasta luego' }, { text: 'Que vaya bien' },
+  { text: 'Tengo que seguir' }, { text: 'Hablamos luego' }, { text: 'Cuídate' },
+  { text: 'Hasta otra', r: 1 }, { text: 'Ya nos vemos, ¿eh?', r: 1 }, { text: 'Un abrazo', r: 2 }, { text: 'Luego te cuento', r: 2 },
+  { text: 'Buenas noches', h: [21, 5] }, { text: 'Que descanses', h: [21, 5], r: 1 }, { text: 'Que tengas buen día', h: [6, 14] }, { text: 'Disfruta de la tarde', h: [14, 21] },
+  { text: 'Perdona, tengo prisa', m: ['hurried'] }, { text: 'Te dejo, que vas con prisa', m: ['hurried'] }, { text: 'Te dejo descansar', m: ['tired'] }, { text: 'Gracias, hasta luego', m: ['down'] },
+];

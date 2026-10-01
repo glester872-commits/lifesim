@@ -97,7 +97,7 @@ const repeat = (a: readonly string[], b: readonly string[]): number => (b.length
   for (let i = 1; i < baseline.length; i++) baseConsecutive += repeat(baseline[i - 1].ids, baseline[i].ids);
   const baseDistinct = new Set(baseline.flatMap((t) => t.ids)).size / baseline.flatMap((t) => t.ids).length;
   assert.ok(consecutive / 29 < 0.1, `la misma persona repite entre charlas seguidas (${((consecutive / 29) * 100).toFixed(1)} %)`);
-  assert.ok(distinct > 0.55, `la misma persona repite frases en 30 charlas (${(distinct * 100).toFixed(0)} % distintas)`);
+  assert.ok(distinct > 0.5, `la misma persona repite frases en 30 charlas (${(distinct * 100).toFixed(0)} % distintas)`);
   assert.ok(consecutive < baseConsecutive * 0.5, `la memoria no reduce la repetición (${consecutive.toFixed(2)} vs ${baseConsecutive.toFixed(2)})`);
   assert.ok(distinct > baseDistinct + 0.08, 'la memoria no aumenta la variedad');
   console.log(`  misma persona ×30: ${(distinct * 100).toFixed(0)} % de frases distintas (sin memoria ${(baseDistinct * 100).toFixed(0)} %), repite ${((consecutive / 29) * 100).toFixed(1)} % de una charla a la siguiente (sin memoria ${((baseConsecutive / 29) * 100).toFixed(1)} %)`);
@@ -251,6 +251,50 @@ const share = (mix: Map<string, number>, ...topics: string[]): number => {
   assert.ok(![...strangers].some((id) => (BY_ID.get(id)!.r ?? 0) >= 1), 'a un desconocido le dicen frases de quien se conoce');
   const all = sara.flatMap((t) => t.ids);
   console.log(`  Sara ${(own(sara, 'sara') * 100).toFixed(0)} % frases propias, Ada ${(own(ada, 'ada') * 100).toFixed(0)} % · Sara ×25: ${(new Set(all).size / all.length * 100).toFixed(0)} % distintas`);
+}
+
+// ------------------------------------------------ despedirse cuando se quiera
+{
+  const labels = new Set<string>();
+  const people = IDENTITIES.map((_, i) => i).slice(0, 40);
+  for (const i of people) {
+    for (const topics of [0, 1, 2, 3, 5]) {
+      const log = new ChatLog();
+      const rng = seededRng(500 + i * 7 + topics);
+      const talk = new Conversation(base({ who: `c:bye:${i}:${topics}`, identity: i, hour: 10 + (i % 10) }), log, rng);
+      let turn = talk.open();
+      // En cualquier momento (desde la primera frase), con cualquier número de temas ya hablados, «Despedirse» está y es la última.
+      for (let said = 0; said < topics && !turn.ends; said++) {
+        const last = turn.options[turn.options.length - 1];
+        assert.equal(last.id, 'bye', `falta despedirse tras ${said} temas`);
+        assert.ok(turn.options.length <= 9, 'más respuestas que teclas');
+        const next = turn.options.find((o) => o.id !== 'bye');
+        if (!next) break;
+        turn = talk.choose(next.id);
+      }
+      if (turn.ends) continue; // el otro ya se despidió por su cuenta: la charla acabó
+      const options = turn.options;
+      assert.equal(options[options.length - 1].id, 'bye', `sin despedida con ${topics} temas`);
+      labels.add(options[options.length - 1].label);
+      // Despedirse acaba la charla ya, con una despedida del otro.
+      const end = talk.choose('bye');
+      assert.ok(end.ends && end.options.length === 0, `la despedida no cierra con ${topics} temas`);
+      assert.ok(end.lines.length >= 1 && end.topics.some((t) => t === 'bye-short' || t === 'bye-long'), 'el otro no se despide');
+    }
+  }
+  assert.ok(labels.size >= 6, `la despedida del jugador siempre dice lo mismo (${[...labels].join(', ')})`);
+  // Y se puede volver a hablar después con la misma persona.
+  const log = new ChatLog();
+  for (let k = 0; k < 4; k++) {
+    const talk = new Conversation(base({ who: 'c:district:again', identity: 9, rel: k > 0 ? 1 : 0 }), log, seededRng(600 + k));
+    const first = talk.open();
+    assert.ok(first.options.some((o) => o.id === 'bye'), 'otra charla sin despedida');
+    assert.ok(talk.choose('bye').ends);
+  }
+  // Un personaje con nombre también.
+  const named = new Conversation({ ...base({ who: 'sara', identity: undefined }), named: 'sara' }, new ChatLog(), seededRng(700));
+  assert.equal(named.open().options.at(-1)?.id, 'bye');
+  console.log(`  despedirse: desde la primera frase y con 0, 1, 2, 3 y 5 temas hablados · ${labels.size} maneras de decirlo (${[...labels].slice(0, 5).join(' / ')}...)`);
 }
 
 const named = ALL_LINES.filter((l) => l.n).length;

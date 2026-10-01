@@ -3,7 +3,7 @@ import { CHAT_LINES } from '../data/chatLines.ts';
 import { CHAT_REPLIES } from '../data/chatReplies.ts';
 import { NAMED_LINES, NAMED_VOICES } from '../data/chatNamed.ts';
 import {
-  OPTIONS, PATIENCE, STYLES_BY_TEMPERAMENT,
+  BYE_LABELS, OPTIONS, PATIENCE, STYLES_BY_TEMPERAMENT,
   type Act, type ChatOption, type Days, type Line, type Mood, type OptionDef, type Place, type Style, type Topic, type Weather,
 } from '../data/chat.ts';
 import type { Interest } from '../data/identity.ts';
@@ -507,8 +507,15 @@ export class Conversation {
       chosen.push(next);
       candidates.splice(candidates.findIndex(([o]) => o.id === next.id), 1);
     }
-    const bye = OPTIONS.find((o) => o.id === 'bye')!;
-    return [...chosen, bye].map((o) => ({ id: o.id, label: o.label }));
+    // Despedirse está siempre, desde la primera frase, sin nada que gastar antes; sólo cambia cómo se dice.
+    return [...chosen.map((o) => ({ id: o.id, label: o.label })), { id: 'bye', label: this.byeLabel() }];
+  }
+
+  /** Cómo se despide el jugador ahora: según la relación, la hora y el ánimo de quien le escucha. */
+  private byeLabel(): string {
+    const c = this.ctx;
+    const options = BYE_LABELS.filter((b) => (!b.r || c.rel >= b.r) && (!b.h || inHours(b.h, c.hour)) && (!b.m || b.m.includes(c.mood)));
+    return pick(this.rng, options.map((b): [string, number] => [b.text, (b.m ? 3 : 1) * (b.h ? 1.6 : 1) * (b.r ? 1.5 : 1)])) ?? 'Despedirse';
   }
 
   private answerable(o: OptionDef): boolean {
