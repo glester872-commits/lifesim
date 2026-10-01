@@ -42,6 +42,9 @@ export const KIND_OF: Readonly<Record<string, WorkoutKind>> = {
   dumbbells: 'strength',
   cable: 'strength',
   stretch: 'mobility',
+  // Al aire libre (data/ribera.ts): dominadas y tiros a canasta.
+  pullup: 'strength',
+  hoops: 'cardio',
 };
 
 export const INTENSITIES: Readonly<Record<Intensity, { label: string; minutes: number; energy: number; gain: number; fatigue: number }>> = {

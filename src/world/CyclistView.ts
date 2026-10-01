@@ -5,7 +5,7 @@ import { PASSENGER_LOOKS } from '../data/npcs';
 import type { Traffic, Vehicle } from '../systems/Traffic';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { DEBUG } from '../config/debug';
-import { RIDER_H, RIDER_LAMPS, RIDER_STOPPED, RIDER_W, riderTexture, type RiderLook } from './CyclistArt';
+import { RIDER_H, RIDER_LAMPS, RIDER_STOPPED, RIDER_W, riderTexture, skateFrame, type RiderLook } from './CyclistArt';
 
 /** Px recorridos por cada cuarto de vuelta de pedal. */
 const STROKE_PX = 3;
@@ -62,7 +62,8 @@ export class CyclistView {
       const bottom = v.row * TILE + TILE - 1;
       const left = Math.round(v.x - RIDER_W / 2);
       const top = bottom - RIDER_H;
-      const frame = v.speed < 0.5 ? RIDER_STOPPED : Math.floor(Math.abs(v.x) / STROKE_PX) % 4;
+      // El patinador no pedalea: rueda con los pies en la tabla y de vez en cuando empuja (skateFrame).
+      const frame = v.speed < 0.5 ? RIDER_STOPPED : v.type.frame === 'skate' ? skateFrame(v.x * v.dir, v.seed) : Math.floor(Math.abs(v.x) / STROKE_PX) % 4;
       // La bici va siempre a la misma altura: el cuerpo que sube y baja al pedalear está dibujado
       // en los propios fotogramas (world/CyclistArt). Mover el sprite entero hacía botar las ruedas.
       p.body.setFrame(frame).setPosition(left, top).setDepth(bottom).setVisible(true);

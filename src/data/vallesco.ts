@@ -130,7 +130,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('carmen-retales', 'Retales · vintage', 'vintage', [83, 37, 8, 7], 's', 87, { floors: 2, enter: into('retales'), point: 'RETALES_ENTRANCE' }),
   b('carmen-molinillo', 'Café Molinillo', 'coffee', [91, 37, 6, 7], 's', 93, { floors: 2, enter: into('molinillo'), point: 'MOLINILLO_ENTRANCE' }),
   b('carmen-surco', 'Discos Surco', 'records', [97, 37, 6, 7], 's', 99, { floors: 2, point: 'RECORDS_ENTRANCE', inspect: ['Discos Surco. Cajas de vinilos a cinco euros en la puerta y un cartel: «Abrimos cuando llegamos».'] }),
-  b('carmen-suela', 'Suela · zapatillas', 'sneaker', [103, 37, 7, 7], 's', 106, { floors: 2, point: 'SUELA_ENTRANCE', inspect: ['Suela. Zapatillas de edición limitada en una vitrina y una pizarra: «Sorteo el sábado. No se reserva.»'] }),
+  b('carmen-suela', 'Suela · zapatillas', 'sneaker', [103, 37, 7, 7], 's', 106, { floors: 2, enter: into('suela'), point: 'SUELA_ENTRANCE' }),
   // Acera sur: locales de una planta, pegados a la vía.
   b('carmen-archivo', 'Archivo · streetwear', 'streetwear', [76, 51, 9, 4], 'n', 80, { enter: into('archivo'), point: 'ARCHIVO_ENTRANCE' }),
   b('carmen-vuelta', 'Segunda Vuelta', 'thrift', [86, 51, 9, 4], 'n', 90, { enter: into('vuelta'), point: 'VUELTA_ENTRANCE' }),

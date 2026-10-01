@@ -13,12 +13,15 @@ import { px, shade, type Ctx } from './paint';
  */
 
 export const RIDER_W = 22;
-export const RIDER_H = 26;
+/** Alto de la celda: TOP_PAD px más que la bici para que la cabeza (que se pinta desde y=-5) no se recorte. */
+export const RIDER_H = 31;
+/** Cuánto se baja todo el dibujo dentro de la celda. */
+const TOP_PAD = 5;
 /** Cuatro fotogramas de pedalada y uno parado, con un pie en el suelo. */
 export const RIDER_FRAMES = 5;
 export const RIDER_STOPPED = 4;
 /** Luces de la bici en la celda (mirando a la derecha): se encienden de noche encima. */
-export const RIDER_LAMPS = { head: [19, 12], tail: [3, 15] } as const;
+export const RIDER_LAMPS = { head: [19, 12 + TOP_PAD], tail: [3, 15 + TOP_PAD] } as const;
 
 type Pt = readonly [number, number];
 const REAR: Pt = [5, 21];
@@ -59,7 +62,7 @@ export function riderTexture(scene: Phaser.Scene, r: RiderLook): string {
   const body = seated(colors);
   for (let f = 0; f < RIDER_FRAMES; f++) {
     ctx.save();
-    ctx.translate(f * RIDER_W, 0);
+    ctx.translate(f * RIDER_W, TOP_PAD);
     drawRider(ctx, r, colors, body, f);
     ctx.restore();
     tex.add(f, 0, f * RIDER_W, 0, RIDER_W, RIDER_H);
@@ -104,9 +107,44 @@ function drawSkater(ctx: Ctx, r: RiderLook, c: HumanColors, f: number): void {
   canvas.height = 24;
   const bctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!bctx) return;
-  // Quieto, o con un pie empujando; los pies a la altura de la tabla.
-  drawHuman(bctx, 'right', f === RIDER_STOPPED ? 0 : ([1, 0, 2, 0] as const)[f], c);
-  ctx.drawImage(canvas, 3, -3);
+  // Tronco y cabeza de la persona quieta; las piernas de andar se quitan (de la fila 18 abajo) y se
+  // pintan las de patinar: así los pies nunca dan pasos sobre la tabla.
+  drawHuman(bctx, 'right', 0, c);
+  bctx.clearRect(0, 18, 16, 6);
+  ctx.drawImage(canvas, 3, -5);
+  const [back, front] = SKATE_STANCE[f === RIDER_STOPPED ? 0 : f];
+  skateLeg(ctx, shade(c.trousers, -0.18), shade(c.shoes, -0.1), [9, 13], back[0], back[1]);
+  skateLeg(ctx, c.trousers, c.shoes, [12, 13], front[0], front[1]);
+}
+
+/**
+ * Fotograma del patinador según lo recorrido: casi siempre rueda con los dos
+ * pies en la tabla y de vez en cuando se da un empujón con el de atrás
+ * (1 apoya, 2 suelta, 3 vuelve a la tabla). El `seed` descompasa a unos de otros.
+ */
+export function skateFrame(travelled: number, seed: number): number {
+  const u = (((travelled + seed * 37) % 150) + 150) % 150;
+  return u < 9 ? 1 : u < 14 ? 2 : u < 19 ? 3 : 0;
+}
+
+/** [rodilla, pie] de la pierna de atrás y de la de delante en cada fotograma; los pies sobre la tabla están en y=19, el suelo en 24. */
+const SKATE_STANCE: readonly (readonly [readonly [Pt, Pt], readonly [Pt, Pt]])[] = [
+  [[[8, 16], [7, 19]], [[13, 16], [15, 19]]],
+  [[[6, 18], [2, 24]], [[13, 16], [15, 19]]],
+  [[[5, 17], [1, 22]], [[13, 16], [15, 19]]],
+  [[[7, 16], [5, 19]], [[13, 16], [15, 19]]],
+];
+
+/** Una pierna de perfil con su contorno: de la cadera a la rodilla y de ahí al pie, y la zapatilla plantada. */
+function skateLeg(ctx: Ctx, color: string, shoe: string, hip: Pt, knee: Pt, foot: Pt): void {
+  const seg = (col: string, w: number, o: number): void => {
+    line(ctx, col, hip[0] - o, hip[1] - o, knee[0] - o, knee[1] - o, w);
+    line(ctx, col, knee[0] - o, knee[1] - o, foot[0] - o, foot[1] - 1 - o, w);
+  };
+  seg(PALETTE.outline, 4, 1);
+  seg(color, 2, 0);
+  px(ctx, PALETTE.outline, foot[0] - 2, foot[1] - 1, 5, 3);
+  px(ctx, shoe, foot[0] - 1, foot[1], 3, 1);
 }
 
 function drawRider(ctx: Ctx, r: RiderLook, c: HumanColors, body: HTMLCanvasElement, f: number): void {

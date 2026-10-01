@@ -205,6 +205,13 @@ body {
   transform: translate(-50%, -50%);
 }
 
+/* Probándose una prenda: el menú se baja al borde para que se vea al jugador con ella puesta. */
+#menu.is-peek {
+  top: auto;
+  bottom: 12px;
+  transform: translate(-50%, 0);
+}
+
 .menu__panel {
   border: 2px solid rgba(232, 227, 218, 0.16);
   background: rgba(14, 15, 22, 0.96);

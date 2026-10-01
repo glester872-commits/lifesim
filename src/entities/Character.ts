@@ -44,6 +44,11 @@ export const REPS: Readonly<Record<string, readonly [Pose, Pose, number]>> = {
   squat: [17, 18, 1_250],
   curl: [15, 16, 950],
   cable: [23, 0, 1_100],
+  // Al aire libre y en el salón recreativo: dominadas, tiros a canasta, pulsar botones y pisar la máquina de ritmo.
+  hang: [23, 16, 1_100],
+  shoot: [6, 15, 650],
+  play: [5, 0, 400],
+  step: [1, 2, 260],
 };
 
 /** Mientras se levanta la barra, la jaula se pinta vacía encima de la de verdad (world/PropArt). */
@@ -410,6 +415,11 @@ export class Character extends Phaser.GameObjects.Sprite {
       if (activity === 'bench') {
         over = 'fx-barbell';
         barY = BENCH_BAR[half];
+      }
+      // La pelota va en las manos: arriba al tirar, a la altura del pecho al recogerla.
+      if (activity === 'shoot') {
+        over = 'fx-ball';
+        barY = half ? 12 : -4;
       }
     } else if (activity === 'stretch') {
       // Unos estiran en el suelo (y respiran); otros de pie, subiendo los brazos y soltando.

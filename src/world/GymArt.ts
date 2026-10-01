@@ -461,5 +461,19 @@ export function buildGymTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-gym-bags', TILE * 2, TILE, drawGymBags);
   // Lo que se mueve mientras alguien usa la máquina (entities/Character): la barra en las manos y la banda.
   make(scene, 'fx-barbell', 18, 7, (ctx) => barbell(ctx, 0, 3, 18));
+  make(scene, 'fx-ball', 7, 7, drawBall);
   for (let v = 0; v < 2; v++) make(scene, `fx-belt-${v}`, 8, 13, (ctx) => belt(ctx, 0, 0, v));
+}
+
+/** Pelota de baloncesto, 7×7: naranja con las costuras en cruz. La lleva en las manos quien tira a canasta (entities/Character). */
+function drawBall(ctx: Ctx): void {
+  const orange = '#d9772e';
+  px(ctx, PALETTE.outline, 2, 0, 3, 7);
+  px(ctx, PALETTE.outline, 0, 2, 7, 3);
+  px(ctx, PALETTE.outline, 1, 1, 5, 5);
+  px(ctx, orange, 2, 1, 3, 5);
+  px(ctx, orange, 1, 2, 5, 3);
+  px(ctx, shade(orange, 0.25), 2, 2, 1, 1);
+  px(ctx, shade(orange, -0.4), 3, 1, 1, 5);
+  px(ctx, shade(orange, -0.4), 1, 3, 5, 1);
 }

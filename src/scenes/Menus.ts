@@ -9,10 +9,11 @@ import { destinationsFrom, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId } from '../data/services';
-import { HAIRSTYLES } from '../data/appearance';
+import { HAIRSTYLES, type Appearance } from '../data/appearance';
+import type { RackDef } from '../types/game';
 import { haircut, sleeveOf, tattoo, visibleTattoos, withAppearance } from '../systems/Appearance';
 import { buyGarment, stockOf, takeOff, wear } from '../systems/Retail';
-import { getGarment, getStore } from '../data/retail';
+import { CATEGORIES, getGarment, getStore } from '../data/retail';
 import { getDesign, getZone, STYLE_NAMES, TATTOO_DESIGNS, TATTOO_ZONES, type TattooZone } from '../data/tattoos';
 import { PLAYER_COLORS } from '../world/TextureFactory';
 import type { MenuItem, ServiceMenu } from '../data/menus';
@@ -38,6 +39,7 @@ export interface MenuHost {
 export class Menus {
   private readonly services: Services;
   private readonly host: MenuHost;
+  private fitting: Appearance | null = null;
 
   constructor(services: Services, host: MenuHost) {
     this.services = services;
@@ -296,6 +298,99 @@ export class Menus {
     }, undefined, note, selected);
   }
 
+  /** El outfit de antes mientras el jugador se prueba una prenda; null si no se prueba nada. WorldScene lo guarda en vez de la prueba. */
+  get fittingOutfit(): Appearance | null {
+    return this.fitting;
+  }
+
+  /**
+   * Un perchero de tienda: lo que cuelga ahí (sus categorías), con precio. Al
+   * elegir una se ve su ficha y se puede probar, comprar o dejar (openGarment).
+   * El género y los precios son los de la tienda: los mismos que en caja.
+   */
+  openRack(rack: RackDef, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    menu.peek(false);
+    const lines = stockOf(rack.store, state.wardrobe, state.appearanceOf('player'), rack.categories);
+    const options: MenuOption[] = lines.map((l) => ({
+      label: l.def.name,
+      detail: l.owned ? 'tuya' : `${euros(l.price)}${l.def.unique ? ' · única' : ''}`,
+    }));
+    options.push({ label: 'Cerrar' });
+    menu.open(`${rack.name} · ${getStore(rack.store).name}`, `Llevas ${euros(state.money)}.`, options, (i) => {
+      if (i === lines.length) menu.close();
+      else this.openGarment(rack, lines[i].garment, i);
+    }, undefined, note, selected);
+  }
+
+  /** Deja puesto lo de antes y cierra la prueba. */
+  private endFitting(): void {
+    if (!this.fitting) return;
+    this.services.state.setAppearance('player', this.fitting);
+    this.fitting = null;
+  }
+
+  /**
+   * La ficha de una prenda: nombre, categoría, precio y descripción. PROBAR la
+   * pone sobre el jugador (el menú baja para verla) guardando antes el outfit
+   * de siempre; se compra desde ahí o se vuelve a lo anterior, y Esc también
+   * restaura. COMPRAR cobra una sola vez (systems/Retail.ts) y la guarda en el
+   * armario; para equiparla luego, el armario de casa.
+   */
+  private openGarment(rack: RackDef, garment: string, index: number, note = ''): void {
+    const { state, menu, clock } = this.services;
+    const def = getGarment(garment);
+    const price = getStore(rack.store).stock.find((l) => l.garment === garment)?.price ?? 0;
+    const current = state.appearanceOf('player');
+    const owned = state.wardrobe.includes(garment);
+    const trial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false);
+    const title = `${def.name} · ${euros(price)}`;
+    const text = `${CATEGORIES[def.category].label}${def.unique ? ' · pieza única' : ''}. ${def.description} Llevas ${euros(state.money)}.`;
+    const buy = (): void => {
+      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false);
+      if (!result.ok) {
+        this.openGarment(rack, garment, index, result.message);
+        return;
+      }
+      state.wallet = result.wallet;
+      state.wardrobe = result.wardrobe;
+      // Si se la estaba probando, se queda puesta: ya es suya.
+      this.fitting = null;
+      clock.advanceMinutes(5);
+      this.host.persist();
+      this.openRack(rack, `${result.message} Guardada en tu armario.`, index);
+    };
+    if (this.fitting) {
+      menu.open(title, text, [
+        { label: 'COMPRAR', detail: owned ? 'tuya' : euros(price), disabled: trial.ok ? undefined : trial.message },
+        { label: 'VOLVER A PONER OUTFIT ANTERIOR' },
+      ], (i) => {
+        if (i === 0) {
+          buy();
+          return;
+        }
+        this.endFitting();
+        this.openGarment(rack, garment, index);
+      }, () => this.endFitting(), note || 'Te la has puesto: mírate.');
+      menu.peek(true);
+      return;
+    }
+    menu.peek(false);
+    const wearing = current[def.slot] === garment;
+    menu.open(title, text, [
+      { label: 'PROBAR', disabled: wearing ? 'Ya la llevas puesta.' : undefined },
+      { label: 'COMPRAR', detail: owned ? 'tuya' : euros(price), disabled: trial.ok ? undefined : trial.message },
+      { label: 'CANCELAR' },
+    ], (i) => {
+      if (i === 0) {
+        this.fitting = current;
+        state.setAppearance('player', wear(current, garment));
+        this.openGarment(rack, garment, index);
+      } else if (i === 1) buy();
+      else this.openRack(rack, '', index);
+    }, () => this.openRack(rack, '', index), note);
+  }
+
   /**
    * El armario de casa: ponerse cualquier cosa comprada o volver a la ropa de
    * siempre en cada hueco. Cambiarse no cuesta dinero, sólo un par de minutos.
@@ -306,12 +401,13 @@ export class Menus {
     const owned = state.wardrobe.map(getGarment);
     const options: MenuOption[] = owned.map((g) => ({
       label: g.name,
-      detail: current[g.slot] === g.id ? 'puesta' : g.slot === 'top' ? 'arriba' : 'abajo',
+      detail: current[g.slot] === g.id ? 'puesta' : g.slot === 'top' ? 'arriba' : g.slot === 'bottom' ? 'abajo' : 'pies',
       disabled: current[g.slot] === g.id ? 'Ya la llevas puesta.' : undefined,
     }));
     options.push(
       { label: 'Lo de siempre arriba', detail: current.top ? '' : 'puesto', disabled: current.top ? undefined : 'Ya lo llevas.' },
       { label: 'Lo de siempre abajo', detail: current.bottom ? '' : 'puesto', disabled: current.bottom ? undefined : 'Ya lo llevas.' },
+      { label: 'Lo de siempre en los pies', detail: current.shoes ? '' : 'puesto', disabled: current.shoes ? undefined : 'Ya lo llevas.' },
       { label: 'Cerrar' },
     );
     const inked = current.tattoos?.length ?? 0;
@@ -323,7 +419,7 @@ export class Menus {
         menu.close();
         return;
       }
-      const next = i < owned.length ? wear(current, owned[i].id) : takeOff(current, i === owned.length ? 'top' : 'bottom');
+      const next = i < owned.length ? wear(current, owned[i].id) : takeOff(current, (['top', 'bottom', 'shoes'] as const)[i - owned.length]);
       state.setAppearance('player', next);
       clock.advanceMinutes(2);
       this.host.persist();

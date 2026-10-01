@@ -89,7 +89,7 @@ const BY_ID = new Map(EXPANDED.map((loc) => [loc.id, loc]));
  * fila base de cada prop. Lo usan el constructor de colisiones, la validación
  * y el script de recorrido: una sola regla para los tres.
  */
-export function solidMask(loc: LocationDef): boolean[][] {
+export function solidMask(loc: LocationDef, bodies = false): boolean[][] {
   const mask = loc.ground.map((row) => [...row].map((ch) => TILES[ch]?.solid ?? true));
   const set = (tx: number, ty: number, v: boolean): void => {
     if (mask[ty]?.[tx] !== undefined) mask[ty][tx] = v;
@@ -100,6 +100,7 @@ export function solidMask(loc: LocationDef): boolean[][] {
   }
   for (const p of loc.props) {
     if (PROPS[p.kind].overhead || PROPS[p.kind].flat) continue; // cuelga o está pintado: se pasa
+    if (bodies && PROPS[p.kind].post) continue; // un poste choca con su caja estrecha, no con el tile (world/LocationBuilder)
     const w = PROPS[p.kind].tilesWide ?? 1;
     for (let x = p.tx; x < p.tx + w; x++) set(x, p.ty, true);
   }

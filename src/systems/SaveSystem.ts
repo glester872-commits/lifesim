@@ -112,7 +112,7 @@ function parseState(value: unknown): GameStateData | null {
 }
 
 /** Prenda puesta en ese hueco, si existe y es de ese hueco. */
-const garmentFor = (value: unknown, slot: 'top' | 'bottom'): string | undefined =>
+const garmentFor = (value: unknown, slot: 'top' | 'bottom' | 'shoes'): string | undefined =>
   typeof value === 'string' && GARMENT_IDS.has(value) && getGarment(value).slot === slot ? value : undefined;
 
 /**
@@ -131,6 +131,8 @@ function parseAppearance(value: unknown): Record<string, Appearance> {
     const bottom = garmentFor(a.bottom, 'bottom');
     if (top) parsed.top = top;
     if (bottom) parsed.bottom = bottom;
+    const shoes = garmentFor(a.shoes, 'shoes');
+    if (shoes) parsed.shoes = shoes;
     const tattoos = Array.isArray(a.tattoos)
       ? a.tattoos.filter((t): t is TattooMark => isRecord(t) && typeof t.zone === 'string' && ZONE_IDS.has(t.zone) && typeof t.design === 'string' && DESIGN_IDS.has(t.design))
       : [];

@@ -30,6 +30,9 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'fruit', name: 'Bolsa de fruta', kind: 'food', energy: 5, use: 'Una manzana. La más fea, la más buena.' },
   { id: 'ibuprofen', name: 'Ibuprofeno', kind: 'medicine', energy: 14, use: 'A la media hora el dolor de cabeza es un recuerdo.' },
   { id: 'vitamins', name: 'Vitaminas', kind: 'medicine', energy: 8, use: 'Efervescente de naranja. Burbujea más que despierta.' },
+  // Ribera Norte: el quiosco de helados.
+  { id: 'ice-cream', name: 'Helado de cucurucho', kind: 'food', energy: 7, use: 'Se derrite más rápido de lo que lo comes. Siempre.' },
+  { id: 'ice-lolly', name: 'Polo de limón', kind: 'food', energy: 5, use: 'Ácido, frío, y los dedos pegajosos hasta mañana.' },
   { id: 'transport', name: 'Tarjeta de transporte', kind: 'card' },
 ];
 

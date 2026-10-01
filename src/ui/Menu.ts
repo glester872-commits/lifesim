@@ -74,7 +74,12 @@ export class Menu {
 
   close(): void {
     this.current = null;
-    this.root.classList.remove('is-open');
+    this.root.classList.remove('is-open', 'is-peek');
+  }
+
+  /** Baja el menú al borde de la pantalla para ver lo que hay detrás (el probador). Se quita al cerrar. */
+  peek(on: boolean): void {
+    this.root.classList.toggle('is-peek', on);
   }
 
   get index(): number {

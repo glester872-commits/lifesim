@@ -13,7 +13,7 @@ import {
   TILE,
   TRANSITION_MS,
 } from '../config/constants';
-import type { Facing, NpcDef, PortalDef, TilePoint, Vec2 } from '../types/game';
+import type { Facing, NpcDef, PortalDef, RackDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
 import { Ambience } from '../world/Ambience';
@@ -59,6 +59,8 @@ import { STREET_EVENTS } from '../data/streetEvents';
 import { Occlusion } from '../world/Occlusion';
 import { ZoneDebugView } from '../world/ZoneDebugView';
 import { PopulationInspector } from '../world/PopulationInspector';
+import { WaterView } from '../world/WaterView';
+import { SkateParkView } from '../world/SkateParkView';
 import { ForegroundView } from '../world/Foreground';
 import { PopUpView } from '../world/PopUpView';
 import { StringLightsView } from '../world/StringLights';
@@ -92,6 +94,7 @@ type Interactable =
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string }
+  | { kind: 'rack'; x: number; y: number; rack: RackDef }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
@@ -168,6 +171,8 @@ export class WorldScene extends Phaser.Scene {
   private signals: SignalView | null = null;
   /** Lluvia, charcos y vaho: sólo fuera. */
   private weatherView: WeatherView | null = null;
+  private water: WaterView | null = null;
+  private skatePark: SkateParkView | null = null;
   private atmosphere: Atmosphere | null = null;
   private streetEvents: StreetEventView[] = [];
   private ringBodies: Phaser.GameObjects.Zone[] = [];
@@ -302,6 +307,10 @@ export class WorldScene extends Phaser.Scene {
       if (!b.inspect || b.doorX === undefined) continue;
       this.interactables.push({ kind: 'inspect', x: b.doorX * TILE + TILE / 2, y: doorRow(b) * TILE + TILE / 2, name: b.name, lines: b.inspect });
     }
+    // Percheros de las tiendas de ropa: se ve la prenda, se prueba y se compra.
+    for (const rack of def.racks ?? []) {
+      this.interactables.push({ kind: 'rack', x: rack.tx * TILE + TILE / 2, y: rack.ty * TILE + TILE / 2, rack });
+    }
     // Donde se compra: máquinas y mostradores, cada uno con su catálogo.
     for (const t of def.terminals ?? []) {
       this.interactables.push({ kind: 'terminal', x: t.tx * TILE + TILE / 2, y: t.ty * TILE + TILE / 2, name: t.name, catalog: t.catalog });
@@ -381,6 +390,9 @@ export class WorldScene extends Phaser.Scene {
     this.weatherView = def.kind === 'exterior'
       ? new WeatherView(this, def, () => weatherAt(state.day, state.hour + state.minute / 60), () => state.hour + state.minute / 60, () => [...this.crowdViews.flatMap((v) => v.people), ...this.characters.map((c) => c.sprite)])
       : null;
+    // El agua de un canal (destellos y, de noche, el reflejo de las farolas) y los patinadores de una zona de skate.
+    this.water = def.kind === 'exterior' ? new WaterView(this, def, () => state.hour + state.minute / 60) : null;
+    this.skatePark = def.skate ? new SkateParkView(this, def, () => state.hour + state.minute / 60) : null;
     // La hora se ve en la calle; dentro manda la luz del local.
     this.lighting = new Lighting(this, def, built, state);
     // Lo pequeño que se mueve solo: hojas, vaho, vapor, polvo, humo, el aire del tren (world/Atmosphere).
@@ -517,6 +529,8 @@ export class WorldScene extends Phaser.Scene {
     this.cyclistView?.sync();
     this.signals?.update(time);
     this.weatherView?.update(delta);
+    this.water?.update(time);
+    this.skatePark?.update(time);
     this.atmosphere?.update(delta);
     // Los eventos de calle siguen su reloj aunque el jugador mire: minutos absolutos, los de systems/StreetEvents.
     const eventMinute = this.services.state.day * 1440 + this.services.clock.minuteOfDay;
@@ -675,6 +689,7 @@ export class WorldScene extends Phaser.Scene {
       case 'seat': return 'Sentarse';
       case 'station': return 'Entrenar';
       case 'terminal': return 'Comprar';
+      case 'rack': return 'Ver prenda';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
       case 'inspect':
       case 'event': return 'Mirar';
@@ -880,7 +895,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Si alguien tiene ese puesto: quien lo usa, quien va de camino, un personaje con nombre o el propio jugador. */
   private stationBusy(point: string): boolean {
-    return this.charactersOn.has(point) || this.workout?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE');
+    return this.charactersOn.has(point) || this.workout?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE') || (this.street?.isTaken(point) ?? false);
   }
 
   /** Delante de una máquina del gimnasio: libre, se elige cuánto entrenar; ocupada, no. */
@@ -888,7 +903,7 @@ export class WorldScene extends Phaser.Scene {
     this.player.halt();
     if (this.workout) return;
     if (this.stationBusy(target.point)) {
-      this.services.dialogue.start('Gimnasio', ['Está ocupada. Cuando se libere, o prueba con otra.']);
+      this.services.dialogue.start(STATIONS[target.station].name, ['Está ocupada. Cuando se libere, o prueba con otra.']);
       return;
     }
     this.menus.openTraining(target.station, (intensity, minutes) => this.startWorkout(target, intensity, minutes));
@@ -937,7 +952,7 @@ export class WorldScene extends Phaser.Scene {
       // De pie otra vez: el puesto vuelve a ser de todos.
       this.workout = null;
       this.services.input.setContext({ action: null, back: false, busy: false });
-      this.services.dialogue.start('Gimnasio', lines);
+      this.services.dialogue.start(STATIONS[w.station].name, lines);
     });
   }
 
@@ -1121,6 +1136,7 @@ export class WorldScene extends Phaser.Scene {
     }
     this.player.halt();
     if (target.kind === 'terminal') this.menus.openCatalog(target.name, target.catalog);
+    else if (target.kind === 'rack') this.menus.openRack(target.rack);
     else if (target.kind === 'spot') {
       if (target.wardrobe) this.menus.openWardrobe();
       else this.menus.openSpot(target.name, target.activities);
@@ -1358,6 +1374,10 @@ export class WorldScene extends Phaser.Scene {
 
   private persist(): void {
     const { save, state } = this.services;
-    if (save.save(state.snapshot)) state.emit('saved');
+    const snapshot = state.snapshot;
+    // Probándose una prenda: lo que se guarda es lo de antes, no la prueba.
+    const outfit = this.menus.fittingOutfit;
+    if (outfit) snapshot.appearance.player = { ...outfit };
+    if (save.save(snapshot)) state.emit('saved');
   }
 }

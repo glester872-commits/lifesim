@@ -90,9 +90,10 @@ for (const type of ['home', 'residence', 'business', 'transit', 'public'] as con
     assert.ok(!place.interior || place.type === 'transit' || place.npcDestinations.length > 0, `${place.id}: interior sin destinos`);
   }
 }
-// Cualquier vivienda llega a cualquier negocio y al metro, y vuelve.
+// Cualquier vivienda llega a cualquier negocio y al metro de su barrio, y vuelve (otro barrio es otro mapa: se va en metro).
 for (const home of [...placesOfType('home'), ...placesOfType('residence')]) {
   for (const target of [...placesOfType('business'), ...placesOfType('transit'), ...placesOfType('public')]) {
+    if (target.locationId !== home.locationId) continue;
     assert.ok(worldRoute(home.entrances[0], target.entrances[0]), `${home.id} → ${target.id}`);
     assert.ok(worldRoute(target.entrances[0], home.entrances[0]), `${target.id} → ${home.id}`);
   }

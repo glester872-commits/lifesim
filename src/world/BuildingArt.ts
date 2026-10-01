@@ -18,7 +18,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -91,6 +91,11 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   piercing: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#26343a', shop: 'display', upper: 'windows', lit: NEON_CYAN, door: 'metal', sign: 'pole', wallArt: 'posters' },
   // Bar Gaviota: ladrillo oscuro, toldo granate y crema, la caña como rótulo y carteles de conciertos.
   bar: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#6e3a30', shop: 'display', upper: 'windows', lit: PALETTE.amber, door: 'wood', awning: ['#8c2f2f', '#e6dcc0'], sign: 'beer', wallArt: 'posters' },
+  // Ribera Norte: bloques de vivienda moderna (fachada clara, cristal y balcones corridos, azotea plana), el salón
+  // recreativo (negro, neón rosa detrás del cristal y el mando de rótulo) y la tienda de deportes (azul, toldo naranja y la pelota).
+  'res-modern': { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#dde2e3', shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass' },
+  arcade: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#2a2640', shop: 'glass', upper: 'band', lit: NEON_PINK, door: 'glass', sign: 'joystick', wallArt: 'mural' },
+  sports: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#3f6f9a', shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: ['#d9772e', PALETTE.white], sign: 'ball' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
 };
 
@@ -894,7 +899,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     cross: PALETTE.leafLit, scissors: PALETTE.glassLit, euro: PALETTE.amber, apple: RUST, key: PALETTE.amber,
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
-    sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber,
+    sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e',
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -931,6 +936,10 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     // Caña: la espuma blanca, la cerveza dorada y el asa.
     case 'beer': p(4, 4, 6, 2); px(ctx, PALETTE.amber, 4, 6, 6, 5); px(ctx, shade(PALETTE.amber, 0.25), 5, 6, 1, 5); p(10, 6, 2, 1); p(11, 7, 1, 3); p(10, 9, 2, 1); break;
     case 'wine': p(5, 3, 6, 1); p(5, 4, 1, 3); p(10, 4, 1, 3); px(ctx, PALETTE.rugLit, 6, 5, 4, 2); p(6, 7, 4, 1); p(7, 8, 2, 3); p(5, 11, 6, 1); break;
+    // Mando de recreativa: la bola roja, el palo, la base y dos botones.
+    case 'joystick': px(ctx, RUST, 6, 3, 4, 3); p(7, 6, 2, 4); p(4, 10, 8, 2); px(ctx, NEON_CYAN, 11, 8, 2, 2); px(ctx, PALETTE.amber, 3, 8, 2, 2); break;
+    // Pelota: el círculo con la costura en cruz.
+    case 'ball': p(6, 3, 4, 10); p(4, 5, 8, 6); p(5, 4, 6, 8); px(ctx, PALETTE.ink, 7, 3, 1, 10); px(ctx, PALETTE.ink, 4, 8, 8, 1); break;
   }
 }
 

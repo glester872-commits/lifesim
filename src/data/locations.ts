@@ -1,7 +1,8 @@
 import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
 import { VALLESCO } from './vallesco.ts';
-import { ARCHIVO, BARBERSHOP, CLUB, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
+import { RIBERA } from './ribera.ts';
+import { ARCADE, ARCHIVO, BARBERSHOP, CLUB, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
 /**
  * Leyenda del terreno (ver TILES en world/tiles.ts):
@@ -363,109 +364,6 @@ const RIBERA_STATION = platform(
   ],
 );
 
-const RIBERA: LocationDef = {
-  id: 'ribera',
-  name: 'Ribera Norte',
-  kind: 'exterior',
-  // Mercado y terrazas junto al río; la puerta del bar, de noche (data/districts.ts).
-  district: 'commercial',
-  zones: [{ profile: 'nightlife', tx: 1, ty: 8, w: 16, h: 4 }],
-  ground: [
-    'gggggggggggggggggggggggggggggggggggggggg',
-    'gggggggggggggggggggggggggggggggggggggggg',
-    'ggg%%%%%%%%%%%%%%%%ggg################gg',
-    'ggg%%%%%%%%%%%%%%%%ggg################gg',
-    'ggg%%%%%%%%%%%%%%%%ggg################gg',
-    'ggg%%%%%%%%%%%%%%%%ggg################gg',
-    'ggg%%%%%%%%%%%%%%%%ggg################gg',
-    'ggg%%%%%%%%%%%%%%%%ggg################gg',
-    'gggHHHHHDHHHHHHHHHHgggHHHHHHHHHHHHHHHHgg',
-    'g,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,g',
-    'g,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,g',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'g,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,g',
-    'gcccccccccccccccccMMMccccccccccccccccccg',
-    'gcccccccccccccccccMMMccccccccccccccccccg',
-    'gcccccccccccccccccMDMccccccccccccccccccg',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'g,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,g',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'gccccccccccccccccccccccccccccccccccccccg',
-    'gqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqg',
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-  ],
-  props: [
-    { kind: 'tree', tx: 1, ty: 1 },
-    { kind: 'tree', tx: 20, ty: 1 },
-    { kind: 'tree', tx: 38, ty: 1 },
-    { kind: 'bush', tx: 20, ty: 4 },
-    { kind: 'tree', tx: 20, ty: 7 },
-
-    { kind: 'lamp', tx: 4, ty: 10 },
-    { kind: 'cafe-table', tx: 5, ty: 10 },
-    { kind: 'parasol', tx: 6, ty: 10 },
-    { kind: 'parasol', tx: 10, ty: 10 },
-    { kind: 'cafe-table', tx: 11, ty: 10 },
-    { kind: 'parasol', tx: 13, ty: 10 },
-    { kind: 'lamp', tx: 17, ty: 10 },
-    { kind: 'bench', tx: 24, ty: 10 },
-    { kind: 'lamp', tx: 30, ty: 10 },
-    { kind: 'planter', tx: 35, ty: 10 },
-
-    { kind: 'stall', tx: 5, ty: 17 },
-    { kind: 'stall', tx: 8, ty: 17 },
-    { kind: 'stall', tx: 11, ty: 17 },
-    { kind: 'stall', tx: 26, ty: 17 },
-    { kind: 'stall', tx: 29, ty: 17 },
-    { kind: 'stall', tx: 32, ty: 17 },
-    { kind: 'stall', tx: 7, ty: 21 },
-    { kind: 'stall', tx: 10, ty: 21 },
-    { kind: 'stall', tx: 28, ty: 21 },
-    { kind: 'stall', tx: 31, ty: 21 },
-    { kind: 'metro-sign', tx: 18, ty: 15 },
-    { kind: 'lamp', tx: 16, ty: 20 },
-    { kind: 'lamp', tx: 23, ty: 20 },
-    { kind: 'planter', tx: 19, ty: 21 },
-
-    { kind: 'lamp', tx: 3, ty: 24 },
-    { kind: 'bench', tx: 8, ty: 24 },
-    { kind: 'bench', tx: 9, ty: 24 },
-    { kind: 'lamp', tx: 14, ty: 24 },
-    { kind: 'bench', tx: 19, ty: 24 },
-    { kind: 'bench', tx: 20, ty: 24 },
-    { kind: 'lamp', tx: 25, ty: 24 },
-    { kind: 'bench', tx: 30, ty: 24 },
-    { kind: 'bench', tx: 31, ty: 24 },
-    { kind: 'lamp', tx: 36, ty: 24 },
-  ],
-  portals: [
-    { id: 'bar-door', tx: 8, ty: 8, label: 'Bar Ribera', to: { location: 'bar', spawn: 'entry' } },
-    {
-      id: 'metro-door',
-      tx: 19,
-      ty: 17,
-      label: 'Metro · Ribera Norte',
-      to: { location: 'ribera-station', spawn: 'entry' },
-    },
-  ],
-  npcs: [
-    { id: 'olmo', tx: 14, ty: 19, facing: 'down' },
-    { id: 'sira', tx: 26, ty: 23, facing: 'down' },
-  ],
-  spawns: {
-    'bar-door': { tx: 8, ty: 9, facing: 'down' },
-    'metro-door': { tx: 19, ty: 18, facing: 'down' },
-  },
-};
-
 const BAR: LocationDef = {
   id: 'bar',
   name: 'Bar Ribera',
@@ -538,6 +436,8 @@ export const LOCATIONS: readonly LocationDef[] = [
   RETALES,
   ARCHIVO,
   VUELTA,
+  SUELA,
+  ARCADE,
   TINTA,
   MOLINILLO,
   WINE_BAR,

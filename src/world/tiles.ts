@@ -68,6 +68,12 @@ export interface PropDef {
   };
   /** Sombra al pie [ancho, alto] en px. Sin ella, una de contacto del ancho del prop. */
   shadow?: readonly [number, number];
+  /**
+   * Poste (farola, señal, bolardo, parquímetro): su tile cuenta como ocupado para colocar y planificar (nadie
+   * se pone ni camina encima), pero la colisión física es una caja estrecha al pie y no el tile entero:
+   * en una acera de dos tiles, quien pasa no pierde la mitad del ancho (world/LocationBuilder).
+   */
+  post?: true;
   /** Cuelga del techo: no pisa el suelo (ni colisiona ni hace sombra) y pasa por encima de la gente. */
   overhead?: true;
   /**
@@ -106,8 +112,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Restaurante: mesa con mantel (lo que se pide lo pone world/ServiceView encima) y fogones de dos tiles.
   'dining-table': { key: 'prop-dining-table', tilesHigh: 1 },
   stove: { key: 'prop-stove', tilesHigh: 2, tilesWide: 2 },
-  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 18 }, shadow: [8, 3] },
-  sign: { key: 'prop-sign', tilesHigh: 2 },
+  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 18 }, shadow: [8, 3], post: true },
+  sign: { key: 'prop-sign', tilesHigh: 2, post: true },
   planter: { key: 'prop-planter', tilesHigh: 1 },
   bed: { key: 'prop-bed', tilesHigh: 2 },
   desk: { key: 'prop-desk', tilesHigh: 1 },
@@ -178,9 +184,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'bed-tree': { key: 'prop-bed-tree', tilesHigh: 5, variants: 3, shadow: [30, 5], cast: 16, castBlob: [48, 16] },
   'flower-bed': { key: 'prop-flower-bed', tilesHigh: 1, tilesWide: 2, shadow: [30, 4] },
   'plaza-bench': { key: 'prop-plaza-bench', tilesHigh: 2, tilesWide: 2, shadow: [30, 5], mount: true },
-  'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22 },
+  'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22, post: true },
   // La farola de la Calle del Carmen: la misma, con pegatinas y un cartel pegado en el fuste.
-  'street-lamp-art': { key: 'prop-street-lamp-art', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22 },
+  'street-lamp-art': { key: 'prop-street-lamp-art', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22, post: true },
   'bike-rack': { key: 'prop-bike-rack', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'planter-box': { key: 'prop-planter-box', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'metro-totem': { key: 'prop-metro-totem', tilesHigh: 3, shadow: [8, 3], cast: 18, emissive: 'glow-metro-totem' },
@@ -227,9 +233,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Micromobiliario de la calle: lo coloca systems/Dressing.ts por contexto.
   container: { key: 'prop-container', tilesHigh: 2, variants: 4, shadow: [14, 4] },
   mailbox: { key: 'prop-mailbox', tilesHigh: 2, shadow: [8, 3] },
-  bollard: { key: 'prop-bollard', tilesHigh: 1, shadow: [6, 2] },
-  'parking-sign': { key: 'prop-parking-sign', tilesHigh: 3, shadow: [6, 2] },
-  'street-sign': { key: 'prop-street-sign', tilesHigh: 3, shadow: [6, 2] },
+  bollard: { key: 'prop-bollard', tilesHigh: 1, shadow: [6, 2], post: true },
+  'parking-sign': { key: 'prop-parking-sign', tilesHigh: 3, shadow: [6, 2], post: true },
+  'street-sign': { key: 'prop-street-sign', tilesHigh: 3, shadow: [6, 2], post: true },
   'utility-box': { key: 'prop-utility-box', tilesHigh: 2, shadow: [12, 3] },
   scooter: { key: 'prop-scooter', tilesHigh: 2, variants: 2, shadow: [10, 3] },
   'ad-panel': { key: 'prop-ad-panel', tilesHigh: 3, emissive: 'glow-ad-panel', shadow: [12, 3] },
@@ -237,7 +243,17 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   skip: { key: 'prop-skip', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   debris: { key: 'prop-debris', tilesHigh: 1, flat: true, variants: 3 },
   // Calzada y bordillo: parquímetro junto a los coches aparcados; flechas, parches y rodadas pintados en el asfalto (planos).
-  'parking-meter': { key: 'prop-parking-meter', tilesHigh: 2, shadow: [6, 2] },
+  'parking-meter': { key: 'prop-parking-meter', tilesHigh: 2, shadow: [6, 2], post: true },
+  // Ribera Norte (world/RiverArt): zona deportiva, quiosco de helados y salón recreativo.
+  'pullup-bar': { key: 'prop-pullup-bar', tilesHigh: 3, tilesWide: 2, shadow: [26, 4] },
+  'skate-ramp': { key: 'prop-skate-ramp', tilesHigh: 2, tilesWide: 2, shadow: [26, 3] },
+  'skate-box': { key: 'prop-skate-box', tilesHigh: 1, tilesWide: 2 },
+  'ice-cream-kiosk': { key: 'prop-ice-cream-kiosk', tilesHigh: 2, tilesWide: 2, shadow: [28, 4] },
+  'arcade-cabinet': { key: 'prop-arcade-cabinet', tilesHigh: 2, variants: 3 },
+  'arcade-racing': { key: 'prop-arcade-racing', tilesHigh: 2, variants: 3 },
+  'arcade-claw': { key: 'prop-arcade-claw', tilesHigh: 2, variants: 3 },
+  // Se sube a la plataforma: quien la usa baila encima (data/stations.ts, rhythm).
+  'arcade-rhythm': { key: 'prop-arcade-rhythm', tilesHigh: 2, mount: true },
   'road-arrow-e': { key: 'prop-road-arrow-e', tilesHigh: 1, flat: true },
   'road-arrow-w': { key: 'prop-road-arrow-w', tilesHigh: 1, flat: true },
   'asphalt-patch': { key: 'prop-asphalt-patch', tilesHigh: 1, flat: true, variants: 3 },

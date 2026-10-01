@@ -26,13 +26,14 @@ export interface Appearance {
   /** Prendas puestas (id de data/retail.ts); sin ellas, la ropa de fábrica. */
   top?: string;
   bottom?: string;
+  shoes?: string;
   tattoos?: readonly TattooMark[];
 }
 
 export type AppearanceSlot = keyof Appearance;
 
 /** Huecos que existen hoy: lo que valida una partida guardada y lo que ofrece un servicio de aspecto. */
-export const APPEARANCE_SLOTS: readonly AppearanceSlot[] = ['hair', 'top', 'bottom', 'tattoos'];
+export const APPEARANCE_SLOTS: readonly AppearanceSlot[] = ['hair', 'top', 'bottom', 'shoes', 'tattoos'];
 
 export interface HairDef {
   id: HairStyle;

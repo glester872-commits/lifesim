@@ -36,6 +36,7 @@ export const SERVICE_OFFERS = {
   'shop-retales': { kind: 'retail', store: 'retales', minutes: 15 },
   'shop-archivo': { kind: 'retail', store: 'archivo', minutes: 10 },
   'shop-vuelta': { kind: 'retail', store: 'vuelta', minutes: 20 },
+  'shop-suela': { kind: 'retail', store: 'suela', minutes: 10 },
   'club-bar': { kind: 'activities', title: 'Barra · Sala Órbita', activities: ['club-drink', 'club-water'] },
   'wine-bar': { kind: 'activities', title: 'Barra · La Cepa', activities: ['wine-glass', 'wine-board'] },
 } as const satisfies Record<string, ServiceOffer>;

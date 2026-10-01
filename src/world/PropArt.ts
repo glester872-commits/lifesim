@@ -6,6 +6,7 @@ import { drawVehicle } from './VehicleArt';
 import { buildGymTextures } from './GymArt';
 import { buildSeatTextures } from './SeatArt';
 import { buildDiningTextures } from './DiningArt';
+import { buildRiverTextures } from './RiverArt';
 
 /**
  * Terreno y props del barrio y de los interiores nuevos. Mismo idioma que
@@ -745,6 +746,7 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   buildGymTextures(scene);
   buildSeatTextures(scene);
   buildDiningTextures(scene);
+  buildRiverTextures(scene);
   make(scene, 'prop-floor-lamp', TILE, TILE * 2, drawFloorLamp);
   make(scene, 'prop-display-table', TILE * 2, TILE, drawDisplayTable);
   make(scene, 'prop-window', TILE * 2, TILE, drawWindow);

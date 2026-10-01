@@ -16,7 +16,7 @@ import type { TrafficBand } from './vehicles.ts';
  *   facades            → scripts/check-districts (qué edificios caben en la zona)
  */
 
-export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit';
+export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit' | 'riverside';
 
 /** Estilo de ropa de la gente anónima (NpcLook.style). Sin estilo, 'everyday'. */
 export type LookStyle = 'everyday' | 'smart' | 'street' | 'sport';
@@ -62,6 +62,18 @@ export interface DistrictProfile {
 export type AmbientFx = 'leaf' | 'paper' | 'steam';
 
 export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
+  // Ribera: la luz del agua. Verde azulado en el suelo, cielo algo más frío de día y más cálido y largo al atardecer; la
+  // gente que sale a pasear, correr o jugar. Vivienda moderna, terrazas, ocio y deporte.
+  riverside: {
+    wash: ['#6f9aa8', 0.05],
+    grade: { morning: '#f2f8fb', day: '#fdfefe', sunset: '#ffe9d4', night: '#dfe6f6' },
+    lamp: ['#ffd49c', 1.1],
+    kit: { props: ['planter', 'bush'], on: 'open', every: 10, max: 6 },
+    crowd: { sport: 3, everyday: 2.4, street: 1.3, smart: 1 },
+    vehicles: { all: { casual: 1.8, rental: 1.8, skater: 4, commuter: 0.6 } },
+    facades: ['res-*', 'bar', 'cafe', 'restaurant', 'super', 'arcade', 'sports', 'gym', 'pharmacy', 'coffee', 'backdrop'],
+    ambience: { leaf: 1.6, paper: 0.5, steam: 0.7 },
+  },
   // Calma: color apagado, luz de casa, poco rótulo; lo que hay en la acera es de vecinos.
   residential: {
     wash: ['#a89a88', 0.05],

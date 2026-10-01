@@ -17,7 +17,7 @@ import type { PropKind } from '../types/game.ts';
  */
 
 /** Lo que se le ve hacer mientras lo usa (entities/Character.ts lo anima). */
-export type Motion = 'treadmill' | 'bike' | 'row' | 'bench' | 'squat' | 'curl' | 'cable' | 'stretch' | 'sip';
+export type Motion = 'treadmill' | 'bike' | 'row' | 'bench' | 'squat' | 'curl' | 'cable' | 'stretch' | 'sip' | 'hang' | 'shoot' | 'play' | 'step';
 
 export interface StationDef {
   name: string;
@@ -47,6 +47,12 @@ export const STATIONS = {
   cable: { name: 'Polea', motion: 'cable', minutes: [6, 12], settle: 'idle', sets: STRENGTH },
   stretch: { name: 'Estiramientos', motion: 'stretch', minutes: [5, 12], settle: 'idle' },
   water: { name: 'Fuente de agua', motion: 'sip', minutes: [1, 2], settle: 'idle' },
+  // Al aire libre (data/ribera.ts): dominadas en las barras y tiros en la pista; el mismo movimiento lo ve el jugador y la gente.
+  pullup: { name: 'Barras de dominadas', motion: 'hang', minutes: [6, 14], settle: 'idle', sets: STRENGTH },
+  hoops: { name: 'Canasta', motion: 'shoot', minutes: [12, 28], settle: 'idle' },
+  // Salón recreativo: de pie delante de la máquina, pulsando botones; la de ritmo, con los pies.
+  arcade: { name: 'Recreativa', motion: 'play', minutes: [8, 20], settle: 'idle' },
+  rhythm: { name: 'Máquina de ritmo', motion: 'step', minutes: [6, 12], mount: 'arcade-rhythm', settle: 'idle' },
 } as const satisfies Record<string, StationDef>;
 
 export type StationId = keyof typeof STATIONS;

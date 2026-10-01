@@ -60,6 +60,12 @@ export const CATALOGS: readonly Catalog[] = [
     products: [item('ibuprofen', 'Ibuprofeno 400 mg', 3.2), item('vitamins', 'Vitaminas efervescentes', 6.5), item('water', 'Agua', 1.5)],
   },
   {
+    // Heladería del Muelle: el quiosco de la plaza del metro de la Ribera.
+    id: 'ice-cream-kiosk',
+    greeting: 'Heladería del Muelle. ¿Cucurucho, tarrina o polo?',
+    products: [item('ice-cream', 'Helado de cucurucho', 2.5), item('ice-lolly', 'Polo de limón', 1.5), item('water', 'Agua fría', 1.2)],
+  },
+  {
     // La misma máquina en todas las estaciones.
     id: 'transport-machine',
     greeting: 'Metro · Línea 2. Tarjetas y recargas. El viaje se descuenta al subir al tren.',

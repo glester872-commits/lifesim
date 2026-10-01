@@ -1,6 +1,6 @@
 // Sin Phaser: lo usan scenes/Menus.ts y scripts/check-economy.ts.
 import type { Appearance } from '../data/appearance.ts';
-import { getGarment, getStore, type GarmentDef, type StockLine } from '../data/retail.ts';
+import { getGarment, getStore, type GarmentCategory, type GarmentDef, type StockLine } from '../data/retail.ts';
 import { euros, type Wallet } from './Commerce.ts';
 
 /**
@@ -40,19 +40,25 @@ export interface StockView extends StockLine {
   wearing: boolean;
 }
 
-/** Lo que enseña la tienda a quien entra, con lo que ya tiene y lo que lleva. */
-export function stockOf(storeId: string, wardrobe: readonly string[], current: Appearance): StockView[] {
-  return getStore(storeId).stock.map((line) => {
+/**
+ * Lo que enseña la tienda a quien entra, con lo que ya tiene y lo que lleva.
+ * Un perchero sólo enseña las categorías que le tocan (`only`); sin ellas, todo.
+ */
+export function stockOf(storeId: string, wardrobe: readonly string[], current: Appearance, only?: readonly GarmentCategory[]): StockView[] {
+  return getStore(storeId).stock.flatMap((line) => {
     const def = getGarment(line.garment);
-    return { ...line, def, owned: wardrobe.includes(line.garment), wearing: current[def.slot] === line.garment };
+    if (only && !only.includes(def.category)) return [];
+    return [{ ...line, def, owned: wardrobe.includes(line.garment), wearing: current[def.slot] === line.garment }];
   });
 }
 
 /**
- * Comprar en esta tienda: se paga su precio, entra en el armario y se sale con
- * ella puesta. Una pieza única que ya es tuya no se vuelve a vender.
+ * Comprar en esta tienda: se paga su precio, entra en el armario y, por
+ * defecto, se sale con ella puesta (en el perchero se compra sin ponérsela:
+ * `equip` falso). Una pieza única que ya es tuya no se vuelve a vender, y
+ * nada se cobra dos veces: lo que ya está en el armario se rechaza.
  */
-export function buyGarment(w: Wallet, wardrobe: readonly string[], current: Appearance, storeId: string, garment: string): Purchase {
+export function buyGarment(w: Wallet, wardrobe: readonly string[], current: Appearance, storeId: string, garment: string, equip = true): Purchase {
   const store = getStore(storeId);
   const line = store.stock.find((l) => l.garment === garment);
   const refuse = (message: string): Purchase => ({ ok: false, wallet: w, wardrobe, appearance: current, message });
@@ -64,7 +70,7 @@ export function buyGarment(w: Wallet, wardrobe: readonly string[], current: Appe
     ok: true,
     wallet: { money: Math.round((w.money - line.price) * 100) / 100, inventory: { ...w.inventory }, cards: { ...w.cards } },
     wardrobe: [...wardrobe, garment],
-    appearance: wear(current, garment),
+    appearance: equip ? wear(current, garment) : current,
     message: store.thanks,
   };
 }

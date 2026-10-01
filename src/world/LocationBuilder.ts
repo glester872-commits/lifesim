@@ -11,6 +11,9 @@ import { DISTRICTS } from '../data/districts';
 import { bakeDetail } from './Detail';
 import { HD, hasHD, hdKey, inShowcase } from './HD';
 
+/** Lado en px de la caja de colisión de un poste, al pie de su tile (PropDef.post). */
+const POST_BODY = 6;
+
 export interface BuiltLocation {
   widthPx: number;
   heightPx: number;
@@ -264,7 +267,11 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     });
   }
 
-  for (const r of solidRects(solidMask(def))) addSolid(scene, solids, r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE);
+  // Terreno, edificios y muebles: el tile entero. Los postes (farolas, señales, bolardos): sólo su palo.
+  for (const r of solidRects(solidMask(def, true))) addSolid(scene, solids, r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE);
+  for (const p of def.props) {
+    if (PROPS[p.kind].post) addSolid(scene, solids, p.tx * TILE + (TILE - POST_BODY) / 2, p.ty * TILE + TILE - POST_BODY, POST_BODY, POST_BODY);
+  }
 
   return { widthPx, heightPx, solids, windows, glows };
 }

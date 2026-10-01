@@ -142,6 +142,39 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     effects: { energy: 16 },
     lines: ['Manchego, un azul que pica y un blanco para empezar. Nadie tiene prisa en esta mesa.'],
   },
+  // Salón Recreativo Nova (Ribera Norte): una partida a cambio de unas monedas. Sin premios en dinero ni azar que cobre.
+  {
+    id: 'arcade-fight',
+    name: 'Una partida de lucha (15 min)',
+    minutes: 15,
+    cost: 1.5,
+    effects: { energy: -2 },
+    lines: ['Eliges al luchador de los puños grandes. Pierdes con dignidad en el segundo asalto y ganas la revancha por un pixel.', 'Te zumban los dedos de los botones.'],
+  },
+  {
+    id: 'arcade-race',
+    name: 'Carreras (15 min)',
+    minutes: 15,
+    cost: 1.5,
+    effects: { energy: -2 },
+    lines: ['Curva cerrada, derrape y un muro que no estaba ahí. A la tercera vuelta te sabes el circuito de memoria.', 'Acabas cuarto de ocho. Contra la máquina.'],
+  },
+  {
+    id: 'arcade-rhythm',
+    name: 'Máquina de ritmo (10 min)',
+    minutes: 10,
+    cost: 2,
+    effects: { energy: -6 },
+    lines: ['Las flechas bajan más rápido de lo que piensas. Te sale una canción entera sin pisar mal más de veinte veces.', 'Acabas sudando y con una sonrisa bastante tonta.'],
+  },
+  {
+    id: 'arcade-claw',
+    name: 'Las pinzas (5 min)',
+    minutes: 5,
+    cost: 1,
+    effects: {},
+    lines: ['La pinza baja, agarra al peluche por una oreja y lo suelta a medio camino. Casi.', 'Es la tercera vez que es «casi». Sabes perfectamente lo que haces.'],
+  },
 ];
 
 export const OFF_MAP_PLACES: readonly OffMapPlace[] = [

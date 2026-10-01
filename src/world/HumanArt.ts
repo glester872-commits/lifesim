@@ -616,11 +616,11 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
   }
   if (style === 'afro') {
     // Volumen redondo alrededor de la cabeza; la cara queda al aire.
-    px(ctx, hair, 4, b - 1, 8, 1);
-    px(ctx, hair, 3, b, 10, 3);
+    crown(ctx, hair, 4, b - 1, 8, 1);
+    crown(ctx, hair, 3, b, 10, 3);
     px(ctx, hair, 2, 1 + b, 2, 6);
     px(ctx, hair, 12, 1 + b, 2, 6);
-    px(ctx, lit, 4, b, 3, 1);
+    crown(ctx, lit, 4, b, 3, 1);
     if (back) px(ctx, hair, 3, 3 + b, 10, 6);
     hat(ctx, back, b, c);
     return;
@@ -659,12 +659,12 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
   } else if (style === 'curly') {
     px(ctx, hair, 3, 2 + b, 1, 4);
     px(ctx, hair, 12, 2 + b, 1, 4);
-    px(ctx, hair, 5, b, 1, 1);
-    px(ctx, hair, 8, b, 2, 1);
+    crown(ctx, hair, 5, b, 1, 1);
+    crown(ctx, hair, 8, b, 2, 1);
     px(ctx, lit, 9, 1 + b, 1, 1);
   } else if (style === 'bun') {
-    px(ctx, hair, 6, b - 1, 4, 2);
-    px(ctx, lit, 6, b - 1, 2, 1);
+    crown(ctx, hair, 6, b - 1, 4, 2);
+    crown(ctx, lit, 6, b - 1, 2, 1);
   } else if (style === 'bob') {
     px(ctx, hair, 3, 3 + b, 1, 6);
     px(ctx, hair, 12, 3 + b, 1, 6);
@@ -742,10 +742,10 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, hair, 5, 4 + b, 2, 2);
     px(ctx, shade(c.skin, 0.1), 7, 2 + b, 2, 1);
   } else if (style === 'afro') {
-    px(ctx, hair, 4, b - 1, 8, 1);
-    px(ctx, hair, 3, b, 9, 3);
+    crown(ctx, hair, 4, b - 1, 8, 1);
+    crown(ctx, hair, 3, b, 9, 3);
     px(ctx, hair, 2, 1 + b, 4, 7);
-    px(ctx, shade(hair, 0.1), 5, b, 3, 1);
+    crown(ctx, shade(hair, 0.1), 5, b, 3, 1);
   } else {
     px(ctx, hair, 5, 1 + b, 6, 1);
     px(ctx, hair, 4, 2 + b, 8, 2);
@@ -894,4 +894,15 @@ function outline(ctx: Ctx): void {
     d[i + 3] = 235;
   }
   ctx.putImageData(img, 0, 0);
+}
+
+/**
+ * Copa de un peinado alto (afro, moño, rizos): nunca por encima de la fila 1.
+ * La fila 0 no tiene dónde pintar el contorno y la -1 queda fuera del lienzo
+ * de 16×24, así que se recortaba la copa. Se baja el borde de arriba y la base
+ * del volumen se queda donde estaba.
+ */
+function crown(ctx: Ctx, color: string, x: number, y: number, w: number, h: number): void {
+  const top = Math.max(1, y);
+  if (h - (top - y) > 0) px(ctx, color, x, top, w, h - (top - y));
 }

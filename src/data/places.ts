@@ -94,4 +94,21 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'bus-stop', name: 'Parada de la avenida', type: 'transit', tags: ['transit'], anchors: ['BUS_STOP'], capacity: 8 },
   { id: 'plaza', name: 'Plaza de la Fuente', type: 'public', tags: ['social', 'outdoor'], anchors: ['PLAZA_FOUNTAIN', 'PLAZA_BENCH_01', 'PLAZA_BENCH_02', 'PLAZA_BENCH_03', 'PLAZA_BENCH_04', 'NEWS_KIOSK'], capacity: 30 },
   { id: 'park', name: 'Parque del Olmo', type: 'public', tags: ['social', 'sport', 'outdoor'], anchors: ['PARK_BENCH_01', 'PARK_BENCH_02', 'PARK_COURT'], capacity: 25 },
+
+  // Ribera Norte: el barrio del canal. Vivienda moderna arriba, ocio, terrazas y deporte abajo.
+  { id: 'res-ribera-1', name: 'Ribera 1', type: 'residence', tags: ['home'], building: 'ribera-res-1', capacity: 14 },
+  { id: 'res-ribera-2', name: 'Ribera 2', type: 'residence', tags: ['home'], building: 'ribera-res-2', capacity: 14 },
+  { id: 'bar-ribera', name: 'Bar Ribera', type: 'business', tags: ['food', 'social', 'nightlife', WORK], building: 'bar-door', anchors: ['RB_BAR_TERRACE_01', 'RB_BAR_TERRACE_02'], capacity: 16, hours: [11, 2] },
+  {
+    id: 'arcade', name: 'Salón Recreativo Nova', type: 'business', tags: ['leisure', 'social', 'game', WORK], building: 'ribera-arcade', capacity: 22, hours: [12, 24],
+    why: 'Echar unas partidas: lucha, carreras, ritmo y pinzas, a unas monedas la partida. Sin premios en dinero.',
+  },
+  { id: 'colmado', name: 'Colmado Ribera', type: 'business', tags: ['shop', 'food', WORK], building: 'ribera-colmado', capacity: 6, hours: [8, 24] },
+  { id: 'sports-store', name: 'Ribera Sport', type: 'business', tags: ['shop', 'sport', WORK], building: 'ribera-sports', capacity: 8, hours: [10, 21], days: [0, 1, 2, 3, 4, 5] },
+  { id: 'cafe-rio', name: 'Café del Río', type: 'business', tags: ['food', 'social', WORK], building: 'ribera-cafe', anchors: ['RB_CAFE_TERRACE_01', 'RB_CAFE_TERRACE_02'], capacity: 12, hours: [8, 22] },
+  { id: 'casa-mar', name: 'Casa Mar', type: 'business', tags: ['food', 'social', WORK], building: 'ribera-casamar', anchors: ['RB_CASAMAR_TERRACE_01', 'RB_CASAMAR_TERRACE_02'], capacity: 18, hours: [12, 24] },
+  { id: 'heladeria', name: 'Heladería del Muelle', type: 'business', tags: ['food', 'shop'], anchors: ['RB_ICE_CREAM_01', 'RB_ICE_CREAM_02'], capacity: 6, hours: [11, 23] },
+  { id: 'metro-ribera', name: 'Metro · Ribera Norte', type: 'transit', tags: ['transit'], anchors: ['RB_METRO_FRONT'], capacity: 40 },
+  { id: 'paseo-ribera', name: 'Paseo de la Ribera', type: 'public', tags: ['social', 'sport', 'outdoor'], anchors: ['RB_BENCH_01', 'RB_BENCH_02', 'RB_BENCH_03', 'RB_BENCH_04', 'RB_BENCH_05', 'RB_BENCH_06', 'RB_BENCH_07', 'RB_BENCH_08', 'RB_BENCH_09', 'RB_BENCH_10', 'RB_VIEW_01', 'RB_VIEW_02', 'RB_VIEW_03', 'RB_VIEW_04', 'RB_SKATE_WATCH_01', 'RB_SKATE_WATCH_02'], capacity: 60 },
+  { id: 'zona-deportiva', name: 'Pista y calistenia', type: 'public', tags: ['sport', 'social', 'outdoor'], anchors: ['HOOPS_01', 'HOOPS_02', 'HOOPS_03', 'HOOPS_04', 'PULLUP_01', 'PULLUP_02', 'PULLUP_03', 'PULLUP_04', 'CALI_MAT_01', 'CALI_MAT_02', 'RB_COURT_REST_01', 'RB_COURT_REST_02'], capacity: 24 },
 ];

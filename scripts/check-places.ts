@@ -7,7 +7,7 @@ import { POPULATION_PROFILES } from '../src/data/population.ts';
 import { CATALOGS, getCatalog } from '../src/data/catalogs.ts';
 import { getActivity } from '../src/data/activities.ts';
 import { getItem } from '../src/data/items.ts';
-import { VALLESCO } from '../src/data/vallesco.ts';
+import { LOCATIONS } from '../src/data/locations.ts';
 import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
 import { PROPS } from '../src/world/tiles.ts';
 import { getOffer } from '../src/data/services.ts';
@@ -39,7 +39,7 @@ const usable = (walk: Set<string>, tx: number, ty: number): boolean =>
   [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => walk.has(`${tx + dx},${ty + dy}`));
 
 const interiorOf = (buildingId: string | undefined): LocationDef | undefined => {
-  const building = VALLESCO.buildings?.find((b) => b.id === buildingId);
+  const building = LOCATIONS.flatMap((loc) => loc.buildings ?? []).find((b) => b.id === buildingId);
   return building?.enter ? getLocation(building.enter.location) : undefined;
 };
 

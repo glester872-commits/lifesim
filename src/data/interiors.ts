@@ -222,6 +222,12 @@ export const FASHION: LocationDef = {
   inspects: [
     { tx: 2, ty: 9, name: 'Escaparate', lines: ['Un abrigo de lana que cuesta lo que una semana de alquiler.'] },
   ],
+  racks: [
+    { tx: 7, ty: 5, name: 'Perchero de abrigos', store: 'hilo', categories: ['chaqueta'] },
+    { tx: 11, ty: 5, name: 'Camisas y camisetas', store: 'hilo', categories: ['camisa', 'camiseta'] },
+    { tx: 7, ty: 9, name: 'Pantalones', store: 'hilo', categories: ['pantalon', 'vaquero'] },
+    { tx: 11, ty: 9, name: 'Novedades', store: 'hilo' },
+  ],
   points: {
     CLOTHING_STORE_EXIT: p(9, 10, 'exit', 'up'),
     CLOTHING_STORE_TILL: p(16, 6, 'interact', 'up'),
@@ -629,6 +635,12 @@ export const RETALES: LocationDef = {
   ...exitTo('carmen-retales', 8, 11),
   npcs: [],
   inspects: [{ tx: 1, ty: 7, name: 'Maniquí', lines: ['Un traje de chaqueta de los ochenta con hombreras de verdad. No está a la venta: es de Gus.'] }],
+  racks: [
+    { tx: 3, ty: 5, name: 'Chaquetas y jerséis', store: 'retales', categories: ['chaqueta', 'sudadera'] },
+    { tx: 9, ty: 4, name: 'Camisas', store: 'retales', categories: ['camisa', 'camiseta'] },
+    { tx: 3, ty: 8, name: 'Pantalones', store: 'retales', categories: ['pantalon', 'vaquero'] },
+    { tx: 7, ty: 5, name: 'Mesa de piezas', store: 'retales' },
+  ],
   points: {
     RETALES_EXIT: p(8, 8, 'exit', 'up'),
     RETALES_STAFF: p(12, 6, 'work', 'down'),
@@ -666,6 +678,11 @@ export const ARCHIVO: LocationDef = {
   ...exitTo('carmen-archivo', 8, 11),
   npcs: [],
   inspects: [{ tx: 5, ty: 2, name: 'Pared de zapatillas', lines: ['Las de arriba no tienen precio. Si preguntas, es que no son para ti.'] }],
+  racks: [
+    { tx: 3, ty: 5, name: 'Sudaderas y chaquetas', store: 'archivo', categories: ['sudadera', 'chaqueta'] },
+    { tx: 10, ty: 5, name: 'Camisetas', store: 'archivo', categories: ['camiseta'] },
+    { tx: 3, ty: 8, name: 'Pantalones', store: 'archivo', categories: ['pantalon'] },
+  ],
   points: {
     ARCHIVO_EXIT: p(8, 8, 'exit', 'up'),
     ARCHIVO_STAFF: p(12, 6, 'work', 'down'),
@@ -702,6 +719,11 @@ export const VUELTA: LocationDef = {
   ...exitTo('carmen-vuelta', 8, 11),
   npcs: [],
   inspects: [{ tx: 6, ty: 2, name: 'Pizarra', lines: ['«Al peso: 12 € el kilo. Por prenda: lo que diga la etiqueta. Lo que no se vende, se dona.»'] }],
+  racks: [
+    { tx: 3, ty: 5, name: 'Cajón de camisetas', store: 'vuelta', categories: ['camiseta'] },
+    { tx: 3, ty: 8, name: 'Cajón de pantalones', store: 'vuelta', categories: ['pantalon', 'vaquero'] },
+    { tx: 9, ty: 4, name: 'Perchero de camisas', store: 'vuelta', categories: ['camisa', 'chaqueta'] },
+  ],
   points: {
     VUELTA_EXIT: p(8, 8, 'exit', 'up'),
     VUELTA_STAFF: p(12, 6, 'work', 'down'),
@@ -714,6 +736,45 @@ export const VUELTA: LocationDef = {
     VUELTA_RACK_02: p(12, 4, 'interact', 'up'),
     VUELTA_FITTING_01: p(1, 4, 'interact', 'up'),
     VUELTA_FLOOR_01: p(7, 6, 'work'),
+  },
+};
+
+/** Suela: zapatillas de calle y de colección. Paredes de calzado, vitrina de ediciones y luz cálida de escaparate. */
+export const SUELA: LocationDef = {
+  id: 'suela',
+  name: 'Suela · zapatillas',
+  kind: 'interior',
+  ground: room(16, 11, 8, (x, y) => (y >= 5 && y <= 7 && x >= 3 && x <= 10 ? 'r' : 't')),
+  props: [
+    ...many('sneaker-wall', [[2, 1], [5, 1], [8, 1], [11, 1]]),
+    at('neon', 14, 1),
+    ...many('display-table', [[4, 5], [9, 5]]),
+    ...many('counter', [[13, 6], [14, 6]]),
+    at('register', 14, 6),
+    at('plant', 14, 8),
+    ...many('tube-light', [[3, 4], [10, 4]]),
+  ],
+  ambient: '#fff0dc',
+  ...exitTo('carmen-suela', 8, 11),
+  npcs: [],
+  inspects: [{ tx: 6, ty: 3, name: 'Pizarra', lines: ['«Sorteo el sábado. No se reserva.»'] }],
+  racks: [
+    { tx: 2, ty: 2, name: 'Pared de zapatillas', store: 'suela', categories: ['zapatillas'] },
+    { tx: 8, ty: 2, name: 'Estante de calzado', store: 'suela', categories: ['zapatos'] },
+    { tx: 4, ty: 6, name: 'Vitrina de ediciones', store: 'suela' },
+  ],
+  points: {
+    SUELA_EXIT: p(8, 8, 'exit', 'up'),
+    SUELA_STAFF: p(12, 6, 'work', 'down'),
+    SUELA_TILL: p(12, 7, 'interact', 'up'),
+    SUELA_QUEUE_01: p(11, 8, 'wait', 'up'),
+    SUELA_WALL_01: p(2, 2, 'interact', 'up'),
+    SUELA_WALL_02: p(5, 2, 'interact', 'up'),
+    SUELA_WALL_03: p(8, 2, 'interact', 'up'),
+    SUELA_WALL_04: p(11, 2, 'interact', 'up'),
+    SUELA_TABLE_01: p(4, 6, 'interact', 'up'),
+    SUELA_TABLE_02: p(9, 6, 'interact', 'up'),
+    SUELA_FLOOR_01: p(7, 7, 'work'),
   },
 };
 
@@ -796,5 +857,76 @@ export const MOLINILLO: LocationDef = {
     MOLINILLO_COUNTER: p(3, 5, 'interact', 'up'),
     MOLINILLO_QUEUE_01: p(4, 6, 'wait', 'up'),
     ...MOLINILLO_SEATS,
+  },
+};
+
+// ------------------------------------------------------ salón recreativo
+
+/**
+ * Salón Recreativo Nova (Ribera Norte): luz de neón sobre suelo oscuro y una fila de máquinas contra la pared del
+ * fondo —lucha, carreras y las pinzas—, dos de ritmo en medio y los sofás de quien espera turno. Quien juega se
+ * pone de pie delante de la máquina (puesto 'arcade') o encima de la plataforma ('rhythm'); quien espera, detrás.
+ * El jugador echa una partida en cada máquina por unas monedas (data/activities.ts, 'arcade-*'): fichas por
+ * partida y nada más, sin premios en dinero.
+ */
+const ARCADE_FIGHT_X = [2, 3, 4, 5, 6] as const;
+const ARCADE_RACE_X = [9, 10, 11, 12] as const;
+const ARCADE_CLAW_X = [15, 16, 17] as const;
+
+export const ARCADE: LocationDef = {
+  id: 'arcade',
+  name: 'Salón Recreativo Nova',
+  kind: 'interior',
+  ground: room(20, 14, 10, (_x, y) => (y >= 10 ? 't' : 'n')),
+  props: [
+    ...ARCADE_FIGHT_X.map((x) => at('arcade-cabinet', x, 2)),
+    ...ARCADE_RACE_X.map((x) => at('arcade-racing', x, 2)),
+    ...ARCADE_CLAW_X.map((x) => at('arcade-claw', x, 2)),
+    at('neon', 7, 1),
+    ...many('arcade-rhythm', [[3, 8], [6, 8]]),
+    // Los sofás de quien espera turno, mirando a la sala.
+    ...many('sofa', [[14, 6], [17, 6]]),
+    // El mostrador de las fichas.
+    ...many('counter', [[15, 10], [16, 10], [17, 10]]),
+    at('register', 17, 10),
+    ...many('plant', [[1, 11], [18, 2]]),
+  ],
+  ambient: '#d2c6ff',
+  ...exitTo('ribera-arcade', 10, 14),
+  // La puerta da a la calle de la Ribera, no al barrio de siempre.
+  portals: [{ id: 'exit', tx: 10, ty: 12, label: 'Salir a la calle', to: { location: 'ribera', spawn: 'ribera-arcade' } }],
+  // Nadie colocado a mano: la gente la pone data/population.ts según la hora.
+  npcs: [],
+  spots: [
+    { tx: 4, ty: 3, name: 'Máquina de lucha', activities: ['arcade-fight'] },
+    { tx: 10, ty: 3, name: 'Máquina de carreras', activities: ['arcade-race'] },
+    { tx: 16, ty: 3, name: 'Máquina de las pinzas', activities: ['arcade-claw'] },
+    { tx: 3, ty: 9, name: 'Máquina de ritmo', activities: ['arcade-rhythm'] },
+  ],
+  points: {
+    ARCADE_EXIT: p(10, 11, 'exit', 'up'),
+    ARCADE_STAFF: p(16, 9, 'work', 'down'),
+    ARCADE_TILL: p(16, 11, 'interact', 'up'),
+    ...Object.fromEntries(ARCADE_FIGHT_X.map((x, i) => [`ARCADE_FIGHT_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
+    ...Object.fromEntries(ARCADE_RACE_X.map((x, i) => [`ARCADE_RACE_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
+    ...Object.fromEntries(ARCADE_CLAW_X.map((x, i) => [`ARCADE_CLAW_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
+    ARCADE_RHYTHM_01: use(3, 8, 'rhythm', 'up'),
+    ARCADE_RHYTHM_02: use(6, 8, 'rhythm', 'up'),
+    // Detrás de quien juega, esperando turno o mirando por encima del hombro.
+    ARCADE_WAIT_01: p(3, 5, 'wait', 'up'),
+    ARCADE_WAIT_02: p(5, 5, 'wait', 'up'),
+    ARCADE_WAIT_03: p(10, 5, 'wait', 'up'),
+    ARCADE_WAIT_04: p(12, 5, 'wait', 'up'),
+    ARCADE_WAIT_05: p(16, 5, 'wait', 'up'),
+    // Los sofás: dos plazas cada uno.
+    ARCADE_SEAT_01: p(14, 6, 'seat', 'down'),
+    ARCADE_SEAT_02: p(15, 6, 'seat', 'down'),
+    ARCADE_SEAT_03: p(17, 6, 'seat', 'down'),
+    ARCADE_SEAT_04: p(18, 6, 'seat', 'down'),
+    // Un rato de charla en medio de la sala.
+    ARCADE_CHAT_01: p(9, 7, 'meet', 'right'),
+    ARCADE_CHAT_02: p(10, 7, 'meet', 'left'),
+    ARCADE_FLOOR_01: p(8, 6, 'work'),
+    ARCADE_FLOOR_02: p(12, 8, 'work'),
   },
 };

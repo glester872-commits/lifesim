@@ -316,6 +316,8 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   // Tiendas de la Calle del Carmen: cada una con su gente detrás de la caja.
   { id: 'uniforme-archivo', cloth: '#e6e0d4', clothDark: '#c4bdb0', hair: '#1f1a15', trousers: '#2b2d33', cap: '#232329' },
   { id: 'uniforme-vuelta', cloth: '#4f7d3a', clothDark: '#3b5e2b', hair: '#6b5a3f', trousers: '#4f6a8c' },
+  // Salón Recreativo Nova: camiseta violeta con el neón del local.
+  { id: 'uniforme-arcade', cloth: '#5a3f9a', clothDark: '#42306f', hair: '#2a2830', trousers: '#232329' },
 ];
 
 /**

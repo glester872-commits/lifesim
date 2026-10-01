@@ -50,6 +50,7 @@ export function withAppearance(base: HumanColors, changes: Appearance | undefine
     out.trousers = getGarment(changes.bottom).color;
     out.spots = undefined;
   }
+  if (changes.shoes) out.shoes = getGarment(changes.shoes).color;
   const ink = visibleTattoos(base, changes);
   if (ink.length > 0) out.ink = ink;
   return out;

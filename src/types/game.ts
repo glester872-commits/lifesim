@@ -169,6 +169,15 @@ export type PropKind =
   | 'bed-tree'
   | 'flower-bed'
   | 'parking-meter'
+  // Ribera Norte (world/RiverArt): zona deportiva, quiosco de helados y salón recreativo.
+  | 'pullup-bar'
+  | 'skate-ramp'
+  | 'skate-box'
+  | 'ice-cream-kiosk'
+  | 'arcade-cabinet'
+  | 'arcade-racing'
+  | 'arcade-claw'
+  | 'arcade-rhythm'
   | 'road-arrow-e'
   | 'road-arrow-w'
   | 'asphalt-patch'
@@ -232,6 +241,7 @@ export type BuildingStyle =
   | 'res-brick'
   | 'res-stone'
   | 'res-plaster'
+  | 'res-modern'
   | 'metro'
   | 'gym'
   | 'cafe'
@@ -262,6 +272,9 @@ export type BuildingStyle =
   | 'sneaker'
   | 'piercing'
   | 'bar'
+  // Ribera Norte: el salón recreativo y la tienda de deportes.
+  | 'arcade'
+  | 'sports'
   | 'backdrop';
 
 /**
@@ -323,6 +336,19 @@ export interface InspectDef {
   ty: number;
   name: string;
   lines: readonly string[];
+}
+
+/**
+ * Un perchero, una pared o una mesa de una tienda de ropa (data/retail.ts): con E
+ * se mira lo que cuelga, se prueba y se compra. `tx`/`ty` es el sitio donde se
+ * está de pie. Sin `categories`, enseña todo el género de la tienda.
+ */
+export interface RackDef {
+  tx: number;
+  ty: number;
+  name: string;
+  store: string;
+  categories?: readonly import('../data/retail').GarmentCategory[];
 }
 
 /**
@@ -418,6 +444,10 @@ export interface LocationDef {
   /** Grafo de peatones: tramos rectos y libres entre dos puntos. */
   links?: readonly (readonly [string, string])[];
   inspects?: readonly InspectDef[];
+  /** Percheros de una tienda de ropa donde se ve, se prueba y se compra. */
+  racks?: readonly RackDef[];
+  /** Zona de skate de una calle: unos patinadores ruedan de un lado a otro de la franja `row`, de `tx0` a `tx1` (world/SkateParkView). */
+  skate?: { tx0: number; tx1: number; row: number; riders?: number };
   traffic?: TrafficDef;
   /** Pasos de peatones con semáforo (systems/Signals.ts): los respetan peatones, personajes y coches. */
   signals?: readonly SignalDef[];

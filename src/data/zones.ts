@@ -207,4 +207,44 @@ export const ZONES: readonly ZoneDef[] = [
     events: { 'patio-mayor': 1 },
     tags: ['hidden', 'night'],
   },
+  // Ribera Norte (data/ribera.ts): el paseo, la plaza del metro, la pista y las terrazas de la calle.
+  {
+    id: 'ribera-paseo', name: 'Paseo de la Ribera', type: 'park', location: 'ribera', districtId: 'ribera',
+    rects: [{ tx: 0, ty: 22, w: 40, h: 3 }],
+    population: {
+      label: 'paseantes, corredores, perros, parejas y gente sentada junto al agua',
+      roles: { jogger: 1.2, 'dog-walker': 1.3, 'riverside-walk': 1.4, 'couple-walk': 1.5, 'river-bench': 1.3, 'river-view': 1.5, 'skate-watch': 1.3, tourist: 1.2 },
+    },
+    // Por la mañana, corredores; por la tarde se llena y de siete a once de la noche es lo más animado del barrio.
+    activity: { bands: [[6.5, 9.5, 1.1], [9.5, 12, 0.7], [12, 17, 0.9], [17, 19, 1.5], [19, 22.5, 2], [22.5, 24, 0.6]], rest: 0.1, weekend: 1.4, days: { 6: 1.2 }, outdoor: 1, variation: 0.15 },
+    traffic: { vehicles: 0, bikes: 1.5, deliveries: 0 },
+    ambience: 'riverside',
+    tags: ['outdoor', 'water', 'promenade'],
+  },
+  {
+    id: 'ribera-plaza', name: 'Plaza del Metro', type: 'plaza', location: 'ribera', districtId: 'ribera',
+    rects: [{ tx: 15, ty: 15, w: 10, h: 5 }],
+    population: { label: 'gente que sale del metro, helados, quedadas', roles: { 'ice-cream': 1.5, 'metro-meet': 1.2, 'metro-arrival': 1.2 } },
+    activity: { bands: [[7, 10, 1.2], [10, 16, 0.8], [16, 22, 1.4], [22, 24, 0.5]], rest: 0.15, weekend: 1.3, outdoor: 0.9, variation: 0.15 },
+    ambience: 'transit',
+    tags: ['outdoor', 'metro'],
+  },
+  {
+    id: 'ribera-deporte', name: 'Pista y calistenia', type: 'gym_area', location: 'ribera', districtId: 'ribera',
+    rects: [{ tx: 26, ty: 15, w: 12, h: 5 }],
+    population: { label: 'baloncesto, dominadas, estiramientos y gente mirando', roles: { hoops: 1.5, calisthenics: 1.4, 'cali-stretch': 1.2, 'court-watch': 1.2 } },
+    activity: { bands: [[7, 10, 1], [10, 16, 0.7], [16, 20.5, 1.7], [20.5, 22, 0.7]], rest: 0.1, weekend: 1.4, outdoor: 0.9, variation: 0.2 },
+    hours: [7, 22],
+    ambience: 'park',
+    tags: ['outdoor', 'sport'],
+  },
+  {
+    id: 'ribera-terrazas', name: 'Terrazas de la Ribera', type: 'restaurant_area', location: 'ribera', districtId: 'ribera',
+    rects: [{ tx: 1, ty: 9, w: 38, h: 6 }],
+    population: { label: 'terrazas, cenas, copas y quien pasea entre mesas', roles: { 'terrace-cafe': 1.3, 'terrace-meal': 1.5, 'bar-terrace': 1.5, 'bar-night': 1.2 } },
+    // Las terrazas se activan al atardecer: la hora de la cena y de la copa es la fuerte.
+    activity: { bands: [[9, 12, 0.8], [12, 15.5, 1.2], [15.5, 19, 0.8], [19, 23.5, 1.9], [23.5, 25, 0.6]], rest: 0.15, weekend: 1.3, outdoor: 0.8, variation: 0.2 },
+    ambience: 'riverside',
+    tags: ['outdoor', 'food'],
+  },
 ];

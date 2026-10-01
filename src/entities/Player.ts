@@ -262,6 +262,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         over = 'fx-barbell';
         barY = BENCH_BAR[half];
       }
+      if (tr.motion === 'shoot') {
+        over = 'fx-ball';
+        barY = half ? 12 : -4;
+      }
     } else if (tr.motion === 'stretch') {
       // Estirando en el suelo, respirando; de vez en cuando suelta el estiramiento.
       this.anims.stop();

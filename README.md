@@ -10,8 +10,9 @@ de estudios; si quieres descansar, vuelves a casa; si quieres cambiar de barrio,
 bajas al metro y pagas el billete.
 
 Dos distritos conectados por la Línea 2: **Vallesco**, el primer barrio completo, y
-**Ribera Norte** (barrio viejo junto al canal, con plaza de mercado y un bar con
-mesas fuera). En Vallesco se puede pasar un día entero: tu piso, el metro, un
+**Ribera Norte** (el barrio del canal: paseo junto al agua con carril bici, viviendas
+modernas, terrazas, una pista de baloncesto, calistenia, zona de skate, un quiosco de
+helados y un salón recreativo; más gente por la tarde y al anochecer). En Vallesco se puede pasar un día entero: tu piso, el metro, un
 gimnasio, la cafetería, una tienda de ropa, un súper, un restaurante y una planta
 de oficinas, rodeados de comercios y bloques de vecinos. Al este, la **Calle del
 Carmen**: ropa vintage, de archivo y de segunda mano, un estudio de tatuaje y un
@@ -607,8 +608,12 @@ Conocidas y deliberadas:
   por el color y el sitio, no por el dibujo. Pecho, espalda y gemelo nunca se ven
   porque no existe ropa que los deje al aire (ni pantalón corto ni ir sin
   camiseta); la regla ya lo contempla. No se borran ni se retocan.
-- **La calle sólo tiene gente en Vallesco.** Ribera Norte no tiene perfil en
-  `data/streets.ts` todavía. El metro circula las 24 horas; cerrarlo de
+- **La Ribera Norte tiene vida de calle, pero no tiene a Vallesco dentro.** Su perfil
+  (`data/streets.ts`, `ribera`) mueve a gente por el paseo, la pista, las barras, los
+  helados, las terrazas y el salón recreativo (`scripts/check-ribera.ts` lo simula);
+  la gente no cambia de barrio por su cuenta: a Ribera se llega en metro. Los
+  patinadores de la zona de skate dan vueltas (`world/SkateParkView.ts`) pero no son
+  gente de verdad: no hablan ni se pueden parar. El metro circula las 24 horas; cerrarlo de
   madrugada cambiaría cómo vuelve el jugador a casa, y no está decidido.
 - **Las rutinas no dependen aún de la relación con el jugador.** No existen
   relaciones ni memoria de los personajes; cuando existan, `routineFor()` es el
