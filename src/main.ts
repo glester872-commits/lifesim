@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PROTOTYPE_SESSION } from './config/prototype';
 import './style.css';
 import { PALETTE } from './config/constants';
 import { createInitialState, GameState } from './state/GameState';
@@ -214,5 +215,6 @@ if (import.meta.env.DEV) {
 }
 
 window.addEventListener('beforeunload', () => {
-  save.save(state.snapshot);
+  // El prototipo (?proto) no guarda: config/prototype.ts.
+  if (!PROTOTYPE_SESSION) save.save(state.snapshot);
 });

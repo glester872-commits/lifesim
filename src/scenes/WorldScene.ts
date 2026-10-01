@@ -19,7 +19,8 @@ import { doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/Locatio
 import { Ambience } from '../world/Ambience';
 import { Traffic } from '../systems/Traffic';
 import { withDistrictLanes } from '../systems/Districts';
-import { TrafficView } from '../world/TrafficView';
+import { HD_ART, TrafficView } from '../world/TrafficView';
+import { HD_VEHICLES } from '../world/HdVehicles';
 import { CyclistView } from '../world/CyclistView';
 import { VEHICLES, type VehicleType } from '../data/vehicles';
 import { BIKES, type BikeType } from '../data/bikes';
@@ -52,6 +53,8 @@ import { WeatherView } from '../world/WeatherView';
 import { characterLook, umbrellaFor } from '../world/WeatherLooks';
 import { hashSeed } from '../systems/MetroDaily';
 import { Atmosphere } from '../world/Atmosphere';
+import { setHdPeople } from '../world/HdPeople';
+import { PROTOTYPE_SESSION } from '../config/prototype';
 import { StreetEventView } from '../world/StreetEventView';
 import { STREET_EVENTS } from '../data/streetEvents';
 import { Occlusion } from '../world/Occlusion';
@@ -161,6 +164,8 @@ export class WorldScene extends Phaser.Scene {
   private signals: SignalView | null = null;
   /** Lluvia, charcos y vaho: sólo fuera. */
   private weatherView: WeatherView | null = null;
+  /** Encuadre propio del sitio (LocationDef.view): el prototipo HD se mira más de cerca. */
+  private view: readonly [number, number] | null = null;
   private atmosphere: Atmosphere | null = null;
   private streetEvents: StreetEventView[] = [];
   private ringBodies: Phaser.GameObjects.Zone[] = [];
@@ -199,6 +204,9 @@ export class WorldScene extends Phaser.Scene {
   create(data: WorldSceneData): void {
     const { state, clock, dialogue } = this.services;
     const def = getLocation(data.locationId);
+    // Arte HD (LocationDef.art): las personas que se creen desde aquí se pintan con world/HdPeople.
+    setHdPeople(def.art === 'hd');
+    this.view = def.view ?? null;
     const built = buildLocation(this, def);
 
     this.leaving = false;
@@ -340,9 +348,10 @@ export class WorldScene extends Phaser.Scene {
     // La hora con la fracción del minuto en curso: los semáforos cambian a su segundo, no a saltos de minuto.
     this.ambience = new Ambience(this, def, () => this.pedestrians);
     const hour = (): number => this.services.clock.minuteOfDay / 60;
-    this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx) : null;
+    // Visual V3: los mismos tipos a la escala de su gente (world/HdVehicles), y su arte.
+    this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), def.art === 'hd' ? HD_VEHICLES : VEHICLES, def.signals ?? [], built.widthPx) : null;
     this.traffic?.populate(this.trafficClock());
-    this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour, () => weatherAt(state.day, hour()).wet) : null;
+    this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour, () => weatherAt(state.day, hour()).wet, def.art === 'hd' ? HD_ART : undefined) : null;
     this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx) : null;
     this.bikes?.populate(this.trafficClock());
     this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
@@ -571,8 +580,10 @@ export class WorldScene extends Phaser.Scene {
     // En vertical el encuadre gira: el lado largo de la pantalla lleva el lado
     // largo del encuadre. Si no, un móvil de pie ve el triple de mundo y la gente sale diminuta.
     const [long, short] = width >= height ? [width, height] : [height, width];
-    // A medios pasos: entre 3 y 4 hay un 3,5 (ver VIEW_WIDTH).
-    const zoom = Phaser.Math.Clamp(Math.round(Math.min(long / VIEW_WIDTH, short / VIEW_HEIGHT) * 2) / 2, CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+    const [vw, vh] = this.view ?? [VIEW_WIDTH, VIEW_HEIGHT];
+    // A medios pasos: entre 3 y 4 hay un 3,5 (ver VIEW_WIDTH). Con arte HD (texturas 4× filtradas), cualquier zoom vale.
+    const fit = Math.min(long / vw, short / vh);
+    const zoom = Phaser.Math.Clamp(this.view ? fit : Math.round(fit * 2) / 2, CAMERA_ZOOM, MAX_CAMERA_ZOOM);
     camera.setZoom(zoom);
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);
@@ -1169,6 +1180,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private persist(): void {
+    // Mirando el prototipo (?proto) no se guarda: la partida de siempre sigue donde estaba.
+    if (PROTOTYPE_SESSION) return;
     const { save, state } = this.services;
     if (save.save(state.snapshot)) state.emit('saved');
   }

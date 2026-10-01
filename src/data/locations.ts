@@ -1,4 +1,5 @@
 import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
+import { PROTOTYPE_PLAZUELA } from './prototype.ts';
 import { seatsFurniture } from './seating.ts';
 import { VALLESCO } from './vallesco.ts';
 import { ARCHIVO, BARBERSHOP, CLUB, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
@@ -521,6 +522,8 @@ const BAR: LocationDef = {
 
 export const LOCATIONS: readonly LocationDef[] = [
   VALLESCO,
+  // Prototipo Visual V3: sólo se abre con ?proto (main.ts).
+  PROTOTYPE_PLAZUELA,
   HOME,
   CAFE,
   GYM,

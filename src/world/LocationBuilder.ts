@@ -9,6 +9,7 @@ import { painted, paintSurfaces } from './Surfaces';
 import { hex, zonesOf } from '../systems/Districts';
 import { DISTRICTS } from '../data/districts';
 import { bakeDetail } from './Detail';
+import { buildHdLocation } from './HdBuilder';
 
 export interface BuiltLocation {
   widthPx: number;
@@ -197,8 +198,14 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   const widthPx = cols * TILE;
   const heightPx = rows * TILE;
 
-  const ground = scene.add.renderTexture(0, 0, widthPx, heightPx).setOrigin(0, 0).setDepth(-10);
   const solids = scene.physics.add.staticGroup();
+  // Visual V3: el sitio pintado en alta definición tiene su propio pincel (world/HdBuilder); los sólidos, los mismos.
+  if (def.art === 'hd') {
+    const { windows, glows } = buildHdLocation(scene, def);
+    for (const r of solidRects(solidMask(def))) addSolid(scene, solids, r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE);
+    return { widthPx, heightPx, solids, windows, glows };
+  }
+  const ground = scene.add.renderTexture(0, 0, widthPx, heightPx).setOrigin(0, 0).setDepth(-10);
 
   // Losas, baldosa y asfalto se pintan en coordenadas de mundo (world/Surfaces); el resto, por tile.
   paintSurfaces(scene, ground, { ground: def.ground, props: def.props, buildings: def.buildings ?? [], showcase: def.showcase });

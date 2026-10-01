@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import type { Facing, NpcDef } from '../types/game';
-import { PEOPLE, personFrame } from '../world/TextureFactory';
+import { personAnim, personTexture } from '../world/TextureFactory';
+import { HD_SCALE } from '../world/HdKit';
+import { hdPeopleOn } from '../world/HdPeople';
 
 export class NPC extends Phaser.Physics.Arcade.Sprite {
   readonly def: NpcDef;
@@ -9,7 +11,9 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
   private readonly post: Facing;
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: NpcDef, facing: Facing) {
-    super(scene, x, y, PEOPLE, personFrame(def.id, facing));
+    super(scene, x, y, ...personTexture(scene, def.id, facing));
+    // En una escena con arte HD, la textura es 4× más grande: se pinta a su tamaño de mundo.
+    if (hdPeopleOn()) this.setScale(HD_SCALE);
     this.def = def;
 
     scene.add.existing(this);
@@ -26,13 +30,13 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
     this.once(Phaser.GameObjects.Events.DESTROY, () => this.shadow.destroy());
 
     // Respira, cada uno a su compás: una fila de gente idéntica en sincronía se nota.
-    this.anims.play(`npc-${def.id}-idle-${facing}`);
+    this.anims.play(personAnim(scene, def.id, 'idle', facing));
     this.anims.setProgress(Math.random());
     this.post = facing;
   }
 
   /** Mira a quien le habla sin dejar de respirar; sin argumento, vuelve a mirar hacia su puesto. */
   look(facing: Facing = this.post): void {
-    this.anims.play(`npc-${this.def.id}-idle-${facing}`, true);
+    this.anims.play(personAnim(this.scene, this.def.id, 'idle', facing), true);
   }
 }

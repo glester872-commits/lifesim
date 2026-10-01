@@ -6,6 +6,7 @@ import { make, px, shade } from './paint';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { UMBRELLAS } from './WeatherLooks';
 import { LAYER } from './Layers';
+import { clipped, hash, HD_SCALE, makeHd, poly, rect, rgba, vgrad } from './HdKit';
 
 /**
  * El tiempo que se ve en la calle (sólo fuera: dentro no llueve). Todo sale de
@@ -154,7 +155,9 @@ export class WeatherView {
         const r = tileHash(x, y);
         if (!((gutter && r < 0.05) || (paving && r < 0.014))) continue;
         const kind = Math.floor(tileHash(y, x) * 3);
-        this.puddles.push(this.scene.add.image(x * TILE + TILE / 2, y * TILE + TILE / 2, `fx-puddle-${kind}`).setDepth(LAYER.decal).setAlpha(0).setVisible(false));
+        // Visual V3: el charco a la resolución de su suelo, con el borde suave y el cielo reflejado.
+        const key = def.art === 'hd' ? hdPuddle(this.scene, kind) : `fx-puddle-${kind}`;
+        this.puddles.push(this.scene.add.image(x * TILE + TILE / 2, y * TILE + TILE / 2, key).setScale(def.art === 'hd' ? HD_SCALE : 1).setDepth(LAYER.decal).setAlpha(0).setVisible(false));
       }
     }
   }
@@ -223,7 +226,7 @@ export class WeatherView {
         this.rippleClock = 260 / (0.3 + w.rain);
         const seen = this.puddles.filter((p) => view.contains(p.x, p.y));
         const p = seen[Math.floor(Math.random() * seen.length)];
-        if (p) this.burst('fx-ripple', p.x + (Math.random() - 0.5) * p.width * 0.5, p.y + (Math.random() - 0.5) * p.height * 0.4, 420, 0.35, -8);
+        if (p) this.burst('fx-ripple', p.x + (Math.random() - 0.5) * p.displayWidth * 0.5, p.y + (Math.random() - 0.5) * p.displayHeight * 0.4, 420, 0.35, -8);
       }
     }
 
@@ -258,4 +261,30 @@ export class WeatherView {
     d.floor = Math.max(floor, y + 8);
     d.img.setPosition(x, y);
   }
+}
+
+/** Charco Visual V3: mancha de borde irregular, agua que refleja el cielo en una franja y el canto mojado. */
+function hdPuddle(scene: Phaser.Scene, kind: number): string {
+  const [w, h] = ([[22, 8], [30, 10], [14, 6]] as const)[kind] ?? [22, 8];
+  return makeHd(scene, `hd-puddle-${kind}`, w, h, (ctx) => {
+    const pts: number[] = [];
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const k = 0.82 + hash(kind, i, 7) * 0.18;
+      pts.push(w / 2 + Math.cos(a) * (w / 2 - 0.6) * k, h / 2 + Math.sin(a) * (h / 2 - 0.4) * k);
+    }
+    // Borde mojado, más oscuro que el suelo; luego el agua.
+    poly(ctx, rgba('#1c2230', 0.5), pts);
+    const inner = pts.map((v, i) => (i % 2 ? h / 2 + (v - h / 2) * 0.8 : w / 2 + (v - w / 2) * 0.86));
+    clipped(ctx, () => {
+      ctx.beginPath();
+      ctx.moveTo(inner[0], inner[1]);
+      for (let i = 2; i < inner.length; i += 2) ctx.lineTo(inner[i], inner[i + 1]);
+      ctx.closePath();
+    }, () => {
+      vgrad(ctx, 0, 0, w, h, '#7d8ca6', '#3b4558');
+      poly(ctx, rgba('#c4d2e6', 0.45), [w * 0.2, 0, w * 0.45, 0, w * 0.3, h, w * 0.05, h]);
+      rect(ctx, rgba('#ffffff', 0.35), 0, h * 0.18, w, 0.3);
+    });
+  });
 }

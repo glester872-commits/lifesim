@@ -1176,6 +1176,12 @@ export interface GlowSpot {
   y: number;
   /** Rótulo de un local: sólo brilla con el local abierto. Sin él, siempre (la boca de metro). */
   building?: string;
+  /** Escala de la textura (las de Visual V3 se dibujan a 4×). */
+  scale?: number;
+  /** Sólo brilla: no echa luz a la plaza como la boca de metro (rótulos y farolillos siempre encendidos). */
+  quiet?: boolean;
+  /** Se suma a lo que hay debajo en vez de taparlo: quien pase por delante queda iluminado, no borrado. */
+  additive?: boolean;
 }
 
 export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: readonly BuildingDef[], glows: GlowSpot[] = []): WindowSpot[] {

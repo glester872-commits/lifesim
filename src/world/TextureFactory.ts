@@ -13,6 +13,7 @@ import { buildWeatherTextures } from './WeatherView';
 import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
+import { forgetHdPerson, hdFrame, hdPeopleOn, setHdResolver } from './HdPeople';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
 import { WEATHER_LOOKS } from './WeatherLooks';
@@ -503,6 +504,8 @@ export const humanKey = (prefix: string, facing: Facing, pose: Pose): string => 
 export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearance): void {
   if (id === 'player') {
     const colors = withAppearance(PLAYER_COLORS, changes);
+    playerColorsNow = colors;
+    forgetHdPerson('player', colors);
     for (const facing of FACINGS) {
       for (const pose of POSES) {
         const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;
@@ -524,6 +527,7 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
   const c = cell.getContext('2d', { willReadFrequently: true });
   if (!c) return;
   const colors = withAppearance(colorsOf(look), changes);
+  forgetHdPerson(id, colors);
   for (const facing of FACINGS) {
     for (const pose of POSES) {
       const frame = atlas.get(personFrame(id, facing, pose));
@@ -545,6 +549,42 @@ export const PEOPLE = 'people';
 /** Lado máximo del atlas de gente, en px. */
 const ATLAS_MAX = 4096;
 export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
+
+/**
+ * La textura y el fotograma de alguien en una pose: el atlas de siempre o, en
+ * una escena con arte HD (LocationDef.art), el de world/HdPeople, que se dibuja
+ * según hace falta. Todo lo que pinta gente pasa por aquí.
+ */
+export function personTexture(scene: Phaser.Scene, id: string, facing: Facing, pose: Pose = 0): [string, string] {
+  return hdPeopleOn() ? hdFrame(scene, id, facing, pose) : [PEOPLE, personFrame(id, facing, pose)];
+}
+
+/**
+ * La animación de andar o de respirar de alguien: la de siempre o, con arte HD,
+ * la misma (mismo compás, mismos tiempos) sobre los fotogramas de world/HdPeople.
+ */
+export function personAnim(scene: Phaser.Scene, id: string, kind: 'walk' | 'idle', facing: Facing): string {
+  if (!hdPeopleOn()) return `npc-${id}-${kind}-${facing}`;
+  const key = `hd-${id}-${kind}-${facing}`;
+  if (!scene.anims.exists(key)) {
+    const frame = (pose: Pose): Phaser.Types.Animations.AnimationFrame => {
+      const [tex, name] = hdFrame(scene, id, facing, pose);
+      return { key: tex, frame: name };
+    };
+    if (kind === 'walk') scene.anims.create({ key, frames: [frame(1), frame(0), frame(2), frame(0)], frameRate: 8, repeat: -1 });
+    else scene.anims.create({ key, frames: [{ ...frame(0), duration: 1100 }, frame(3)], frameRate: 2, repeat: -1 });
+  }
+  return key;
+}
+
+/** Colores de hoy de cada aspecto, para el arte HD (el jugador, con su aspecto guardado). */
+let playerColorsNow: HumanColors | null = null;
+let looksById: Map<string, HumanColors> | null = null;
+setHdResolver((id) => {
+  if (id === 'player') return playerColorsNow ?? PLAYER_COLORS;
+  if (!looksById) looksById = new Map([...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].map((l) => [l.id, colorsOf(l)]));
+  return looksById.get(id);
+});
 
 function buildPeople(scene: Phaser.Scene): void {
   if (scene.textures.exists(PEOPLE)) return;

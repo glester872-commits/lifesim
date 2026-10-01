@@ -352,23 +352,26 @@ export class Lighting {
       const prop = PROPS[p.kind];
       if (!prop.emissive) continue;
       const x = p.tx * TILE + ((prop.tilesWide ?? 1) * TILE) / 2;
-      this.emissives.push({ img: scene.add.image(x, (p.ty + 1) * TILE, prop.emissive).setOrigin(0.5, 1).setDepth(DEPTH + 2) });
+      // Visual V3 trae su propio brillo, a su resolución (world/HdBuilder): el de 1× quedaría encima, borroso.
+      if (def.art !== 'hd') this.emissives.push({ img: scene.add.image(x, (p.ty + 1) * TILE, prop.emissive).setOrigin(0.5, 1).setDepth(DEPTH + 2) });
       this.fixedSources.push({ x, y: (p.ty + 1) * TILE - 2, w: 56, h: 30, color: COOL, strength: 0.45 });
     }
     for (const g of built.glows) {
       const place = g.building ? PLACE_OF_BUILDING.get(g.building) : undefined;
       // Rótulo de un edificio sin lugar (un bloque cualquiera): no hay quien lo encienda.
       if (g.building && !place) continue;
-      const img = scene.add.image(g.x, g.y, g.key).setOrigin(0, 0).setDepth(DEPTH + 2);
+      const img = scene.add.image(g.x, g.y, g.key).setOrigin(0, 0).setScale(g.scale ?? 1).setDepth(DEPTH + 2);
+      if (g.additive) img.setBlendMode(Phaser.BlendModes.ADD);
       // Neón de la noche y rótulos del Carmen: fijos casi siempre y, de higos a brevas, un tartamudeo (tick). Con movimiento reducido, fijos.
       const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
       this.emissives.push({ img, place, flicker: flickers ? this.emissives.length + 1 : undefined });
-      if (!place) {
+      if (!place && !g.quiet) {
         // La boca de metro, siempre encendida, alumbra la acera de delante.
         const src = scene.textures.get(g.key).getSourceImage();
-        this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height, w: src.width * 1.8, h: src.height * 1.4, color: WARM, strength: 0.75 });
+        const [sw, sh] = [src.width * (g.scale ?? 1), src.height * (g.scale ?? 1)];
+        this.fixedSources.push({ x: g.x + sw / 2, y: g.y + sh, w: sw * 1.8, h: sh * 1.4, color: WARM, strength: 0.75 });
         // Y por la escalera sube la luz fría de los tubos de abajo: el hueco se ve encendido, no un agujero.
-        this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height * 0.62, w: src.width * 0.55, h: src.height * 0.55, color: 0xdcecff, strength: 0.8 });
+        this.fixedSources.push({ x: g.x + sw / 2, y: g.y + sh * 0.62, w: sw * 0.55, h: sh * 0.55, color: 0xdcecff, strength: 0.8 });
       }
     }
 

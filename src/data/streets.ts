@@ -201,4 +201,19 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'club-leaving', label: 'Alguien saliendo de la discoteca', line: 'Me duelen los pies. Ha merecido la pena.', weight: 4, hours: [2.5, 6], from: NIGHT_OUT, to: ANYWHERE_HOME, group: [1, 3], bond: ['friends', 'couple'] },
     ],
   },
+  // Prototipo Visual V3 (data/prototype.ts): poca gente, la justa para dar escala a la plaza. De paso por las
+  // aceras, quien sale del metro, quien espera a alguien junto a la boca y un corrillo delante del tótem.
+  {
+    location: 'plazuela-v3',
+    bands: [[0, 6, 'VERY_LOW'], [6, 24, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 0, 0],
+    scale: 1,
+    maxWalkers: 6,
+    trips: [
+      { role: 'passer', label: 'Alguien de paso', line: 'Voy al centro. Como siempre, tarde.', weight: 4, from: { edge: true }, to: { edge: true } },
+      { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Qué agobio de vagón.', weight: 2, from: { points: ['PROTO_METRO_ENTRANCE'] }, to: { edge: true } },
+      { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Me ha dicho que ya sale.', weight: 2, hours: [7, 23], from: { edge: true }, to: { points: ['PROTO_MEET_'] }, stay: [4, 12], stayState: 'PHONE', then: { points: ['PROTO_METRO_ENTRANCE'] }, max: 2 },
+      { role: 'talk', label: 'Gente charlando', line: '¿Y al final vas a ir?', weight: 1.5, hours: [9, 22], from: { edge: true }, to: { points: ['PROTO_TALK_'] }, stay: [6, 14], stayState: 'TALK', group: [2, 2], max: 1 },
+    ],
+  },
 ];

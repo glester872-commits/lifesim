@@ -435,6 +435,14 @@ export interface LocationDef {
    * cámara centrada en la escena (px de mundo).
    */
   foreground?: readonly { kind: 'canopy' | 'canopy-small'; x: number; y: number; flip?: boolean }[];
+  /**
+   * Arte Visual V3 (design/VISUAL_V3.md): todo el sitio se pinta en alta
+   * definición (4×) con las piezas de world/Hd*: suelo, fachadas de varias
+   * plantas, props, personas y coches. Hoy sólo el prototipo de la plazuela.
+   */
+  art?: 'hd';
+  /** Encuadre mínimo propio en px de mundo [ancho, alto]; sin él, VIEW_WIDTH × VIEW_HEIGHT. */
+  view?: readonly [number, number];
 }
 
 export interface DistrictZone {

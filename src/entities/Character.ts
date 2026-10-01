@@ -4,7 +4,9 @@ import { every } from '../world/Motion';
 import { TILE } from '../config/constants';
 import type { Facing, NpcDef } from '../types/game';
 import { findPoint } from '../systems/Navigation';
-import { PEOPLE, personFrame } from '../world/TextureFactory';
+import { personAnim, personTexture } from '../world/TextureFactory';
+import { HD_SCALE } from '../world/HdKit';
+import { hdPeopleOn } from '../world/HdPeople';
 import type { Pose } from '../world/HumanArt';
 import { getStation, STATIONS, type Motion, type StationDef } from '../data/stations';
 import type { SeatIdle } from '../data/seating';
@@ -197,7 +199,9 @@ export class Character extends Phaser.GameObjects.Sprite {
   private settle = false;
 
   constructor(scene: Phaser.Scene, def: NpcDef, seed = 0) {
-    super(scene, 0, 0, PEOPLE, personFrame(def.id, 'down'));
+    super(scene, 0, 0, ...personTexture(scene, def.id, 'down'));
+    // En una escena con arte HD, la textura es 4× más grande: se pinta a su tamaño de mundo.
+    if (hdPeopleOn()) this.setScale(HD_SCALE);
     this.def = def;
     this.lookId = def.id;
     this.seed = seed;
@@ -311,7 +315,7 @@ export class Character extends Phaser.GameObjects.Sprite {
   private rising(where: Placement, time: number): boolean {
     if (!where.moving || time >= this.riseUntil) return false;
     this.anims.stop();
-    this.setTexture(PEOPLE, personFrame(this.lookId, where.dir, 3));
+    this.setTexture(...personTexture(this.scene, this.lookId, where.dir, 3));
     return true;
   }
 
@@ -397,14 +401,14 @@ export class Character extends Phaser.GameObjects.Sprite {
     if (activity === 'walk' && this.rising(where, time)) {
       // Recién levantado: de pie un instante (rising ya pone la pose).
     } else if (activity === 'walk' || activity === 'run' || activity === 'treadmill') {
-      this.loop(`npc-${id}-walk-${where.dir}`);
+      this.loop(personAnim(this.scene, id, 'walk', where.dir));
       // La banda corre hacia atrás bajo los pies, al paso de quien va encima.
       if (activity === 'treadmill') under = `fx-belt-${Math.floor(time / (pace > 1.5 ? 70 : 120)) % 2}`;
     } else if (reps) {
       // Repeticiones: de una pose a la otra, cada uno a su ritmo y desde su punto.
       this.anims.stop();
       const half = Math.floor((time + this.seed * 431) / (reps[2] * (0.92 + (this.seed % 4) * 0.05))) % 2;
-      this.setTexture(PEOPLE, personFrame(id, where.dir, half ? reps[1] : reps[0]));
+      this.setTexture(...personTexture(this.scene, id, where.dir, half ? reps[1] : reps[0]));
       under = RACK_EMPTY[activity] ?? null;
       // La barra del banco va en las manos: abajo en el pecho o arriba con los brazos estirados.
       if (activity === 'bench') {
@@ -416,9 +420,9 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.anims.stop();
       const hold = Math.floor((time + this.seed * 613) / 2_600) % 2;
       if (this.seed % 2 === 0) {
-        this.setTexture(PEOPLE, personFrame(id, where.dir, 22));
+        this.setTexture(...personTexture(this.scene, id, where.dir, 22));
         if (hold) this.setY(y - 1);
-      } else this.setTexture(PEOPLE, personFrame(id, where.dir, hold ? 21 : 0));
+      } else this.setTexture(...personTexture(this.scene, id, where.dir, hold ? 21 : 0));
     } else if (SEATED.has(activity)) {
       // Sentado: al llegar, un instante a medio sentarse; luego respira (el tronco baja un píxel de vez en cuando).
       // Con el móvil, cabeza gacha; mirando pasar a la gente, se gira de lado un momento.
@@ -429,7 +433,7 @@ export class Character extends Phaser.GameObjects.Sprite {
       const pose: Pose = settling ? 3 : activity === 'sit-phone' ? 25 : bite ? 26 : breath ? 24 : 4;
       const glance = activity === 'watch' && every(time, this.seed * 7 + 3, 6_500 + (this.seed % 3) * 1_700, 1_500);
       const dir: Facing = glance ? (where.dir === 'up' || where.dir === 'down' ? (this.seed % 2 ? 'left' : 'right') : 'down') : where.dir;
-      this.setTexture(PEOPLE, personFrame(id, dir, pose));
+      this.setTexture(...personTexture(this.scene, id, dir, pose));
     } else if (activity === 'dance') {
       // La misma música para todos, pero cada uno la baila a su manera: unos a cada
       // pulso, otros a medio tiempo y otros a contratiempo; y cada uno gira cuando le da.
@@ -440,28 +444,28 @@ export class Character extends Phaser.GameObjects.Sprite {
       const turnEvery = 2 + (this.seed % 2);
       const dir = DANCE_TURNS[(Math.floor(beat / turnEvery) + this.seed) % DANCE_TURNS.length];
       this.anims.stop();
-      this.setTexture(PEOPLE, personFrame(id, dir, beat % 2 === 0 ? 1 : 2));
+      this.setTexture(...personTexture(this.scene, id, dir, beat % 2 === 0 ? 1 : 2));
       this.setY(y - (t % step < step / 2 ? 1 : 0));
     } else if (activity === 'phone') {
       // Cabeza gacha y el móvil entre las manos, quieto.
       this.anims.stop();
-      this.setTexture(PEOPLE, personFrame(id, where.dir, 5));
+      this.setTexture(...personTexture(this.scene, id, where.dir, 5));
     } else if (activity === 'cheer') {
       // Jalea: el puño arriba y abajo, cada uno a su compás, con un salto de un píxel al subir.
       this.anims.stop();
       const up = Math.floor((time + this.seed * 263) / 320) % 2 === 0;
-      this.setTexture(PEOPLE, personFrame(id, where.dir, up ? 7 : 0));
+      this.setTexture(...personTexture(this.scene, id, where.dir, up ? 7 : 0));
       if (up) this.setY(y - 1);
     } else if (activity === 'lift') {
       // Repeticiones: arriba y abajo, cada uno a su ritmo.
       this.anims.stop();
       const up = Math.floor((time + this.seed * 431) / LIFT_MS) % 2 === 0;
-      this.setTexture(PEOPLE, personFrame(id, where.dir, up ? 6 : 0));
+      this.setTexture(...personTexture(this.scene, id, where.dir, up ? 6 : 0));
     } else if (activity === 'idle' && !this.talkingTo && every(time, this.seed, 6500 + (this.seed % 5) * 1100, 1100)) {
       // De pie sin nada que hacer, de vez en cuando mira a un lado: el personal, a la estantería; la gente, a la calle.
       const side = where.dir === 'up' || where.dir === 'down' ? (this.seed % 2 ? 'left' : 'right') : 'down';
-      this.loop(`npc-${id}-idle-${side}`);
-    } else this.loop(`npc-${id}-idle-${where.dir}`);
+      this.loop(personAnim(this.scene, id, 'idle', side));
+    } else this.loop(personAnim(this.scene, id, 'idle', where.dir));
     // Hablando contigo asiente de vez en cuando: un píxel, a su compás.
     if (this.talkingTo && every(time, this.seed, 2300, 240)) this.setY(y - 1);
     if (lift) this.setY(this.y - lift);
@@ -518,19 +522,19 @@ export class Character extends Phaser.GameObjects.Sprite {
     const top = y - lift;
     this.anims.timeScale = where.moving ? this.cadence(false) : 0.9 + (this.seed % 5) * 0.05;
     if (where.moving) {
-      if (!this.rising(where, time)) this.loop(`npc-${id}-walk-${dir}`);
+      if (!this.rising(where, time)) this.loop(personAnim(this.scene, id, 'walk', dir));
     }
     else if (seated) {
       // Sentado: al llegar, un instante a medio sentarse; luego la pose del tramo o respirar.
       this.anims.stop();
       const settling = time - this.since < SIT_DOWN_MS;
       const breath = every(time, this.seed, 3_600 + (this.seed % 4) * 350, 520);
-      this.setTexture(PEOPLE, personFrame(id, dir, settling ? 3 : (step.sitPose ?? (breath ? 24 : 4))));
+      this.setTexture(...personTexture(this.scene, id, dir, settling ? 3 : (step.sitPose ?? (breath ? 24 : 4))));
       if (lift) this.setY(this.y - lift);
     } else if (step.pose !== undefined) {
       this.anims.stop();
-      this.setTexture(PEOPLE, personFrame(id, dir, step.pose));
-    } else this.loop(`npc-${id}-idle-${dir}`);
+      this.setTexture(...personTexture(this.scene, id, dir, step.pose));
+    } else this.loop(personAnim(this.scene, id, 'idle', dir));
 
     // La mano cercana, la boca y la mesa, en px desde los pies (sentado, tres más abajo el tronco).
     // Sacado de los píxeles de world/HumanArt: de frente y de espaldas las manos cuelgan en las

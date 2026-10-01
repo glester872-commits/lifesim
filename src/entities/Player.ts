@@ -2,7 +2,10 @@ import Phaser from 'phaser';
 import { lampShadow } from '../world/LampShadows';
 import { PLAYER_BODY, PLAYER_SPEED } from '../config/constants';
 import type { Facing } from '../types/game';
-import { PLAYER_H, PLAYER_W } from '../world/TextureFactory';
+import { PLAYER_H, PLAYER_W, personTexture } from '../world/TextureFactory';
+import { HD, HD_SCALE } from '../world/HdKit';
+import { HD_PERSON_H, HD_PERSON_W, hdPeopleOn } from '../world/HdPeople';
+import type { Pose } from '../world/HumanArt';
 import { every } from '../world/Motion';
 
 export interface MoveInput {
@@ -42,6 +45,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly lampShade: Phaser.GameObjects.Image;
   /** Sentado o yendo a sentarse o a levantarse: no anda con las teclas. */
   private seat: { facing: Facing; lift: number; since: number; settled: boolean } | null = null;
+  /**
+   * Escena con arte HD (LocationDef.art): el jugador se pinta con world/HdPeople
+   * y elige él el fotograma del paso y de la respiración (las animaciones de
+   * siempre son del atlas de baja resolución).
+   */
+  private readonly hd = hdPeopleOn();
+  /** Andando en HD: a qué paso (0–1, el del stick) para el compás de los pies. */
+  private stride = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, facing: Facing) {
     super(scene, x, y, `player-${facing}-0`);
@@ -52,8 +63,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, 1);
 
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(PLAYER_BODY.width, PLAYER_BODY.height);
-    body.setOffset((PLAYER_W - PLAYER_BODY.width) / 2, PLAYER_H - PLAYER_BODY.height);
+    if (this.hd) {
+      // El cuerpo se mide en px de la textura (4× la de mundo): mismo tamaño de pies en el mundo.
+      this.setTexture(...personTexture(scene, 'player', facing, 0)).setScale(HD_SCALE);
+      body.setSize(PLAYER_BODY.width * HD, PLAYER_BODY.height * HD);
+      body.setOffset(((HD_PERSON_W - PLAYER_BODY.width) / 2) * HD, (HD_PERSON_H - PLAYER_BODY.height) * HD);
+    } else {
+      body.setSize(PLAYER_BODY.width, PLAYER_BODY.height);
+      body.setOffset((PLAYER_W - PLAYER_BODY.width) / 2, PLAYER_H - PLAYER_BODY.height);
+    }
     body.setCollideWorldBounds(true);
 
     this.shadow = scene.add.image(x, y, 'fx-shadow').setOrigin(0.5, 0.5);
@@ -106,9 +124,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Con teclas, el lado manda en diagonal (como siempre); con el stick, el eje hacia el que más se empuja.
     const horizontal = fromStick ? Math.abs(vx) >= Math.abs(vy) : vx !== 0;
     this.dir = horizontal ? (vx > 0 ? 'right' : 'left') : vy > 0 ? 'down' : 'up';
-    this.anims.play(`player-walk-${this.dir}`, true);
-    // El paso, al compás de la velocidad: despacio no resbalan los pies.
-    this.anims.timeScale = pace;
+    if (this.hd) this.step(pace);
+    else {
+      this.anims.play(`player-walk-${this.dir}`, true);
+      // El paso, al compás de la velocidad: despacio no resbalan los pies.
+      this.anims.timeScale = pace;
+    }
     this.sync();
   }
 
@@ -117,9 +138,26 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.seat) return;
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     // Quieto no es congelado: respira (a su ritmo, aunque viniera andando despacio con el stick).
-    this.anims.timeScale = 1;
-    this.anims.play(`player-idle-${this.dir}`, true);
+    if (this.hd) {
+      // Quieto respira: el tronco baja un momento cada par de segundos, como en las animaciones de siempre.
+      this.stride = 0;
+      this.pose(this.scene.time.now % 1600 < 1100 ? 0 : 3);
+    } else {
+      this.anims.timeScale = 1;
+      this.anims.play(`player-idle-${this.dir}`, true);
+    }
     this.sync();
+  }
+
+  /** Paso en cuatro tiempos (pie, paso, pie, paso) a 8 por segundo, más despacio con el stick a medias. */
+  private step(pace: number): void {
+    this.stride += (this.scene.game.loop.delta / 1000) * 8 * pace;
+    this.pose(([1, 0, 2, 0] as const)[Math.floor(this.stride) % 4]);
+  }
+
+  private pose(pose: Pose): void {
+    if (this.hd) this.setTexture(...personTexture(this.scene, 'player', this.dir, pose));
+    else this.setTexture(`player-${this.dir}-${pose}`);
   }
 
   /**
@@ -133,7 +171,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.seat = { facing, lift, since: 0, settled: false };
     this.glide(x, y, () => {
       if (!this.seat) return;
-      this.anims.stop();
+      if (!this.hd) this.anims.stop();
       this.seat = { facing, lift, since: this.scene.time.now, settled: true };
       this.seatedFrame(this.scene.time.now, null);
     });
@@ -165,9 +203,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const bite = eating && every(time, 5, 1_900, 700);
     const pose = settling ? 3 : bite ? 26 : every(time, 1, 3_800, 520) ? 24 : 4;
     this.dir = look ?? this.seat.facing;
-    this.setTexture(`player-${this.dir}-${pose}`);
+    this.pose(pose);
     // Más alto (un taburete): el cuerpo sube; los pies, la sombra y la profundidad se quedan en el asiento.
-    this.setOrigin(0.5, (PLAYER_H + this.seat.lift) / PLAYER_H);
+    const h = this.hd ? HD_PERSON_H : PLAYER_H;
+    this.setOrigin(0.5, (h + this.seat.lift) / h);
     this.sync();
   }
 
@@ -178,7 +217,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const distance = Math.hypot(dx, dy);
     if (distance > 0.5) {
       this.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
-      this.anims.play(`player-walk-${this.dir}`, true);
+      if (this.hd) this.pose(1);
+      else this.anims.play(`player-walk-${this.dir}`, true);
     }
     this.scene.tweens.add({
       targets: this,

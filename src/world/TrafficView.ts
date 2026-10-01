@@ -3,7 +3,20 @@ import { TILE } from '../config/constants';
 import type { VehicleType } from '../data/vehicles';
 import type { Traffic, Vehicle } from '../systems/Traffic';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
-import { lampsOf, vehicleKey } from './VehicleArt';
+import { lampsOf, vehicleKey, type VehicleLamps } from './VehicleArt';
+import { HD_VEHICLE_SCALE, hdLampsOf, hdVehicleKey } from './HdVehicles';
+
+/** De dónde salen la textura y las luces de cada vehículo: el arte de siempre o el de Visual V3. */
+interface VehicleArtSource {
+  key: (scene: Phaser.Scene, t: VehicleType, color: number) => string;
+  lamps: (t: VehicleType) => VehicleLamps;
+  /** Escala del sprite (las HD se dibujan a 4×) y de las luces encendidas (más grandes en un coche V3). */
+  scale: number;
+  lampScale: number;
+}
+
+const PIXEL_ART: VehicleArtSource = { key: (_s, t, c) => vehicleKey(t, c), lamps: lampsOf, scale: 1, lampScale: 1 };
+export const HD_ART: VehicleArtSource = { key: hdVehicleKey, lamps: hdLampsOf, scale: HD_VEHICLE_SCALE, lampScale: 1.6 };
 
 /** Media vuelta de la rotativa, en ms. */
 const BEACON_MS = 420;
@@ -33,9 +46,11 @@ export class TrafficView {
   private readonly pool: Parts[] = [];
   /** Cuánto de mojado está el suelo (0–1): sin él, seco. */
   private readonly wet: () => number;
+  private readonly art: VehicleArtSource;
 
-  constructor(scene: Phaser.Scene, traffic: Traffic<VehicleType>, hour: () => number, wet: () => number = () => 0) {
+  constructor(scene: Phaser.Scene, traffic: Traffic<VehicleType>, hour: () => number, wet: () => number = () => 0, art: VehicleArtSource = PIXEL_ART) {
     this.scene = scene;
+    this.art = art;
     this.traffic = traffic;
     this.hour = hour;
     this.wet = wet;
@@ -65,7 +80,7 @@ export class TrafficView {
       p.body.setPosition(left, top + dip).setDepth(bottom).setVisible(true);
 
       // Luces: en px del sprite mirando a la derecha; hacia el oeste, en espejo.
-      const lamps = lampsOf(v.type);
+      const lamps = this.art.lamps(v.type);
       const at = ([lx, ly]: readonly [number, number], w: number): [number, number] => [left + (flip ? L - lx - w : lx), top + ly];
       const [hx, hy] = at(lamps.head, 1);
       const [tx, ty] = at(lamps.tail, 1);
@@ -87,15 +102,15 @@ export class TrafficView {
   private take(v: Vehicle<VehicleType>): Parts {
     const s = this.scene;
     const p = this.pool.pop() ?? {
-      body: s.add.image(0, 0, vehicleKey(v.type, v.color)).setOrigin(0, 0),
-      head: s.add.image(0, 0, 'veh-head').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
-      tail: s.add.image(0, 0, 'veh-tail').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
+      body: s.add.image(0, 0, this.art.key(s, v.type, v.color)).setOrigin(0, 0).setScale(this.art.scale),
+      head: s.add.image(0, 0, 'veh-head').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH).setScale(this.art.lampScale),
+      tail: s.add.image(0, 0, 'veh-tail').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH).setScale(this.art.lampScale),
       roof: s.add.image(0, 0, 'veh-roof-taxi').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
       beam: s.add.image(0, 0, 'fx-light').setScale(0.5, 0.18).setTint(0xfff0c8).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
       glint: s.add.image(0, 0, 'fx-light').setScale(0.07, 0.42).setTint(0xfff0c8).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
       tailGlint: s.add.image(0, 0, 'fx-light').setScale(0.06, 0.32).setTint(0xff5a44).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
     };
-    p.body.setTexture(vehicleKey(v.type, v.color)).setFlipX(v.dir < 0);
+    p.body.setTexture(this.art.key(s, v.type, v.color)).setFlipX(v.dir < 0);
     p.roof.setTexture(v.type.trim?.roof === 'beacon' ? 'veh-roof-beacon' : 'veh-roof-taxi');
     this.parts.set(v, p);
     return p;
