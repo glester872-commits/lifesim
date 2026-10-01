@@ -489,7 +489,7 @@ export class Character extends Phaser.GameObjects.Sprite {
       // De pie con la copa en la mano; cada uno da un trago cuando le toca, no todos a la vez.
       const raised = Math.floor((time + this.seed * 977) / 1400) % 5 === 0;
       const side = where.dir === 'left' ? -4 : where.dir === 'up' ? 5 : 4;
-      this.icon.setTexture('fx-cup').setPosition(x + side, y - (raised ? 16 : 9)).setDepth(y + 1).setVisible(true);
+      this.icon.setTexture('fx-cup').setPosition(x + side, y - (raised ? 13 : 9)).setDepth(y + 1).setVisible(true);
     } else if (talking) {
       this.icon.setTexture('fx-talk').setPosition(x + 5, top - (SEATED.has(activity) ? 21 : 24)).setDepth(y + 1).setVisible(true);
     } else this.icon.setVisible(false);
@@ -538,13 +538,13 @@ export class Character extends Phaser.GameObjects.Sprite {
 
     // La mano cercana, la boca y la mesa, en px desde los pies (sentado, tres más abajo el tronco).
     // Sacado de los píxeles de world/HumanArt: de frente y de espaldas las manos cuelgan en las
-    // columnas 3 y 12 (±4 px del centro) hasta la fila 15; de perfil, el brazo cercano cae junto al
-    // tronco (±2, un poco adelantado para que lo que sostiene asome por delante). Con la mano en la
-    // boca (32/33), la mano llega a la columna 6 de frente y a la 11 de perfil, en la fila 6.
+    // columnas 3 y 12 (±4 px del centro); de perfil, el brazo cercano cae junto al tronco (±2, un
+    // poco adelantado para que lo que sostiene asome por delante). Con la mano en la boca (32/33),
+    // la mano llega a la columna 6 de frente y a la 11 de perfil.
     const side = dir === 'left' ? -2 : dir === 'right' ? 2 : dir === 'up' ? 4 : -4;
-    const hand = { x: x + side, y: top - (seated ? 6 : 9) };
+    const hand = { x: x + side, y: top - (seated ? 6 : 8) };
     // En la boca, lo que se sostiene sale de la mano hacia fuera: de frente, hacia un lado; de perfil, por delante de la cara.
-    const mouth = { x: x + (dir === 'left' ? -6 : dir === 'right' ? 6 : dir === 'up' ? 4 : -4), y: top - (seated ? 14 : 17) };
+    const mouth = { x: x + (dir === 'left' ? -6 : dir === 'right' ? 6 : dir === 'up' ? 4 : -4), y: top - (seated ? 12 : 15) };
     // De espaldas, lo que va en la boca queda tras la cabeza; lo de la mano, no: la mano asoma por fuera del tronco.
     const front = y + 1;
     let at: { x: number; y: number; depth: number } | null = null;

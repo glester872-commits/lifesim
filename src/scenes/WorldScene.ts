@@ -581,9 +581,10 @@ export class WorldScene extends Phaser.Scene {
     // largo del encuadre. Si no, un móvil de pie ve el triple de mundo y la gente sale diminuta.
     const [long, short] = width >= height ? [width, height] : [height, width];
     const [vw, vh] = this.view ?? [VIEW_WIDTH, VIEW_HEIGHT];
-    // A medios pasos: entre 3 y 4 hay un 3,5 (ver VIEW_WIDTH). Con arte HD (texturas 4× filtradas), cualquier zoom vale.
+    // Zoom entero: cada píxel del arte ocupa siempre los mismos píxeles de pantalla. A medios pasos
+    // (3,5) unos ocupaban 3 y otros 4, alternos, y la gente se veía deformada. Con arte HD (texturas 4× filtradas), cualquier zoom vale.
     const fit = Math.min(long / vw, short / vh);
-    const zoom = Phaser.Math.Clamp(this.view ? fit : Math.round(fit * 2) / 2, CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+    const zoom = Phaser.Math.Clamp(this.view ? fit : Math.round(fit), CAMERA_ZOOM, MAX_CAMERA_ZOOM);
     camera.setZoom(zoom);
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);
