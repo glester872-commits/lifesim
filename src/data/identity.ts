@@ -243,3 +243,22 @@ export const RELATION_LINES: Readonly<Record<RelationType, readonly string[]>> =
   crush: ['¿{n}? Qué va. Bueno… un poco.'],
   acquaintances: ['Conozco a {n} del portal. De vista.'],
 };
+
+/**
+ * Lo que cuenta alguien de su gente cuando el jugador le pregunta («Preguntar por su gente», systems/Chat.ts):
+ * nombra a la otra persona y lo que son. Así se descubre quién es pareja de quién (y con ello, sin decirlo, a
+ * quién quiere), quién vive con quién o quién es familia. El flechazo y los conocidos de vista no se cuentan.
+ * {n}: el nombre; {amigo}/{hermano}: la palabra según el género de {n}.
+ */
+export const TIE_LINES: Readonly<Partial<Record<RelationType, readonly string[]>>> = {
+  couple: ['Luego he quedado con {n}, mi pareja. Hoy le toca elegir plan.', 'Mi pareja, {n}, dice que paso demasiado tiempo en la calle. Tiene razón.'],
+  married: ['Con {n} me casé hace años. Todavía nos reímos de las mismas tonterías.', 'Voy a por algo de cenar para {n} y para mí. Media vida juntos.'],
+  dating: ['Estoy empezando algo con {n}. No digo más, que se gafa.', 'Esta noche tengo una cita con {n}. Estoy de los nervios.'],
+  'best-friends': ['{n} es mi {amigo} del alma. Si me ves sin {n}, algo pasa.', 'Con {n} hablo todos los días. De todo y de nada.'],
+  friends: ['He quedado luego con {n} y los de siempre.', '{n} me ha liado para algo esta tarde. Ya veremos qué.'],
+  roommates: ['Comparto piso con {n}. Hoy le toca fregar. No va a fregar.', 'Vivo con {n}. Nos cruzamos más en la escalera que en casa.'],
+  siblings: ['Mi {hermano}, {n}, vive cerca. Los domingos comemos juntos.', '{n} es mi {hermano}. Nos llevamos a temporadas.'],
+  relatives: ['Tengo familia aquí: {n}. Por eso acabé viviendo en el barrio.'],
+  coworkers: ['Trabajo con {n}. Nos vemos más que a la familia.', 'Mañana tengo turno con {n}. Al menos se hace corto.'],
+  exes: ['¿{n}? Lo nuestro se acabó. Bien, ¿eh? Pero se acabó.'],
+};

@@ -1,6 +1,8 @@
 import type { Walker } from '../systems/StreetLife';
 import type { Agent } from '../systems/Crowd';
-import { IDENTITIES, relationsOf } from '../systems/People';
+import { IDENTITIES, namedPerson, namedRelation, relationsOf } from '../systems/People';
+import { NAMED_RELATIONSHIPS } from '../data/namedPeople';
+import { getNpc } from '../data/npcs';
 import { zoneAt, type ZoneClock } from '../systems/Zones';
 import type { TilePoint } from '../types/game';
 
@@ -11,6 +13,7 @@ import type { TilePoint } from '../types/game';
  * (orientación, si es trans): en el juego normal no aparecen nunca.
  */
 export interface NamedNearby {
+  id: string;
   name: string;
   tx: number;
   ty: number;
@@ -35,7 +38,7 @@ export class PopulationInspector {
     const person = [...named].sort((a, b) => d(a.tx, a.ty) - d(b.tx, b.ty))[0];
     let text = 'INSPECTOR · nadie cerca';
     if (person && d(person.tx, person.ty) < 4 && (!agent || d(person.tx, person.ty) <= d(agent.x, agent.y))) {
-      text = `INSPECTOR · ${person.name}\npersonaje con nombre: identidad y rutina propias (data/characters.ts)\nzona: ${zoneAt(location, person.tx, person.ty)?.name ?? '—'}`;
+      text = this.describeNamed(person, location);
     } else if (agent && d(agent.x, agent.y) < 4) text = this.describe(agent as Walker, location, clock);
     if (text !== this.last) this.panel.textContent = this.last = text;
   }
@@ -67,6 +70,30 @@ export class PopulationInspector {
       const rel = relationsOf(p.index).map((r) => `${r.type}: ${IDENTITIES[r.a === p.index ? r.b : r.a].name}${r.type === 'crush' && r.a !== p.index ? ' (hacia esta persona)' : ''}`);
       lines.push(`relaciones: ${rel.length ? rel.join(' · ') : 'ninguna'}`);
     }
+    return lines.join('\n');
+  }
+
+  /** Un personaje con nombre: su identidad escrita a mano (data/namedPeople.ts), dónde está y su gente. */
+  private describeNamed(person: NamedNearby, location: string): string {
+    const p = namedPerson(person.id);
+    const lines = [`INSPECTOR · ${person.name} (${person.id}) · personaje con nombre`];
+    if (p) {
+      lines.push(
+        `${p.age} años · ${p.pronouns} · ${p.from}`,
+        `género: ${p.gender}${p.trans ? ' · trans' : ''} · presenta ${p.presentation}`,
+        `[privado] orientación: ${p.orientation}`,
+        `estilo: ${p.fashion} · ${p.temperament}`,
+        `intereses: ${p.interests.join(', ')}`,
+        `trabajo: ${p.work}`,
+      );
+    }
+    lines.push(`zona: ${zoneAt(location, person.tx, person.ty)?.name ?? '—'}`);
+    const rel = NAMED_RELATIONSHIPS.filter((r) => r.a === person.id || r.b === person.id).map((r) => {
+      const id = r.a === person.id ? r.b : r.a;
+      const kind = namedRelation(person.id, id);
+      return `${kind === 'strangers' ? 'crush (hacia esta persona)' : kind}: ${getNpc(id).name}`;
+    });
+    lines.push(`relaciones: ${rel.length ? rel.join(' · ') : 'ninguna'}`);
     return lines.join('\n');
   }
 

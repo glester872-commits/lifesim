@@ -2,11 +2,12 @@
 // quién le toca cada viaje y con quién va), el inspector de desarrollo y
 // scripts/check-population.ts.
 import {
-  BOND_RELATIONS, RELATION_LINES, ROLE_AFFINITY, VISITOR_ROLES,
+  BOND_RELATIONS, RELATION_LINES, ROLE_AFFINITY, TIE_LINES, VISITOR_ROLES,
   type Bond, type Fashion, type Gender, type Relation, type RelationType,
 } from '../data/identity.ts';
 import type { LookStyle } from '../data/districts.ts';
-import { AUTHORED_PASSENGERS, PASSENGER_LOOKS } from '../data/npcs.ts';
+import { AUTHORED_PASSENGERS, PASSENGER_LOOKS, getNpc } from '../data/npcs.ts';
+import { NAMED_PEOPLE, NAMED_RELATIONSHIPS, type NamedIdentity } from '../data/namedPeople.ts';
 import { authoredPerson, GENERATED_FAMILY, GENERATED_PEOPLE, POPULATION_SEED, type Identity } from './Population.ts';
 import { hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 
@@ -32,7 +33,10 @@ if (IDENTITIES.length !== PASSENGER_LOOKS.length) throw new Error('Población: u
  * Si `a` puede sentirse atraído por `b` (sólo cuenta para parejas y flechazos).
  * Asexual no quiere decir sin pareja: aquí vale como panromántico.
  */
-export function attractedTo(a: Identity, b: Identity): boolean {
+/** Lo único que decide la atracción: el género de cada cual y la orientación de quien siente. Vale para la gente anónima y para los personajes con nombre. */
+type Attraction = Pick<Identity, 'gender' | 'orientation'>;
+
+export function attractedTo(a: Attraction, b: Attraction): boolean {
   const g: Gender = b.gender;
   switch (a.orientation) {
     case 'heterosexual':
@@ -221,4 +225,59 @@ export function relationLine(type: RelationType, mate: Identity, seed: number): 
   const lines = RELATION_LINES[type];
   const word = mate.gender === 'woman' ? 'hermana' : mate.gender === 'man' ? 'hermano' : 'hermane';
   return lines[seed % lines.length].replaceAll('{n}', mate.name).replaceAll('{hermano}', word);
+}
+
+// --------------------------------------------------------- personajes con nombre
+
+if (NAMED_RELATIONSHIPS.some((r) => !NAMED_PEOPLE[r.a] || !NAMED_PEOPLE[r.b])) throw new Error('Relación con un personaje con nombre sin identidad');
+
+/** La identidad de un personaje con nombre (data/namedPeople.ts). */
+export const namedPerson = (id: string): NamedIdentity | undefined => NAMED_PEOPLE[id];
+
+/** Qué es `b` para `a`, entre personajes con nombre. El flechazo sólo lo tiene quien lo siente. */
+export function namedRelation(a: string, b: string): Relation {
+  const r = NAMED_RELATIONSHIPS.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a));
+  if (!r) return 'strangers';
+  if (r.type === 'crush' && r.a !== a) return 'strangers';
+  return r.type;
+}
+
+// --------------------------------------------------------- de quién habla cada cual
+
+/** Alguien de su vida, tal como lo nombra al hablar. */
+export interface Tie {
+  type: RelationType;
+  name: string;
+  gender: Gender;
+}
+
+/** Lo más cercano primero: es de lo que antes se habla. */
+const TIE_ORDER: readonly RelationType[] = ['married', 'couple', 'dating', 'best-friends', 'siblings', 'roommates', 'friends', 'relatives', 'coworkers', 'exes'];
+
+/**
+ * La gente de la vida de alguien de la que hablaría: su pareja, sus amigos, su familia, con quién vive o trabaja.
+ * Ni flechazos (son privados) ni conocidos de vista. De la gente anónima (`identity`) o de un personaje con nombre.
+ */
+export function tiesOf(who: { identity?: number; named?: string }): Tie[] {
+  const out: Tie[] = [];
+  if (who.identity !== undefined) {
+    for (const r of relationsOf(who.identity)) {
+      const o = IDENTITIES[other(r, who.identity)];
+      if (o && TIE_LINES[r.type]) out.push({ type: r.type, name: o.name, gender: o.gender });
+    }
+  } else if (who.named) {
+    for (const r of NAMED_RELATIONSHIPS) {
+      if (r.a !== who.named && r.b !== who.named) continue;
+      const id = r.a === who.named ? r.b : r.a;
+      if (TIE_LINES[r.type]) out.push({ type: r.type, name: getNpc(id).name, gender: NAMED_PEOPLE[id].gender });
+    }
+  }
+  return out.sort((x, y) => TIE_ORDER.indexOf(x.type) - TIE_ORDER.indexOf(y.type));
+}
+
+/** Lo que dice de esa persona: su nombre y lo que son, con la palabra del género de quien nombra. */
+export function tieLine(tie: Tie, seed: number): string {
+  const lines = TIE_LINES[tie.type] ?? [];
+  const word = (m: string, f: string, n: string): string => (tie.gender === 'woman' ? f : tie.gender === 'man' ? m : n);
+  return lines[seed % lines.length].replaceAll('{n}', tie.name).replaceAll('{amigo}', word('amigo', 'amiga', 'amigue')).replaceAll('{hermano}', word('hermano', 'hermana', 'hermane'));
 }

@@ -7,7 +7,7 @@ import {
   type Act, type ChatOption, type Days, type Line, type Mood, type OptionDef, type Place, type Style, type Topic, type Weather,
 } from '../data/chat.ts';
 import type { Interest } from '../data/identity.ts';
-import { IDENTITIES } from './People.ts';
+import { IDENTITIES, tieLine, tiesOf, type Tie } from './People.ts';
 import { nightOwner, weekIndex } from './Calendar.ts';
 import type { Rng } from './MetroDaily.ts';
 
@@ -56,6 +56,8 @@ export interface ChatContext {
   interests: readonly Interest[];
   rel: 0 | 1 | 2;
   group: boolean;
+  /** Su gente: de quién puede hablar si se le pregunta (pareja, amigos, familia, piso, trabajo). */
+  ties: readonly Tie[];
 }
 
 const hash = (text: string): number => {
@@ -146,6 +148,7 @@ export function buildContext(i: ChatInput): ChatContext {
     interests: voice?.interests ?? identity?.interests ?? [],
     rel: i.rel,
     group: i.group,
+    ties: tiesOf({ identity: i.identity, named: i.named }),
   };
 }
 
@@ -488,6 +491,9 @@ export class Conversation {
         case 'nightlife': return (interest('nightlife') || c.act === 'nightout') && (c.hour >= 18 || c.hour < 5) ? 2.4 : 0;
         case 'transit': return c.act === 'commute' || c.place === 'metro' ? 2.2 : 0;
         case 'work': return c.act === 'commute' || c.act === 'work' ? 1.8 : 0;
+        // Por su gente pregunta más quien ya le suena; a un desconocido, poco.
+        // Por su gente no se le pregunta a un desconocido: sólo a quien ya le suenas (y a quien es reservado, menos).
+        case 'people': return hurried || c.ties.length === 0 || c.rel === 0 ? 0 : 1.8 * (shy ? 0.5 : 1);
       }
       return 0;
     };
@@ -519,6 +525,7 @@ export class Conversation {
   }
 
   private answerable(o: OptionDef): boolean {
+    if (o.id === 'people') return this.ctx.ties.length > 0;
     return this.topicsOf(o).some(([t]) => (POOLS[t] ?? []).some((l) => fit(l, this.ctx) > 0));
   }
 
@@ -544,6 +551,7 @@ export class Conversation {
   }
 
   private reply(optionId: string): Line | undefined {
+    if (optionId === 'people') return this.tieReply();
     const def = OPTIONS.find((o) => o.id === optionId);
     if (!def) return undefined;
     const mem = this.log.mem(this.ctx.who);
@@ -552,6 +560,29 @@ export class Conversation {
       .map(([t, w]): [Topic, number] => [t, mem.topics.slice(-3).includes(t) ? w * 0.3 : w]);
     const topic = pick(this.rng, topics);
     return topic ? this.line(topic) : this.line('smalltalk');
+  }
+
+  /**
+   * Habla de alguien de su gente: primero de lo más cercano (pareja, mejor amistad, familia) y, si ya lo contó,
+   * de otra persona. La frase se arma con el nombre y la relación de verdad (systems/People.tieLine).
+   */
+  private tieReply(): Line | undefined {
+    const c = this.ctx;
+    const mem = this.log.mem(c.who);
+    const told = (t: Tie): boolean => mem.lines.some((id) => id.startsWith(`tie:${t.type}:${t.name}:`));
+    const tie = c.ties.find((t) => !told(t)) ?? c.ties[Math.floor(this.rng() * c.ties.length)];
+    if (!tie) return undefined;
+    const k = Math.floor(this.rng() * 2);
+    // Quien habla poco lo cuenta en una frase; quien habla mucho, entero.
+    const short = c.styles.some((s) => SHORT_STYLES.includes(s)) && !c.styles.some((s) => LONG_STYLES.includes(s));
+    const long = c.styles.some((s) => LONG_STYLES.includes(s)) && !short;
+    const full = tieLine(tie, k);
+    // Quien habla mucho sigue con otra persona de su gente, si la tiene.
+    const next = long ? c.ties.find((t) => t !== tie && !told(t)) : undefined;
+    const text = short ? full.split(/(?<=[.?!]) /)[0] : next ? `${full} ${tieLine(next, k)}` : full;
+    const line: Line = { id: `tie:${tie.type}:${tie.name}:${k}`, topic: 'plans', text };
+    this.log.noted(c.who, line, this.named);
+    return line;
   }
 
   /** Una frase del tema para este contexto, evitando lo dicho hace poco; se anota en la memoria. */

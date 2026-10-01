@@ -562,7 +562,11 @@ export class WorldScene extends Phaser.Scene {
       this.services.state.locationId,
       this.clockNow(),
       [...(this.street?.agents ?? []), ...(this.crowd?.agents ?? [])],
-      this.characters.filter((c) => c.sprite.visible).map((c) => ({ name: c.sprite.def.name, tx: c.sprite.x / TILE, ty: c.sprite.y / TILE })),
+      // Los personajes con nombre: los que van por el barrio con su rutina y los que están en su puesto (la barra, el mostrador).
+      [
+        ...this.characters.filter((c) => c.sprite.visible).map((c) => c.sprite),
+        ...this.interactables.flatMap((i) => (i.kind === 'npc' && i.sprite.visible ? [i.sprite] : [])),
+      ].map((s) => ({ id: (s as Character).def.id, name: (s as Character).def.name, tx: s.x / TILE, ty: s.y / TILE })),
     );
     if (talking || liveMenu) {
       // Sentado, sigue respirando (y comiendo) mientras habla o elige.

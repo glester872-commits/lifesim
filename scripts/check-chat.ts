@@ -65,7 +65,8 @@ function converse(input: ChatInput, log: ChatLog, rng: () => number): Talk {
     assert.equal(turn.options[turn.options.length - 1].id, 'bye', 'la despedida no es la última opción');
     turn = talk.choose(choose.id);
     out.lines.push(...turn.lines);
-    out.ids.push(...turn.ids);
+    // Las frases de su gente (`tie:`) se arman con su relación de verdad: no están en el catálogo (las prueba check-population).
+    out.ids.push(...turn.ids.filter((x) => !x.startsWith('tie:')));
     out.turns++;
     out.replies++;
     if (turn.ids.some((id) => BY_ID.get(id)?.q)) out.asked++;

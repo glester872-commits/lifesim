@@ -14,6 +14,9 @@ import { attractedTo, compatible, IDENTITIES, relation, RELATIONSHIPS, roleAffin
 import { getLocation } from '../src/systems/LocationSystem.ts';
 import { StreetLife, streetProfileFor, type Walker } from '../src/systems/StreetLife.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
+import { NAMED_PEOPLE, NAMED_RELATIONSHIPS } from '../src/data/namedPeople.ts';
+import { namedRelation, tiesOf } from '../src/systems/People.ts';
+import { Conversation, ChatLog } from '../src/systems/Chat.ts';
 // world/HumanArt no se carga en node (imports sin extensión): lo que no fija un aspecto sale del id igual que en colorsOf().
 const FALLBACK_SKINS = ['#e3b692', '#d3a17c', '#b98462', '#96654a', '#f0caa8'];
 function fnv(text: string): number {
@@ -149,3 +152,57 @@ console.log(
   `(${count('friends') + count('best-friends')} amistades, ${romantic} parejas, ${sameGender} del mismo género) · ` +
   `${companions.length} acompañantes en un sábado, ${tied.length} con relación · grupos: ${[...bonds].join(', ')} · separación media ${gap.toFixed(2)} tiles`,
 );
+
+// ------------------------------------------------ personajes con nombre: identidad y relaciones escritas
+for (const npc of NPC_DEFS) assert.ok(NAMED_PEOPLE[npc.id], `${npc.id}: personaje con nombre sin identidad`);
+for (const id of Object.keys(NAMED_PEOPLE)) assert.ok(NPC_DEFS.some((n) => n.id === id), `${id}: identidad de nadie`);
+// Sus edades encajan con lo que ya se dice de ellos (data/characters.ts: Sara, 24; Ada, 21).
+assert.equal(NAMED_PEOPLE.sara.age, 24);
+assert.equal(NAMED_PEOPLE.ada.age, 21);
+for (const p of Object.values(NAMED_PEOPLE)) for (const k of ['skin', 'hair', 'origin']) assert.ok(!(k in p), `identidad con nombre con ${k}`);
+const namedPartners = new Map<string, number>();
+for (const r of NAMED_RELATIONSHIPS) {
+  const a = NAMED_PEOPLE[r.a];
+  const b = NAMED_PEOPLE[r.b];
+  if (r.type === 'couple' || r.type === 'married' || r.type === 'dating') {
+    assert.ok(attractedTo(a, b) && attractedTo(b, a), `${r.a} y ${r.b}: pareja sin atracción mutua`);
+    for (const id of [r.a, r.b]) namedPartners.set(id, (namedPartners.get(id) ?? 0) + 1);
+  } else if (r.type === 'exes') assert.ok(attractedTo(a, b) && attractedTo(b, a), `${r.a} y ${r.b}: ex sin atracción mutua`);
+  else if (r.type === 'crush') {
+    assert.ok(attractedTo(a, b), `${r.a}: flechazo sin atracción`);
+    assert.equal(namedRelation(r.b, r.a), 'strangers', 'el flechazo con nombre no es de ida y vuelta');
+  } else assert.equal(namedRelation(r.a, r.b), namedRelation(r.b, r.a));
+}
+assert.ok([...namedPartners.values()].every((n) => n === 1), 'un personaje con nombre con dos parejas');
+const namedFriends = NAMED_RELATIONSHIPS.filter((r) => r.type === 'friends' || r.type === 'best-friends' || r.type === 'coworkers').length;
+assert.ok(namedFriends > namedPartners.size, 'más parejas que amistades entre los personajes con nombre');
+// Sara y Ada salen juntas el viernes (OUTINGS): son amigas.
+assert.equal(namedRelation('sara', 'ada'), 'best-friends');
+
+// ------------------------------------------------ su gente: se descubre hablando, nunca un flechazo
+const withPartner = RELATIONSHIPS.find((r) => r.type === 'couple' || r.type === 'married' || r.type === 'dating')!;
+const partnerTies = tiesOf({ identity: withPartner.a });
+assert.equal(partnerTies[0].name, IDENTITIES[withPartner.b].name, 'lo primero de lo que habla no es su pareja');
+for (const r of RELATIONSHIPS.filter((x) => x.type === 'crush')) {
+  assert.ok(!tiesOf({ identity: r.a }).some((t) => t.type === 'crush'), 'alguien cuenta su flechazo');
+}
+assert.ok(!tiesOf({ named: 'paula' }).some((t) => t.type === 'crush'), 'Paula cuenta su flechazo');
+assert.equal(tiesOf({ named: 'bruno' })[0].name, 'Kike');
+const lonely = IDENTITIES.find((p) => tiesOf({ identity: p.index }).length === 0);
+// Hablando: «Preguntar por su gente» sólo sale si hay de quién hablar, y la respuesta lo nombra.
+const ask = (input: { identity?: number; named?: string }, seed: number): string[] => {
+  const talk = new Conversation({ who: `prueba:${seed}`, ...input, place: 'street', day: 3, hour: 18, minute: 0, weather: 'clear', group: false, rel: 1 }, new ChatLog(), seededRng(seed));
+  let turn = talk.open();
+  for (let i = 0; i < 6 && !turn.ends; i++) {
+    const people = turn.options.find((o) => o.id === 'people');
+    if (people) return talk.choose('people').lines;
+    turn = talk.choose(turn.options[0].id);
+  }
+  return [];
+};
+const told = Array.from({ length: 12 }, (_, s) => ask({ identity: withPartner.a }, s)).flat();
+assert.ok(told.some((l) => l.includes(IDENTITIES[withPartner.b].name)), 'nadie llega a hablar de su pareja');
+if (lonely) assert.equal(Array.from({ length: 12 }, (_, s) => ask({ identity: lonely.index }, s)).flat().length, 0, '«Preguntar por su gente» a quien no tiene a nadie');
+const sara = Array.from({ length: 12 }, (_, s) => ask({ named: 'sara' }, s)).flat();
+assert.ok(sara.some((l) => l.includes('Ada')), 'Sara no habla nunca de Ada');
+console.log(`personajes con nombre OK: ${Object.keys(NAMED_PEOPLE).length} identidades, ${NAMED_RELATIONSHIPS.length} relaciones (${namedFriends} de amistad o trabajo, ${namedPartners.size / 2} parejas); su gente se descubre hablando, nunca un flechazo`);

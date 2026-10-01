@@ -92,6 +92,8 @@ export const OPTIONS: readonly OptionDef[] = [
   { id: 'nightlife', label: 'Hablar de salir de noche', topics: [['nightlife', 1]] },
   { id: 'transit', label: 'Hablar del metro', topics: [['transit', 1]] },
   { id: 'work', label: 'Preguntar por el trabajo', topics: [['work', 1]] },
+  // Sólo a quien tiene gente de la que hablar (systems/People.tiesOf): la respuesta se arma con su relación.
+  { id: 'people', label: 'Preguntar por su gente', topics: [] },
   { id: 'bye', label: 'Despedirse', topics: [['bye-short', 1], ['bye-long', 0.6]] },
 ];
 
