@@ -9,6 +9,7 @@ import { painted, paintSurfaces } from './Surfaces';
 import { hex, zonesOf } from '../systems/Districts';
 import { DISTRICTS } from '../data/districts';
 import { bakeDetail } from './Detail';
+import { HD, hasHD, hdKey, inShowcase } from './HD';
 
 export interface BuiltLocation {
   widthPx: number;
@@ -238,7 +239,10 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const width = (prop.tilesWide ?? 1) * TILE;
     const baseY = placement.ty * TILE + TILE;
     // Lo del techo, por encima de la gente (y por debajo de la luz de world/Lighting).
-    const img = scene.add.image(placement.tx * TILE + width / 2, baseY, propKey(prop, placement.tx, placement.ty)).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.mount ? seat(baseY) : standing(baseY));
+    const key = propKey(prop, placement.tx, placement.ty);
+    // En la escena de muestra, la versión a doble densidad si existe (world/HD): mismo tamaño, el doble de detalle.
+    const hd = hasHD(key) && inShowcase(def, placement.tx * TILE + width / 2, baseY);
+    const img = scene.add.image(placement.tx * TILE + width / 2, baseY, hd ? hdKey(key) : key).setOrigin(0.5, 1).setScale(hd ? 1 / HD : 1).setDepth(prop.overhead ? LAYER.overhead : prop.mount ? seat(baseY) : standing(baseY));
     // Árboles: además de su variante de dibujo, un matiz propio (más verde, más cálido, más apagado) por sitio.
     // Sin espejo: la luz del arte viene siempre del noroeste.
     if (prop.castBlob) img.setTint(CANOPY_TINTS[(placement.tx * 7 + placement.ty * 13) % CANOPY_TINTS.length]);

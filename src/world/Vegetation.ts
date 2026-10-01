@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { HD, makeHD } from './HD';
 import { PALETTE } from '../config/constants';
 import { make, px, shade, type Ctx } from './paint';
 
@@ -181,6 +182,10 @@ export function buildVegetationTextures(scene: Phaser.Scene): void {
       make(scene, `${sp.key}-${v}`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w));
       // La misma copa un píxel a sotavento: world/Ambience alterna los dos con las rachas.
       make(scene, `${sp.key}-${v}-gust`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 1));
+      // A doble densidad para la escena de muestra (world/HD): la misma especie con el doble de racimos y de hoja.
+      const hd = { ...sp, w: sp.w * HD, h: sp.h * HD };
+      makeHD(scene, `${sp.key}-${v}`, sp.w, sp.h, (ctx) => drawTree(ctx, hd, v * 97 + sp.w));
+      makeHD(scene, `${sp.key}-${v}-gust`, sp.w, sp.h, (ctx) => drawTree(ctx, hd, v * 97 + sp.w, 2));
     }
   }
 }

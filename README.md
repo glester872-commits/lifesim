@@ -684,3 +684,20 @@ En desarrollo siguen funcionando lifesim.fight.force(), .goto(), .pin(true/false
 .despawn() y .resetCooldown(). El primer asalto empieza seis minutos de juego
 (unos tres segundos reales) después de forzarlo. npm run check comprueba parejas,
 flujo, cómic, apuestas, caminos y recogida usando el mismo evento que el juego.
+
+## Calle del Carmen · destino alternativo y juvenil
+
+La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda alternativa, tatuajes, música, skate y noche. No es un sistema nuevo: reutiliza zonas, StreetLife, calendario y luz.
+
+- **Comercios** (`data/places.ts`, `world/BuildingArt.ts`): ropa vintage, segunda mano, streetwear, zapatillas, tatuajes, barbería + piercing, discos, café independiente y bar de noche. Los cuatro nuevos son sólo fachada, sin interior.
+- **Calle**: guirnaldas (`LocationDef.garlands`, `world/StringLights.ts`), farolas con pegatinas, percheros y pizarras en la acera, carteles y pegatinas por zona (`world/Detail.ts`). Patinadores sobre el carril bici (`data/bikes.ts`).
+- **Moda**: `data/districts.ts` da a cada distrito pesos de moda (`fashion`); `systems/Population.ts` los usa al generar. La mezcla alternativa ronda el 60 % de quien va al Carmen; el resto sigue siendo gente corriente y la diversidad física no depende de la moda.
+- **Vida** (`data/streets.ts`): viajes del Carmen (escaparates, corrillos, fotos de outfit, fumadores del bar, quedadas antes de salir, bolsas) con horarios: por el día tiendas, a las 18:00 quedadas, de noche bar y cola de discoteca.
+- **Eventos** (`data/popups.ts`, `systems/PopUps.ts`, `world/PopUpView.ts`): mercadillo vintage, lanzamiento de zapatillas, pop-up de moda, DJ y inauguración de arte. Una tirada por semana con semilla fija, sin solaparse, suspendidos con lluvia fuerte; se montan antes de abrir y se recogen después. Durante el evento la gente tiene viajes extra (`TripRule.popup`) y la calle admite más paseantes.
+- **Prueba**: `scripts/check-carmen.ts` (parte de `npm run check`).
+
+## Asientos con un solo dueño y servicio en la terraza
+
+- **Asientos** (`systems/SeatRegistry.ts`): cada silla, banco o taburete es `available`, `reserved` u `occupied` y tiene un único dueño. Quien decide sentarse reserva en el mismo instante, pasa a `occupied` al llegar y lo suelta al levantarse, cancelar, no encontrar ruta o irse. Sólo el dueño suelta. `sweep` recoge reservas huérfanas (dueño inexistente, que va a otra parte o que lleva demasiado de camino). Lo usan `Crowd` (interiores) y `StreetLife` (calle); un personaje con nombre que se adelanta cancela también a quien iba de camino (`claim`).
+- **Terraza de Casa Tomás**: la calle lleva su propio `TableService` (el mismo del comedor, activado por `StreetProfile.tableService`) con dos mesas (`LocationDef.tables` del distrito). El camarero de la terraza sale por la puerta, atiende con la misma carta, cocina, entrega y cuenta; la barra a la que va y vuelve es su sitio junto a la puerta. Si el jugador se levanta antes de que llegue o a medias de pedir, la mesa y el camarero quedan libres.
+- **Pruebas**: `scripts/check-seats.ts` y `scripts/check-terrace.ts` (parte de `npm run check`).

@@ -25,7 +25,9 @@ export type Gait = 'brisk' | 'steady' | 'slow';
 export type Income = 'low' | 'mid' | 'high';
 export type Fashion =
   | 'casual' | 'sportswear' | 'streetwear' | 'vintage' | 'alternative' | 'luxury'
-  | 'office' | 'workwear' | 'nightlife' | 'athletic' | 'tourist' | 'formal';
+  | 'office' | 'workwear' | 'nightlife' | 'athletic' | 'tourist' | 'formal'
+  // Calle del Carmen: lo que más se ve allí, y en cualquier sitio en poca cantidad.
+  | 'punk' | 'skate' | 'designer' | 'experimental';
 export type Interest =
   | 'football' | 'fashion' | 'gaming' | 'music' | 'nightlife' | 'art' | 'fitness' | 'food'
   | 'technology' | 'photography' | 'tattoos' | 'travelling' | 'reading' | 'cinema' | 'skating' | 'cycling';
@@ -136,6 +138,7 @@ export const FASHION_STYLE: Readonly<Record<Fashion, import('./districts.ts').Lo
   office: 'smart', formal: 'smart', luxury: 'smart',
   streetwear: 'street', vintage: 'street', alternative: 'street', nightlife: 'street',
   sportswear: 'sport', athletic: 'sport',
+  punk: 'street', skate: 'street', experimental: 'street', designer: 'smart',
 };
 
 /** Colores de ropa por estilo: [tela, pantalón]. La silueta la ponen los complementos. */
@@ -152,6 +155,12 @@ export const FASHION_CLOTHES: Readonly<Record<Fashion, readonly (readonly [strin
   athletic: [['#e6e0d4', '#3f5d8c'], ['#3f6f5a', '#232329'], ['#ff8a5a', '#232329']],
   tourist: [['#e6e0d4', '#9a8a6a'], ['#5c8a7a', '#c9b27a'], ['#d8b04a', '#4f6a8c']],
   formal: [['#232329', '#232329'], ['#3a3a44', '#3a3a44'], ['#e6e2d8', '#2b2d33']],
+  // Negro, rojo oscuro y poco más; tabla de skate: holgado, tierra y mostaza; diseño: una prenda que manda sobre lo neutro;
+  // experimental: colores que no deberían ir juntos y van.
+  punk: [['#1c1a22', '#232329'], ['#8c2f2f', '#1c1a22'], ['#2a2830', '#3a3a44'], ['#b8423a', '#232329']],
+  skate: [['#c9a27a', '#3f4b3a'], ['#d8b04a', '#33374a'], ['#3f6f78', '#232329'], ['#e6e0d4', '#5b4b3a'], ['#8aa05a', '#232329']],
+  designer: [['#d8d2c4', '#232329'], ['#8c7a5a', '#33374a'], ['#232329', '#d8d2c4'], ['#c0493f', '#2b2d33']],
+  experimental: [['#ff6ab8', '#33374a'], ['#5ad8ff', '#8c3f6a'], ['#d8b04a', '#3f5d8c'], ['#7a3f5a', '#c9b27a'], ['#3f6f5a', '#ff8a5a']],
 };
 
 // ------------------------------------------------------------- comportamiento
@@ -187,13 +196,22 @@ export const ROLE_AFFINITY: Readonly<Record<string, { interests?: readonly Inter
   'club-smoke': { interests: ['nightlife', 'music'], ages: [18, 50] },
   'club-leaving': { interests: ['nightlife', 'music'], ages: [18, 50] },
   'night-walker': { ages: [18, 70] },
+  // Carmen: quien va de tiendas, de fotos o a la fila de una zapatilla tiene que ver con la ropa y la música; la edad pesa poco.
+  'carmen-hang': { interests: ['music', 'skating', 'fashion', 'tattoos', 'art'], ages: [16, 55] },
+  'carmen-outfit': { interests: ['fashion', 'photography', 'art'], ages: [16, 45] },
+  'carmen-prenight': { interests: ['nightlife', 'music'], ages: [18, 45] },
+  'bar-smoke': { ages: [18, 70] },
+  'popup-market': { interests: ['fashion', 'art', 'music', 'photography'] },
+  'popup-queue': { interests: ['fashion', 'skating', 'technology', 'gaming'], ages: [16, 40] },
+  'popup-dj': { interests: ['music', 'nightlife'], ages: [18, 45] },
+  'popup-art': { interests: ['art', 'photography', 'cinema', 'reading'] },
   tourist: { interests: ['travelling', 'photography'] },
 };
 
 /** Lo que hace en el barrio quien no vive aquí: nada que salga de un portal. */
 export const VISITOR_ROLES: ReadonlySet<string> = new Set([
   'tourist', 'stroller', 'passer', 'coffee', 'terrace', 'brunch', 'diner', 'carmen-browse', 'carmen-couple',
-  'window-shopper', 'metro-arrival', 'park-stroll', 'club-queue', 'club-goer', 'club-smoke', 'club-leaving',
+  'window-shopper', 'metro-arrival', 'park-stroll', 'carmen-hang', 'carmen-outfit', 'carmen-prenight', 'bar-smoke', 'popup-market', 'popup-queue', 'popup-dj', 'popup-art', 'club-queue', 'club-goer', 'club-smoke', 'club-leaving',
 ]);
 
 /** Qué relaciones valen para cada tipo de grupo. */

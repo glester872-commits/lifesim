@@ -38,7 +38,10 @@ export class Ambience {
       for (const o of scene.children.list) {
         if (!(o instanceof Phaser.GameObjects.Image)) continue;
         const key = o.texture.key;
-        if (/^prop-(plane-|bed-)?tree-\d+$/.test(key) && scene.textures.exists(`${key}-gust`)) this.trees.push({ img: o, still: key, windy: `${key}-gust` });
+        // También la versión a doble densidad (world/HD): su racha es la HD, no la normal.
+        const m = /^(prop-(?:plane-|bed-)?tree-\d+)(@hd)?$/.exec(key);
+        const windy = m ? `${m[1]}-gust${m[2] ?? ''}` : '';
+        if (m && scene.textures.exists(windy)) this.trees.push({ img: o, still: key, windy });
       }
     }
 

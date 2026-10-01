@@ -45,6 +45,11 @@ export interface DistrictProfile {
   kit?: { props: readonly PropKind[]; on: 'facade' | 'open'; every: number; max: number };
   /** Peso de cada estilo de ropa entre quienes van a la zona. */
   crowd: Readonly<Partial<Record<LookStyle, number>>>;
+  /**
+   * Afina `crowd` por moda de cada persona (data/identity.ts, Fashion): multiplica el peso de quien viste así.
+   * Para que una zona atraiga más punk o más oficina sin que toda su gente vaya igual.
+   */
+  fashion?: Readonly<Partial<Record<import('./identity.ts').Fashion, number>>>;
   /** Multiplicadores del tráfico que cruza la zona (id → factor), por franja; `all` vale siempre. */
   vehicles?: Readonly<Partial<Record<TrafficBand | 'all', Readonly<Record<string, number>>>>>;
   /** Estilos de edificio (BuildingDef.style) que caben en la zona; con '*' al final, prefijo ('res-*'). */
@@ -85,9 +90,12 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     grade: { morning: '#fff0e6', day: '#fff9f2', sunset: '#ffe4d0', night: '#fbece6' },
     lamp: ['#ffb870', 1.05],
     kit: { props: ['poster', 'bike', 'poster', 'bike-rack'], on: 'facade', every: 2, max: 12 },
-    crowd: { street: 5, everyday: 1.5, smart: 0.6, sport: 0.3 },
-    vehicles: { all: { casual: 1.6, rental: 1.4, commuter: 0.7 } },
-    facades: ['res-*', 'tattoo', 'vintage', 'coffee', 'records', 'streetwear', 'thrift', 'print'],
+    // Mezcla, no uniforme: más ropa de calle, vintage, punk o skate que en otro sitio, pero con mucha ropa normal, oficina y deporte.
+    crowd: { street: 2.7, everyday: 2.3, smart: 1, sport: 0.8 },
+    fashion: { vintage: 1.9, alternative: 2.2, punk: 2.4, skate: 2.4, experimental: 2.6, designer: 1.8, streetwear: 1.3, nightlife: 1.2, tourist: 1.4 },
+    // Bicis de paseo y de alquiler, y patinadores por el carril del Carmen.
+    vehicles: { all: { casual: 1.6, rental: 1.4, commuter: 0.7, skater: 7 } },
+    facades: ['res-*', 'tattoo', 'vintage', 'coffee', 'records', 'streetwear', 'thrift', 'print', 'sneaker', 'piercing', 'bar'],
     ambience: { leaf: 1.2, paper: 1.6, steam: 1 },
   },
   // Noche: de día pasa desapercibida; al caer la luz es la zona más oscura con la luz más rosada.
@@ -108,7 +116,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     lamp: ['#ffe0a8', 0.8],
     kit: { props: ['bush', 'leaves', 'bush'], on: 'open', every: 8, max: 10 },
     crowd: { sport: 4, everyday: 2.5, smart: 0.3, street: 0.8 },
-    vehicles: { all: { casual: 1.5, commuter: 0.8, courier: 0.6 } },
+    vehicles: { all: { casual: 1.5, commuter: 0.8, courier: 0.6, skater: 3 } },
     facades: ['civic', 'wine', 'res-*'],
     ambience: { leaf: 2.5, paper: 0.3, steam: 0.3 },
   },

@@ -108,6 +108,7 @@ export type PropKind =
   | 'plane-tree'
   | 'plaza-bench'
   | 'street-lamp'
+  | 'street-lamp-art'
   | 'bike-rack'
   | 'planter-box'
   | 'metro-totem'
@@ -127,6 +128,9 @@ export type PropKind =
   | 'sneaker-wall'
   | 'bargain-bin'
   | 'poster-column'
+  // Calle del Carmen: lo que se saca a la acera.
+  | 'street-rack'
+  | 'sandwich-board'
   | 'speaker'
   // en la pared (sobre muro, que ya es sólido)
   | 'window'
@@ -248,6 +252,10 @@ export type BuildingStyle =
   | 'coffee'
   | 'records'
   | 'print'
+  // Calle del Carmen, segunda tanda: zapatillas, piercing con barbería y el bar de la esquina.
+  | 'sneaker'
+  | 'piercing'
+  | 'bar'
   | 'backdrop';
 
 /**
@@ -435,6 +443,11 @@ export interface LocationDef {
    * cámara centrada en la escena (px de mundo).
    */
   foreground?: readonly { kind: 'canopy' | 'canopy-small'; x: number; y: number; flip?: boolean }[];
+  /**
+   * Guirnaldas de bombillas (world/StringLights), en px de mundo: de (x0, y0) a (x1, y1), con `sag` px de caída
+   * en el centro. Cuelgan por encima de la gente y de noche se encienden.
+   */
+  garlands?: readonly { x0: number; y0: number; x1: number; y1: number; sag: number }[];
 }
 
 export interface DistrictZone {

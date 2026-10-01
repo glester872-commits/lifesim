@@ -126,6 +126,25 @@ function drawStreetLamp(ctx: Ctx): void {
   px(ctx, IRON, 6, 12, 5, 1);
 }
 
+/**
+ * La farola del Carmen: igual que las demás, con pegatinas de colores pegadas en el fuste a distintas
+ * alturas, un cartel de concierto con su borde rosa y la cinta que lo sujeta. Nada que tape la linterna.
+ */
+function drawStreetLampArt(ctx: Ctx): void {
+  drawStreetLamp(ctx);
+  for (const [x, y, c] of [[7, 22, '#ff6ab8'], [8, 27, '#5ad8ff'], [7, 37, '#d8b04a'], [9, 41, '#e6e0d4'], [8, 44, '#c0493f']] as const) {
+    px(ctx, c, x, y, 2, 2);
+    px(ctx, shade(c, 0.25), x, y, 1, 1);
+  }
+  // El cartel: papel claro con el borde rosa y dos rayas de texto, torcido un píxel.
+  px(ctx, '#e6e0d4', 6, 28, 5, 7);
+  px(ctx, '#ff6ab8', 6, 28, 5, 1);
+  px(ctx, PALETTE.ink, 7, 30, 3, 1);
+  px(ctx, PALETTE.ink, 7, 32, 2, 1);
+  px(ctx, shade('#e6e0d4', -0.2), 10, 29, 1, 6);
+  px(ctx, '#c9a27a', 6, 27, 5, 1);
+}
+
 /** Una bici de lado, pequeña: ruedas, cuadro de su color y sillín. */
 function bike(ctx: Ctx, x: number, y: number, frame: string): void {
   for (const cx of [x + 2, x + 9]) {
@@ -516,6 +535,7 @@ export function buildUrbanTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-leaves', TILE, TILE, drawLeaves);
   make(scene, 'prop-plaza-bench', TILE * 2, 24, drawPlazaBench);
   make(scene, 'prop-street-lamp', TILE, 56, drawStreetLamp);
+  make(scene, 'prop-street-lamp-art', TILE, 56, drawStreetLampArt);
   make(scene, 'prop-bike-rack', TILE * 2, 20, drawBikeRack);
   make(scene, 'prop-planter-box', TILE * 2, 24, drawPlanterBox);
   make(scene, 'prop-metro-totem', TILE, 48, drawMetroTotem);

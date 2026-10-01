@@ -166,7 +166,11 @@ export const ZONES: readonly ZoneDef[] = [
     rects: [{ tx: 74, ty: 37, w: 36, h: 14 }],
     population: {
       label: 'tiendas vintage, cafés, parejas y grupos',
-      roles: { 'carmen-browse': 1.3, 'carmen-couple': 1.2, 'carmen-friends': 1.2, 'carmen-bench': 1.1, 'tattoo-client': 1.1 },
+      roles: {
+        'carmen-browse': 1.3, 'carmen-couple': 1.2, 'carmen-friends': 1.2, 'carmen-bench': 1.1, 'tattoo-client': 1.1,
+        'carmen-hang': 1.3, 'carmen-outfit': 1.3, 'carmen-prenight': 1.2, 'sneaker-heads': 1.2, 'piercing-client': 1.1, 'bar-night': 1.3, 'bar-smoke': 1.2,
+        'popup-market': 1.4, 'popup-queue': 1.4, 'popup-dj': 1.4, 'popup-art': 1.4,
+      },
     },
     activity: { bands: [[10, 12, 0.7], [12, 14.5, 1.1], [14.5, 17, 0.8], [17, 21.5, 1.5], [21.5, 24, 0.9]], rest: 0.2, weekend: 1.4, days: { 0: 0.8 }, outdoor: 0.6, variation: 0.2 },
     hours: [10, 24],

@@ -18,7 +18,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -74,7 +74,7 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   // Retales, vintage: verde botella, toldo de rayas crema y óxido, escaparate con maniquíes y el vestido.
   vintage: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#2f5d50', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'wood', awning: ['#e6dcc0', RUST], sign: 'dress' },
   // Archivo, streetwear: hormigón oscuro, cristal corrido con luz fría y la gorra.
-  streetwear: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#3a3d44', shop: 'glass', upper: 'band', lit: NEON_CYAN, door: 'glass', sign: 'cap' },
+  streetwear: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#3a3d44', shop: 'display', upper: 'band', lit: NEON_CYAN, door: 'glass', sign: 'cap' },
   // Segunda Vuelta, al peso: revoco amarillo, toldo verde y la etiqueta de precio.
   thrift: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#d8b04a', shop: 'display', upper: 'windows', lit: PALETTE.amber, door: 'glass', awning: [PALETTE.leaf, PALETTE.white], sign: 'tag', wallArt: 'posters' },
   // Tinta Carmen: negro, luz rosa detrás del cristal, el corazón con banda y un mural al lado.
@@ -85,6 +85,12 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   records: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#4a3f5a', shop: 'windows', upper: 'windows', lit: PALETTE.amber, door: 'wood', sign: 'disc', wallArt: 'mural' },
   // Serigrafía: taller de carteles, con sus propios carteles en la fachada.
   print: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.white, -0.16), shop: 'windows', upper: 'windows', lit: PALETTE.white, door: 'metal', wallArt: 'posters' },
+  // Suela, zapatillas: hormigón claro, escaparate de vitrina con luz cálida y la zapatilla como rótulo.
+  sneaker: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#cfcabe', shop: 'display', upper: 'windows', lit: '#ffb14a', door: 'glass', sign: 'sneaker' },
+  // Navaja & Aro, barbería y piercing: fachada verde casi negra, luz cian de neón, carteles pegados y el poste del barbero.
+  piercing: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#26343a', shop: 'display', upper: 'windows', lit: NEON_CYAN, door: 'metal', sign: 'pole', wallArt: 'posters' },
+  // Bar Gaviota: ladrillo oscuro, toldo granate y crema, la caña como rótulo y carteles de conciertos.
+  bar: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#6e3a30', shop: 'display', upper: 'windows', lit: PALETTE.amber, door: 'wood', awning: ['#8c2f2f', '#e6dcc0'], sign: 'beer', wallArt: 'posters' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
 };
 
@@ -659,7 +665,7 @@ function drawAwningStyle(ctx: Ctx, look: Look, k: number): void {
 }
 
 /** Lo que se expone en un escaparate (14 × 16), según el oficio y la tienda. */
-type Goods = 'rack' | 'mannequins' | 'sale' | 'crates' | 'machines' | 'chair' | 'shelves' | 'plants';
+type Goods = 'rack' | 'mannequins' | 'sale' | 'crates' | 'machines' | 'chair' | 'shelves' | 'plants' | 'sneakers' | 'decks' | 'jewelry' | 'bottles';
 const GOODS_BY_STYLE: Partial<Record<BuildingStyle, readonly Goods[]>> = {
   fashion: ['mannequins', 'rack', 'sale', 'mannequins'],
   vintage: ['rack', 'mannequins', 'plants', 'rack'],
@@ -667,8 +673,13 @@ const GOODS_BY_STYLE: Partial<Record<BuildingStyle, readonly Goods[]>> = {
   hair: ['chair', 'plants', 'chair', 'shelves'],
   fruit: ['crates', 'crates', 'shelves', 'plants'],
   laundry: ['machines', 'machines', 'sale', 'machines'],
+  // Carmen: lo que se ve desde la acera dice qué es cada local.
+  streetwear: ['rack', 'sneakers', 'decks', 'rack'],
+  sneaker: ['sneakers', 'sneakers', 'shelves', 'sneakers'],
+  piercing: ['chair', 'jewelry', 'chair', 'jewelry'],
+  bar: ['bottles', 'shelves', 'bottles', 'bottles'],
 };
-const GOODS: readonly Goods[] = ['rack', 'mannequins', 'sale', 'crates', 'machines', 'chair', 'shelves', 'plants'];
+const GOODS: readonly Goods[] = ['rack', 'mannequins', 'sale', 'crates', 'machines', 'chair', 'shelves', 'plants', 'sneakers', 'decks', 'jewelry', 'bottles'];
 
 function drawGoods(ctx: Ctx, g: Goods): void {
   const shelf = shade(PALETTE.wood, 0.1);
@@ -726,6 +737,44 @@ function drawGoods(ctx: Ctx, g: Goods): void {
     case 'shelves':
       for (const y of [4, 9, 14]) px(ctx, shelf, 1, y, 12, 1);
       for (const [x, y, c] of [[2, 2, PALETTE.white], [6, 2, '#3f6f78'], [10, 2, PALETTE.amber], [3, 7, RUST], [8, 7, '#c8d84a'], [5, 12, '#8c5a6e']] as const) px(ctx, c, x, y, 3, 2);
+      break;
+    case 'sneakers':
+      // Dos baldas con zapatillas de perfil: cada una con su color y su suela blanca.
+      for (const y of [6, 12]) px(ctx, shelf, 0, y + 3, 14, 1);
+      for (const [x, y, c] of [[1, 6, '#ffb14a'], [5, 6, '#e6e0d4'], [9, 6, '#5ad8ff'], [1, 12, '#c0493f'], [5, 12, '#3f6f78'], [9, 12, '#ff6ab8']] as const) {
+        px(ctx, c, x, y, 4, 2);
+        px(ctx, shade(c, 0.2), x, y, 2, 1);
+        px(ctx, PALETTE.white, x, y + 2, 4, 1);
+      }
+      break;
+    case 'decks':
+      // Tablas de skate colgadas en vertical, cada una con su gráfica.
+      for (const [x, c] of [[1, '#c0493f'], [5, '#3f6f78'], [9, '#d8b04a']] as const) {
+        px(ctx, PALETTE.woodDark, x, 1, 3, 13);
+        px(ctx, c, x, 2, 3, 6);
+        px(ctx, shade(c, 0.2), x, 2, 1, 6);
+        px(ctx, PALETTE.white, x + 1, 4, 1, 2);
+      }
+      break;
+    case 'jewelry':
+      // Vitrina de joyería: aros y barras de acero sobre el terciopelo.
+      px(ctx, PALETTE.ink, 1, 4, 12, 9);
+      px(ctx, shade(PALETTE.rug, -0.2), 2, 5, 10, 7);
+      for (const [x, y] of [[3, 6], [6, 7], [9, 6], [4, 9], [8, 10]] as const) {
+        px(ctx, PALETTE.metalLit, x, y, 2, 1);
+        px(ctx, PALETTE.metalLit, x, y + 1, 1, 1);
+      }
+      px(ctx, PALETTE.glassLit, 1, 4, 12, 1);
+      break;
+    case 'bottles':
+      // Botellas en la balda de detrás de la barra: verdes, ámbar y transparentes.
+      for (const y of [4, 10]) px(ctx, shelf, 0, y + 4, 14, 1);
+      for (let i = 0; i < 6; i++) {
+        const c = ['#4f7d3a', PALETTE.amber, '#d8d2c4'][i % 3];
+        px(ctx, c, 1 + i * 2, 5, 1, 4);
+        px(ctx, shade(c, 0.25), 1 + i * 2, 4, 1, 1);
+        px(ctx, c, 1 + i * 2, 11, 1, 3);
+      }
       break;
     case 'plants':
       for (const [x, h] of [[1, 6], [6, 9], [10, 5]] as const) {
@@ -845,6 +894,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     cross: PALETTE.leafLit, scissors: PALETTE.glassLit, euro: PALETTE.amber, apple: RUST, key: PALETTE.amber,
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
+    sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber,
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -874,6 +924,12 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     case 'tag': p(6, 4, 6, 7); p(5, 5, 1, 5); p(4, 6, 1, 3); px(ctx, PALETTE.ink, 6, 7, 1, 1); px(ctx, PALETTE.ink, 8, 6, 3, 1); px(ctx, PALETTE.ink, 8, 8, 2, 1); break;
     case 'heart': px(ctx, RUST, 4, 5, 3, 3); px(ctx, RUST, 9, 5, 3, 3); px(ctx, RUST, 4, 7, 8, 2); px(ctx, RUST, 5, 9, 6, 1); px(ctx, RUST, 6, 10, 4, 1); px(ctx, RUST, 7, 11, 2, 1); p(3, 7, 10, 1); break;
     case 'disc': p(5, 4, 6, 8); p(4, 5, 8, 6); px(ctx, PALETTE.ink, 5, 5, 6, 6); px(ctx, PALETTE.amber, 7, 7, 2, 2); px(ctx, shade(PALETTE.ink, 0.15), 6, 5, 2, 1); break;
+    // Zapatilla de perfil: caña, empeine con su lengüeta y cordones, puntera y suela con la banda de color.
+    case 'sneaker': p(3, 5, 3, 5); p(6, 8, 7, 2); p(7, 7, 2, 1); px(ctx, PALETTE.ink, 8, 8, 1, 1); px(ctx, PALETTE.ink, 10, 8, 1, 1); p(3, 10, 10, 1); px(ctx, '#ffb14a', 4, 9, 5, 1); break;
+    // Poste de barbero: tapas y bandas rojas, blancas y azules en diagonal.
+    case 'pole': p(6, 3, 4, 1); for (let y = 4; y < 12; y++) px(ctx, y % 3 === 0 ? RUST : y % 3 === 1 ? PALETTE.white : '#5c6fa8', 6, y, 4, 1); p(5, 12, 6, 1); break;
+    // Caña: la espuma blanca, la cerveza dorada y el asa.
+    case 'beer': p(4, 4, 6, 2); px(ctx, PALETTE.amber, 4, 6, 6, 5); px(ctx, shade(PALETTE.amber, 0.25), 5, 6, 1, 5); p(10, 6, 2, 1); p(11, 7, 1, 3); p(10, 9, 2, 1); break;
     case 'wine': p(5, 3, 6, 1); p(5, 4, 1, 3); p(10, 4, 1, 3); px(ctx, PALETTE.rugLit, 6, 5, 4, 2); p(6, 7, 4, 1); p(7, 8, 2, 3); p(5, 11, 6, 1); break;
   }
 }

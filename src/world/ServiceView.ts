@@ -22,17 +22,18 @@ export class ServiceView {
   private readonly loc: LocationDef;
   private readonly images: Phaser.GameObjects.Image[] = [];
   private used = 0;
-  private readonly pass: { x: number; y: number };
-  private readonly kitchen: { x: number; y: number };
+  private readonly pass: { x: number; y: number } | null;
+  private readonly kitchen: { x: number; y: number } | null;
 
-  constructor(scene: Phaser.Scene, service: TableService, loc: LocationDef, points: { pass: string; kitchen: string }) {
+  constructor(scene: Phaser.Scene, service: TableService, loc: LocationDef, points: { pass: string; kitchen: string } | null) {
     this.scene = scene;
     this.service = service;
     this.loc = loc;
     const at = (id: string) => loc.points![id];
     // Lo que sale, sobre la barra, justo encima del pase; el vapor, sobre los fogones de detrás de quien cocina.
-    this.pass = { x: at(points.pass).tx * TILE + TILE / 2, y: at(points.pass).ty * TILE - 4 };
-    this.kitchen = { x: at(points.kitchen).tx * TILE + 4, y: at(points.kitchen).ty * TILE - 6 };
+    // En la terraza no hay barra ni cocina a la vista: sólo las mesas.
+    this.pass = points ? { x: at(points.pass).tx * TILE + TILE / 2, y: at(points.pass).ty * TILE - 4 } : null;
+    this.kitchen = points ? { x: at(points.kitchen).tx * TILE + 4, y: at(points.kitchen).ty * TILE - 6 } : null;
   }
 
   sync(time: number): void {
@@ -51,12 +52,13 @@ export class ServiceView {
       }
     }
     // En el pase, un plato por mesa que espera a que la lleven.
-    this.service.tables.filter((t) => t.ready && !t.served && t.state === 'ORDERED').slice(0, 3).forEach((t, i) => {
+    const pass = this.pass;
+    if (pass) this.service.tables.filter((t) => t.ready && !t.served && t.state === 'ORDERED').slice(0, 3).forEach((t, i) => {
       const food = t.plates.find((p) => !isDrink(p.item.dish)) ?? t.plates[0];
-      if (food) this.put(`fx-${food.item.dish}-full`, this.pass.x - 6 + i * 6, this.pass.y, this.pass.y + 20);
+      if (food) this.put(`fx-${food.item.dish}-full`, pass.x - 6 + i * 6, pass.y, pass.y + 20);
     });
     // Vapor en la cocina mientras haya algo al fuego.
-    if (this.service.cooking > 0) this.put(`fx-steam-${Math.floor(time / 380) % 2}`, this.kitchen.x, this.kitchen.y, this.kitchen.y + 30);
+    if (this.kitchen && this.service.cooking > 0) this.put(`fx-steam-${Math.floor(time / 380) % 2}`, this.kitchen.x, this.kitchen.y, this.kitchen.y + 30);
     for (let i = this.used; i < this.images.length; i++) this.images[i].setVisible(false);
   }
 

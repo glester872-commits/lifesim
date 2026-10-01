@@ -81,6 +81,10 @@ export interface ServiceHost {
   /** Echa a andar hacia un tile por la ruta de siempre; al llegar, mira a `face`. */
   walk(a: Agent, to: TilePoint, face?: TilePoint): void;
   pointAt(id: string): TilePoint;
+  /** Si ese agente es un camarero de este servicio; sin él, el personal con oficio de camarero que sirve mesas (interiores). */
+  isWaiter?(a: Agent): boolean;
+  /** Qué asiento tiene o al que va ese agente; sin él, su `point` (en los interiores se reserva al salir). */
+  seatOf?(a: Agent): string | undefined;
 }
 
 /** Lo que el jugador tiene delante: la escena lo enseña y responde con playerOrder / playerPay. */
@@ -172,7 +176,7 @@ export class TableService {
 
   /** Mientras la mesa no ha pagado, quien come en ella no se levanta por su reloj: manda el servicio. */
   holds(a: Agent): boolean {
-    const t = this.bySeat.get(a.point ?? '');
+    const t = this.bySeat.get(this.seatOf(a) ?? '');
     return !!t && !a.leaveSoon && t.state !== 'PAID' && t.diners.some((d) => d.who === a.id);
   }
 
@@ -297,7 +301,7 @@ export class TableService {
 
   private tick(t: Table, deltaMs: number): void {
     // Quien se ha ido ya no come aquí (el jugador se quita con playerStands).
-    t.diners = t.diners.filter((d) => d.who === PLAYER || this.host.agents.some((a) => a.id === d.who && a.point === d.seat && !a.leaving));
+    t.diners = t.diners.filter((d) => d.who === PLAYER || this.host.agents.some((a) => a.id === d.who && this.seatOf(a) === d.seat && !a.leaving));
     if (t.party !== null && t.diners.length === 0) {
       this.empty(t);
       return;
@@ -341,7 +345,8 @@ export class TableService {
 
   /** Si este es un camarero de este servicio (y sigue de turno). Si se va, suelta lo que tenía. */
   drives(a: Agent): boolean {
-    if (a.kind !== 'staff' || a.staffRole?.service !== 'waiter' || !a.staffRole.serves) return false;
+    if (a.kind !== 'staff') return false;
+    if (this.host.isWaiter ? !this.host.isWaiter(a) : a.staffRole?.service !== 'waiter' || !a.staffRole.serves) return false;
     if (a.leaveSoon) {
       const w = this.waiters.get(a.id);
       if (w?.table && w.table.waiter === w.id) w.table.waiter = null;
@@ -394,7 +399,8 @@ export class TableService {
         return;
       }
       case 'TAKING_ORDER':
-        if (!t) return this.finish(w, a);
+        // Se han levantado antes de pedir (o la mesa ya no pide): no hay nada que tomar, queda libre y a otra cosa.
+        if (!t || t.party === null || (t.party !== PLAYER && !this.stillNeeds(t, 'order'))) return this.finish(w, a);
         if (t.party === PLAYER) {
           // El jugador decide: si ya ha pedido, a cocina; si no contesta, vuelve luego.
           if (t.state === 'ORDERED') return this.toKitchen(w, a);
@@ -432,7 +438,7 @@ export class TableService {
         }
         return this.finish(w, a);
       case 'TAKING_PAYMENT':
-        if (!t) return this.finish(w, a);
+        if (!t || t.party === null) return this.finish(w, a);
         if (t.party === PLAYER) {
           if (t.state === 'PAID') return this.finish(w, a);
           if (t.state !== 'WAITING_TO_PAY' || w.timer <= 0) {
@@ -602,6 +608,10 @@ export class TableService {
   /** Hacia dónde mira quien atiende la mesa: hacia quien se sienta en ella. */
   private face(t: Table): TilePoint {
     return this.host.pointAt(t.diners[0]?.seat ?? t.def.seats[0]);
+  }
+
+  private seatOf(a: Agent): string | undefined {
+    return this.host.seatOf ? this.host.seatOf(a) : a.point;
   }
 
   private agent(id: number): Agent | undefined {

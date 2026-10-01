@@ -173,6 +173,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'flower-bed': { key: 'prop-flower-bed', tilesHigh: 1, tilesWide: 2, shadow: [30, 4] },
   'plaza-bench': { key: 'prop-plaza-bench', tilesHigh: 2, tilesWide: 2, shadow: [30, 5], mount: true },
   'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22 },
+  // La farola de la Calle del Carmen: la misma, con pegatinas y un cartel pegado en el fuste.
+  'street-lamp-art': { key: 'prop-street-lamp-art', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22 },
   'bike-rack': { key: 'prop-bike-rack', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'planter-box': { key: 'prop-planter-box', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'metro-totem': { key: 'prop-metro-totem', tilesHigh: 3, shadow: [8, 3], cast: 18, emissive: 'glow-metro-totem' },
@@ -203,6 +205,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'bargain-bin': { key: 'prop-bargain-bin', tilesHigh: 1, tilesWide: 2 },
   // Columna de carteles de la calle: alta y estrecha, con su sombra al sureste.
   'poster-column': { key: 'prop-poster-column', tilesHigh: 3, shadow: [12, 4], cast: 16 },
+  // Perchero con ropa en la acera de una tienda (tres surtidos) y la pizarra de un bar: sólo la base ocupa.
+  'street-rack': { key: 'prop-street-rack', tilesHigh: 2, variants: 3, shadow: [15, 4] },
+  'sandwich-board': { key: 'prop-sandwich-board', tilesHigh: 2, shadow: [13, 4] },
   // Sobre un mostrador: comparten tile con él.
   espresso: { key: 'prop-espresso', tilesHigh: 1 },
   'pastry-case': { key: 'prop-pastry-case', tilesHigh: 1 },

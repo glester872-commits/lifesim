@@ -52,8 +52,68 @@ export function bakeDetail(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderTex
   downpipes(g, def);
   wear(g, def);
   if (def.showcase) showcaseDepth(g, def, windows, def.showcase);
+  for (const z of def.zones ?? []) if (z.profile === 'vintage') streetArt(g, def, z);
   rt.draw(g);
   g.destroy();
+}
+
+const SPRAY = [0xff6ab8, 0x5ad8ff, 0xd8b04a, 0x8ff0ff, 0xc0493f, 0xb07aff] as const;
+/** Estilos de local que se llenan de pegatinas y firmas en el zócalo. */
+const TAGGED = new Set(['tattoo', 'records', 'streetwear', 'piercing', 'bar', 'thrift', 'sneaker', 'vintage']);
+
+/**
+ * Arte de calle de la zona vintage (data/districts.ts): lo que deja la gente que pasa, pintado con el suelo.
+ *   - Plantillas de spray en el suelo de la acera, pocas y descoloridas: una mancha con sus gotas, una firma en zigzag,
+ *     una estrella. Sólo donde no hay un prop encima.
+ *   - Firmas y pegatinas en el zócalo de las tiendas, a un lado de la puerta, nunca sobre un escaparate ni la puerta.
+ * Determinista: el mismo sitio, la misma firma, en cada visita. Nada de manchas negras: color con poca opacidad.
+ */
+function streetArt(g: Phaser.GameObjects.Graphics, def: LocationDef, z: NonNullable<LocationDef['zones']>[number]): void {
+  const taken = new Set(def.props.map((p) => `${p.tx},${p.ty}`));
+  for (let ty = z.ty; ty < z.ty + z.h; ty++) {
+    for (let tx = z.tx; tx < z.tx + z.w; tx++) {
+      if (def.ground[ty]?.[tx] !== 'P' || taken.has(`${tx},${ty}`) || rnd(tx, ty, 41) >= 0.02) continue;
+      const c = SPRAY[Math.floor(rnd(tx, ty, 42) * SPRAY.length)];
+      const x = tx * TILE + 3 + Math.floor(rnd(tx, ty, 43) * 8);
+      const y = ty * TILE + 3 + Math.floor(rnd(tx, ty, 44) * 8);
+      g.fillStyle(c, 0.5);
+      const kind = Math.floor(rnd(tx, ty, 45) * 3);
+      if (kind === 0) {
+        // Mancha con tres gotas.
+        g.fillCircle(x, y, 3).fillRect(x - 1, y + 3, 1, 3).fillRect(x + 2, y + 3, 1, 2).fillRect(x, y + 3, 1, 1);
+        g.fillStyle(0xffffff, 0.14).fillRect(x - 2, y - 2, 2, 1);
+      } else if (kind === 1) {
+        // Firma en zigzag, con un subrayado.
+        for (let i = 0; i < 7; i++) g.fillRect(x + i, y + (i % 2 === 0 ? 0 : 2), 1, 2);
+        g.fillRect(x, y + 4, 8, 1);
+      } else {
+        // Estrella de cinco puntas muy esquemática.
+        g.fillRect(x, y - 3, 1, 7).fillRect(x - 3, y, 7, 1).fillRect(x - 2, y - 2, 1, 1).fillRect(x + 2, y - 2, 1, 1).fillRect(x - 2, y + 2, 1, 1).fillRect(x + 2, y + 2, 1, 1);
+      }
+    }
+  }
+  for (const b of def.buildings ?? []) {
+    if (!TAGGED.has(b.style) || b.tx < z.tx || b.tx >= z.tx + z.w || b.ty < z.ty || b.ty >= z.ty + z.h) continue;
+    // La línea del zócalo: al pie de la fachada al sur, o en la fila de canto de la fachada al norte.
+    const y0 = b.front === 's' ? (b.ty + b.h) * TILE - 12 : b.front === 'n' ? b.ty * TILE + 8 : -1;
+    if (y0 < 0) continue;
+    for (let k = 0; k < 3; k++) {
+      const cx = b.tx + Math.floor(rnd(b.tx, b.ty, 50 + k) * b.w);
+      if (b.doorX !== undefined && Math.abs(cx - b.doorX) <= 1) continue;
+      const x = cx * TILE + 2 + Math.floor(rnd(cx, b.ty, 55 + k) * 6);
+      const c = SPRAY[Math.floor(rnd(cx, b.ty, 60 + k) * SPRAY.length)];
+      if (k === 0) {
+        // Pegatina rectangular con borde blanco.
+        g.fillStyle(0xe6e0d4, 0.85).fillRect(x, y0, 5, 4);
+        g.fillStyle(c, 0.9).fillRect(x + 1, y0 + 1, 3, 2);
+      } else {
+        // Firma: tres trazos en el color, y su sombra.
+        g.fillStyle(INK, 0.18).fillRect(x + 1, y0 + 5, 7, 1);
+        g.fillStyle(c, 0.85);
+        for (let i = 0; i < 7; i++) g.fillRect(x + i, y0 + (i % 3 === 1 ? 0 : 2), 1, 2 + (i % 2));
+      }
+    }
+  }
 }
 
 /**

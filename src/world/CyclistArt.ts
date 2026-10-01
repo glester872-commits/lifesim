@@ -78,7 +78,42 @@ function seated(c: HumanColors): HTMLCanvasElement {
   return canvas;
 }
 
+/**
+ * Patinador: la misma persona de pie (cada fotograma, un paso o el cuerpo quieto), sobre una tabla con las
+ * puntas levantadas, sus ejes y cuatro ruedas. Sin luces: no lleva.
+ */
+function drawSkater(ctx: Ctx, r: RiderLook, c: HumanColors, f: number): void {
+  const deck = r.bike.colors[r.color];
+  px(ctx, 'rgba(0,0,0,0.3)', 3, 24, 18, 2);
+  // Tabla: la cara de arriba con la gráfica, el canto y las puntas levantadas.
+  px(ctx, PALETTE.outline, 2, 20, 18, 4);
+  px(ctx, deck, 4, 22, 14, 1);
+  px(ctx, shade(deck, 0.2), 4, 22, 14, 1);
+  px(ctx, shade(deck, -0.25), 4, 23, 14, 1);
+  px(ctx, deck, 3, 21, 1, 2);
+  px(ctx, deck, 18, 21, 1, 2);
+  px(ctx, PALETTE.white, 9, 22, 4, 1);
+  // Ejes y ruedas.
+  for (const x of [6, 14]) {
+    px(ctx, PALETTE.metal, x, 24, 2, 1);
+    px(ctx, PALETTE.ink, x - 1, 24, 4, 2);
+    px(ctx, shade(PALETTE.ink, 0.25), x - 1, 24, 1, 1);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 24;
+  const bctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!bctx) return;
+  // Quieto, o con un pie empujando; los pies a la altura de la tabla.
+  drawHuman(bctx, 'right', f === RIDER_STOPPED ? 0 : ([1, 0, 2, 0] as const)[f], c);
+  ctx.drawImage(canvas, 3, -3);
+}
+
 function drawRider(ctx: Ctx, r: RiderLook, c: HumanColors, body: HTMLCanvasElement, f: number): void {
+  if (r.bike.frame === 'skate') {
+    drawSkater(ctx, r, c, f);
+    return;
+  }
   const stopped = f === RIDER_STOPPED;
   const lean = r.bike.lean ? 1 : 0;
   const bar: Pt = r.bike.frame === 'road' ? [16, 12] : [15, 11];

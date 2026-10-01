@@ -12,6 +12,7 @@ import { buildVehicleTextures } from './VehicleArt';
 import { buildWeatherTextures } from './WeatherView';
 import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
+import { buildPopUpTextures } from './PopUpArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
@@ -727,6 +728,7 @@ export function buildTextures(scene: Phaser.Scene): void {
 
   buildPropTextures(scene);
   buildUrbanTextures(scene);
+  buildPopUpTextures(scene);
   buildVegetationTextures(scene);
   buildStreetTextures(scene);
   buildBuildingTextures(scene);

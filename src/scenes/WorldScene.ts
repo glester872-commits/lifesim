@@ -46,7 +46,7 @@ import { stopAtStation } from '../systems/Transit';
 import { Menus } from './Menus';
 import { CrowdView } from '../world/CrowdView';
 import { ServiceView } from '../world/ServiceView';
-import type { PlayerCall } from '../systems/TableService';
+import type { PlayerCall, TableService } from '../systems/TableService';
 import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
 import { characterLook, umbrellaFor } from '../world/WeatherLooks';
@@ -58,6 +58,8 @@ import { Occlusion } from '../world/Occlusion';
 import { ZoneDebugView } from '../world/ZoneDebugView';
 import { PopulationInspector } from '../world/PopulationInspector';
 import { ForegroundView } from '../world/Foreground';
+import { PopUpView } from '../world/PopUpView';
+import { StringLightsView } from '../world/StringLights';
 import { DEBUG } from '../config/debug';
 import { weatherAt } from '../systems/Weather';
 import { WildlifeView } from '../world/WildlifeView';
@@ -174,6 +176,10 @@ export class WorldScene extends Phaser.Scene {
   private occlusion: Occlusion | null = null;
   /** Copas en primer plano con paralaje (LocationDef.foreground). */
   private foreground: ForegroundView | null = null;
+  /** Los eventos de la calle (data/popups.ts): puestos, carpa, cabina del DJ… según el calendario. */
+  private popUps: PopUpView | null = null;
+  /** Guirnaldas de bombillas (LocationDef.garlands). */
+  private garlands: StringLightsView | null = null;
   /** Bordes y datos de las zonas (data/zones.ts): sólo con el modo depuración (config/debug.ts). */
   private zoneDebug: ZoneDebugView | null = null;
   /** Inspector de gente (world/PopulationInspector): también sólo con el modo depuración. */
@@ -312,8 +318,9 @@ export class WorldScene extends Phaser.Scene {
     this.crowd?.populate(this.clockNow(), this.playerTile());
     // Servicio de mesa (systems/TableService): lo que hay en las mesas y lo que el camarero le dice al jugador.
     this.dining = false;
-    const service = this.crowd?.service ?? null;
-    this.serviceView = service && profile?.tableService ? new ServiceView(this, service, def, profile.tableService) : null;
+    // Dentro, el servicio del comedor; fuera, el de la terraza (la calle lleva el suyo): el mismo TableService y el mismo flujo.
+    const service = this.tableService;
+    this.serviceView = service ? new ServiceView(this, service, def, profile?.tableService ?? null) : null;
     if (service) service.onPlayer = (call) => this.tableCall(call);
     this.street?.populate(this.clockNow(), this.playerTile());
     const weather = (): ReturnType<typeof weatherAt> => weatherAt(this.services.state.day, this.services.state.hour + this.services.state.minute / 60);
@@ -348,6 +355,8 @@ export class WorldScene extends Phaser.Scene {
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
     this.occlusion = new Occlusion(this);
     this.foreground = new ForegroundView(this, def);
+    this.garlands = new StringLightsView(this, def, () => state.hour + state.minute / 60);
+    this.popUps = new PopUpView(this, def, this.player, () => this.clockNow(), () => state.hour + state.minute / 60);
     // Dentro no llueve: al entrar en un local el tiempo se queda en la calle, y el mundo sigue.
     this.weatherView = def.kind === 'exterior'
       ? new WeatherView(this, def, () => weatherAt(state.day, state.hour + state.minute / 60), () => state.hour + state.minute / 60, () => [...this.crowdViews.flatMap((v) => v.people), ...this.characters.map((c) => c.sprite)])
@@ -495,6 +504,8 @@ export class WorldScene extends Phaser.Scene {
     this.lighting?.tick(time);
     this.occlusion?.update(this.player, delta);
     this.foreground?.update(this.player, delta);
+    this.popUps?.update(time);
+    this.garlands?.update(time);
     // Modo depuración (F3 en desarrollo): se crea al encenderlo y desaparece del todo al apagarlo.
     if (DEBUG.mode && !this.zoneDebug) this.zoneDebug = new ZoneDebugView(this, this.services.state.locationId);
     else if (!DEBUG.mode && this.zoneDebug) {
@@ -516,7 +527,7 @@ export class WorldScene extends Phaser.Scene {
     );
     if (talking || liveMenu) {
       // Sentado, sigue respirando (y comiendo) mientras habla o elige.
-      if (this.player.isSeated) this.player.seatedFrame(time, null, this.crowd?.service?.playerEating ?? false);
+      if (this.player.isSeated) this.player.seatedFrame(time, null, this.tableService?.playerEating ?? false);
       return;
     }
     if (this.player.isSeating) {
@@ -807,7 +818,7 @@ export class WorldScene extends Phaser.Scene {
     ];
     const look = held.find(([dir, down]) => down && dir !== BEHIND[on.seat.facing])?.[0] ?? null;
     // A una mesa con servicio: se apunta en cuanto se ha sentado del todo (el camarero vendrá).
-    const service = this.crowd?.service;
+    const service = this.tableService;
     if (!this.dining && service?.tableOf(on.seat.id)) {
       service.seatPlayer(on.seat.id);
       this.dining = true;
@@ -818,7 +829,7 @@ export class WorldScene extends Phaser.Scene {
     this.updatePrompt(target);
     if (!target) {
       // A la mesa, qué pasa con lo tuyo; si no, sólo cómo levantarse.
-      const status = this.dining ? this.crowd?.service?.playerStatus() : null;
+      const status = this.dining ? this.tableService?.playerStatus() : null;
       this.services.hint.show(status ? `${status} · levantarse` : 'Levantarse');
       this.prompt.setPosition(this.player.x, this.player.y - PLAYER_H - 8).setVisible(true);
     }
@@ -830,11 +841,16 @@ export class WorldScene extends Phaser.Scene {
     else if (this.pressedAny(['bag'])) this.menus.openBag();
   }
 
+  /** El servicio de mesa de donde está el jugador: el del comedor si está dentro, el de la terraza si está en la calle. */
+  private get tableService(): TableService | null {
+    return this.crowd?.service ?? this.street?.service ?? null;
+  }
+
   /** Si alguien tiene ese asiento: la gente del local o de la calle (va o está), un personaje con nombre o, en el andén, un pasajero. */
   private seatTaken(seat: Seat): boolean {
     if (seat.id.startsWith('metro:')) return this.metro?.isSeatTaken(Number(seat.id.slice(6))) ?? true;
     // Una mesa con servicio es de un grupo hasta que se va y la recogen.
-    const table = this.crowd?.service?.tableOf(seat.id);
+    const table = this.tableService?.tableOf(seat.id);
     if (table && (table.party !== null || table.state !== 'AVAILABLE')) return true;
     return this.charactersOn.has(seat.id) || (this.crowd !== null && this.crowd.occupancy(seat.id) !== 'FREE') || (this.street?.isTaken(seat.id) ?? false);
   }
@@ -858,7 +874,7 @@ export class WorldScene extends Phaser.Scene {
     // Levantarse de la mesa sin haber pagado es dejar el dinero encima: se cobra lo pedido.
     if (this.dining) {
       this.dining = false;
-      const owed = this.crowd?.service?.playerStands() ?? 0;
+      const owed = this.tableService?.playerStands() ?? 0;
       if (owed > 0) {
         this.services.state.money -= owed;
         this.persist();
@@ -877,7 +893,7 @@ export class WorldScene extends Phaser.Scene {
    * conversación y menús en vivo: el local sigue mientras tanto.
    */
   private tableCall(call: PlayerCall): void {
-    const service = this.crowd?.service;
+    const service = this.tableService;
     if (!service || !this.dining) return;
     const { state, dialogue } = this.services;
     const waiter = 'Camarero';

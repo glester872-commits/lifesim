@@ -13,6 +13,10 @@ import { tilePath } from './Navigation.ts';
 import { besideTile, identity, nextCustomer } from './Service.ts';
 import { getStation, type Occupancy, type StationDef } from '../data/stations.ts';
 import { TableService } from './TableService.ts';
+import { SeatRegistry } from './SeatRegistry.ts';
+
+/** Una reserva a la que no se llega en este tiempo (ms de reloj de la sala) se da por perdida. */
+const RESERVE_TTL_MS = 90_000;
 
 export interface Clock {
   day: number;
@@ -133,7 +137,8 @@ export class Crowd {
   private rng: Rng;
   private readonly baseRng: Rng;
   private readonly door: TilePoint;
-  private readonly reserved = new Map<string, number>();
+  /** Quién tiene cada asiento (reservado de camino u ocupado): uno, nunca dos. */
+  readonly seats = new SeatRegistry();
   private nextId = 1;
   private tick = 0;
   private stats: CrowdStats = { open: false, level: null, target: 0, staff: 0, visitors: 0, entering: 0, leaving: 0 };
@@ -189,8 +194,11 @@ export class Crowd {
   claim(points: ReadonlySet<string>): void {
     this.claimed = points;
     for (const a of this.agents) {
-      if (a.point && points.has(a.point) && a.path.length === 0 && !a.leaving) {
+      if (a.point && points.has(a.point) && !a.leaving) {
+        // Quien iba de camino hacia ahí también cancela: se para donde esté y busca otro sitio.
         this.release(a);
+        a.path = [];
+        a.moving = false;
         a.timer = 0;
       }
     }
@@ -247,7 +255,7 @@ export class Crowd {
       // Su grupo, ya sentado a su lado (en una mesa con servicio, en la misma mesa).
       for (let k = 1; k < this.partySize(role, target - placed + 1); k++) {
         const near = this.service?.tableOf(point)
-          ? this.service.mateSeat(agent, (s) => this.reserved.has(s) || this.claimed.has(s))
+          ? this.service.mateSeat(agent, (s) => this.seats.has(s) || this.claimed.has(s))
           : this.freePointNear(step.points, this.pointAt(point), far);
         if (!near) break;
         const mate = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(near));
@@ -266,9 +274,11 @@ export class Crowd {
 
   update(deltaMs: number, clock: Clock, player: TilePoint): void {
     this.elapsed += deltaMs;
+    this.seats.tick(deltaMs);
     this.tick -= deltaMs;
     if (this.tick <= 0) {
       this.tick = between(this.rng, ...POPULATION.tickEvery);
+      this.sweepSeats();
       this.reconcile(clock, player);
     }
     this.service?.update(deltaMs, clock.hour + clock.minute / 60);
@@ -347,6 +357,8 @@ export class Crowd {
       return;
     }
     a.moving = false;
+    // Llegó a su asiento: de reservado a ocupado.
+    if (a.point) this.seats.occupy(a.point, a.id);
     if (a.leaving) return;
     // Camarero de un servicio de mesa: decide él qué hace (systems/TableService).
     if (this.service?.drives(a)) {
@@ -377,10 +389,13 @@ export class Crowd {
     a.following = lead.point;
     // En una mesa con servicio, a otra silla de la misma mesa; si no, al sitio libre más cercano.
     const near = this.service?.tableOf(lead.point)
-      ? this.service.mateSeat(lead, (s) => s === a.point || this.reserved.has(s) || this.claimed.has(s))
+      ? this.service.mateSeat(lead, (s) => s === a.point || this.seats.has(s) || this.claimed.has(s))
       : this.freePointNear(lead.stepPoints, this.pointAt(lead.point), (id) => id !== a.point);
     if (!near) return;
-    this.goTo(a, near, lead.state);
+    if (!this.goTo(a, near, lead.state)) {
+      a.following = undefined;
+      return;
+    }
     this.service?.reserve(near, a);
   }
 
@@ -398,6 +413,7 @@ export class Crowd {
       a.path.shift();
       if (a.path.length === 0) {
         a.moving = false;
+        if (a.point) this.seats.occupy(a.point, a.id);
         // Hacia quien iba (el camarero, a la mesa) antes que hacia donde mira su punto.
         const facing = a.point ? this.loc.points?.[a.point]?.facing : undefined;
         if (a.face) a.dir = facingTo(target, a.face);
@@ -437,8 +453,13 @@ export class Crowd {
       if (this.rng() < 0.25) a.plan.shift();
       return;
     }
+    if (!this.goTo(a, point, step.state)) {
+      // Se le adelantaron o no hay ruta: sin asiento, espera un momento y lo intenta con otro.
+      a.state = 'WAIT';
+      a.timer = between(this.rng, 800, 1_600);
+      return;
+    }
     a.plan.shift();
-    this.goTo(a, point, step.state);
     this.service?.reserve(point, a);
     a.stepPoints = step.points;
     a.timer = this.duration(step, point) + between(this.rng, ...POPULATION.reaction);
@@ -460,7 +481,9 @@ export class Crowd {
       const seated = this.agents.filter((c) => c.kind === 'visitor' && !c.moving && !c.leaving && c.path.length === 0 && c.point && role.serves!.some((p) => c.point!.startsWith(p)));
       const customer = nextCustomer(seated.map((c) => ({ id: c.id, x: c.x, y: c.y })), this.served, this.elapsed);
       const tile = customer && besideTile(this.loc, { tx: customer.x, ty: customer.y }, this.takenTiles());
-      if (customer && tile) {
+      // Un hueco al que no hay camino desde donde está (una mesa arrinconada) no vale: no va, no se cuenta como ruta fallida.
+      const reachable = tile && tilePath(this.loc, { tx: Math.round(a.x), ty: Math.round(a.y) }, tile) !== null;
+      if (customer && tile && reachable) {
         this.served.set(customer.id, this.elapsed);
         this.release(a);
         a.state = 'SERVE';
@@ -496,7 +519,7 @@ export class Crowd {
       const end = a.path[a.path.length - 1] ?? { tx: Math.round(a.x), ty: Math.round(a.y) };
       taken.add(`${end.tx},${end.ty}`);
     }
-    for (const id of this.reserved.keys()) {
+    for (const id of this.seats.seats()) {
       const p = this.pointAt(id);
       taken.add(`${p.tx},${p.ty}`);
     }
@@ -545,10 +568,31 @@ export class Crowd {
    * no está libre: lo decide `freePoints`, que mira las mismas reservas.
    */
   occupancy(point: string): Occupancy {
-    const id = this.reserved.get(point);
-    if (id === undefined) return this.claimed.has(point) ? 'IN_USE' : 'FREE';
-    const a = this.agents.find((x) => x.id === id);
-    return a && a.path.length === 0 ? 'IN_USE' : 'RESERVED';
+    const state = this.seats.state(point);
+    if (state === 'available') return this.claimed.has(point) ? 'IN_USE' : 'FREE';
+    return state === 'occupied' ? 'IN_USE' : 'RESERVED';
+  }
+
+  /**
+   * Reservas huérfanas: de alguien que ya no está, que ya no va a ese asiento,
+   * que se quedó sin camino sin llegar o que lleva demasiado de camino. Se
+   * sueltan y quien siguiera ahí vuelve a decidir: ningún asiento queda bloqueado.
+   */
+  private sweepSeats(): void {
+    const freed = this.seats.sweep((owner, seat, state, age) => {
+      const a = this.agents.find((x) => x.id === owner);
+      if (!a || a.leaving || a.point !== seat) return false;
+      if (state === 'reserved') return a.path.length > 0 && age < RESERVE_TTL_MS;
+      return a.path.length === 0;
+    });
+    for (const { owner } of freed) {
+      const a = this.agents.find((x) => x.id === owner);
+      if (a && a.point) {
+        a.point = undefined;
+        a.path = [];
+        a.timer = 0;
+      }
+    }
   }
 
   // -------------------------------------------------------- altas y bajas
@@ -612,16 +656,32 @@ export class Crowd {
 
   // --------------------------------------------------------- puntos y rutas
 
-  private goTo(a: Agent, point: string, state: string): void {
+  /**
+   * Va a un punto: lo reserva en el acto y camina. Si ya es de otro, o no hay
+   * ruta, no va: queda donde está sin asiento y vuelve a decidir enseguida.
+   */
+  private goTo(a: Agent, point: string, state: string): boolean {
     this.release(a);
-    this.reserved.set(point, a.id);
+    if (!this.seats.reserve(point, a.id) || this.claimed.has(point)) {
+      this.seats.release(point, a.id);
+      a.path = [];
+      a.timer = 0;
+      return false;
+    }
+    const failures = this.pathFailures;
     a.point = point;
     a.state = state;
     a.path = this.route(a, this.pointAt(point));
+    if (this.pathFailures > failures) {
+      this.release(a);
+      a.timer = 0;
+      return false;
+    }
+    return true;
   }
 
   private occupy(a: Agent, point: string, state: string): void {
-    this.reserved.set(point, a.id);
+    this.seats.occupy(point, a.id);
     a.point = point;
     a.state = state;
     const facing = this.loc.points?.[point]?.facing;
@@ -629,7 +689,7 @@ export class Crowd {
   }
 
   private release(a: Agent): void {
-    if (a.point && this.reserved.get(a.point) === a.id) this.reserved.delete(a.point);
+    if (a.point) this.seats.release(a.point, a.id);
     a.point = undefined;
   }
 
@@ -653,7 +713,7 @@ export class Crowd {
   }
 
   private freePoints(prefixes: readonly string[], ok: (id: string) => boolean): string[] {
-    return this.pointsMatching(prefixes).filter((id) => !this.reserved.has(id) && !this.claimed.has(id) && ok(id));
+    return this.pointsMatching(prefixes).filter((id) => !this.seats.has(id) && !this.claimed.has(id) && ok(id));
   }
 
   /** El sitio libre más cercano: la silla de al lado, la mesa contigua. */

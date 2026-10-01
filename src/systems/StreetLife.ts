@@ -16,9 +16,12 @@ import { levelAt, profileFor, stride, type Agent, type Clock } from './Crowd.ts'
 import { DOG_LOOKS } from '../data/wildlife.ts';
 import { lookWeights, profileAt } from './Districts.ts';
 import { zoneAt, zonePull } from './Zones.ts';
+import { activePopUp, popUpCrowd } from './PopUps.ts';
 import { bondMates, IDENTITIES, paceOf, relationLine, roleAffinity } from './People.ts';
 import type { Bond, RelationType } from '../data/identity.ts';
 import { crossingOf, signalAt, waitSpots } from './Signals.ts';
+import { SeatRegistry } from './SeatRegistry.ts';
+import { TableService } from './TableService.ts';
 import { HEAVY_RAIN, outdoorAppeal, weatherAt, type Weather } from './Weather.ts';
 
 /**
@@ -32,7 +35,10 @@ export function streetWeatherScale(w: Weather): number {
 
 /** Viaje de estar fuera: sentarse en una terraza o un banco, pasear, correr, mirar escaparates. */
 const outdoorLeisure = (rule: TripRule): boolean => (!!rule.stay && !!rule.to.points) || rule.pace !== undefined;
-/** Viaje a cubierto: un bar, una tienda, la discoteca, el metro. */
+/** Una reserva a la que no se llega en este tiempo (ms de reloj de la calle) se da por perdida. */
+const RESERVE_TTL_MS = 300_000;
+
+/** Viaje a cubierto: un bar,una tienda, la discoteca, el metro. */
 const toShelter = (rule: TripRule): boolean =>
   !!rule.to.tags?.some((t) => t === 'food' || t === 'nightlife' || t === 'shop') ||
   !!rule.to.types?.includes('transit') ||
@@ -106,7 +112,9 @@ export function streetTargetAt(profile: StreetProfile, clock: Clock): number {
     wanted += levels * d.perLevel;
   }
   wanted = Math.round(wanted * streetWeatherScale(weatherAt(clock.day, clock.hour + clock.minute / 60)));
-  return Math.min(wanted, profile.maxWalkers);
+  // Un evento en la calle (mercadillo, cola, DJ) trae gente de más, y el tope sube con él.
+  const extra = popUpCrowd(profile.location, clock);
+  return Math.min(wanted + extra, profile.maxWalkers + extra);
 }
 
 // ---------------------------------------------------------------- paseantes
@@ -183,7 +191,10 @@ export class StreetLife {
   private readonly edges: string[];
   private rng: Rng;
   private readonly baseRng: Rng;
-  private readonly reserved = new Map<string, number>();
+  /** Quién tiene cada asiento o sitio para estar (reservado de camino u ocupado): uno, nunca dos. */
+  readonly seats = new SeatRegistry();
+  /** Servicio de mesa de la terraza (el mismo que dentro): mesas, comandas, cuenta y su camarero. Null si la calle no tiene. */
+  readonly service: TableService | null;
   private claimed: ReadonlySet<string> = new Set();
   private nextId = 1;
   private tick = 0;
@@ -212,6 +223,22 @@ export class StreetLife {
     this.waves = (profile.bursts ?? []).map(() => ({ pending: 0, release: 0, train: -1 }));
     this.edges = [...this.graph].filter((id) => loc.points?.[id]?.kind === 'edge');
     this.places = PLACES.map((p) => placeInfo(p.id)!).filter((p) => p.locationId === loc.id);
+    const terrace = profile.tableService;
+    this.service = terrace && loc.tables
+      ? new TableService(loc, terrace, {
+          agents: this.agents,
+          walk: (a, to, face) => {
+            const w = a as Walker;
+            w.path = this.gridPath(w, to);
+            w.face = face;
+            if (w.path.length === 0 && face) w.dir = facingTo({ tx: Math.round(w.x), ty: Math.round(w.y) }, face);
+          },
+          pointAt: (id) => this.pointAt(id),
+          isWaiter: (a) => (a as Walker).post?.place === terrace.place,
+          // Quien viene a sentarse ya tiene su mesa desde que sale, no sólo al llegar.
+          seatOf: (a) => (a as Walker).stayPoint,
+        }, () => this.rng())
+      : null;
     for (const trip of profile.trips) {
       for (const ends of [trip.from, trip.to, trip.then]) {
         for (const prefix of ends?.points ?? []) {
@@ -228,12 +255,41 @@ export class StreetLife {
   /** Puntos donde está un personaje con nombre: nadie los coge, y quien estaba ahí se va. */
   /** Si alguien tiene ese punto (va hacia él, está en él o es de un personaje con nombre o del jugador). */
   isTaken(point: string): boolean {
-    return this.reserved.has(point) || this.claimed.has(point);
+    return this.seats.has(point) || this.claimed.has(point);
   }
 
   claim(points: ReadonlySet<string>): void {
     this.claimed = points;
-    for (const a of this.agents) if (a.staying && a.stayPoint && points.has(a.stayPoint)) a.timer = 0;
+    for (const a of this.agents) {
+      if (!a.stayPoint || !points.has(a.stayPoint)) continue;
+      if (a.staying) a.timer = 0;
+      else {
+        // Iba de camino hacia ahí: cancela, suelta la reserva y no llega; acaba el tramo en que está y se va.
+        this.release(a);
+        a.path = a.path.slice(0, 1);
+      }
+    }
+  }
+
+  /**
+   * Reservas huérfanas: de alguien que ya no está, que ya no va a ese sitio o
+   * que lleva demasiado reservado sin llegar. Se sueltan; si el dueño seguía
+   * por ahí, deja de tener destino y se va al llegar. Nada queda bloqueado.
+   */
+  private sweepSeats(): void {
+    const freed = this.seats.sweep((owner, seat, state, age) => {
+      const a = this.agents.find((x) => x.id === owner);
+      if (!a || a.vanish || a.stayPoint !== seat) return false;
+      return state === 'occupied' ? a.staying : age < RESERVE_TTL_MS;
+    });
+    for (const { owner } of freed) {
+      const a = this.agents.find((x) => x.id === owner);
+      if (a) {
+        a.stayPoint = undefined;
+        a.point = undefined;
+        if (a.staying) a.timer = 0;
+      }
+    }
   }
 
   // ------------------------------------------------------------- llegada
@@ -258,9 +314,12 @@ export class StreetLife {
     this.tickSignals(clock, deltaMs);
     this.metroWaves(deltaMs, clock, player);
     this.elapsed += deltaMs;
+    this.seats.tick(deltaMs);
+    this.service?.update(deltaMs, hourOf(clock));
     this.tick -= deltaMs;
     if (this.tick <= 0) {
       this.tick = between(this.rng, ...TICK);
+      this.sweepSeats();
       this.reconcile(clock, player);
     }
     for (const a of this.agents) {
@@ -376,6 +435,8 @@ export class StreetLife {
     }
     // Nadie del grupo se queda atrás: la parada empieza a contar cuando han llegado todos.
     if (this.companions(a).some((c) => !c.settled)) return;
+    // Comiendo en una mesa con servicio: no se va por su reloj, sino al pagar (si hay quien atienda).
+    if (this.service?.holds(a) && this.agents.some((w) => w.kind === 'staff' && !w.vanish && this.service!.drives(w))) return;
     a.timer -= deltaMs;
     if (a.timer <= 0) this.moveOn(a, clock);
   }
@@ -388,6 +449,7 @@ export class StreetLife {
     }
     a.staying = true;
     a.point = a.stayPoint;
+    this.seats.occupy(a.stayPoint, a.id);
     a.state = a.rule!.stayState ?? 'STAY';
     const facing = this.loc.points?.[a.stayPoint]?.facing;
     if (facing) a.dir = facing;
@@ -556,6 +618,9 @@ export class StreetLife {
       const here = this.agents.find((a) => a.post === post && !a.vanish);
       if (onDuty && !here) this.addStaff(post);
       if (!onDuty && here) {
+        // Se va con la mesa a medias: la suelta (otro camarero no hay) y quien comía se levanta por su reloj.
+        here.leaveSoon = true;
+        this.service?.drives(here);
         here.state = 'WALK';
         here.vanish = true;
         here.path = this.gridPath(here, this.pointAt(post.base));
@@ -578,6 +643,11 @@ export class StreetLife {
     }
     a.moving = false;
     if (a.vanish) return;
+    // El camarero de las mesas con servicio (Casa Tomás) las atiende como el de dentro: comanda, cocina, mesa, cuenta.
+    if (this.service?.drives(a)) {
+      this.service.stepWaiter(a, deltaMs);
+      return;
+    }
     a.timer -= deltaMs;
     if (a.timer > 0) return;
     const post = a.post!;
@@ -629,6 +699,8 @@ export class StreetLife {
       return;
     }
     const stays = !['entrance', 'edge'].includes(this.loc.points?.[to]?.kind ?? '');
+    // Un sitio para estar con dueño (de camino o sentado) no se vuelve a elegir, ni en el mismo fotograma.
+    if (stays && (this.seats.has(to) || this.claimed.has(to))) return;
     const [gLo, gHi] = rule.group ?? [1, 1];
     const size = Math.max(1, Math.min(gLo + Math.floor(this.rng() * (gHi - gLo + 1)), target - this.walkers().length));
 
@@ -664,7 +736,9 @@ export class StreetLife {
     leader.bond = company.bond;
     if (stays) {
       leader.stayPoint = to;
-      this.reserved.set(to, leader.id);
+      this.seats.reserve(to, leader.id);
+      // Se sienta a una mesa con servicio: es suya desde que sale (al llegar, el camarero vendrá).
+      if (!seated) this.service?.reserve(to, leader);
     }
     if (rule.pace === 'jog') {
       leader.speed = between(this.rng, ...JOG_SPEED);
@@ -678,6 +752,7 @@ export class StreetLife {
     }
     if (seated) {
       this.arrive(leader);
+      this.service?.adopt(to, leader);
       leader.timer *= 0.2 + this.rng() * 0.8;
     }
 
@@ -711,7 +786,10 @@ export class StreetLife {
     const weekend = weekIndex(logicalDay(clock)) >= 5;
     const rhythm = rhythmAt(clock.day, clock.hour);
     const weighted: [TripRule, number][] = [];
+    // Un evento de la calle en marcha (data/popups.ts): sus viajes sólo valen entonces y los demás siguen igual.
+    const popup = activePopUp(this.loc.id, clock)?.id;
     for (const rule of this.profile.trips) {
+      if (rule.popup && rule.popup !== popup) continue;
       if (!inHours(rule.hours, t)) continue;
       if (rule.days === 'weekday' && weekend) continue;
       if (rule.days === 'weekend' && !weekend) continue;
@@ -764,7 +842,11 @@ export class StreetLife {
     return out.filter((c) => {
       const p = this.loc.points![c.id];
       const stay = p.kind !== 'entrance' && p.kind !== 'edge';
-      return !stay || (!this.reserved.has(c.id) && !this.claimed.has(c.id) && !busy.has(`${p.tx},${p.ty}`));
+      if (!stay) return true;
+      // Una mesa con servicio sólo se elige si está libre: es de un grupo hasta que se va y la recogen.
+      const table = this.service?.tableOf(c.id);
+      if (table && (table.party !== null || table.state !== 'AVAILABLE')) return false;
+      return !this.seats.has(c.id) && !this.claimed.has(c.id) && !busy.has(`${p.tx},${p.ty}`);
     });
   }
 
@@ -777,7 +859,8 @@ export class StreetLife {
    * si queda otra persona.
    */
   private pickLook(rule: TripRule | undefined, dest: TilePoint, used: ReadonlySet<number>, bond?: Bond, size = 1): number {
-    const style = lookWeights(PASSENGER_LOOKS, profileAt(this.loc, Math.round(dest.tx), Math.round(dest.ty)));
+    const profile = profileAt(this.loc, Math.round(dest.tx), Math.round(dest.ty));
+    const style = lookWeights(PASSENGER_LOOKS, profile).map((w, i) => w * (profile?.fashion?.[IDENTITIES[i].fashion] ?? 1));
     const weights = style.map((w, i) => {
       if (used.has(i)) return 0;
       let k = w * (rule ? roleAffinity(IDENTITIES[i], rule.role) : 1);
@@ -815,7 +898,7 @@ export class StreetLife {
   }
 
   private release(a: Walker): void {
-    if (a.stayPoint && this.reserved.get(a.stayPoint) === a.id) this.reserved.delete(a.stayPoint);
+    if (a.stayPoint) this.seats.release(a.stayPoint, a.id);
     a.stayPoint = undefined;
     a.point = undefined;
   }
@@ -842,7 +925,7 @@ export class StreetLife {
   /** Un tile libre junto al punto para quien acompaña: pisable, fuera de la calzada y sin nadie. */
   private sideTile(at: TilePoint): TilePoint | undefined {
     const taken = this.occupiedTiles();
-    for (const id of [...this.reserved.keys(), ...this.claimed]) {
+    for (const id of [...this.seats.seats(), ...this.claimed]) {
       const p = this.loc.points?.[id];
       if (p) taken.add(`${p.tx},${p.ty}`);
     }

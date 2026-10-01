@@ -130,12 +130,12 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('carmen-retales', 'Retales · vintage', 'vintage', [83, 37, 8, 7], 's', 87, { floors: 2, enter: into('retales'), point: 'RETALES_ENTRANCE' }),
   b('carmen-molinillo', 'Café Molinillo', 'coffee', [91, 37, 6, 7], 's', 93, { floors: 2, enter: into('molinillo'), point: 'MOLINILLO_ENTRANCE' }),
   b('carmen-surco', 'Discos Surco', 'records', [97, 37, 6, 7], 's', 99, { floors: 2, point: 'RECORDS_ENTRANCE', inspect: ['Discos Surco. Cajas de vinilos a cinco euros en la puerta y un cartel: «Abrimos cuando llegamos».'] }),
-  b('res-carmen-12', 'Carmen 12', 'res-plaster', [103, 37, 7, 7], 's', 106, { floors: 2, point: 'RES_CARMEN_12_ENTRANCE', inspect: ['El portero automático tiene más pegatinas que timbres.'] }),
+  b('carmen-suela', 'Suela · zapatillas', 'sneaker', [103, 37, 7, 7], 's', 106, { floors: 2, point: 'SUELA_ENTRANCE', inspect: ['Suela. Zapatillas de edición limitada en una vitrina y una pizarra: «Sorteo el sábado. No se reserva.»'] }),
   // Acera sur: locales de una planta, pegados a la vía.
   b('carmen-archivo', 'Archivo · streetwear', 'streetwear', [76, 51, 9, 4], 'n', 80, { enter: into('archivo'), point: 'ARCHIVO_ENTRANCE' }),
   b('carmen-vuelta', 'Segunda Vuelta', 'thrift', [86, 51, 9, 4], 'n', 90, { enter: into('vuelta'), point: 'VUELTA_ENTRANCE' }),
-  b('carmen-print', 'Serigrafía Chapa', 'print', [96, 51, 6, 4], 'n', 98, { point: 'PRINT_SHOP_ENTRANCE', inspect: ['Serigrafía Chapa. Aquí se imprimen los carteles de la columna de enfrente. Y los de medio barrio.'] }),
-  b('res-carmen-9', 'Carmen 9', 'res-brick', [103, 51, 7, 4], 'n', 106, { point: 'RES_CARMEN_9_ENTRANCE', inspect: ['Un felpudo que dice «Bienvenidos» en cuatro idiomas.'] }),
+  b('carmen-navaja', 'Navaja & Aro · barbería y piercing', 'piercing', [96, 51, 6, 4], 'n', 98, { point: 'NAVAJA_ENTRANCE', inspect: ['Navaja & Aro. El mismo mostrador para cortar el pelo y para perforar. Un cartel: «Con cita. O con suerte.»'] }),
+  b('carmen-gaviota', 'Bar Gaviota', 'bar', [103, 51, 7, 4], 'n', 106, { point: 'GAVIOTA_ENTRANCE', inspect: ['Bar Gaviota. Pizarra de cañas y una nevera con pegatinas de todos los grupos que han tocado en el barrio.'] }),
 ];
 
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
@@ -160,7 +160,7 @@ const PROPS: readonly PropPlacement[] = [
   // Calle Mayor: terrazas (la silla junto a la mesa, fuera de la acera), género en la puerta, farolas y papeleras
   at('parasol', 52, 16), at('cafe-table', 53, 16), at('chair-left', 54, 16),
   at('parasol', 59, 16), at('cafe-table', 60, 16), at('chair-left', 61, 16),
-  at('cafe-table', 26, 18), at('chair-left', 27, 18), at('menu-board', 31, 18), at('cafe-table', 32, 18),
+  at('cafe-table', 26, 18), at('chair-left', 27, 18), at('menu-board', 31, 18), at('cafe-table', 32, 18), at('chair-left', 33, 18),
   ...row('produce', 18, [3, 4, 8, 18, 20]),
   ...row('lamp', 16, [11, 21, 47]),
   ...row('lamp', 18, [34, 67]),
@@ -212,12 +212,14 @@ const PROPS: readonly PropPlacement[] = [
   // Calle del Carmen. Norte: escaparates y terraza en la fila 44, paso en la 45, bordillo en la 46.
   at('bench', 84, 44), at('bench', 104, 44),
   at('parasol', 94, 44), at('chair-right', 95, 44), at('cafe-table', 96, 44), at('chair-left', 97, 44),
-  at('bike-rack', 77, 46), at('poster-column', 80, 46), at('street-lamp', 82, 46), at('plane-tree', 86, 46),
-  at('bike', 92, 46), at('bike', 93, 46), at('street-lamp', 97, 46), at('plane-tree', 103, 46), at('street-lamp', 107, 46),
+  at('bike-rack', 77, 46), at('poster-column', 80, 46), at('street-lamp-art', 82, 46), at('plane-tree', 86, 46),
+  at('bike', 92, 46), at('bike', 93, 46), at('street-lamp-art', 97, 46), at('plane-tree', 103, 46), at('street-lamp-art', 107, 46),
   // Sur: bordillo en la 48, paso en la 49, escaparates en la 50.
-  at('bike', 78, 48), at('bike', 79, 48), at('street-lamp', 84, 48), at('plane-tree', 94, 48),
-  at('street-lamp', 100, 48), at('bike-rack', 102, 48),
+  at('bike', 78, 48), at('bike', 79, 48), at('street-lamp-art', 84, 48), at('plane-tree', 94, 48),
+  at('street-lamp-art', 100, 48), at('bike-rack', 102, 48),
   at('poster-column', 95, 50),
+  // Lo que se saca a la acera: percheros de ropa delante de las tiendas de segunda mano y la pizarra del Gaviota.
+  at('street-rack', 88, 44), at('street-rack', 87, 50), at('street-rack', 89, 50), at('sandwich-board', 102, 50),
   at('leaves', 87, 49), at('leaves', 104, 45),
 ];
 
@@ -242,6 +244,21 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   CARMEN_TALK_01: p(99, 49, 'meet', 'left'), CARMEN_TALK_02: p(100, 49, 'meet', 'right'),
   MOLINILLO_TERRACE_01: p(95, 44, 'seat', 'right'), MOLINILLO_TERRACE_02: p(97, 44, 'seat', 'left'),
   MOLINILLO_TERRACE_WAITER: p(92, 44, 'work', 'down'),
+  // Segunda tanda del Carmen: escaparates de las tiendas nuevas, corros a la puerta, fotos de modelito
+  // delante de los murales y el rincón donde se sale a fumar del bar.
+  SUELA_WINDOW: p(107, 44, 'interact', 'up'), NAVAJA_WINDOW: p(97, 50, 'interact', 'down'), GAVIOTA_WINDOW: p(108, 50, 'interact', 'down'),
+  CARMEN_HANG_01: p(98, 44, 'meet', 'right'), CARMEN_HANG_02: p(100, 44, 'meet', 'left'),
+  CARMEN_HANG_03: p(85, 50, 'meet', 'right'), CARMEN_HANG_04: p(86, 50, 'meet', 'left'),
+  CARMEN_PHOTO_01: p(102, 44, 'wait', 'up'), CARMEN_PHOTO_02: p(76, 44, 'wait', 'up'),
+  GAVIOTA_SMOKE_01: p(105, 50, 'meet', 'right'), GAVIOTA_SMOKE_02: p(107, 50, 'meet', 'left'),
+  // Eventos del Carmen (data/popups.ts): dónde se mira un puesto o un caballete, dónde se hace cola y dónde se baila.
+  // Siempre están, pero la gente sólo va cuando hay evento (TripRule.popup). Los nombres con _DANCE_ bailan (entities/Character).
+  POPUP_BROWSE_01: p(81, 49, 'interact', 'up'), POPUP_BROWSE_02: p(83, 49, 'interact', 'up'), POPUP_BROWSE_03: p(85, 49, 'interact', 'up'),
+  POPUP_BROWSE_04: p(94, 49, 'interact', 'up'), POPUP_BROWSE_05: p(96, 49, 'interact', 'up'), POPUP_BROWSE_06: p(104, 49, 'interact', 'up'),
+  POPUP_QUEUE_01: p(105, 44, 'wait', 'right'), POPUP_QUEUE_02: p(105, 45, 'wait', 'up'), POPUP_QUEUE_03: p(107, 45, 'wait', 'up'),
+  POPUP_QUEUE_04: p(108, 45, 'wait', 'up'), POPUP_QUEUE_05: p(106, 46, 'wait', 'up'), POPUP_QUEUE_06: p(108, 46, 'wait', 'up'),
+  CARMEN_DANCE_01: p(91, 49, 'meet', 'up'), CARMEN_DANCE_02: p(92, 49, 'meet', 'up'), CARMEN_DANCE_03: p(93, 49, 'meet', 'up'),
+  CARMEN_DANCE_04: p(91, 50, 'meet', 'up'), CARMEN_DANCE_05: p(92, 50, 'meet', 'up'), CARMEN_DANCE_06: p(94, 50, 'meet', 'up'),
 
   // Sitios para estar
   PLAZA_FOUNTAIN: p(40, 13, 'meet'),
@@ -253,7 +270,7 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   NEWS_KIOSK: p(46, 12, 'interact', 'up'),
   CAFE_TERRACE_01: p(54, 16, 'seat', 'left'), CAFE_TERRACE_02: p(61, 16, 'seat', 'left'),
   // La mesa de fuera de Casa Tomás, junto a la pizarra del menú.
-  RESTAURANT_TERRACE_01: p(27, 18, 'seat', 'left'),
+  RESTAURANT_TERRACE_01: p(27, 18, 'seat', 'left'), RESTAURANT_TERRACE_02: p(33, 18, 'seat', 'left'),
   // Donde espera el camarero de cada terraza: al lado de la puerta, no en ella.
   CAFE_TERRACE_WAITER: p(57, 16, 'work', 'down'), RESTAURANT_TERRACE_WAITER: p(28, 18, 'work', 'left'),
   BUS_STOP: p(39, 30, 'wait', 'up'),
@@ -280,7 +297,7 @@ const POINTS: Readonly<Record<string, PointDef>> = {
 
   // Nodos de paso del grafo
   'mayor-06': p(6, 17, 'path'), 'mayor-14': p(14, 17, 'path'), 'mayor-19': p(19, 17, 'path'),
-  'mayor-23': p(23, 17, 'path'), 'mayor-25': p(25, 17, 'path'), 'mayor-29': p(29, 17, 'path'),
+  'mayor-23': p(23, 17, 'path'), 'mayor-25': p(25, 17, 'path'), 'mayor-29': p(29, 17, 'path'), 'mayor-33': p(33, 17, 'path'),
   'mayor-40': p(40, 17, 'path'), 'mayor-50': p(50, 17, 'path'), 'mayor-53': p(53, 17, 'path'),
   'mayor-56': p(56, 17, 'path'), 'mayor-64': p(64, 17, 'path'), 'mayor-71': p(71, 17, 'path'),
   'plaza-s': p(40, 15, 'path'), 'plaza-w': p(34, 10, 'path'), 'plaza-e': p(46, 10, 'path'),
@@ -314,7 +331,7 @@ const chain = (...ids: string[]): Link[] => ids.slice(1).map((id, i) => [ids[i],
 
 const LINKS: readonly Link[] = [
   // Calle Mayor, de oeste a este, y cada puerta a su nodo
-  ...chain('EDGE_MAYOR_W', 'mayor-06', 'mayor-14', 'mayor-19', 'mayor-23', 'mayor-25', 'mayor-29', 'mayor-40',
+  ...chain('EDGE_MAYOR_W', 'mayor-06', 'mayor-14', 'mayor-19', 'mayor-23', 'mayor-25', 'mayor-29', 'mayor-33', 'mayor-40',
     'mayor-50', 'mayor-53', 'mayor-54', 'mayor-56', 'mayor-61', 'mayor-64', 'mayor-71', 'mayor-80', 'mayor-91', 'mayor-103', 'EDGE_MAYOR_E'),
   ['RES_MAYOR_15_ENTRANCE', 'mayor-80'], ['RES_MAYOR_20_ENTRANCE', 'mayor-80'], ['RES_MAYOR_17_ENTRANCE', 'mayor-91'],
   ['RES_MAYOR_19_ENTRANCE', 'mayor-103'], ['RES_MAYOR_22_ENTRANCE', 'mayor-103'],
@@ -324,7 +341,7 @@ const LINKS: readonly Link[] = [
   ...chain('mayor-14', 'CLUB_QUEUE_01', 'CLUB_QUEUE_02', 'CLUB_QUEUE_03'),
   ['CLUB_SMOKE_01', 'mayor-14'], ['CLUB_SMOKE_02', 'mayor-19'],
   ['PHARMACY_ENTRANCE', 'mayor-19'], ['FRUIT_SHOP_ENTRANCE', 'mayor-19'],
-  ['RES_MAYOR_3_ENTRANCE', 'mayor-25'], ['RESTAURANT_ENTRANCE', 'mayor-29'], ['RESTAURANT_TERRACE_01', 'mayor-29'],
+  ['RES_MAYOR_3_ENTRANCE', 'mayor-25'], ['RESTAURANT_ENTRANCE', 'mayor-29'], ['RESTAURANT_TERRACE_01', 'mayor-29'], ['RESTAURANT_TERRACE_02', 'mayor-33'],
   ['STUDY_CENTER_ENTRANCE', 'mayor-40'], ['LAUNDRY_ENTRANCE', 'mayor-53'],
   ['CAFE_ENTRANCE', 'mayor-56'], ['BANK_ENTRANCE', 'mayor-64'], ['RES_MAYOR_9_ENTRANCE', 'mayor-71'],
 
@@ -368,8 +385,17 @@ const LINKS: readonly Link[] = [
   ...chain('carmen-s80', 'carmen-s89', 'carmen-s90', 'carmen-s98', 'carmen-s106', 'EDGE_OLMO_SE'),
   ['carmen-89', 'carmen-s89'],
   ['TINTA_ENTRANCE', 'carmen-79'], ['RETALES_ENTRANCE', 'carmen-87'], ['MOLINILLO_ENTRANCE', 'carmen-93'],
-  ['RECORDS_ENTRANCE', 'carmen-99'], ['RES_CARMEN_12_ENTRANCE', 'carmen-106'],
-  ['ARCHIVO_ENTRANCE', 'carmen-s80'], ['VUELTA_ENTRANCE', 'carmen-s90'], ['PRINT_SHOP_ENTRANCE', 'carmen-s98'], ['RES_CARMEN_9_ENTRANCE', 'carmen-s106'],
+  ['RECORDS_ENTRANCE', 'carmen-99'], ['SUELA_ENTRANCE', 'carmen-106'], ['SUELA_WINDOW', 'carmen-106'],
+  ['ARCHIVO_ENTRANCE', 'carmen-s80'], ['VUELTA_ENTRANCE', 'carmen-s90'], ['NAVAJA_ENTRANCE', 'carmen-s98'], ['NAVAJA_WINDOW', 'carmen-s98'],
+  ['GAVIOTA_ENTRANCE', 'carmen-s106'], ['GAVIOTA_WINDOW', 'carmen-s106'], ['GAVIOTA_SMOKE_01', 'carmen-s106'], ['GAVIOTA_SMOKE_02', 'carmen-s106'],
+  ['CARMEN_HANG_01', 'carmen-99'], ['CARMEN_HANG_02', 'carmen-99'], ['CARMEN_HANG_03', 'carmen-s80'], ['CARMEN_HANG_04', 'carmen-s80'],
+  ['CARMEN_PHOTO_01', 'carmen-99'], ['CARMEN_PHOTO_02', 'carmen-75'],
+  ['POPUP_BROWSE_01', 'carmen-s80'], ['POPUP_BROWSE_02', 'carmen-s80'], ['POPUP_BROWSE_03', 'carmen-s89'],
+  ['POPUP_BROWSE_04', 'carmen-s98'], ['POPUP_BROWSE_05', 'carmen-s98'], ['POPUP_BROWSE_06', 'carmen-s106'],
+  ['POPUP_QUEUE_01', 'carmen-106'], ['POPUP_QUEUE_02', 'carmen-106'], ['POPUP_QUEUE_03', 'carmen-106'],
+  ['POPUP_QUEUE_04', 'carmen-106'], ['POPUP_QUEUE_05', 'carmen-106'], ['POPUP_QUEUE_06', 'POPUP_QUEUE_04'],
+  ['CARMEN_DANCE_01', 'carmen-s90'], ['CARMEN_DANCE_02', 'carmen-s90'], ['CARMEN_DANCE_03', 'carmen-s90'],
+  ['CARMEN_DANCE_04', 'carmen-s90'], ['CARMEN_DANCE_05', 'carmen-s90'], ['CARMEN_DANCE_06', 'CARMEN_DANCE_03'],
   ['TINTA_WINDOW', 'carmen-75'], ['RETALES_WINDOW', 'carmen-89'], ['RECORDS_WINDOW', 'carmen-99'],
   ['ARCHIVO_WINDOW', 'carmen-s80'], ['VUELTA_WINDOW', 'carmen-s90'],
   ['CARMEN_WAIT_01', 'carmen-79'], ['CARMEN_WAIT_02', 'carmen-87'], ['CARMEN_WAIT_03', 'carmen-s80'], ['CARMEN_WAIT_04', 'carmen-s80'],
@@ -402,6 +428,11 @@ const BASE: LocationDef = {
     start: { tx: 41, ty: 46, facing: 'down' },
   },
   points: POINTS,
+  // Terraza de Casa Tomás: mesas con servicio de verdad (systems/TableService), las mismas reglas que dentro. Quien atiende se pone al norte de la mesa.
+  tables: [
+    { id: 'TERRAZA_01', seats: ['RESTAURANT_TERRACE_01'], service: { tx: 26, ty: 17 } },
+    { id: 'TERRAZA_02', seats: ['RESTAURANT_TERRACE_02'], service: { tx: 32, ty: 17 } },
+  ],
   links: LINKS,
   // Identidad visual por zona (data/districts.ts, design/DISTRICTS.md): vecinos por defecto; la última zona manda.
   district: 'residential',
@@ -417,6 +448,12 @@ const BASE: LocationDef = {
   // Escena de muestra (design/ART_BIBLE §15): la plazuela del metro con su tramo de avenida y los edificios
   // de alrededor. Ahí se prueba el estándar visual nuevo antes de llevarlo al resto del barrio.
   showcase: { tx: 12, ty: 27, w: 40, h: 22 },
+  // Guirnaldas de la Calle del Carmen: de linterna a linterna (la linterna está a 49 px de la base de la farola).
+  garlands: [
+    { x0: 82 * 16 + 8, y0: 47 * 16 - 49, x1: 97 * 16 + 8, y1: 47 * 16 - 49, sag: 10 },
+    { x0: 97 * 16 + 8, y0: 47 * 16 - 49, x1: 107 * 16 + 8, y1: 47 * 16 - 49, sag: 8 },
+    { x0: 84 * 16 + 8, y0: 49 * 16 - 49, x1: 100 * 16 + 8, y1: 49 * 16 - 49, sag: 10 },
+  ],
   // Primer plano: una copa en la esquina de abajo a la izquierda y otra pequeña arriba, vistas desde la plazuela.
   // Ninguna sobre tu portal (Olmo 7): se cruza cada día y no debe taparse.
   foreground: [

@@ -11,8 +11,11 @@ import type { MoverType } from './vehicles.ts';
  * bici, así que un personaje con nombre o el jugador podrán montar la suya.
  */
 
-/** Cuadro: urbana de paseo (cesta, guardabarros), de carretera (fina, manillar bajo) o de alquiler público. */
-export type BikeFrame = 'city' | 'road' | 'rental';
+/**
+ * Cuadro: urbana de paseo (cesta, guardabarros), de carretera (fina, manillar bajo), de alquiler público o
+ * monopatín (de pie sobre la tabla: no es una bici, pero va por su carril con las mismas reglas).
+ */
+export type BikeFrame = 'city' | 'road' | 'rental' | 'skate';
 
 export interface BikeType extends MoverType {
   frame: BikeFrame;
@@ -42,6 +45,12 @@ export const BIKES: readonly BikeType[] = [
     id: 'rental', frame: 'rental', length: 22, pace: 0.75, colors: ['#e6e2d8'],
     helmet: 0.1, pack: 0.3, lean: false,
     weight: 6, bands: { evening: 1.3, dawn: 0.3 },
+  },
+  {
+    // Patinadores: de pie sobre la tabla, despacio, sobre todo por la tarde y el fin de semana. Pocos en general: en el Carmen y el parque, más (data/districts.ts).
+    id: 'skater', frame: 'skate', length: 22, pace: 0.5, colors: ['#c0493f', '#3f6f78', '#d8b04a', '#2b2d33'],
+    helmet: 0, pack: 0, lean: false,
+    weight: 1.5, bands: { midday: 1.4, evening: 2.2, dawn: 0.05, night: 0.5, morning: 0.3 }, weekend: 2.5,
   },
   {
     id: 'courier', frame: 'road', length: 22, pace: 0.95, colors: ['#2b2d33', '#4c4f57'],

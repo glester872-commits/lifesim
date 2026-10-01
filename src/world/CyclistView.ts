@@ -67,8 +67,10 @@ export class CyclistView {
       // en los propios fotogramas (world/CyclistArt). Mover el sprite entero hacía botar las ruedas.
       p.body.setFrame(frame).setPosition(left, top).setDepth(bottom).setVisible(true);
       const at = ([lx, ly]: readonly [number, number]): [number, number] => [left + (flip ? RIDER_W - 1 - lx : lx), top + ly];
-      p.head.setPosition(...at(RIDER_LAMPS.head)).setVisible(lit);
-      p.tail.setPosition(...at(RIDER_LAMPS.tail)).setVisible(lit || v.braking).setAlpha(v.braking ? 1 : 0.7);
+      // El monopatín no lleva luces.
+      const lamps = v.type.frame !== 'skate';
+      p.head.setPosition(...at(RIDER_LAMPS.head)).setVisible(lit && lamps);
+      p.tail.setPosition(...at(RIDER_LAMPS.tail)).setVisible(lamps && (lit || v.braking)).setAlpha(v.braking ? 1 : 0.7);
     }
     this.drawDebug();
   }

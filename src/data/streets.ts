@@ -71,6 +71,8 @@ export interface TripRule {
   pause?: number;
   /** Como mucho tantos viajes de este tipo a la vez: ni diez personas mirando el mismo escaparate. */
   max?: number;
+  /** Sólo mientras está en marcha ese evento (data/popups.ts, systems/PopUps): el mercadillo, la cola, el DJ. */
+  popup?: string;
 }
 
 export interface StreetProfile {
@@ -86,6 +88,11 @@ export interface StreetProfile {
   draws?: readonly { place: string; perLevel: number }[];
   /** Personal que trabaja fuera: el camarero de la terraza. */
   staff?: readonly StreetPost[];
+  /**
+   * Servicio de mesa en la calle (systems/TableService, el mismo de los interiores): las mesas de LocationDef.tables
+   * las atiende el camarero del puesto de `place`, y la barra a la que lleva y trae es su sitio junto a la puerta (`pass`).
+   */
+  tableService?: { place: string; menu: string; pass: string };
   /**
    * Salidas en oleada: cada vez que llega un tren sale gente por esa boca, de una
    * en una. [desde, hasta, minutos entre trenes] por hora; fuera de las franjas, nada.
@@ -114,7 +121,7 @@ const TRANSIT: Ends = { types: ['transit'] };
 const ANYWHERE_HOME: Ends = { types: ['residence', 'transit'], edge: true };
 const NIGHT_OUT: Ends = { tags: ['nightlife'] };
 /** Lo que se mira en la Calle del Carmen: tiendas, estudio y discos. */
-const CARMEN_WINDOWS: Ends = { points: ['TINTA_WINDOW', 'RETALES_WINDOW', 'RECORDS_WINDOW', 'ARCHIVO_WINDOW', 'VUELTA_WINDOW'] };
+const CARMEN_WINDOWS: Ends = { points: ['TINTA_WINDOW', 'RETALES_WINDOW', 'RECORDS_WINDOW', 'ARCHIVO_WINDOW', 'VUELTA_WINDOW', 'SUELA_WINDOW', 'NAVAJA_WINDOW', 'GAVIOTA_WINDOW'] };
 const CARMEN: Ends = { tags: ['carmen'] };
 const WINDOWS: Ends = { points: ['FASHION_WINDOW_', 'HAIR_WINDOW', 'PHARMACY_WINDOW', 'BANK_WINDOW', 'SUPER_WINDOW', 'FRUIT_WINDOW', 'LAUNDRY_WINDOW'] };
 
@@ -134,6 +141,7 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     // El metro: en hora punta un tren cada pocos minutos de juego, y de cada uno salen unos cuantos.
     bursts: [{ point: 'METRO_ENTRANCE', every: [[6.5, 7, 16], [7, 10, 6], [10, 17, 14], [17, 20.5, 6], [20.5, 24, 16], [0, 1.5, 24]], size: [1, 3] }],
     draws: [{ place: 'nightclub', perLevel: 2 }],
+    tableService: { place: 'restaurant', menu: 'casa-tomas', pass: 'RESTAURANT_TERRACE_WAITER' },
     staff: [
       { service: 'waiter', place: 'cafe', base: 'CAFE_TERRACE_WAITER', serves: ['CAFE_TERRACE_'], label: 'Camarero de la terraza' },
       { service: 'waiter', place: 'coffee-molinillo', base: 'MOLINILLO_TERRACE_WAITER', serves: ['MOLINILLO_TERRACE_'], label: 'Camarera del Molinillo', line: 'Fuera sólo café y bollos, ¿eh?' },
@@ -182,6 +190,21 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'carmen-bench', label: 'Alguien sentado', line: 'Se está bien aquí. Pasa gente interesante.', weight: 1, hours: [10, 21], from: HOMES_OR_CITY, to: { points: ['CARMEN_BENCH_'] }, stay: [10, 30], stayState: 'READ' },
       { role: 'terrace', label: 'Alguien en la terraza del Molinillo', line: 'El mejor café del barrio. No se lo digas a Nilo.', weight: 2, hours: [9, 19.5], from: HOMES_OR_CITY, to: { points: ['MOLINILLO_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
       { role: 'tattoo-client', label: 'Alguien con cita en el estudio', line: 'Tengo cita a y media. Estoy tranquilo. Muy tranquilo.', weight: 1, hours: [12, 20], days: 'weekday', from: HOMES_OR_CITY, to: { points: ['TINTA_ENTRANCE'] } },
+      // La calle como destino: corros a la puerta, fotos delante de los murales, zapatillas, piercing, el bar y quien sale a fumar.
+      { role: 'carmen-hang', label: 'Gente a la puerta de la tienda', line: 'Esperamos a que abran. Y a Dani, que viene con la tabla.', weight: 1.5, hours: [12, 22], days: 'weekday', from: HOMES_OR_CITY, to: { points: ['CARMEN_HANG_'] }, stay: [8, 25], stayState: 'TALK', then: CARMEN, group: [2, 3], max: 4, bond: ['friends'] },
+      { role: 'carmen-hang', label: 'Gente a la puerta de la tienda', line: 'Los sábados esto es una plaza. Todo el mundo se conoce de vista.', weight: 4, hours: [12, 23], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['CARMEN_HANG_'] }, stay: [10, 30], stayState: 'TALK', then: CARMEN, group: [2, 3], max: 4, bond: ['friends'] },
+      { role: 'carmen-outfit', label: 'Gente haciéndose fotos', line: 'Hazme una con el mural detrás. No, con el mural entero.', weight: 1.6, hours: [13, 20], from: HOMES_OR_CITY, to: { points: ['CARMEN_PHOTO_'] }, stay: [4, 10], stayState: 'BROWSE', then: CARMEN, group: [2, 2], max: 2, bond: ['friends', 'couple'] },
+      { role: 'carmen-prenight', label: 'Amigos antes de salir', line: 'Una aquí y vamos a la Órbita. Si es que nos dejan entrar.', weight: 3.5, hours: [20, 23.5], rhythms: ['friday-evening', 'saturday-day', 'weekend-night'], from: HOMES_OR_CITY, to: { points: ['CARMEN_HANG_', 'CARMEN_TALK_'] }, stay: [10, 25], stayState: 'DRINK', then: NIGHT_OUT, group: [2, 4], max: 4, bond: ['friends'] },
+      { role: 'sneaker-heads', label: 'Alguien que va a Suela', line: 'Ya sé que no tienen mi talla. Voy igual.', weight: 1.2, hours: [12, 21], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['SUELA_ENTRANCE'] }, group: [1, 2], bond: ['friends'] },
+      { role: 'piercing-client', label: 'Alguien con cita en Navaja & Aro', line: 'Primero el pelo. El aro, si me da el valor.', weight: 1, hours: [12, 20], from: HOMES_OR_CITY, to: { points: ['NAVAJA_ENTRANCE'] } },
+      { role: 'bar-night', label: 'Alguien que va al Gaviota', line: 'Una caña y a casa. Una.', weight: 3, hours: [17.5, 1.5], from: HOMES_OR_CITY, to: { points: ['GAVIOTA_ENTRANCE'] }, group: [1, 3], bond: ['friends', 'couple'] },
+      { role: 'bar-smoke', label: 'Alguien tomando el aire', line: 'Salgo a fumar, que dentro suena la misma canción por tercera vez.', weight: 2.5, hours: [18, 2], from: { points: ['GAVIOTA_ENTRANCE'] }, to: { points: ['GAVIOTA_SMOKE_'] }, stay: [5, 12], then: { points: ['GAVIOTA_ENTRANCE'] }, group: [1, 3], bond: ['friends'] },
+      // Eventos (data/popups.ts): sólo cuentan mientras está en marcha cada uno.
+      { role: 'popup-market', label: 'Alguien mirando los puestos', line: 'Esta chaqueta es mía. Es que no lo sabe todavía.', weight: 28, popup: 'vintage-market', hours: [11, 18.5], from: HOMES_OR_CITY, to: { points: ['POPUP_BROWSE_'] }, stay: [3, 9], stayState: 'BROWSE', then: CARMEN, group: [1, 3], bond: ['friends', 'couple'] },
+      { role: 'popup-market', label: 'Alguien en el pop-up', line: 'Edición limitada, dicen. Como todo.', weight: 24, popup: 'fashion-popup', hours: [12, 17.5], from: HOMES_OR_CITY, to: { points: ['POPUP_BROWSE_'] }, stay: [3, 9], stayState: 'BROWSE', then: CARMEN, group: [1, 3], bond: ['friends', 'couple'] },
+      { role: 'popup-queue', label: 'Alguien en la cola de la zapatilla', line: 'Llevo aquí desde las siete. No me cambies el sitio.', weight: 30, popup: 'sneaker-release', hours: [10, 15], from: HOMES_OR_CITY, to: { points: ['POPUP_QUEUE_'] }, stay: [20, 45], stayState: 'QUEUE', then: CARMEN, group: [1, 2], bond: ['friends'] },
+      { role: 'popup-dj', label: 'Alguien bailando en la acera', line: 'Ni me sé la canción. Da igual.', weight: 30, popup: 'dj-event', hours: [20, 1], from: HOMES_OR_CITY, to: { points: ['CARMEN_DANCE_'] }, stay: [10, 35], stayState: 'DANCE', then: CARMEN, group: [2, 3], bond: ['friends'] },
+      { role: 'popup-art', label: 'Alguien en la inauguración', line: 'No entiendo el de la derecha. Me encanta.', weight: 28, popup: 'art-event', hours: [19, 23], from: HOMES_OR_CITY, to: { points: ['POPUP_BROWSE_'] }, stay: [8, 20], stayState: 'DRINK', then: CARMEN, group: [1, 3], bond: ['friends', 'couple'] },
       // El metro: quien sale de un tren y quien espera a alguien que llega en el siguiente.
       { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Qué agobio de vagón.', weight: 2, hours: [6.5, 1.5], from: TRANSIT, to: { types: ['residence'], tags: ['shop', 'work'], edge: true } },
       { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Me ha dicho que ya sale del metro.', weight: 2, hours: [8, 23], from: HOMES_OR_CITY, to: { points: ['METRO_MEET_'] }, stay: [4, 12], stayState: 'PHONE', then: TRANSIT, max: 2 },

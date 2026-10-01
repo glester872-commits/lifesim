@@ -54,15 +54,13 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-avenida-20', name: 'Avenida 20', type: 'residence', tags: ['home'], building: 'res-av-20', capacity: 12 },
   { id: 'res-mayor-15', name: 'Mayor 15', type: 'residence', tags: ['home'], building: 'res-mayor-15', capacity: 10 },
   { id: 'res-mayor-20', name: 'Mayor 20', type: 'residence', tags: ['home'], building: 'res-mayor-20', capacity: 10 },
-  { id: 'res-carmen-12', name: 'Carmen 12', type: 'residence', tags: ['home'], building: 'res-carmen-12', capacity: 6 },
-  { id: 'res-carmen-9', name: 'Carmen 9', type: 'residence', tags: ['home'], building: 'res-carmen-9', capacity: 6 },
 
   // Negocios con interior
   { id: 'cafe', name: 'Cafetería Pausa', type: 'business', tags: ['food', 'social', WORK], building: 'cafe-door', anchors: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], capacity: 10, hours: [7, 22], why: 'Desayunar algo rápido y llevarse pan o bollería para casa.' },
   { id: 'gym', name: 'Gimnasio Forja', type: 'business', tags: ['sport', 'social', WORK], building: 'gym-door', capacity: 18, hours: [6, 23] },
   { id: 'clothing-store', name: 'Hilo · moda', type: 'business', tags: ['shop', 'fashion', WORK], building: 'fashion-door', capacity: 14, hours: [10, 21], why: 'Ropa de temporada: lo que compras te lo llevas puesto y se queda en tu armario.' },
   { id: 'supermarket', name: 'Súper Rosales', type: 'business', tags: ['shop', 'food', WORK], building: 'super-door', capacity: 20, hours: [9, 22], hoursByDay: { sunday: [10, 15] }, why: 'La compra para cocinar en casa: comer por menos de lo que cuesta fuera.' },
-  { id: 'restaurant', name: 'Casa Tomás', type: 'business', tags: ['food', 'social', WORK], building: 'restaurant-door', anchors: ['RESTAURANT_TERRACE_01'], capacity: 16, hours: [12, 24], why: 'Comer o cenar caliente sin cocinar, a cambio de dinero.' },
+  { id: 'restaurant', name: 'Casa Tomás', type: 'business', tags: ['food', 'social', WORK], building: 'restaurant-door', anchors: ['RESTAURANT_TERRACE_01', 'RESTAURANT_TERRACE_02'], capacity: 16, hours: [12, 24], why: 'Comer o cenar caliente sin cocinar, a cambio de dinero.' },
   { id: 'office', name: 'Edificio Atalaya', type: 'business', tags: [WORK], building: 'office-door', capacity: 20, hours: [8, 20] },
   // Jueves flojo; viernes y sábado hasta que amanece. De domingo a miércoles, persiana.
   { id: 'nightclub', name: 'Sala Órbita', type: 'business', tags: ['nightlife', 'social', WORK], building: 'club-door', anchors: ['CLUB_QUEUE_01', 'CLUB_QUEUE_02', 'CLUB_QUEUE_03', 'CLUB_SMOKE_01', 'CLUB_SMOKE_02'], capacity: 40, hours: [21, 6], days: [3, 4, 5], why: 'Bailar y tomar algo hasta tarde: la noche del barrio, con más gente cuanto más tarde.' },
@@ -76,7 +74,10 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'tattoo-studio', name: 'Tinta Carmen · tatuajes', type: 'business', tags: ['service', 'carmen', WORK], building: 'carmen-tinta', capacity: 6, hours: [12, 21], days: [1, 2, 3, 4, 5], why: 'Tatuarse: una marca que se queda para siempre y se ve según lo que lleves.' },
   { id: 'coffee-molinillo', name: 'Café Molinillo', type: 'business', tags: ['food', 'social', 'carmen', WORK], building: 'carmen-molinillo', anchors: ['MOLINILLO_TERRACE_01', 'MOLINILLO_TERRACE_02'], capacity: 8, hours: [8, 20], why: 'Un café y algo dulce en la calle más tranquila del barrio.' },
   { id: 'records-store', name: 'Discos Surco', type: 'business', tags: ['shop', 'carmen', WORK], building: 'carmen-surco', capacity: 5, hours: [17, 21], days: [1, 2, 3, 4, 5] },
-  { id: 'print-shop', name: 'Serigrafía Chapa', type: 'business', tags: ['carmen', WORK], building: 'carmen-print', capacity: 4, hours: [10, 19], days: [0, 1, 2, 3, 4] },
+  { id: 'barber-piercing', name: 'Navaja & Aro · barbería y piercing', type: 'business', tags: ['service', 'carmen', WORK], building: 'carmen-navaja', capacity: 5, hours: [11, 20.5], days: [1, 2, 3, 4, 5, 6] },
+  { id: 'sneaker-store', name: 'Suela · zapatillas', type: 'business', tags: ['shop', 'fashion', 'carmen', WORK], building: 'carmen-suela', capacity: 9, hours: [11, 21], days: [1, 2, 3, 4, 5, 6] },
+  // Bar pequeño de barrio: abre por la tarde-noche y de madrugada vacía la calle de sus fumadores.
+  { id: 'bar-gaviota', name: 'Bar Gaviota', type: 'business', tags: ['nightlife', 'social', 'carmen', WORK], building: 'carmen-gaviota', anchors: ['GAVIOTA_SMOKE_01', 'GAVIOTA_SMOKE_02'], capacity: 24, hours: [17, 2], days: [1, 2, 3, 4, 5, 6] },
 
   // Negocios de fachada: se puede trabajar o comprar en ellos aunque hoy no se entre.
   { id: 'pharmacy', name: 'Farmacia', type: 'business', tags: ['shop', 'health', WORK], building: 'pharmacy', capacity: 4, hours: [9, 21], why: 'Medicinas que quitan el cansancio cuando no da tiempo a dormir.' },

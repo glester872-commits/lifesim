@@ -106,16 +106,25 @@ function fashionOf(rng: Rng, age: number, income: Income, interests: readonly In
   if (has('nightlife')) w.nightlife = 2.5;
   if (has('skating') || has('gaming')) w.streetwear = (w.streetwear ?? 0) + 2.5;
   if (work && ['office', 'bank', 'civic-office', 'study-center'].includes(work)) Object.assign(w, { office: 4, formal: income === 'high' ? 1.5 : 0.3 });
-  if (work && ['hardware-store', 'fruit-shop', 'laundry', 'print-shop'].includes(work)) w.workwear = 3;
+  if (work && ['hardware-store', 'fruit-shop', 'laundry'].includes(work)) w.workwear = 3;
   if (visitor) w.tourist = 6;
   if (age > 55) Object.assign(w, { casual: 7, formal: (w.formal ?? 0) + 1, streetwear: (w.streetwear ?? 0) * 0.2, nightlife: (w.nightlife ?? 0) * 0.2 });
   if (age < 30) w.streetwear = (w.streetwear ?? 0) + 2;
+  // Moda de calle de la Calle del Carmen: cada una tira de sus gustos, no de dónde viene nadie. Poca, sin más gustos, para que no sea un uniforme.
+  if (age < 50) Object.assign(w, { punk: 0.7, skate: 1, experimental: 1.1, designer: 0.5, vintage: (w.vintage ?? 0) + 0.9 });
+  if (has('skating')) w.skate = 5;
+  if (has('music')) Object.assign(w, { punk: (w.punk ?? 0) + 1.6, alternative: (w.alternative ?? 0) + 1 });
+  if (has('tattoos')) Object.assign(w, { punk: (w.punk ?? 0) + 2, alternative: (w.alternative ?? 0) + 1.5 });
+  if (has('art')) Object.assign(w, { experimental: (w.experimental ?? 0) + 2.5, designer: (w.designer ?? 0) + (income === 'low' ? 0.4 : 1.6) });
+  if (has('fashion')) Object.assign(w, { experimental: (w.experimental ?? 0) + 1.5, designer: (w.designer ?? 0) + (income === 'high' ? 3 : 0.8) });
+  if (age > 50) for (const k of ['punk', 'skate', 'experimental'] as const) if (w[k]) w[k] = w[k]! * 0.15;
+  if (age < 30) for (const k of ['punk', 'skate'] as const) if (w[k]) w[k] = w[k]! * 1.5;
   if (income === 'low') w.luxury = 0;
   if (income === 'high') w.luxury = (w.luxury ?? 0.5) * 2;
   return pick(rng, w);
 }
 
-const WORKPLACES = ['cafe', 'gym', 'clothing-store', 'supermarket', 'restaurant', 'office', 'nightclub', 'wine-bar', 'vintage-store', 'streetwear-store', 'thrift-store', 'tattoo-studio', 'coffee-molinillo', 'records-store', 'print-shop', 'pharmacy', 'hair-salon', 'bank', 'fruit-shop', 'hardware-store', 'study-center', 'civic-office'];
+const WORKPLACES = ['cafe', 'gym', 'clothing-store', 'supermarket', 'restaurant', 'office', 'nightclub', 'wine-bar', 'vintage-store', 'streetwear-store', 'thrift-store', 'tattoo-studio', 'coffee-molinillo', 'records-store', 'barber-piercing', 'sneaker-store', 'bar-gaviota', 'pharmacy', 'hair-salon', 'bank', 'fruit-shop', 'hardware-store', 'study-center', 'civic-office'];
 
 type Person = Omit<Identity, 'index' | 'id' | 'name' | 'build' | 'height' | 'posture'>;
 
@@ -186,7 +195,7 @@ const INK = ['#2a2830', '#2f4a8c', '#3a3a44'] as const;
 function lookOf(rng: Rng, id: string, p: Person, body: ReturnType<typeof bodyOf>, origin: OriginPalette): NpcLook {
   const texture = pick(rng, origin.texture);
   const greying = p.age > 50 && rng() < (p.age - 50) / 32;
-  const loud = ['alternative', 'streetwear', 'nightlife'].includes(p.fashion);
+  const loud = ['alternative', 'streetwear', 'nightlife', 'punk', 'skate', 'experimental'].includes(p.fashion);
   const hair = greying ? (p.age > 72 ? HAIR_COLORS.white : HAIR_COLORS.grey)
     : rng() < (loud ? 0.22 : 0.03) ? oneOf(rng, DYED_HAIR) : HAIR_COLORS[oneOf(rng, origin.hair)];
   const styles: Partial<Record<HairStyle, number>> = { ...STYLE_WEIGHTS[texture][p.presentation] };
@@ -194,7 +203,7 @@ function lookOf(rng: Rng, id: string, p: Person, body: ReturnType<typeof bodyOf>
   const [cloth, trousers] = oneOf(rng, FASHION_CLOTHES[p.fashion]);
   const fem = p.presentation === 'feminine';
   const masc = p.presentation === 'masculine';
-  const inkChance = p.interests.includes('tattoos') ? 0.7 : loud ? 0.3 : 0.08;
+  const inkChance = p.interests.includes('tattoos') ? 0.7 : p.fashion === 'punk' ? 0.55 : loud ? 0.3 : 0.08;
   const ink = rng() < inkChance ? (['arm-r', 'arm-l', 'neck', 'hand-r'] as const).filter(() => rng() < 0.45).map((spot) => ({ spot, color: oneOf(rng, INK) })) : [];
   const sporty = p.fashion === 'sportswear' || p.fashion === 'athletic';
   return {
@@ -213,13 +222,13 @@ function lookOf(rng: Rng, id: string, p: Person, body: ReturnType<typeof bodyOf>
     brows: rng() < 0.3 ? 'thick' : rng() < 0.35 ? 'fine' : undefined,
     jaw: rng() < 0.25 ? 'square' : rng() < 0.33 ? 'narrow' : undefined,
     glasses: rng() < (p.age > 45 ? 0.45 : 0.2) ? (rng() < (p.fashion === 'luxury' || p.fashion === 'tourist' ? 0.5 : 0.15) ? 'dark' : 'clear') : undefined,
-    piercing: rng() < (loud ? 0.35 : 0.06) ? (rng() < 0.6 ? 'nose' : 'brow') : undefined,
+    piercing: rng() < (p.fashion === 'punk' ? 0.6 : loud ? 0.35 : 0.06) ? (rng() < 0.6 ? 'nose' : 'brow') : undefined,
     earrings: rng() < (fem ? 0.45 : p.presentation === 'androgynous' ? 0.25 : 0.1) ? oneOf(rng, ['#e8c86a', '#d8d2c4']) : undefined,
     headphones: p.age < 40 && p.interests.some((i) => i === 'music' || i === 'gaming' || i === 'fitness') && rng() < 0.3 ? oneOf(rng, ['#232329', '#e6e0d4', '#b8423a']) : undefined,
     headscarf: fem && rng() < 0.04 ? oneOf(rng, ['#3f5d8c', '#8c5a6e', '#d8d2c4', '#3f6f5a']) : undefined,
-    cap: rng() < (sporty || p.fashion === 'streetwear' || p.fashion === 'tourist' ? 0.3 : 0.05) ? oneOf(rng, ['#232329', '#b8423a', '#e6e0d4', '#3f5d78']) : undefined,
+    cap: rng() < (p.fashion === 'skate' ? 0.6 : sporty || p.fashion === 'streetwear' || p.fashion === 'tourist' ? 0.3 : 0.05) ? oneOf(rng, ['#232329', '#b8423a', '#e6e0d4', '#3f5d78']) : undefined,
     bag: rng() < 0.35 ? oneOf(rng, ['#5a3a26', '#2a2830', '#c9a27a', '#7b5a3d']) : undefined,
-    sleeves: rng() < 0.15 ? oneOf(rng, ['#e6e0d4', '#5c6fa8', '#232329']) : undefined,
+    sleeves: rng() < (p.fashion === 'experimental' ? 0.6 : 0.15) ? oneOf(rng, ['#e6e0d4', '#5c6fa8', '#232329', '#ff6ab8']) : undefined,
     ink: ink.length ? ink : undefined,
   };
 }

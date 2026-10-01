@@ -88,8 +88,8 @@ export interface AmbientActionDef {
 /** Probabilidad de cada rasgo: la base y, según lo que hace, otra. */
 export const TRAIT_SHARE: Readonly<Record<AmbientTrait, { base: number; roles?: Readonly<Record<string, number>> }>> = {
   // Una de cada cinco personas fuma; quien sale de la discoteca "a tomar el aire", casi siempre.
-  smoker: { base: 0.2, roles: { 'club-smoke': 0.75, 'club-queue': 0.3, 'night-walker': 0.3 } },
-  photographer: { base: 0.1, roles: { stroller: 0.3, 'park-stroll': 0.25, 'carmen-browse': 0.25, 'carmen-couple': 0.3 } },
+  smoker: { base: 0.2, roles: { 'club-smoke': 0.75, 'bar-smoke': 0.8, 'club-queue': 0.3, 'night-walker': 0.3, 'carmen-hang': 0.35, 'carmen-prenight': 0.35 } },
+  photographer: { base: 0.1, roles: { stroller: 0.3, 'park-stroll': 0.25, 'carmen-browse': 0.25, 'carmen-couple': 0.3, 'carmen-outfit': 0.75, 'popup-market': 0.3, 'popup-art': 0.35 } },
 };
 
 const hold = (ms: readonly [number, number]): AmbientStep => ({ name: 'quieto', ms });
@@ -118,7 +118,7 @@ export const AMBIENT_ACTIONS: AmbientActionDef[] = [
     id: 'smoke', label: 'Fumando', postures: ['stand', 'sit'], contexts: ['idle', 'wait', 'talk', 'drink', 'rest', 'read'],
     weight: 2.2, outdoor: true, trait: 'smoker', total: [11_000, 20_000],
     dayparts: { morning: 0.5, afternoon: 0.9, evening: 1.3, night: 1.8 },
-    near: { nightlife: 3, food: 1.4 }, roles: { 'club-smoke': 5 }, otherRoles: 1,
+    near: { nightlife: 3, food: 1.4 }, roles: { 'club-smoke': 5, 'bar-smoke': 6, 'carmen-hang': 1.4 }, otherRoles: 1,
     ...SMOKE,
   },
   {
@@ -265,7 +265,7 @@ export const AMBIENT_ACTIONS: AmbientActionDef[] = [
     // Quien sale de las tiendas lleva las bolsas.
     id: 'bags', label: 'Con bolsas', postures: ['walk'], contexts: ['walk'],
     weight: 1, total: [60_000, 90_000], dayparts: { morning: 0.5, afternoon: 1.4, evening: 1, night: 0 },
-    roles: { shopper: 6, errands: 1.2, 'carmen-browse': 1.5, 'window-shopper': 1 }, otherRoles: 0,
+    roles: { shopper: 6, errands: 1.2, 'carmen-browse': 1.5, 'window-shopper': 1, 'popup-market': 4, 'sneaker-heads': 3 }, otherRoles: 0,
     loop: [{ name: 'con las bolsas', ms: [60_000, 90_000], prop: 'bags', at: 'hand' }],
   },
 ];

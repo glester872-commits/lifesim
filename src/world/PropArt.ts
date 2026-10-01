@@ -683,7 +683,65 @@ function drawDisplayTable(ctx: Ctx): void {
   });
 }
 
+/**
+ * Perchero de calle, 16 × 32: dos patas abiertas con ruedas, la barra a la altura del pecho y prendas colgadas,
+ * cada surtido con sus colores y su largo (el vintage no cuelga todo igual), y una etiqueta de precio.
+ */
+function drawStreetRack(ctx: Ctx, v: number): void {
+  const sets: readonly (readonly string[])[] = [
+    ['#4f6a8c', '#d8b04a', '#c0493f', '#e6dcc0', '#6a7a3f', '#2b2d33'],
+    ['#7a3f5a', '#3f6f78', '#e6dcc0', '#b8674a', '#4f6a8c', '#d8b04a'],
+    ['#232329', '#c0493f', '#8aa05a', '#e6e0d4', '#5a4a7a', '#c9a27a'],
+  ];
+  const colors = sets[v % sets.length];
+  // Patas y ruedas.
+  px(ctx, PALETTE.metal, 2, 28, 1, 2);
+  px(ctx, PALETTE.metal, 13, 28, 1, 2);
+  px(ctx, PALETTE.metal, 3, 27, 10, 1);
+  px(ctx, PALETTE.ink, 1, 30, 3, 2);
+  px(ctx, PALETTE.ink, 12, 30, 3, 2);
+  // Montantes y barra.
+  px(ctx, PALETTE.metalLit, 2, 8, 1, 20);
+  px(ctx, PALETTE.metalLit, 13, 8, 1, 20);
+  px(ctx, PALETTE.metalLit, 2, 8, 12, 1);
+  px(ctx, shade(PALETTE.metal, -0.2), 2, 9, 12, 1);
+  // Prendas: cada una con su percha, su luz a la izquierda y su sombra a la derecha.
+  for (let i = 0; i < 6; i++) {
+    const x = 3 + i * 2;
+    const c = colors[i];
+    const h = 9 + ((i * 5 + v * 3) % 5);
+    px(ctx, PALETTE.metal, x, 9, 1, 1);
+    px(ctx, c, x, 10, 2, h);
+    px(ctx, shade(c, 0.18), x, 10, 1, h);
+    px(ctx, shade(c, -0.22), x + 1, 12, 1, h - 2);
+  }
+  // Etiqueta de precio colgada del extremo.
+  px(ctx, PALETTE.white, 12, 11, 2, 3);
+  px(ctx, '#c0493f', 12, 11, 2, 1);
+}
+
+/** Pizarra de bar en A, 16 × 32: dos patas de madera, el tablero con una caña y una raya de tiza, y el marco. */
+function drawSandwichBoard(ctx: Ctx): void {
+  px(ctx, PALETTE.woodDark, 2, 22, 2, 9);
+  px(ctx, PALETTE.woodDark, 12, 22, 2, 9);
+  px(ctx, PALETTE.outline, 1, 8, 14, 19);
+  px(ctx, '#2a2e2a', 2, 9, 12, 17);
+  px(ctx, shade('#2a2e2a', 0.12), 2, 9, 12, 1);
+  // Una caña con espuma, el asa y dos líneas de precios.
+  px(ctx, '#e6e0d4', 4, 11, 5, 2);
+  px(ctx, PALETTE.amber, 4, 13, 5, 5);
+  px(ctx, shade(PALETTE.amber, 0.25), 5, 13, 1, 5);
+  px(ctx, '#e6e0d4', 9, 14, 2, 1);
+  px(ctx, '#e6e0d4', 10, 15, 1, 2);
+  px(ctx, '#e6e0d4', 9, 17, 2, 1);
+  px(ctx, '#e6e0d4', 4, 20, 8, 1);
+  px(ctx, '#c9a27a', 4, 22, 5, 1);
+  px(ctx, PALETTE.woodDark, 1, 27, 14, 1);
+}
+
 export function buildPropTextures(scene: Phaser.Scene): void {
+  for (let v = 0; v < 3; v++) make(scene, `prop-street-rack-${v}`, TILE, TILE * 2, (ctx) => drawStreetRack(ctx, v));
+  make(scene, 'prop-sandwich-board', TILE, TILE * 2, drawSandwichBoard);
   buildGymTextures(scene);
   buildSeatTextures(scene);
   buildDiningTextures(scene);
