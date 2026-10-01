@@ -6,15 +6,15 @@ export const TILE = 16;
  */
 export const CAMERA_ZOOM = 2;
 /**
- * Mundo que se ve como poco, en px: unos 20 × 17 tiles. Algo más cerca que el
- * primer encuadre (21 × 18): la gente tiene presencia y la boca de metro manda
- * en la escena, sin perder la calle de alrededor. El zoom sale del eje que más
- * aprieta (en vertical manda el ancho) y es siempre entero (2, 3, 4…): a
- * medios pasos un píxel de arte ocupaba 3 o 4 de pantalla, alternos, y el
+ * Mundo que se ve como poco, en px: 18 × 13,5 tiles, el encuadre de la
+ * referencia (design/visual-reference.png.jpeg). Cerca: la gente, los bancos y
+ * la boca de metro tienen presencia y el pixel art se lee. El zoom sale del eje
+ * que más aprieta (en vertical manda el ancho) y es siempre entero (2, 3, 4…):
+ * a medios pasos un píxel de arte ocupaba 3 o 4 de pantalla, alternos, y el
  * pixel art se deformaba.
  */
-export const VIEW_WIDTH = 315;
-export const VIEW_HEIGHT = 270;
+export const VIEW_WIDTH = 288;
+export const VIEW_HEIGHT = 216;
 export const MAX_CAMERA_ZOOM = 12;
 export const CAMERA_LERP = 0.14;
 /**

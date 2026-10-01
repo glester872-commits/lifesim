@@ -332,11 +332,12 @@ export class Lighting {
       if (prop.cast) this.casters.push({ x: x - 2, y: (p.ty + 1) * TILE - 3, w: 4, h: 2, height: prop.cast, blob: prop.castBlob });
       if (!prop.light) continue;
       const y = (p.ty + 1) * TILE - prop.light.dy;
-      const tint = prop.light.cool ? 0x9fd8ff : 0xf0b46a;
+      const tint = prop.light.cool ? 0x9fd8ff : 0xffbe6a;
       const light = scene.add.image(x, y, 'fx-light').setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
       // Con charco, el halo es sólo el brillo de la linterna: la luz de verdad está en el suelo.
       // Fuera pasa lo mismo sin charco: el mapa de luz alumbra el suelo; un halo entero sería un círculo amarillo.
-      if (prop.light.pool || !this.indoor) light.setScale(prop.light.pool ? 0.6 : 0.45);
+      // El farolillo brilla: un halo que se ve, sin llegar a bloom (la farola alta, algo más grande).
+      if (prop.light.pool || !this.indoor) light.setScale(prop.light.pool ? 0.72 : 0.45);
       this.lights.push(light.setTint(tint));
       const baseY = (p.ty + 1) * TILE - 3;
       if (!this.indoor) {
@@ -440,8 +441,35 @@ export class Lighting {
       this.fx?.destroy();
       this.roofBrush?.destroy();
     });
+    if (!this.indoor) this.lightCanopies(def);
     LAMP_LIGHT.lamps = this.lampFeet;
     this.update();
+  }
+
+  /**
+   * La copa de un árbol con una farola al lado recibe su luz: de noche se ve el
+   * verde encendido por el lado de la farola, no una mancha negra sobre el charco
+   * (design/visual-reference). Una luz más por árbol iluminado, a la altura de la
+   * copa y un poco hacia la farola; más fuerte cuanto más cerca está.
+   */
+  private lightCanopies(def: LocationDef): void {
+    const REACH = TILE * 5;
+    for (const p of def.props) {
+      const prop = PROPS[p.kind];
+      if (!prop.castBlob) continue;
+      const x = p.tx * TILE + ((prop.tilesWide ?? 1) * TILE) / 2;
+      const y = (p.ty + 1) * TILE - prop.castBlob[1] * 2.6;
+      let best: { x: number; y: number } | null = null;
+      let dist = REACH;
+      for (const l of this.lampHeads) {
+        const d = Math.hypot(l.x - x, l.y - y);
+        if (d < dist) [best, dist] = [l, d];
+      }
+      if (!best) continue;
+      const [warm, strength] = this.lampAt(best.x, best.y);
+      const k = 1 - dist / REACH;
+      this.fixedSources.push({ x: x + (best.x - x) * 0.3, y, w: prop.castBlob[0] * 1.4, h: prop.castBlob[1] * 3, color: warm, strength: strength * (0.35 + 0.45 * k) });
+    }
   }
 
   /**

@@ -55,9 +55,9 @@ npm run build    # tsc + bundle de producción en dist/
 npm run preview  # sirve dist/
 ```
 
-**Prototipo Visual V3** (pendiente de aprobación): `http://localhost:5173/?proto`
-abre la plazuela del metro pintada en alta definición, sin guardar partida. El
-resto del mapa no cambia. Detalles en [`design/VISUAL_V3.md`](design/VISUAL_V3.md).
+**Corte vertical** (pendiente de aprobación): `http://localhost:5173/?proto`
+abre la plazuela del metro compuesta como la imagen de referencia, en pixel art y
+sin guardar partida. Detalles en [`design/VISUAL_V3.md`](design/VISUAL_V3.md).
 
 ## Controles
 

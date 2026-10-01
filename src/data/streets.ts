@@ -205,7 +205,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
   // aceras, quien sale del metro, quien espera a alguien junto a la boca y un corrillo delante del tótem.
   {
     location: 'plazuela-v3',
-    bands: [[0, 6, 'VERY_LOW'], [6, 24, 'LOW']],
+    // Corte vertical: siempre con gente, también de madrugada (la referencia es a las 02:47).
+    bands: [[0, 24, 'MEDIUM']],
     weekday: [0, 0, 0, 0, 0, 0, 0],
     scale: 1,
     maxWalkers: 6,

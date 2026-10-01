@@ -173,7 +173,7 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'bed-tree': { key: 'prop-bed-tree', tilesHigh: 5, variants: 3, shadow: [30, 5], cast: 16, castBlob: [48, 16] },
   'flower-bed': { key: 'prop-flower-bed', tilesHigh: 1, tilesWide: 2, shadow: [30, 4] },
   'plaza-bench': { key: 'prop-plaza-bench', tilesHigh: 2, tilesWide: 2, shadow: [30, 5], mount: true },
-  'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22 },
+  'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [66, 30] }, shadow: [8, 3], cast: 22 },
   'bike-rack': { key: 'prop-bike-rack', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'planter-box': { key: 'prop-planter-box', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'metro-totem': { key: 'prop-metro-totem', tilesHigh: 3, shadow: [8, 3], cast: 18, emissive: 'glow-metro-totem' },

@@ -116,7 +116,8 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
   transit: {
     wash: ['#9aa0a6', 0.05],
     grade: { morning: '#f8f6f2', day: '#fbfbfb', sunset: '#fbeee2', night: '#dcdcf2' },
-    lamp: ['#ffbe78', 1.05],
+    // Ámbar de sodio, saturado: la plaza del metro de noche es dorada contra el azul (design/visual-reference).
+    lamp: ['#ffa654', 1.12],
     crowd: { everyday: 3, smart: 2, street: 1, sport: 0.5 },
     facades: ['metro', 'home', 'res-*'],
     ambience: { leaf: 0.6, paper: 1.4, steam: 1.2 },
