@@ -16,6 +16,8 @@ import { getGarment, getStore } from '../data/retail';
 import { getDesign, getZone, STYLE_NAMES, TATTOO_DESIGNS, TATTOO_ZONES, type TattooZone } from '../data/tattoos';
 import { PLAYER_COLORS } from '../world/TextureFactory';
 import type { MenuItem, ServiceMenu } from '../data/menus';
+import { STATIONS, type StationId } from '../data/stations';
+import { INTENSITIES, INTENSITY_ORDER, quote, settle, summary, type Intensity } from '../systems/Fitness';
 
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
 export interface MenuHost {
@@ -465,6 +467,27 @@ export class Menus {
    * Un sitio de un interior con algo que hacer (la cama, la cocina, una mesa):
    * sus actividades, con lo que falta para cada una si no se puede ahora.
    */
+  /**
+   * Entrenar en una máquina del gimnasio: cuánto (suave, normal o intenso), con lo que dura y lo que cuesta de energía
+   * según cómo estás ahora (systems/Fitness). `onStart` recibe la intensidad elegida y los minutos de juego.
+   */
+  openTraining(station: StationId, onStart: (intensity: Intensity, minutes: number) => void): void {
+    const { state, menu } = this.services;
+    const now = (state.day - 1) * 1440 + state.hour * 60 + state.minute;
+    const f = settle(state.fitness, now);
+    const quotes = INTENSITY_ORDER.map((i) => quote(f, station, i, state.energy));
+    const options: MenuOption[] = INTENSITY_ORDER.map((i, k) => ({
+      label: INTENSITIES[i].label,
+      detail: `${quotes[k].minutes} min · -${quotes[k].energy} energía`,
+      disabled: quotes[k].blocked ?? undefined,
+    }));
+    options.push({ label: 'Cancelar' });
+    menu.open(`ENTRENAR · ${STATIONS[station].name}`, summary(f), options, (i) => {
+      menu.close();
+      if (i < INTENSITY_ORDER.length) onStart(INTENSITY_ORDER[i], quotes[i].minutes);
+    }, undefined, '', 1);
+  }
+
   openSpot(name: string, activityIds: readonly string[], note = ''): void {
     const { menu } = this.services;
     const activities = activityIds.map(getActivity);

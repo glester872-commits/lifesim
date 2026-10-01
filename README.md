@@ -717,3 +717,12 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 - **Anti-repetición** (`ChatLog`): memoria por persona (la gente anónima, corta y sólo mientras está en la sala; los personajes con nombre, larga) más una memoria común de lo último dicho a cualquiera.
 - **Personajes con nombre**: Sara y Ada (`NAMED_VOICES`) mezclan frases propias, su relación sube con `EventMemory.importantNPCsMet` (se guarda con la partida).
 - **Prueba**: `scripts/check-chat.ts`.
+
+## Entrenar en el gimnasio (jugador)
+
+- **Interacción**: cada máquina del gimnasio (`use` en `data/interiors.ts`, `data/stations.ts`) ofrece «Entrenar» (E, o el botón de acción en móvil): cinta, bici, remo, banca, mancuernas, jaula, polea y estiramientos. El menú da Suave / Normal / Intenso con su duración y su gasto de energía.
+- **Ocupación compartida**: el puesto del jugador entra en `claimed` (el mismo conjunto que usan los personajes con nombre y quien se sienta): la gente de `Crowd` no lo coge y quien iba de camino lo cancela; con alguien dentro (o de camino), el jugador no puede. Se libera al acabar, cortar (E/Esc) o cambiar de escena.
+- **Animación** (`Player.startTraining/trainingFrame`): las mismas poses, repeticiones y accesorios (banda, barra, jaula vacía) que la gente (`entities/Character`), alineado con el punto del puesto.
+- **Tiempo y energía**: corre el reloj del mundo (suave 15 min, normal 30, intenso 50; estirar, la mitad); al cortar a medias se gana y se gasta en proporción.
+- **Forma física** (`systems/Fitness.ts`, `GameState.fitness`, se guarda): forma, fuerza, resistencia y cansancio. Cardio sube resistencia y forma; pesas, fuerza; estirar quita cansancio. Rendimientos decrecientes por nivel y por sesiones del día. `bodyProgress()` es el gancho para el cuerpo (no se dibuja todavía).
+- **Prueba**: `scripts/check-fitness.ts`.

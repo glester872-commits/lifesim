@@ -537,6 +537,8 @@ export interface GameStateData {
   appearance: Record<string, import('../data/appearance.ts').Appearance>;
   /** Prendas del jugador (ids de data/retail.ts): lo comprado, se lleve o no puesto. */
   wardrobe: string[];
+  /** Forma física del jugador (systems/Fitness.ts). Partidas anteriores no la tienen: empiezan de cero. */
+  fitness?: import('../systems/Fitness.ts').Fitness;
   /** Tarjetas con saldo: id de tarjeta (data/items.ts, kind 'card') → euros cargados. Sin clave, no la tiene. */
   cards: Record<string, number>;
 }

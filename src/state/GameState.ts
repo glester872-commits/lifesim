@@ -3,6 +3,7 @@ import type { EventMemory, Facing, GameStateData } from '../types/game';
 import type { Appearance } from '../data/appearance';
 import { emptyMemory } from '../systems/MetroEventManager';
 import type { Wallet } from '../systems/Commerce';
+import { START_FITNESS, type Fitness } from '../systems/Fitness';
 import { INITIAL_CLOCK, INITIAL_ENERGY, INITIAL_MONEY, TILE } from '../config/constants';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations';
 
@@ -29,6 +30,7 @@ export class GameState extends Phaser.Events.EventEmitter {
   private _cards: Record<string, number>;
   private _appearance: Record<string, Appearance>;
   private _wardrobe: string[];
+  private _fitness: Fitness;
 
   constructor(initial: GameStateData) {
     super();
@@ -45,6 +47,17 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._cards = { ...initial.cards };
     this._appearance = structuredClone(initial.appearance);
     this._wardrobe = [...initial.wardrobe];
+    this._fitness = { ...(initial.fitness ?? START_FITNESS) };
+  }
+
+  /** Forma física: lo que han dejado las sesiones de gimnasio (systems/Fitness.ts). Se guarda con la partida. */
+  get fitness(): Fitness {
+    return { ...this._fitness };
+  }
+
+  set fitness(f: Fitness) {
+    this._fitness = { ...f };
+    this.emit('fitness');
   }
 
   /** Ropa del jugador: lo que ha comprado (systems/Retail.ts), se lleve o no puesto. */
@@ -138,6 +151,7 @@ export class GameState extends Phaser.Events.EventEmitter {
       cards: { ...this._cards },
       appearance: structuredClone(this._appearance),
       wardrobe: [...this._wardrobe],
+      fitness: { ...this._fitness },
     };
   }
 }
@@ -163,5 +177,6 @@ export function createInitialState(): GameStateData {
     cards: {},
     appearance: {},
     wardrobe: [],
+    fitness: { ...START_FITNESS },
   };
 }

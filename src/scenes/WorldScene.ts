@@ -31,6 +31,8 @@ import { METRO_CONFIG } from '../config/metro';
 import { buildLocation } from '../world/LocationBuilder';
 import { Player } from '../entities/Player';
 import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
+import { STATIONS, getStation, type StationId } from '../data/stations';
+import { KIND_OF, afterLine, summary, train, type Intensity } from '../systems/Fitness';
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
 import { getNpc } from '../data/npcs';
@@ -92,7 +94,8 @@ type Interactable =
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
-  | { kind: 'seat'; x: number; y: number; seat: Seat };
+  | { kind: 'seat'; x: number; y: number; seat: Seat }
+  | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing };
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
@@ -196,6 +199,11 @@ export class WorldScene extends Phaser.Scene {
   private readonly chatLog = new ChatLog();
   /** Cierra ya la charla de calle en curso (Esc o Q), sin pasar por ninguna respuesta. Sólo mientras hay una. */
   private chatEnd: (() => void) | null = null;
+  /**
+   * Lo que el jugador está entrenando ahora (systems/Fitness): el puesto es suyo desde que lo elige hasta que baja
+   * de él (para la gente, `claimed`), aunque se corte antes. `releasing`: ya acabó y está bajando.
+   */
+  private workout: { point: string; station: StationId; intensity: Intensity; minutes: number; startMinute: number; from: Vec2; releasing: boolean; hintAt: number } | null = null;
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
   /** Compras, bolsa, destino del tren y sitios sin mapa. */
@@ -301,6 +309,10 @@ export class WorldScene extends Phaser.Scene {
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
       this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe });
+    }
+    // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
+    for (const [id, p] of Object.entries(def.points ?? {})) {
+      if (p.use && KIND_OF[p.use]) this.interactables.push({ kind: 'station', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, point: id, station: p.use as StationId, facing: p.facing ?? 'up' });
     }
     // Donde sentarse: los mismos asientos que usa la gente (bancos, sillas, sofás, el andén).
     for (const seat of seatsIn(def)) {
@@ -420,6 +432,8 @@ export class WorldScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       dialogue.off('close', onDialogueClose);
+      // Si se cambia de escena entrenando, lo hecho hasta ahora cuenta y el puesto se suelta.
+      this.abortTraining();
       this.services.hint.hide();
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
       autosave.remove();
@@ -545,6 +559,10 @@ export class WorldScene extends Phaser.Scene {
       this.updateSeated(time);
       return;
     }
+    if (this.player.isBusyTraining || this.workout) {
+      this.updateTraining(time);
+      return;
+    }
 
     // Teclas y joystick, al mismo movimiento: las teclas por su lado y el stick, analógico.
     this.player.move({
@@ -655,6 +673,7 @@ export class WorldScene extends Phaser.Scene {
       case 'npc': return 'Hablar';
       case 'portal': return target.portal.train ? 'Subir' : target.portal.label?.startsWith('Salir') ? 'Salir' : 'Entrar';
       case 'seat': return 'Sentarse';
+      case 'station': return 'Entrenar';
       case 'terminal': return 'Comprar';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
       case 'inspect':
@@ -697,6 +716,8 @@ export class WorldScene extends Phaser.Scene {
     if (this.seatedOn && this.player.isSeated && heading.has(this.seatedOn.seat.id)) this.standUp();
     // El asiento del jugador es suyo mientras esté sentado: la gente del local y de la calle no lo coge.
     if (this.seatedOn && !this.seatedOn.seat.id.startsWith('metro:')) claimed.add(this.seatedOn.seat.id);
+    // El puesto de quien entrena es suyo: la gente del gimnasio no lo coge (y quien estuviera, ya se ha ido).
+    if (this.workout) claimed.add(this.workout.point);
     this.crowd?.claim(claimed);
     this.street?.claim(claimed);
   }
@@ -857,6 +878,90 @@ export class WorldScene extends Phaser.Scene {
     return this.crowd?.service ?? this.street?.service ?? null;
   }
 
+  /** Si alguien tiene ese puesto: quien lo usa, quien va de camino, un personaje con nombre o el propio jugador. */
+  private stationBusy(point: string): boolean {
+    return this.charactersOn.has(point) || this.workout?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE');
+  }
+
+  /** Delante de una máquina del gimnasio: libre, se elige cuánto entrenar; ocupada, no. */
+  private openTraining(target: Extract<Interactable, { kind: 'station' }>): void {
+    this.player.halt();
+    if (this.workout) return;
+    if (this.stationBusy(target.point)) {
+      this.services.dialogue.start('Gimnasio', ['Está ocupada. Cuando se libere, o prueba con otra.']);
+      return;
+    }
+    this.menus.openTraining(target.station, (intensity, minutes) => this.startWorkout(target, intensity, minutes));
+  }
+
+  /** Reserva el puesto en el acto y echa a andar hacia él: desde aquí es del jugador. */
+  private startWorkout(target: Extract<Interactable, { kind: 'station' }>, intensity: Intensity, minutes: number): void {
+    if (this.workout || this.stationBusy(target.point)) return;
+    const def = getStation(target.station)!;
+    this.workout = { point: target.point, station: target.station, intensity, minutes, startMinute: this.absMinute(), from: { x: this.player.x, y: this.player.y }, releasing: false, hintAt: 0 };
+    // La gente lo sabe ya: quien iba de camino a ese puesto lo cancela, sin esperar al siguiente fotograma.
+    this.placeCharacters(0);
+    this.prompt.setVisible(false);
+    const p = getLocation(this.services.state.locationId).points![target.point];
+    this.player.startTraining(p.tx * TILE + TILE / 2, p.ty * TILE + TILE, target.facing, def.motion, def.settle === 'sit', !!def.sets);
+  }
+
+  /** Cada fotograma entrenando: el movimiento, lo que queda, y E o Esc para terminar. */
+  private updateTraining(time: number): void {
+    this.syncState();
+    const w = this.workout;
+    if (!w) return;
+    // Bajando de la máquina (o yendo a ella): sólo se espera.
+    if (w.releasing || !this.player.isTraining) return;
+    const def = getStation(w.station)!;
+    this.player.trainingFrame(time, def.sets ? { work: (def.sets.work[0] + def.sets.work[1]) / 2, rest: (def.sets.rest[0] + def.sets.rest[1]) / 2 } : undefined);
+    const done = this.absMinute() - w.startMinute;
+    const left = Math.max(0, Math.ceil(w.minutes - done));
+    if (time - w.hintAt > 400) {
+      w.hintAt = time;
+      this.services.hint.show(`Entrenando · ${def.name} · quedan ${left} min · terminar`);
+    }
+    this.services.input.setContext({ action: 'Terminar', back: false, busy: false });
+    if (done >= w.minutes) this.finishWorkout(1);
+    else if (this.pressedAny(['interact', 'cancel', 'cancelAlt'])) this.finishWorkout(done / w.minutes);
+  }
+
+  /** Acaba la sesión (entera o cortada): se aplica lo hecho, baja de la máquina y suelta el puesto. */
+  private finishWorkout(fraction: number): void {
+    const w = this.workout;
+    if (!w || w.releasing) return;
+    w.releasing = true;
+    const lines = this.applyWorkout(w, fraction);
+    this.services.hint.hide();
+    this.player.stopTraining(w.from.x, w.from.y, () => {
+      // De pie otra vez: el puesto vuelve a ser de todos.
+      this.workout = null;
+      this.services.input.setContext({ action: null, back: false, busy: false });
+      this.services.dialogue.start('Gimnasio', lines);
+    });
+  }
+
+  /** Lo que deja lo entrenado hasta ahora: forma física y energía (se guarda). Devuelve lo que se le dice al jugador. */
+  private applyWorkout(w: NonNullable<typeof this.workout>, fraction: number): string[] {
+    const { state } = this.services;
+    const out = train(state.fitness, w.station, w.intensity, Math.min(1, Math.max(0, fraction)), this.absMinute(), state.day, state.energy);
+    state.fitness = out.next;
+    state.energy = state.energy - out.energy;
+    this.persist();
+    if (fraction < 0.25) return ['Lo dejas por hoy.'];
+    const lead = fraction >= 0.99 ? 'Sesión terminada.' : 'Lo dejas a medias.';
+    return [`${lead} ${afterLine(out.delta, w.station)}`, summary(out.next)];
+  }
+
+  /** Si se corta de golpe (cambio de escena): se cuenta lo hecho y se suelta el puesto, sin transición. */
+  private abortTraining(): void {
+    const w = this.workout;
+    if (!w) return;
+    const done = (this.absMinute() - w.startMinute) / w.minutes;
+    if (!w.releasing && this.player.isTraining) this.applyWorkout(w, done);
+    this.workout = null;
+  }
+
   /** Si alguien tiene ese asiento: la gente del local o de la calle (va o está), un personaje con nombre o, en el andén, un pasajero. */
   private seatTaken(seat: Seat): boolean {
     if (seat.id.startsWith('metro:')) return this.metro?.isSeatTaken(Number(seat.id.slice(6))) ?? true;
@@ -979,6 +1084,7 @@ export class WorldScene extends Phaser.Scene {
       target.kind === 'portal' ? describePortal(target.portal) + (this.closedPlace(target.portal) ? ' · cerrado' : '')
       : target.kind === 'terminal' || target.kind === 'spot' ? target.name
       : target.kind === 'seat' ? `Sentarse · ${target.seat.def.name}`
+      : target.kind === 'station' ? `Entrenar · ${STATIONS[target.station].name}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
       : '';
     if (toll) this.services.hint.show(toll);
     else this.services.hint.hide();
@@ -1003,6 +1109,10 @@ export class WorldScene extends Phaser.Scene {
   private interact(target: Interactable): void {
     if (target.kind === 'seat') {
       this.sitDown(target.seat);
+      return;
+    }
+    if (target.kind === 'station') {
+      this.openTraining(target);
       return;
     }
     if (target.kind === 'portal') {

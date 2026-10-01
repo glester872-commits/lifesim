@@ -5,6 +5,7 @@ import { emptyMemory } from './MetroEventManager.ts';
 import { HAIR_IDS, type Appearance, type HairStyle, type TattooMark } from '../data/appearance.ts';
 import { GARMENT_IDS, getGarment } from '../data/retail.ts';
 import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
+import { parseFitness } from './Fitness.ts';
 
 /**
  * Backend de persistencia. localStorage es sólo la implementación actual:
@@ -106,6 +107,7 @@ function parseState(value: unknown): GameStateData | null {
     cards: parseCounts(s.cards),
     appearance: parseAppearance(s.appearance),
     wardrobe: Array.isArray(s.wardrobe) ? [...new Set(s.wardrobe.filter((g): g is string => typeof g === 'string' && GARMENT_IDS.has(g)))] : [],
+    fitness: parseFitness(s.fitness),
   };
 }
 

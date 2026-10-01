@@ -31,13 +31,13 @@ const LIFT_MS = 900;
 /** El puesto de cada movimiento (data/stations.ts): cada máquina tiene el suyo. */
 const STATION_OF = new Map<string, StationDef>(Object.values(STATIONS).map((s: StationDef) => [s.motion, s]));
 /** Al llegar a un puesto: colocarse, ajustar el asiento, cargar la barra. Luego empieza. */
-const SETUP_MS = 1_300;
+export const SETUP_MS = 1_300;
 
 /**
  * Repeticiones en un puesto: las dos poses entre las que va y cuánto dura cada
  * mitad. Cada uno arranca en su punto del movimiento (por semilla).
  */
-const REPS: Readonly<Record<string, readonly [Pose, Pose, number]>> = {
+export const REPS: Readonly<Record<string, readonly [Pose, Pose, number]>> = {
   bike: [13, 14, 190],
   row: [19, 20, 760],
   bench: [11, 12, 1_050],
@@ -47,9 +47,9 @@ const REPS: Readonly<Record<string, readonly [Pose, Pose, number]>> = {
 };
 
 /** Mientras se levanta la barra, la jaula se pinta vacía encima de la de verdad (world/PropArt). */
-const RACK_EMPTY: Readonly<Record<string, string>> = { bench: 'prop-bench-press-empty', squat: 'prop-squat-rack-empty' };
+export const RACK_EMPTY: Readonly<Record<string, string>> = { bench: 'prop-bench-press-empty', squat: 'prop-squat-rack-empty' };
 /** Altura de la barra del banco en px desde arriba de la celda, con los brazos doblados y estirados. */
-const BENCH_BAR = [6, 4] as const;
+export const BENCH_BAR = [6, 4] as const;
 
 /** Dónde está y cómo: lo único que necesita para pintarse. */
 export interface Placement {
