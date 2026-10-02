@@ -105,7 +105,19 @@ export class MetroSystem {
 
   private readonly view: Train;
   private readonly passengers: PassengerAI[];
+
+  /**
+   * Pool completo de vigilantes disponibles en esta estación.
+   * Solo uno permanece visible/de servicio.
+   */
   private readonly guards: SecurityAI[];
+
+  /**
+   * Índice del vigilante actualmente de servicio.
+   * -1 significa que la estación no tiene vigilantes configurados.
+   */
+  private activeGuardIndex = -1;
+
   private readonly events: MicroEventClock;
   private readonly layout: StationLayout;
   private readonly cfg: MetroConfig;
@@ -283,6 +295,8 @@ export class MetroSystem {
 
     this.populate();
 
+    // ------------------------------------------------ seguridad
+
     const sec = securityFor(
       this.daily,
       stationId,
@@ -291,10 +305,19 @@ export class MetroSystem {
       def.guards.length,
     );
 
-    const posts = def.guards.slice(
-      0,
-      sec.count,
-    );
+    /*
+     * Prompt 52:
+     *
+     * securityFor decide si la estación tiene seguridad.
+     * Si existe, aquí creamos TODO el pool de vigilantes disponibles
+     * para poder rotarlos por turnos.
+     *
+     * Solo uno permanecerá visible.
+     */
+    const posts =
+      sec.count > 0
+        ? def.guards
+        : [];
 
     this.guards = posts.map(
       (g) =>
@@ -316,6 +339,10 @@ export class MetroSystem {
         ),
     );
 
+    /*
+     * Todos permanecen registrados como posibles interlocutores.
+     * Los que están fuera de turno están ocultos.
+     */
     this.talkers = posts.map(
       (g, i) => ({
         sprite: this.guards[i].walker,
@@ -327,10 +354,32 @@ export class MetroSystem {
       ...this.passengers.map(
         (p) => p.walker,
       ),
+
       ...this.guards.map(
         (g) => g.walker,
       ),
     ];
+
+    // ------------------------------------------------ turno inicial
+
+    this.activeGuardIndex =
+      this.guardIndexFor(
+        this.clock.day,
+        this.clock.hour,
+      );
+
+    this.guards.forEach(
+      (guard, index) => {
+        if (
+          index ===
+          this.activeGuardIndex
+        ) {
+          guard.startShift();
+        } else {
+          guard.endShift();
+        }
+      },
+    );
 
     if (arrivedByTrain) {
       this.releaseAlighting(0);
@@ -347,6 +396,7 @@ export class MetroSystem {
     );
 
     this.train.update(dt);
+
     this.view.update(
       this.train,
       timeMs,
@@ -356,7 +406,15 @@ export class MetroSystem {
       p.update(dt);
     }
 
+    /*
+     * Solo actualizamos al guardia visible.
+     * Los demás están fuera de turno.
+     */
     for (const g of this.guards) {
+      if (!g.walker.visible) {
+        continue;
+      }
+
       g.update(
         dt,
         this.train,
@@ -382,7 +440,9 @@ export class MetroSystem {
       this.runEvent(event);
     }
 
-    if (!this.debug) return;
+    if (!this.debug) {
+      return;
+    }
 
     if (!DEBUG.mode) {
       this.debug.hide();
@@ -407,6 +467,129 @@ export class MetroSystem {
     this.announcer.hide();
   }
 
+  // ------------------------------------------------ seguridad / turnos
+
+  /**
+   * Devuelve qué vigilante debe trabajar según día y hora.
+   *
+   * Tres turnos:
+   *
+   * 00:00 - 07:59
+   * 08:00 - 15:59
+   * 16:00 - 23:59
+   *
+   * El día también forma parte del cálculo para evitar que
+   * siempre empiece la jornada la misma persona.
+   */
+  private guardIndexFor(
+    day: number,
+    hour: number,
+  ): number {
+    if (this.guards.length === 0) {
+      return -1;
+    }
+
+    const normalizedHour =
+      (
+        (
+          Math.floor(hour) %
+          24
+        ) +
+        24
+      ) %
+      24;
+
+    const shift =
+      Math.floor(
+        normalizedHour / 8,
+      );
+
+    const normalizedDay =
+      Math.max(
+        1,
+        Math.floor(day),
+      );
+
+    const dayOffset =
+      normalizedDay - 1;
+
+    return (
+      (
+        dayOffset * 3 +
+        shift
+      ) %
+      this.guards.length
+    );
+  }
+
+  /**
+   * Revisa si toca un relevo de seguridad.
+   *
+   * Nunca deja la estación sin seguridad:
+   *
+   * - el guardia actual termina;
+   * - inmediatamente empieza el siguiente.
+   *
+   * Si el actual está persiguiendo, deteniendo o escoltando
+   * a un carterista, el relevo se aplaza hasta que termine.
+   */
+  private refreshGuardShift(): void {
+    if (
+      this.guards.length === 0
+    ) {
+      this.activeGuardIndex =
+        -1;
+
+      return;
+    }
+
+    const nextIndex =
+      this.guardIndexFor(
+        this.clock.day,
+        this.clock.hour,
+      );
+
+    if (
+      nextIndex < 0 ||
+      nextIndex ===
+        this.activeGuardIndex
+    ) {
+      return;
+    }
+
+    const current =
+      this.activeGuardIndex >= 0
+        ? this.guards[
+            this.activeGuardIndex
+          ]
+        : undefined;
+
+    /*
+     * Una incidencia tiene prioridad sobre el reloj.
+     * endShift() devuelve false si está en CHASE/DETAIN/ESCORT.
+     */
+    if (
+      current &&
+      !current.endShift()
+    ) {
+      return;
+    }
+
+    this.activeGuardIndex =
+      nextIndex;
+
+    const nextGuard =
+      this.guards[
+        this.activeGuardIndex
+      ];
+
+    nextGuard.startShift();
+
+    this.note(
+      `cambio de turno de seguridad → ${nextGuard.walker.look.id}`,
+    );
+  }
+
   // ------------------------------------------------ contexto
 
   private refreshContext(): void {
@@ -414,6 +597,12 @@ export class MetroSystem {
       hour,
       minute,
     } = this.clock;
+
+    /*
+     * El relevo debe comprobarse aunque la afluencia no haya cambiado.
+     * Por eso ocurre ANTES del return del nivel.
+     */
+    this.refreshGuardShift();
 
     this.tag = hourTag(
       this.daily,
@@ -467,7 +656,8 @@ export class MetroSystem {
         if (i < waiting) {
           p.startWaiting();
         } else if (
-          i < waiting + riders
+          i <
+          waiting + riders
         ) {
           p.startOffstage(
             Infinity,
@@ -478,11 +668,15 @@ export class MetroSystem {
               profile.respawn[0],
               profile.respawn[1],
             ) *
-              (0.3 +
-                (i -
+              (
+                0.3 +
+                (
+                  i -
                   waiting -
-                  riders) *
-                  0.25),
+                  riders
+                ) *
+                  0.25
+              ),
           );
         }
       },
@@ -498,12 +692,16 @@ export class MetroSystem {
     );
   }
 
-  takeSeat(index: number): void {
+  takeSeat(
+    index: number,
+  ): void {
     this.seatTaken[index] =
       true;
   }
 
-  freeSeat(index: number): void {
+  freeSeat(
+    index: number,
+  ): void {
     this.seatTaken[index] =
       false;
   }
@@ -517,10 +715,12 @@ export class MetroSystem {
       );
 
     const seatTaken =
-      (this.seatTaken =
-        this.layout.seats.map(
-          () => false,
-        ));
+      (
+        this.seatTaken =
+          this.layout.seats.map(
+            () => false,
+          )
+      );
 
     const free = (
       taken: boolean[],
@@ -540,8 +740,12 @@ export class MetroSystem {
 
     return {
       train: this.train,
-      layout: this.layout,
-      cfg: this.cfg,
+
+      layout:
+        this.layout,
+
+      cfg:
+        this.cfg,
 
       get profile() {
         return CROWD_PROFILES[
@@ -560,18 +764,24 @@ export class MetroSystem {
         const spots =
           this.layout.spots;
 
-        const wanted = free(
-          spotTaken,
-          (i) =>
-            pref === 'any' ||
-            spots[i].front ===
-              (pref === 'front'),
-        );
+        const wanted =
+          free(
+            spotTaken,
+            (i) =>
+              pref === 'any' ||
+              spots[i].front ===
+                (
+                  pref ===
+                  'front'
+                ),
+          );
 
         const any =
           wanted.length > 0
             ? wanted
-            : free(spotTaken);
+            : free(
+                spotTaken,
+              );
 
         const index =
           any.length > 0
@@ -598,7 +808,9 @@ export class MetroSystem {
 
       claimSeat: () => {
         const seats =
-          free(seatTaken);
+          free(
+            seatTaken,
+          );
 
         if (
           seats.length === 0
@@ -639,7 +851,8 @@ export class MetroSystem {
             this.tag,
           ),
 
-        look: this.freshLook(),
+        look:
+          this.freshLook(),
       }),
 
       talkPartner: (
@@ -649,7 +862,8 @@ export class MetroSystem {
           | PassengerAI
           | null = null;
 
-        let bestDistance = 44;
+        let bestDistance =
+          44;
 
         for (
           const p of
@@ -674,8 +888,11 @@ export class MetroSystem {
             d <
             bestDistance
           ) {
-            bestDistance = d;
-            best = p;
+            bestDistance =
+              d;
+
+            best =
+              p;
           }
         }
 
@@ -698,27 +915,32 @@ export class MetroSystem {
         ),
 
       note: (text) =>
-        this.note(text),
+        this.note(
+          text,
+        ),
     };
   }
 
   private freshLook(): NpcLook {
-    const inUse = new Set(
-      this.passengers
-        .filter(
-          (p) =>
-            p.walker.visible,
-        )
-        .map(
-          (p) =>
-            p.walker.look.id,
-        ),
-    );
+    const inUse =
+      new Set(
+        this.passengers
+          .filter(
+            (p) =>
+              p.walker.visible,
+          )
+          .map(
+            (p) =>
+              p.walker.look.id,
+          ),
+      );
 
     const unused =
       PASSENGER_LOOKS.filter(
         (l) =>
-          !inUse.has(l.id),
+          !inUse.has(
+            l.id,
+          ),
       );
 
     return pick(
@@ -733,7 +955,9 @@ export class MetroSystem {
   private onTrainState(
     state: TrainState,
   ): void {
-    if (state === 'AWAY') {
+    if (
+      state === 'AWAY'
+    ) {
       this.refreshContext();
 
       this.target =
@@ -759,17 +983,22 @@ export class MetroSystem {
       if (
         wait.kind ===
           'RETRASO_MODERADO' ||
-        (wait.kind ===
-          'RETRASO' &&
+        (
+          wait.kind ===
+            'RETRASO' &&
           Math.random() <
-            0.5)
+            0.5
+        )
       ) {
-        this.say('delay');
+        this.say(
+          'delay',
+        );
       }
     }
 
     if (
-      state === 'BOARDING'
+      state ===
+      'BOARDING'
     ) {
       this.releaseAlighting(
         0,
@@ -829,13 +1058,16 @@ export class MetroSystem {
         ),
       );
 
-    const count = Math.min(
-      pool.length,
-      Phaser.Math.Between(
-        min,
-        max,
-      ) + extra,
-    );
+    const count =
+      Math.min(
+        pool.length,
+
+        Phaser.Math.Between(
+          min,
+          max,
+        ) +
+          extra,
+      );
 
     for (
       let i = 0;
@@ -862,7 +1094,9 @@ export class MetroSystem {
   debugEvent(
     event: MicroEvent,
   ): void {
-    this.runEvent(event);
+    this.runEvent(
+      event,
+    );
   }
 
   private startPickpocket(): boolean {
@@ -874,7 +1108,9 @@ export class MetroSystem {
         ),
       );
 
-    if (people.length < 2) {
+    if (
+      people.length < 2
+    ) {
       this.note(
         `carterista cancelado: sólo ${people.length} pasajero(s) libre(s)`,
       );
@@ -946,12 +1182,14 @@ export class MetroSystem {
         : witness;
 
     const noticed =
-      observer !== undefined;
+      observer !==
+      undefined;
 
     const started =
       thief.pickpocket(
         victim,
         noticed,
+
         () => {
           // Nadie ha visto el robo.
           if (!observer) {
@@ -1012,10 +1250,14 @@ export class MetroSystem {
                   );
                 },
               ),
-            ).slice(0, 3);
+            ).slice(
+              0,
+              3,
+            );
 
           for (
-            const p of reactions
+            const p of
+            reactions
           ) {
             p.reactToShout({
               x: thief.walker.x,
@@ -1025,11 +1267,21 @@ export class MetroSystem {
 
           // ------------------------------------------ seguridad
 
+          /*
+           * Solo puede intervenir el vigilante visible/de servicio.
+           * Los demás están físicamente ocultos.
+           */
+          const activeGuards =
+            this.guards.filter(
+              (g) =>
+                g.walker.visible,
+            );
+
           const guard =
-            this.guards.length ===
+            activeGuards.length ===
             0
               ? undefined
-              : this.guards.reduce(
+              : activeGuards.reduce(
                   (
                     best,
                     candidate,
@@ -1072,19 +1324,24 @@ export class MetroSystem {
 
             // ========================================== capturado
             () => {
-              // Cancela la antigua ruta de fuga.
+              /*
+               * Cancela la antigua ruta de fuga.
+               */
               thief.detain();
 
               observer.reactToIncident(
                 'seguridad lo ha detenido',
+
                 observer ===
                   victim
                   ? '¡Ese es!'
                   : '¡Lo han cogido!',
               );
 
-              // Construir una ruta segura hacia la salida.
-              let escortRoute: Vec2[];
+              // ------------------------------------------------ salida
+
+              let escortRoute:
+                Vec2[];
 
               if (
                 this.layout.gates
@@ -1121,16 +1378,22 @@ export class MetroSystem {
 
                 escortRoute = [
                   {
-                    x: thief.walker.x,
-                    y: this.layout
-                      .walkY,
+                    x:
+                      thief.walker.x,
+
+                    y:
+                      this.layout
+                        .walkY,
                   },
 
                   {
-                    x: nearestGate
-                      .gate.x,
-                    y: this.layout
-                      .walkY,
+                    x:
+                      nearestGate
+                        .gate.x,
+
+                    y:
+                      this.layout
+                        .walkY,
                   },
 
                   nearestGate.gate,
@@ -1147,11 +1410,13 @@ export class MetroSystem {
                 ];
               }
 
-              // ESTE ERA EL ENLACE QUE FALTABA:
-              // DETAIN -> ESCORT.
+              /*
+               * DETAIN -> ESCORT.
+               */
               guard.prepareEscort(
                 thief.walker,
                 escortRoute,
+
                 () => {
                   thief.removeAfterDetention();
 
@@ -1167,6 +1432,7 @@ export class MetroSystem {
             },
 
             // ========================================== escapó
+
             () => {
               if (
                 observer.walker
@@ -1207,7 +1473,8 @@ export class MetroSystem {
             'RUSH_HOUR';
 
         this.say(
-          this.tag === 'night'
+          this.tag ===
+            'night'
             ? 'night'
             : busy &&
                 Math.random() <
@@ -1227,7 +1494,8 @@ export class MetroSystem {
           );
 
         if (
-          idle.length > 0 &&
+          idle.length >
+            0 &&
           pick(
             idle,
           ).changeZone()
@@ -1241,9 +1509,13 @@ export class MetroSystem {
       }
 
       case 'GUARD_SWEEP': {
+        /*
+         * Solo el seguridad que está realmente de servicio puede hacer ronda.
+         */
         const guard =
           this.guards.find(
             (g) =>
+              g.walker.visible &&
               g.onPlatform &&
               g.state ===
                 'IDLE',
@@ -1258,7 +1530,8 @@ export class MetroSystem {
           18;
 
         const left = {
-          x: 2 * TILE,
+          x:
+            2 * TILE,
           y,
         };
 
@@ -1272,8 +1545,14 @@ export class MetroSystem {
         const farFirst =
           guard.walker.x <
           this.mapWidth / 2
-            ? [right, left]
-            : [left, right];
+            ? [
+                right,
+                left,
+              ]
+            : [
+                left,
+                right,
+              ];
 
         if (
           guard.sweep(
@@ -1288,9 +1567,11 @@ export class MetroSystem {
         return;
       }
 
-      case 'PICKPOCKET':
+      case 'PICKPOCKET': {
         this.startPickpocket();
+
         return;
+      }
 
       case 'LATE_RUNNER': {
         const late =
@@ -1305,7 +1586,9 @@ export class MetroSystem {
           return;
         }
 
-        late.enter(true);
+        late.enter(
+          true,
+        );
 
         this.note(
           'alguien llega tarde',
@@ -1320,7 +1603,9 @@ export class MetroSystem {
             2,
           );
 
-        this.say('surge');
+        this.say(
+          'surge',
+        );
 
         this.note(
           `tren muy lleno (bajan ${count})`,
@@ -1332,15 +1617,19 @@ export class MetroSystem {
   }
 
   private say(
-    kind: keyof typeof ANNOUNCEMENTS,
+    kind:
+      keyof typeof ANNOUNCEMENTS,
   ): void {
     const minutes =
       Math.max(
         1,
+
         Math.round(
-          (this.train
-            .nextArrivalMs /
-            1000) *
+          (
+            this.train
+              .nextArrivalMs /
+            1000
+          ) *
             GAME_MINUTES_PER_REAL_SECOND,
         ),
       );
@@ -1352,7 +1641,9 @@ export class MetroSystem {
         ],
       ).replace(
         '{min}',
-        String(minutes),
+        String(
+          minutes,
+        ),
       );
 
     this.announcer.say(
@@ -1370,12 +1661,18 @@ export class MetroSystem {
     const hh =
       String(
         this.clock.hour,
-      ).padStart(2, '0');
+      ).padStart(
+        2,
+        '0',
+      );
 
     const mm =
       String(
         this.clock.minute,
-      ).padStart(2, '0');
+      ).padStart(
+        2,
+        '0',
+      );
 
     this.log.unshift(
       `${hh}:${mm} ${text}`,
@@ -1415,11 +1712,15 @@ export class MetroSystem {
         ? ''
         : ` (${this.lastDelay.kind} +${(
             this.lastDelay
-              .delayMs / 1000
-          ).toFixed(1)} s)`;
+              .delayMs /
+            1000
+          ).toFixed(
+            1,
+          )} s)`;
 
     const next =
-      train.state === 'AWAY'
+      train.state ===
+      'AWAY'
         ? `${(
             train.nextArrivalMs /
             1000
@@ -1427,6 +1728,12 @@ export class MetroSystem {
             1,
           )} s${delay}`
         : 'en curso';
+
+    const activeGuards =
+      this.guards.filter(
+        (g) =>
+          g.walker.visible,
+      );
 
     return [
       `METRO · DEBUG · día ${daily.day} (${weekday(daily.day)})`,
@@ -1441,14 +1748,17 @@ export class MetroSystem {
       `tren       ${train.state} · siguiente ${next}`,
 
       `seguridad  ${
-        this.guards.length === 0
+        activeGuards.length ===
+        0
           ? 'nadie'
-          : this.guards
+          : activeGuards
               .map(
                 (g) =>
                   `${g.walker.look.id} ${g.label}`,
               )
-              .join(', ')
+              .join(
+                ', ',
+              )
       }`,
 
       `evento     ${
@@ -1479,6 +1789,8 @@ export class MetroSystem {
               12,
             )}${p.label}`,
         ),
-    ].join('\n');
+    ].join(
+      '\n',
+    );
   }
 }

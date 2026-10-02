@@ -13,14 +13,20 @@ export type SecurityState =
   | 'DETAIN'
   | 'ESCORT';
 
-const LOOK_AROUND: readonly Facing[] = ['up', 'left', 'right', 'down'];
+const LOOK_AROUND: readonly Facing[] = [
+  'up',
+  'left',
+  'right',
+  'down',
+];
 
 /**
  * Vigilante del metro.
  *
- * Su rutina normal es puesto/ronda, pero una incidencia tiene prioridad:
- * puede abandonar lo que esté haciendo, perseguir al sospechoso,
- * detenerlo y escoltarlo fuera de la zona.
+ * Tiene una rutina normal de puesto/ronda y una rutina prioritaria
+ * para incidencias: persecución, detención y escolta.
+ *
+ * Los cambios de turno nunca interrumpen una incidencia activa.
  */
 export class SecurityAI {
   state: SecurityState = 'IDLE';
@@ -62,7 +68,10 @@ export class SecurityAI {
     post: Vec2,
     postFacing: Facing,
     patrol: readonly Vec2[],
-    opts: { patrols: boolean; onPlatform: boolean },
+    opts: {
+      patrols: boolean;
+      onPlatform: boolean;
+    },
     cfg: MetroConfig,
   ) {
     this.walker = walker;
@@ -73,7 +82,11 @@ export class SecurityAI {
     this.onPlatform = opts.onPlatform;
     this.cfg = cfg;
 
-    walker.place(post, postFacing);
+    walker.place(
+      post,
+      postFacing,
+    );
+
     this.idle();
   }
 
@@ -81,39 +94,119 @@ export class SecurityAI {
     return `${this.patrols ? 'ronda' : 'fijo'} ${this.state}`;
   }
 
+  /**
+   * Una incidencia nunca debe ser interrumpida por el cambio de turno.
+   */
+  get handlingIncident(): boolean {
+    return (
+      this.state === 'CHASE' ||
+      this.state === 'DETAIN' ||
+      this.state === 'ESCORT'
+    );
+  }
+
+  // ------------------------------------------------------------- turnos
+
+  /**
+   * Empieza el turno de este vigilante.
+   *
+   * Aparece en su puesto y comienza su rutina normal.
+   */
+  startShift(): void {
+    this.cancelRoutine();
+    this.clearIncident();
+
+    this.walker.place(
+      this.post,
+      this.postFacing,
+    );
+
+    this.idle();
+  }
+
+  /**
+   * Intenta finalizar el turno.
+   *
+   * Si está resolviendo una incidencia devuelve false y permanece
+   * trabajando hasta terminarla.
+   */
+  endShift(): boolean {
+    if (this.handlingIncident) {
+      return false;
+    }
+
+    this.cancelRoutine();
+    this.clearIncident();
+
+    this.walker.hide();
+
+    this.state = 'IDLE';
+
+    return true;
+  }
+
+  // ------------------------------------------------------------- rutina
+
   /** Ronda extraordinaria por el andén. */
-  sweep(route: readonly Vec2[]): boolean {
-    if (this.state !== 'IDLE' || !this.onPlatform) return false;
+  sweep(
+    route: readonly Vec2[],
+  ): boolean {
+    if (
+      this.state !== 'IDLE' ||
+      !this.onPlatform ||
+      !this.walker.visible
+    ) {
+      return false;
+    }
 
     this.startRoute(route);
+
     return true;
   }
 
   /** Acude a un punto fijo. */
   respond(at: Vec2): boolean {
+    if (!this.walker.visible) {
+      return false;
+    }
+
     this.cancelRoutine();
 
     this.urgent = true;
-    this.walker.setIcon('alert');
 
-    this.startRoute([at]);
+    this.walker.setIcon(
+      'alert',
+    );
+
+    this.startRoute([
+      at,
+    ]);
+
     return true;
   }
 
+  // ------------------------------------------------------- persecución
+
   /**
    * Persigue a un Walker real.
-   * La posición del sospechoso se recalcula cada frame.
+   *
+   * Cada frame recalcula la posición del sospechoso.
    */
   chase(
     target: Walker,
     onCaught: () => void,
     onEscaped: () => void,
   ): boolean {
-    if (!target.visible) return false;
+    if (
+      !this.walker.visible ||
+      !target.visible
+    ) {
+      return false;
+    }
 
     this.cancelRoutine();
 
-    // Limpia datos que pudieran quedar de una incidencia anterior.
+    // Limpia cualquier dato residual de una incidencia anterior.
     this.chaseTarget = target;
     this.caught = onCaught;
     this.escaped = onEscaped;
@@ -126,53 +219,92 @@ export class SecurityAI {
     this.urgent = true;
     this.state = 'CHASE';
 
-    this.walker.setIcon('alert');
-    this.walker.say('¡Alto! ¡Seguridad!', 2_500);
+    this.walker.setIcon(
+      'alert',
+    );
+
+    this.walker.say(
+      '¡Alto! ¡Seguridad!',
+      2_500,
+    );
 
     return true;
   }
 
   /**
-   * Se llama después de que el sospechoso haya sido alcanzado.
-   * Guarda la ruta que ambos utilizarán para salir de la zona.
+   * Guarda la ruta que se utilizará después de DETAIN.
    */
   prepareEscort(
     target: Walker,
     route: readonly Vec2[],
     onEscorted: () => void,
   ): void {
-    this.escortTarget = target;
-    this.escortRoute = route;
-    this.escorted = onEscorted;
+    this.escortTarget =
+      target;
+
+    this.escortRoute =
+      route;
+
+    this.escorted =
+      onEscorted;
   }
 
-  update(deltaMs: number, train: TrainSystem): void {
+  // ------------------------------------------------------------- update
+
+  update(
+    deltaMs: number,
+    train: TrainSystem,
+  ): void {
+    // Los vigilantes fuera de turno no consumen lógica.
+    if (!this.walker.visible) {
+      return;
+    }
+
     switch (this.state) {
-      // ------------------------------------------------------- persecución
+      // ----------------------------------------------------- persecución
 
       case 'CHASE': {
-        const target = this.chaseTarget;
+        const target =
+          this.chaseTarget;
 
-        if (!target || !target.visible) {
-          const callback = this.escaped;
+        if (
+          !target ||
+          !target.visible
+        ) {
+          const callback =
+            this.escaped;
 
           this.clearIncident();
+
           callback?.();
+
           this.returnToPost();
 
           return;
         }
 
-        const dx = target.x - this.walker.x;
-        const dy = target.y - this.walker.y;
-        const distance = Math.hypot(dx, dy);
+        const dx =
+          target.x -
+          this.walker.x;
 
-        // El seguridad ha alcanzado al carterista.
+        const dy =
+          target.y -
+          this.walker.y;
+
+        const distance =
+          Math.hypot(
+            dx,
+            dy,
+          );
+
+        // -------------------------------------------------- captura
+
         if (distance <= 13) {
           this.walker.halt();
 
           const facing: Facing =
-            Math.abs(dx) > Math.abs(dy)
+            Math.abs(dx) >
+            Math.abs(dy)
               ? dx > 0
                 ? 'right'
                 : 'left'
@@ -180,25 +312,35 @@ export class SecurityAI {
                 ? 'down'
                 : 'up';
 
-          this.walker.face(facing);
-          this.walker.say('Quieto. Seguridad.', 2_800);
+          this.walker.face(
+            facing,
+          );
 
-          const callback = this.caught;
+          this.walker.say(
+            'Quieto. Seguridad.',
+            2_800,
+          );
 
-          // El callback de captura solo puede ejecutarse una vez.
+          const callback =
+            this.caught;
+
+          // Solo puede ejecutarse una vez.
           this.caught = null;
           this.escaped = null;
 
-          this.state = 'DETAIN';
+          this.state =
+            'DETAIN';
 
-          // Da tiempo para que la captura sea visible.
-          this.timer = 3_000;
+          // Pausa visible antes de llevárselo.
+          this.timer =
+            3_000;
 
           callback?.();
+
           return;
         }
 
-        // Persigue la posición ACTUAL del sospechoso.
+        // Sigue la posición ACTUAL del carterista.
         this.walker.walk(
           [
             {
@@ -206,133 +348,231 @@ export class SecurityAI {
               y: target.y,
             },
           ],
-          this.cfg.npcWalkingSpeed * 1.75,
+          this.cfg.npcWalkingSpeed *
+            1.75,
         );
 
-        this.walker.step(deltaMs);
+        this.walker.step(
+          deltaMs,
+        );
+
         return;
       }
 
-      // ---------------------------------------------------------- detenido
+      // ---------------------------------------------------------- DETAIN
 
-      case 'DETAIN':
-        this.timer -= deltaMs;
+      case 'DETAIN': {
+        this.timer -=
+          deltaMs;
 
-        if (this.timer > 0) return;
+        if (
+          this.timer > 0
+        ) {
+          return;
+        }
 
-        // Si MetroSystem ha preparado una ruta, comienza la escolta.
         if (
           this.escortTarget &&
           this.escortTarget.visible &&
-          this.escortRoute.length > 0
+          this.escortRoute.length >
+            0
         ) {
           this.startEscort();
+
           return;
         }
 
-        // Fallback: nunca debe quedarse bloqueado en DETAIN.
+        // Nunca se queda bloqueado aquí.
         this.clearIncident();
-        this.returnToPost();
-        return;
 
-      // ------------------------------------------------------------ escolta
+        this.returnToPost();
+
+        return;
+      }
+
+      // ---------------------------------------------------------- ESCORT
 
       case 'ESCORT': {
-        const target = this.escortTarget;
+        const target =
+          this.escortTarget;
 
-        if (!target || !target.visible) {
-          const callback = this.escorted;
+        if (
+          !target ||
+          !target.visible
+        ) {
+          const callback =
+            this.escorted;
 
           callback?.();
 
           this.clearIncident();
+
           this.returnToPost();
+
           return;
         }
 
-        // PassengerAI actualiza el movimiento del Walker del sospechoso.
-        // SecurityAI actualiza únicamente al vigilante.
-        if (!this.escortGuardArrived) {
-          this.escortGuardArrived = this.walker.step(deltaMs);
+        /*
+         * PassengerAI actualiza el Walker del sospechoso.
+         * Aquí únicamente avanzamos al vigilante.
+         */
+        if (
+          !this
+            .escortGuardArrived
+        ) {
+          this.escortGuardArrived =
+            this.walker.step(
+              deltaMs,
+            );
         }
 
-        // La escena termina cuando los dos han completado sus rutas.
-        if (this.escortGuardArrived && !target.moving) {
-          const callback = this.escorted;
+        /*
+         * La escena termina cuando ambos han llegado.
+         */
+        if (
+          this
+            .escortGuardArrived &&
+          !target.moving
+        ) {
+          const callback =
+            this.escorted;
 
           callback?.();
 
           this.clearIncident();
+
           this.returnToPost();
         }
 
         return;
       }
 
-      // -------------------------------------------------------------- normal
+      // ------------------------------------------------------------ IDLE
 
-      case 'IDLE':
-        if (trainHere(train) && this.observedCycle !== train.cycle) {
-          this.observedCycle = train.cycle;
-          this.observe('up');
+      case 'IDLE': {
+        if (
+          trainHere(train) &&
+          this.observedCycle !==
+            train.cycle
+        ) {
+          this.observedCycle =
+            train.cycle;
+
+          this.observe(
+            'up',
+          );
+
           return;
         }
 
-        this.timer -= deltaMs;
+        this.timer -=
+          deltaMs;
 
-        if (this.timer > 0) return;
+        if (
+          this.timer > 0
+        ) {
+          return;
+        }
 
-        if (this.patrols && this.patrol.length > 0) {
-          this.startRoute(this.patrol);
+        if (
+          this.patrols &&
+          this.patrol.length >
+            0
+        ) {
+          this.startRoute(
+            this.patrol,
+          );
         } else {
           this.walker.face(
-            Math.random() < 0.6
-              ? this.postFacing
+            Math.random() <
+              0.6
+              ? this
+                  .postFacing
               : LOOK_AROUND[
-                  Math.floor(Math.random() * LOOK_AROUND.length)
+                  Math.floor(
+                    Math.random() *
+                      LOOK_AROUND.length,
+                  )
                 ],
           );
 
-          this.timer = rand(...this.cfg.guardIdle);
+          this.timer =
+            rand(
+              ...this.cfg
+                .guardIdle,
+            );
         }
 
         return;
+      }
 
-      case 'PATROL':
-        if (this.walker.step(deltaMs)) {
+      // ---------------------------------------------------------- PATROL
+
+      case 'PATROL': {
+        if (
+          this.walker.step(
+            deltaMs,
+          )
+        ) {
           this.next++;
 
           this.observe(
             LOOK_AROUND[
-              Math.floor(Math.random() * LOOK_AROUND.length)
+              Math.floor(
+                Math.random() *
+                  LOOK_AROUND.length,
+              )
             ],
           );
         }
 
         return;
+      }
 
-      case 'OBSERVE':
-        this.timer -= deltaMs;
+      // --------------------------------------------------------- OBSERVE
 
-        if (this.timer > 0) return;
+      case 'OBSERVE': {
+        this.timer -=
+          deltaMs;
 
-        if (!this.patrolling) {
+        if (
+          this.timer > 0
+        ) {
+          return;
+        }
+
+        if (
+          !this.patrolling
+        ) {
           this.idle();
-        } else if (this.next < this.route.length) {
+        } else if (
+          this.next <
+          this.route.length
+        ) {
           this.walkToNext();
         } else {
-          this.patrolling = false;
+          this.patrolling =
+            false;
+
           this.returnToPost();
         }
 
         return;
+      }
 
-      case 'RETURN_TO_POSITION':
-        if (this.walker.step(deltaMs)) {
+      // ----------------------------------------------- RETURN_TO_POSITION
+
+      case 'RETURN_TO_POSITION': {
+        if (
+          this.walker.step(
+            deltaMs,
+          )
+        ) {
           this.idle();
         }
 
         return;
+      }
     }
   }
 
@@ -340,71 +580,117 @@ export class SecurityAI {
 
   /**
    * Empieza la fase de escolta.
-   * Sospechoso y vigilante recorren la misma ruta,
-   * con una pequeña separación horizontal.
+   *
+   * Vigilante y sospechoso recorren la misma ruta
+   * manteniendo una pequeña separación horizontal.
    */
   private startEscort(): void {
-    const target = this.escortTarget;
+    const target =
+      this.escortTarget;
 
     if (
       !target ||
       !target.visible ||
-      this.escortRoute.length === 0
+      this.escortRoute.length ===
+        0
     ) {
       this.clearIncident();
+
       this.returnToPost();
+
       return;
     }
 
-    this.state = 'ESCORT';
-    this.escortGuardArrived = false;
+    this.state =
+      'ESCORT';
 
-    this.walker.setIcon('alert');
-    this.walker.say('Vamos. Acompáñame.', 2_500);
+    this.escortGuardArrived =
+      false;
 
-    // El carterista ya no puede continuar su antigua ruta de huida.
+    this.walker.setIcon(
+      'alert',
+    );
+
+    this.walker.say(
+      'Vamos. Acompáñame.',
+      2_500,
+    );
+
+    // Cualquier movimiento residual queda cancelado.
     target.halt();
 
-    target.say('Vale...', 1_800);
+    target.say(
+      'Vale...',
+      1_800,
+    );
 
     const side =
-      this.walker.x <= target.x
+      this.walker.x <=
+      target.x
         ? -7
         : 7;
 
-    // Sospechoso hacia la salida.
+    // Carterista hacia la salida.
     target.walk(
-      [...this.escortRoute],
-      this.cfg.npcWalkingSpeed * 0.78,
+      [
+        ...this
+          .escortRoute,
+      ],
+      this.cfg.npcWalkingSpeed *
+        0.78,
     );
 
-    // Seguridad ligeramente a su lado.
+    // Vigilante ligeramente a su lado.
     this.walker.walk(
-      this.escortRoute.map((point) => ({
-        x: point.x + side,
-        y: point.y,
-      })),
-      this.cfg.npcWalkingSpeed * 0.82,
+      this.escortRoute.map(
+        (point) => ({
+          x:
+            point.x +
+            side,
+
+          y:
+            point.y,
+        }),
+      ),
+
+      this.cfg.npcWalkingSpeed *
+        0.82,
     );
   }
 
   /**
-   * Limpia completamente una incidencia para que pueda
-   * producirse otra posteriormente.
+   * Limpia toda la incidencia.
+   *
+   * Es importante para permitir futuros robos.
    */
   private clearIncident(): void {
-    this.chaseTarget = null;
-    this.caught = null;
-    this.escaped = null;
+    this.chaseTarget =
+      null;
 
-    this.escortTarget = null;
-    this.escortRoute = [];
-    this.escorted = null;
-    this.escortGuardArrived = false;
+    this.caught =
+      null;
 
-    this.urgent = false;
+    this.escaped =
+      null;
 
-    this.walker.setIcon(null);
+    this.escortTarget =
+      null;
+
+    this.escortRoute =
+      [];
+
+    this.escorted =
+      null;
+
+    this.escortGuardArrived =
+      false;
+
+    this.urgent =
+      false;
+
+    this.walker.setIcon(
+      null,
+    );
   }
 
   // ------------------------------------------------------------- rutina
@@ -412,55 +698,135 @@ export class SecurityAI {
   private cancelRoutine(): void {
     this.walker.halt();
 
-    this.route = [];
+    this.route =
+      [];
+
     this.next = 0;
-    this.patrolling = false;
+
+    this.patrolling =
+      false;
   }
 
   private returnToPost(): void {
+    // Si por cualquier motivo el turno terminó,
+    // no intentamos mover un Walker oculto.
+    if (
+      !this.walker.visible
+    ) {
+      return;
+    }
+
     this.walker.walk(
-      [this.post],
-      this.cfg.npcWalkingSpeed * 0.9,
+      [
+        this.post,
+      ],
+
+      this.cfg.npcWalkingSpeed *
+        0.9,
     );
 
-    this.state = 'RETURN_TO_POSITION';
+    this.state =
+      'RETURN_TO_POSITION';
   }
 
-  private startRoute(route: readonly Vec2[]): void {
-    this.route = route;
-    this.patrolling = true;
+  private startRoute(
+    route: readonly Vec2[],
+  ): void {
+    if (
+      route.length === 0
+    ) {
+      this.idle();
+
+      return;
+    }
+
+    this.route =
+      route;
+
+    this.patrolling =
+      true;
+
     this.next = 0;
 
     this.walkToNext();
   }
 
   private idle(): void {
-    this.urgent = false;
+    if (
+      !this.walker.visible
+    ) {
+      return;
+    }
 
-    this.walker.setIcon(null);
-    this.walker.face(this.postFacing);
+    this.urgent =
+      false;
 
-    this.timer = rand(...this.cfg.guardIdle);
-    this.state = 'IDLE';
+    this.walker.setIcon(
+      null,
+    );
+
+    this.walker.face(
+      this.postFacing,
+    );
+
+    this.timer =
+      rand(
+        ...this.cfg.guardIdle,
+      );
+
+    this.state =
+      'IDLE';
   }
 
-  private observe(facing: Facing): void {
-    this.walker.face(facing);
+  private observe(
+    facing: Facing,
+  ): void {
+    this.walker.face(
+      facing,
+    );
 
-    this.timer = rand(...this.cfg.guardObserve);
-    this.state = 'OBSERVE';
+    this.timer =
+      rand(
+        ...this.cfg
+          .guardObserve,
+      );
+
+    this.state =
+      'OBSERVE';
   }
 
   private walkToNext(): void {
+    if (
+      this.next >=
+      this.route.length
+    ) {
+      this.patrolling =
+        false;
+
+      this.returnToPost();
+
+      return;
+    }
+
     const speed =
       this.cfg.npcWalkingSpeed *
-      (this.urgent ? 1.35 : 0.8);
+      (
+        this.urgent
+          ? 1.35
+          : 0.8
+      );
 
     this.walker.walk(
-      [this.route[this.next]],
+      [
+        this.route[
+          this.next
+        ],
+      ],
+
       speed,
     );
 
-    this.state = 'PATROL';
+    this.state =
+      'PATROL';
   }
 }
