@@ -242,8 +242,14 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       rect.top +
       (camera.y + (this.y - 27 - camera.worldView.y) * camera.zoom) * scaleY;
 
-    this.speechEl.style.left = `${Math.round(screenX)}px`;
-    this.speechEl.style.top = `${Math.round(screenY)}px`;
+    const speechWidth = this.speechEl.offsetWidth;
+    const speechHeight = this.speechEl.offsetHeight;
+
+    const left = Math.round(screenX - speechWidth / 2);
+    const top = Math.round(screenY - speechHeight - 3);
+
+    this.speechEl.style.left = `${left}px`;
+    this.speechEl.style.top = `${top}px`;
   }
 
   private sync(): void {

@@ -656,12 +656,49 @@ export class PassengerAI {
   }
 
   /** Seguridad ha alcanzado al sospechoso: deja de huir. */
+   /** Seguridad ha alcanzado al sospechoso: cancela completamente la huida. */
   detain(): void {
     this.leaveSeatAndSpot();
+
+    // Cancela cualquier ruta, espera o callback pendiente de la fuga.
+    this.holdMs = 0;
+    this.next = null;
+    this.timer = 0;
+    this.ambientTimer = 0;
+
+    this.forceRun = false;
+    this.decidedRun = false;
+    this.running = false;
+
     this.walker.halt();
     this.walker.setIcon('alert');
+
     this.state = 'DETAINED';
     this.activity = 'retenido por seguridad';
+  }
+
+  /**
+   * La escolta ha terminado.
+   * El sospechoso sale de escena y podrá reaparecer más adelante
+   * como otro pasajero del pool.
+   */
+  removeAfterDetention(): void {
+    if (this.state !== 'DETAINED') return;
+
+    this.holdMs = 0;
+    this.next = null;
+    this.timer = 0;
+    this.ambientTimer = 0;
+
+    this.forceRun = false;
+    this.decidedRun = false;
+    this.running = false;
+
+    this.walker.halt();
+    this.walker.setIcon(null);
+    this.walker.hide();
+
+    this.startOffstage(this.respawnDelay());
   }
 
   /** Cambia de zona del andén (microevento). */
