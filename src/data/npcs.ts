@@ -78,8 +78,9 @@ const DEFS: readonly NpcDef[] = [
   {
     id: 'marco',
     name: 'Marco',
-    cloth: '#c9d14a',
-    clothDark: '#9aa233',
+    cloth: '#e8751a',
+    clothDark: '#b95314',
+    trousers: '#17181c',
     hair: '#2b2622',
     lines: [
       'Seguridad. Tú pasa, que no va contigo.',
@@ -90,8 +91,9 @@ const DEFS: readonly NpcDef[] = [
   {
     id: 'rocio',
     name: 'Rocío',
-    cloth: '#c9d14a',
-    clothDark: '#9aa233',
+    cloth: '#e8751a',
+    clothDark: '#b95314',
+    trousers: '#17181c',
     hair: '#4a3b2f',
     lines: [
       'Hoy me toca vestíbulo. Mañana, quién sabe.',
@@ -101,8 +103,9 @@ const DEFS: readonly NpcDef[] = [
   {
     id: 'iker',
     name: 'Iker',
-    cloth: '#c9d14a',
-    clothDark: '#9aa233',
+    cloth: '#e8751a',
+    clothDark: '#b95314',
+    trousers: '#17181c',
     hair: '#1f1a15',
     lines: [
       'Ribera es tranquila. Casi siempre.',

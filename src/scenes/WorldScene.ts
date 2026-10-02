@@ -1285,6 +1285,11 @@ export class WorldScene extends Phaser.Scene {
     this.go(portal.to.location, portal.to.spawn, false);
   }
 
+  /** Desarrollo: fuerza el microevento de carterista en la estación actual. */
+  debugMetroPickpocket(): boolean {
+    return this.metro?.debugPickpocket() ?? false;
+  }
+
   /** Llega en tren a un andén: el tren sigue en la vía al bajar y el trayecto cuenta su evento. */
   private arriveByTrain(locationId: string): void {
     this.go(locationId, 'train', true);

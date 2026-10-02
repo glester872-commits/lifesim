@@ -15,7 +15,8 @@ export type PassengerState =
   | 'BOARDING'
   | 'RIDING'
   | 'EXITING_TRAIN'
-  | 'LEAVING_STATION';
+  | 'LEAVING_STATION'
+  | 'DETAINED';
 
 export type SpotPreference = 'front' | 'back' | 'any';
 
@@ -534,6 +535,133 @@ export class PassengerAI {
     this.walker.face(Math.abs(dx) > 4 ? (dx > 0 ? 'right' : 'left') : 'up');
     if (speaks) this.walker.setIcon('talk');
     this.ambientTimer = rand(3_000, 5_000);
+  }
+
+  /**
+   * Microevento de carterista.
+   *
+   * Si nadie detecta el intento, se aleja como otro pasajero cualquiera.
+   * Si alguien lo detecta, sale corriendo hacia la salida.
+   */
+  pickpocket(
+    victim: PassengerAI,
+    noticed: boolean,
+    onAttempt: () => void,
+  ): boolean {
+    if (!this.idleWaiting || !victim.idleWaiting || victim === this) return false;
+
+    const { layout } = this.world;
+
+    this.leaveSeatAndSpot();
+    this.walker.setIcon(null);
+    this.state = 'WALKING_TO_PLATFORM';
+    this.activity = 'se acerca a alguien';
+
+    const side = this.walker.x <= victim.walker.x ? -7 : 7;
+    const near = {
+      x: victim.walker.x + side,
+      y: victim.walker.y,
+    };
+
+    this.go(
+      [
+        { x: this.walker.x, y: layout.walkY },
+        { x: near.x, y: layout.walkY },
+        near,
+      ],
+      () => {
+        this.activity = 'demasiado cerca';
+        this.walker.face(side < 0 ? 'right' : 'left');
+
+        this.hold(2_000, () => {
+          onAttempt();
+
+          // Nadie se ha dado cuenta: intenta mezclarse con el flujo normal.
+          if (!noticed) {
+            this.activity = 'se aleja';
+            this.leave();
+            return;
+          }
+
+          // Lo han descubierto: huida evidente.
+          this.activity = 'huye';
+          this.walker.setIcon('alert');
+
+          this.gate = pick(layout.gates);
+          const walkY = layout.walkY + this.lane;
+
+          this.go(
+            [
+              { x: this.walker.x, y: walkY },
+              { x: this.gatePoint().x, y: walkY },
+              this.gatePoint(),
+              this.gateLobby(),
+              layout.entrance,
+            ],
+            () => {
+              this.walker.setIcon(null);
+              this.walker.hide();
+              this.startOffstage(this.respawnDelay());
+            },
+            1.55,
+          );
+        });
+      },
+      1.15,
+    );
+
+    return true;
+  }
+
+  /** Quien descubre el robo reacciona y puede gritar. */
+  reactToIncident(label: string, speech?: string): void {
+    this.activity = label;
+    this.walker.setIcon('alert');
+
+    if (speech) this.walker.say(speech, 3_400);
+
+    window.setTimeout(() => {
+      if (!this.walker.visible) return;
+
+      this.walker.setIcon(null);
+
+      if (this.state === 'WAITING') {
+        this.activity = '';
+        this.walker.face('up');
+      }
+    }, 3_800);
+  }
+
+  /** Al oír un grito, algunos pasajeros cercanos miran hacia el incidente. */
+  reactToShout(at: Vec2): void {
+    if (!this.idleWaiting) return;
+
+    const dx = at.x - this.walker.x;
+    const dy = at.y - this.walker.y;
+
+    const facing: Facing =
+      Math.abs(dx) > Math.abs(dy)
+        ? dx > 0 ? 'right' : 'left'
+        : dy > 0 ? 'down' : 'up';
+
+    this.activity = 'mira el incidente';
+    this.walker.face(facing);
+    this.walker.setIcon('alert');
+
+    window.setTimeout(() => {
+      if (!this.walker.visible || this.state !== 'WAITING') return;
+      this.walker.setIcon(null);
+      this.activity = '';
+    }, 2_800);
+  }
+
+  /** Seguridad ha alcanzado al sospechoso: deja de huir. */
+  detain(): void {
+    this.leaveSeatAndSpot();
+    this.walker.halt();
+    this.walker.setIcon('alert');
+    this.state = 'DETAINED';
+    this.activity = 'retenido por seguridad';
   }
 
   /** Cambia de zona del andén (microevento). */

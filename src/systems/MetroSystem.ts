@@ -353,6 +353,182 @@ export class MetroSystem {
 
   // ------------------------------------------------------------ microeventos
 
+  /** Desarrollo: intenta iniciar ahora mismo el evento de carterista. */
+  debugPickpocket(): boolean {
+    return this.startPickpocket();
+  }
+
+  /** Herramienta de desarrollo: fuerza un microevento sin esperar al azar. */
+  debugEvent(event: MicroEvent): void {
+    this.runEvent(event);
+  }
+
+  private startPickpocket(): boolean {
+    const people = Phaser.Utils.Array.Shuffle(
+      this.passengers.filter((p) => p.idleWaiting),
+    );
+
+    if (people.length < 2) {
+      this.note(
+        `carterista cancelado: sólo ${people.length} pasajero(s) libre(s)`,
+      );
+      return false;
+    }
+
+    const thief = people[0];
+    const victim = people[1];
+
+    const noticeChance = {
+      COMMUTER: 0.60,
+      STUDENT: 0.50,
+      TOURIST: 0.45,
+      DISTRACTED: 0.20,
+      RUSHED: 0.35,
+      CALM: 0.70,
+      ELDERLY: 0.55,
+    } as const;
+
+    const victimNotices =
+      Math.random() < noticeChance[victim.archetype];
+
+    const possibleWitnesses = Phaser.Utils.Array.Shuffle(
+      this.passengers.filter((p) => {
+        if (p === thief || p === victim || !p.idleWaiting) return false;
+
+        return Phaser.Math.Distance.Between(
+          p.walker.x,
+          p.walker.y,
+          victim.walker.x,
+          victim.walker.y,
+        ) <= 72;
+      }),
+    );
+
+    const witness = victimNotices
+      ? undefined
+      : possibleWitnesses.find(
+          (p) => Math.random() < noticeChance[p.archetype] * 0.55,
+        );
+
+    const observer = victimNotices ? victim : witness;
+    const noticed = observer !== undefined;
+
+    const started = thief.pickpocket(
+      victim,
+      noticed,
+      () => {
+        // Nadie lo vio: no hay grito ni intervención.
+        if (!observer) {
+          this.note('carterista: nadie se da cuenta');
+          return;
+        }
+
+        // -------------------------------------------------- EL GRITO
+        if (observer === victim) {
+          observer.reactToIncident(
+            '¡se da cuenta del robo!',
+            '¡Eh! ¡Me han robado!',
+          );
+          this.note('la víctima grita');
+        } else {
+          observer.reactToIncident(
+            '¡ve al carterista!',
+            '¡Eh! ¡Carterista!',
+          );
+          this.note('un testigo grita');
+        }
+
+        // Algunas personas cercanas miran al oír el grito.
+        const reactions = Phaser.Utils.Array.Shuffle(
+          this.passengers.filter((p) => {
+            if (
+              p === thief ||
+              p === victim ||
+              p === observer ||
+              !p.idleWaiting
+            ) return false;
+
+            return Phaser.Math.Distance.Between(
+              p.walker.x,
+              p.walker.y,
+              victim.walker.x,
+              victim.walker.y,
+            ) <= 90;
+          }),
+        ).slice(0, 3);
+
+        for (const p of reactions) {
+          p.reactToShout({
+            x: thief.walker.x,
+            y: thief.walker.y,
+          });
+        }
+
+        // ------------------------------------------------ SEGURIDAD
+        const guard =
+          this.guards.length === 0
+            ? undefined
+            : this.guards.reduce((best, candidate) => {
+                const bestD = Phaser.Math.Distance.Between(
+                  best.walker.x,
+                  best.walker.y,
+                  thief.walker.x,
+                  thief.walker.y,
+                );
+
+                const candidateD = Phaser.Math.Distance.Between(
+                  candidate.walker.x,
+                  candidate.walker.y,
+                  thief.walker.x,
+                  thief.walker.y,
+                );
+
+                return candidateD < bestD ? candidate : best;
+              });
+
+        if (!guard) {
+          this.note('detectan al carterista pero no hay seguridad');
+          return;
+        }
+
+        // Ahora persigue AL CARTERISTA, no a la víctima.
+        guard.chase(
+          thief.walker,
+
+          // Lo alcanza.
+          () => {
+            thief.detain();
+
+            observer.reactToIncident(
+              'seguridad lo ha detenido',
+              '¡Ese es!',
+            );
+
+            this.note('seguridad detiene al carterista');
+          },
+
+          // El sospechoso consigue llegar a la salida.
+          () => {
+            if (observer.walker.visible) {
+              observer.reactToIncident(
+                'el carterista escapa',
+                '¡Se ha escapado!',
+              );
+            }
+
+            this.note('el carterista escapa de seguridad');
+          },
+        );
+      },
+    );
+
+    if (started) {
+      this.note('carterista: acercándose a una víctima');
+    }
+
+    return started;
+  }
+
   private runEvent(event: MicroEvent): void {
     switch (event) {
       case 'ANNOUNCEMENT': {
@@ -375,6 +551,9 @@ export class MetroSystem {
         if (guard.sweep(farFirst)) this.note('seguridad cruza el andén');
         return;
       }
+      case 'PICKPOCKET':
+        this.startPickpocket();
+        return;
       case 'LATE_RUNNER': {
         const late = this.passengers.find((p) => p.state === 'OFFSTAGE' && !p.waitingForTrain);
         if (!late) return;

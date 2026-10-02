@@ -179,6 +179,13 @@ if (import.meta.env.DEV) {
       listAvailableEvents: (to?: string) => console.table(events.listAvailableEvents({ ...now(), to })),
       inspectEventHistory: () => events.inspectEventHistory(),
       resetMetroEvents: () => events.resetMetroEvents(),
+      // Microeventos de estación para desarrollo.
+      metro: {
+        pickpocket: () => {
+          const world = game.scene.getScene('World') as WorldSceneType;
+          return world.debugMetroPickpocket();
+        },
+      },
       // Destinos del mundo para NPC futuros: lifesim.route('HOME_ENTRANCE', 'CAFE_ENTRANCE').
       findPoint,
       // Zonas lógicas (data/zones.ts): lifesim.zoneAt('district', 48, 52), lifesim.zoneActivity(zona, {day, hour, minute}).

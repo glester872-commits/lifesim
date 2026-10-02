@@ -273,6 +273,12 @@ export function securityFor(
   else if (busy && count === 1 && rng() < 0.2) count = 2;
   if (daily.stationMood === 'HECTIC' && count === 0 && rng() < 0.5) count = 1;
   if (tag === 'night' && rng() < 0.4) count--;
+
+  // Durante el horario normal siempre hay al menos un vigilante si la
+  // estación dispone de un puesto. El segundo sigue dependiendo del día,
+  // la afluencia y el ambiente.
+  if (tag !== 'night' && posts > 0) count = Math.max(1, count);
+
   count = Math.max(0, Math.min(count, posts, METRO_CONFIG.securityCount));
   // De madrugada casi nadie patrulla.
   const patrols = daily.securityPatrols && !(tag === 'night' && rng() < 0.6);
