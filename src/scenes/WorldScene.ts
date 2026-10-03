@@ -67,6 +67,10 @@ import { StringLightsView } from '../world/StringLights';
 import { DEBUG } from '../config/debug';
 import { weatherAt } from '../systems/Weather';
 import { ChatLog, Conversation, placeOf, weatherKind, type ChatTurn } from '../systems/Chat';
+import {
+  chatRelationLevel,
+  noteSocialEncounter,
+} from '../systems/Social';
 import { NAMED_VOICES } from '../data/chatNamed';
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
@@ -1209,58 +1213,535 @@ export class WorldScene extends Phaser.Scene {
    * con rutina que tiene voz propia (data/chatNamed.ts). Con el resto (personal con nombre, vigilantes...), no hay:
    * dicen lo suyo de siempre.
    */
-  private conversationWith(sprite: Phaser.GameObjects.Sprite): Conversation | null {
-    if (!(sprite instanceof Character)) return null;
-    const { state } = this.services;
-    const w = weatherAt(state.day, state.hour + state.minute / 60);
-    const when = { day: state.day, hour: state.hour, minute: state.minute, weather: weatherKind(w) };
-    const tile = { tx: Math.floor(sprite.x / TILE), ty: Math.floor(sprite.y / TILE) };
-    const place = placeOf(state.locationId, zoneAt(state.locationId, tile.tx, tile.ty)?.type);
-    const named = this.characters.find((c) => c.sprite === sprite);
-    if (named) {
-      const id = named.def.npc;
-      if (!NAMED_VOICES[id]) return null;
-      // A quien ya has visto varias veces le suenas, y a quien has tratado mucho, es tu amigo (EventMemory, que se guarda).
-      const met = state.events.importantNPCsMet[id];
-      const rel = met && (met.encounters >= 5 || met.affinity >= 3) ? 2 : met && met.encounters >= 2 ? 1 : 0;
-      return new Conversation({ who: id, named: id, role: named.now?.moving ? 'stroller' : 'park-talk', place, group: false, rel, ...when }, this.chatLog);
+    /**
+   * La charla de calle con esta persona.
+   *
+   * Prompt 57:
+   * los Named Characters reciben también su perfil social persistente.
+   */
+  private conversationWith(
+    sprite: Phaser.GameObjects.Sprite,
+  ): Conversation | null {
+    if (
+      !(sprite instanceof Character)
+    ) {
+      return null;
     }
-    const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
-    if (!agent || agent.npc || agent.staffRole) return null;
-    const key = `c:${state.locationId}:${agent.id}`;
-    const together = agent.leader !== undefined || [...(this.crowd?.agents ?? []), ...(this.street?.agents ?? [])].some((o) => o.leader === agent);
-    return new Conversation({ who: key, identity: agent.look, role: agent.role, state: agent.state, place, group: together, rel: this.chatLog.chatsWith(key) > 0 ? 1 : 0, ...when }, this.chatLog);
+
+    const {
+      state,
+    } = this.services;
+
+    const w =
+      weatherAt(
+        state.day,
+        state.hour +
+          state.minute /
+            60,
+      );
+
+    const when = {
+      day:
+        state.day,
+
+      hour:
+        state.hour,
+
+      minute:
+        state.minute,
+
+      weather:
+        weatherKind(
+          w,
+        ),
+    };
+
+    const tile = {
+      tx:
+        Math.floor(
+          sprite.x /
+            TILE,
+        ),
+
+      ty:
+        Math.floor(
+          sprite.y /
+            TILE,
+        ),
+    };
+
+    const place =
+      placeOf(
+        state.locationId,
+
+        zoneAt(
+          state.locationId,
+          tile.tx,
+          tile.ty,
+        )?.type,
+      );
+
+    // ============================================================
+    // NAMED CHARACTER
+    // ============================================================
+
+    const named =
+      this.characters.find(
+        (c) =>
+          c.sprite ===
+          sprite,
+      );
+
+    if (named) {
+      const id =
+        named.def.npc;
+
+      /*
+       * Por ahora sólo los personajes con una voz dinámica
+       * definida en chatNamed utilizan Conversation.
+       *
+       * Esto conserva el comportamiento anterior.
+       */
+      if (
+        !NAMED_VOICES[
+          id
+        ]
+      ) {
+        return null;
+      }
+
+      /*
+       * Sistema antiguo.
+       *
+       * Lo mantenemos para compatibilidad con partidas anteriores.
+       */
+      const met =
+        state.events
+          .importantNPCsMet[
+          id
+        ];
+
+      const legacyRel:
+        0 | 1 | 2 =
+        met &&
+        (
+          met.encounters >=
+            5 ||
+          met.affinity >= 3
+        )
+          ? 2
+          : met &&
+              met.encounters >=
+                2
+            ? 1
+            : 0;
+
+      /*
+       * Prompt 57.
+       */
+      const social =
+        state.socialOf(
+          id,
+        );
+
+      /*
+       * Migración suave.
+       *
+       * Si esta partida ya conocía al personaje antes del Prompt 57,
+       * conservamos como mínimo el número de encuentros anterior.
+       *
+       * No inventamos attraction, romance o trust.
+       */
+      if (
+        met &&
+        social.encounters <
+          met.encounters
+      ) {
+        social.encounters =
+          met.encounters;
+      }
+
+      const socialRel =
+        chatRelationLevel(
+          social,
+        );
+
+      const rel =
+        Math.max(
+          legacyRel,
+          socialRel,
+        ) as
+          | 0
+          | 1
+          | 2;
+
+      return new Conversation(
+        {
+          who:
+            id,
+
+          named:
+            id,
+
+          role:
+            named.now?.moving
+              ? 'stroller'
+              : 'park-talk',
+
+          place,
+
+          group:
+            false,
+
+          rel,
+
+          social,
+
+          ...when,
+        },
+
+        this.chatLog,
+      );
+    }
+
+    // ============================================================
+    // NPC ANÓNIMO
+    // ============================================================
+
+    const agent =
+      this.crowdViews
+        .map(
+          (v) =>
+            v.agentOf(
+              sprite,
+            ),
+        )
+        .find(
+          (a) =>
+            a !==
+            undefined,
+        );
+
+    if (
+      !agent ||
+      agent.npc ||
+      agent.staffRole
+    ) {
+      return null;
+    }
+
+    const key =
+      `c:${state.locationId}:${agent.id}`;
+
+    const together =
+      agent.leader !==
+        undefined ||
+      [
+        ...(
+          this.crowd
+            ?.agents ??
+          []
+        ),
+
+        ...(
+          this.street
+            ?.agents ??
+          []
+        ),
+      ].some(
+        (o) =>
+          o.leader ===
+          agent,
+      );
+
+    return new Conversation(
+      {
+        who:
+          key,
+
+        identity:
+          agent.look,
+
+        role:
+          agent.role,
+
+        state:
+          agent.state,
+
+        place,
+
+        group:
+          together,
+
+        rel:
+          this.chatLog.chatsWith(
+            key,
+          ) > 0
+            ? 1
+            : 0,
+
+        ...when,
+      },
+
+      this.chatLog,
+    );
   }
 
-  /** Una vuelta de la charla: lo que dice, y si hay respuestas, qué eligió el jugador y lo que contesta. */
-  private say(speaker: string, sprite: Phaser.GameObjects.Sprite, talk: Conversation, turn: ChatTurn, namedId?: string): void {
-    const { dialogue } = this.services;
-    if (turn.options.length === 0) {
-      dialogue.start(speaker, turn.lines);
-      this.noteMeeting(talk, namedId);
+  /**
+   * Una vuelta de conversación.
+   *
+   * Prompt 57:
+   * después de cada acción social sincronizamos el perfil con GameState,
+   * para no perder un coqueteo, contacto o cita si el juego se cierra
+   * antes de terminar toda la conversación.
+   */
+  private say(
+    speaker: string,
+    sprite: Phaser.GameObjects.Sprite,
+    talk: Conversation,
+    turn: ChatTurn,
+    namedId?: string,
+  ): void {
+    const {
+      dialogue,
+    } = this.services;
+
+    // ------------------------------------------------------------
+    // FIN NATURAL DE LA CONVERSACIÓN
+    // ------------------------------------------------------------
+
+    if (
+      turn.options.length ===
+      0
+    ) {
+      dialogue.start(
+        speaker,
+        turn.lines,
+      );
+
+      this.noteMeeting(
+        talk,
+        namedId,
+      );
+
       return;
     }
-    // Con respuestas, todo lo que dice va en una sola frase: se ven desde el principio, incluida la despedida.
-    dialogue.ask(speaker, [turn.lines.join(' ')], turn.options.map((o) => o.label), (i) => {
-      // Elegir cierra el diálogo y con él la pausa de quien habla: se le vuelve a parar para seguir.
-      this.startTalk(sprite);
-      this.say(speaker, sprite, talk, talk.choose(turn.options[i].id), namedId);
-    });
-    this.chatEnd = () => {
-      this.noteMeeting(talk, namedId);
-      dialogue.close();
-    };
+
+    // ------------------------------------------------------------
+    // ELECCIÓN DEL JUGADOR
+    // ------------------------------------------------------------
+
+    dialogue.ask(
+      speaker,
+
+      [
+        turn.lines.join(
+          ' ',
+        ),
+      ],
+
+      turn.options.map(
+        (o) =>
+          o.label,
+      ),
+
+      (i) => {
+        /*
+         * Elegir una respuesta cierra DialogueSystem temporalmente.
+         * Volvemos a parar al NPC antes de continuar.
+         */
+        this.startTalk(
+          sprite,
+        );
+
+        const option =
+          turn.options[
+            i
+          ];
+
+        const nextTurn =
+          talk.choose(
+            option.id,
+          );
+
+        /*
+         * Persistir inmediatamente los cambios sociales.
+         */
+        this.syncSocialProfile(
+          talk,
+          namedId,
+        );
+
+        this.say(
+          speaker,
+          sprite,
+          talk,
+          nextTurn,
+          namedId,
+        );
+      },
+    );
+
+    // ------------------------------------------------------------
+    // EL JUGADOR CIERRA MANUALMENTE CON ESC / Q
+    // ------------------------------------------------------------
+
+    this.chatEnd =
+      () => {
+        this.noteMeeting(
+          talk,
+          namedId,
+        );
+
+        dialogue.close();
+      };
   }
 
-  /** Al acabar la charla con un personaje con nombre, se anota que se han visto (se guarda con la partida). */
-  private noteMeeting(talk: Conversation, id?: string): void {
-    const named = this.characters.find((c) => c.def.npc === id);
-    if (!named || !id || !NAMED_VOICES[id]) return;
-    const { state } = this.services;
-    const met = (state.events.importantNPCsMet[id] ??= { name: named.sprite.def.name, firstDay: state.day, lastDay: state.day, encounters: 0, affinity: 0 });
-    met.encounters += 1;
-    met.lastDay = state.day;
-    met.affinity += talk.positives * 0.25;
+  /**
+   * Copia al GameState el perfil social actual de la conversación.
+   *
+   * No incrementa encuentros: eso sólo ocurre una vez cuando la charla
+   * termina en noteMeeting().
+   */
+  private syncSocialProfile(
+    talk: Conversation,
+    id?: string,
+  ): void {
+    if (
+      !id ||
+      !NAMED_VOICES[
+        id
+      ] ||
+      !talk.socialChanged
+    ) {
+      return;
+    }
+
+    const profile =
+      talk.social;
+
+    if (!profile) {
+      return;
+    }
+
+    this.services.state
+      .setSocialProfile(
+        id,
+        profile,
+      );
+
+    /*
+     * Una acción importante debe sobrevivir aunque el jugador
+     * cierre LifeSim antes de que termine toda la conversación.
+     */
+    this.persist();
+  }
+
+  /**
+   * Al terminar una charla con un Named Character:
+   *
+   * - mantiene importantNPCsMet para compatibilidad;
+   * - suma exactamente un encuentro social;
+   * - guarda las estadísticas del Prompt 57;
+   * - persiste la partida.
+   */
+  private noteMeeting(
+    talk: Conversation,
+    id?: string,
+  ): void {
+    const named =
+      this.characters.find(
+        (c) =>
+          c.def.npc ===
+          id,
+      );
+
+    if (
+      !named ||
+      !id ||
+      !NAMED_VOICES[
+        id
+      ]
+    ) {
+      return;
+    }
+
+    const {
+      state,
+    } = this.services;
+
+    // ============================================================
+    // SISTEMA LEGACY
+    // ============================================================
+
+    const met =
+      (
+        state.events
+          .importantNPCsMet[
+          id
+        ] ??= {
+          name:
+            named.sprite
+              .def.name,
+
+          firstDay:
+            state.day,
+
+          lastDay:
+            state.day,
+
+          encounters:
+            0,
+
+          affinity:
+            0,
+        }
+      );
+
+    met.encounters +=
+      1;
+
+    met.lastDay =
+      state.day;
+
+    met.affinity +=
+      talk.positives *
+      0.25;
+
+    // ============================================================
+    // PROMPT 57
+    // ============================================================
+
+    /*
+     * Si hubo acciones sociales, talk.social contiene el perfil nuevo.
+     * Si fue una conversación normal, usamos el perfil actual del estado.
+     */
+    const base =
+      talk.social ??
+      state.socialOf(
+        id,
+      );
+
+    const next =
+      noteSocialEncounter(
+        base,
+        {
+          day:
+            state.day,
+
+          hour:
+            state.hour,
+
+          minute:
+            state.minute,
+        },
+      );
+
+    state.setSocialProfile(
+      id,
+      next,
+    );
+
     this.persist();
   }
 

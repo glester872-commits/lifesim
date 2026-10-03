@@ -556,21 +556,39 @@ export interface GameStateData {
   locationId: string;
   position: Vec2;
   facing: Facing;
+
   events: EventMemory;
-  /** Lo que lleva encima: id de objeto (data/items.ts) → unidades. */
+
+  /** Lo que lleva encima: id de objeto → unidades. */
   inventory: Record<string, number>;
+
   /**
-   * Aspecto de quien persiste: 'player' y los personajes con nombre (id de
-   * data/npcs.ts) → lo que se ha cambiado sobre su aspecto de fábrica
-   * (data/appearance.ts). La gente anónima no entra aquí: es de paso.
+   * Aspecto persistente del jugador y personajes con nombre.
    */
-  appearance: Record<string, import('../data/appearance.ts').Appearance>;
-  /** Prendas del jugador (ids de data/retail.ts): lo comprado, se lleve o no puesto. */
+  appearance: Record<
+    string,
+    import('../data/appearance.ts').Appearance
+  >;
+
+  /** Prendas compradas por el jugador. */
   wardrobe: string[];
-  /** Forma física del jugador (systems/Fitness.ts). Partidas anteriores no la tienen: empiezan de cero. */
+
+  /** Forma física del jugador. */
   fitness?: import('../systems/Fitness.ts').Fitness;
-  /** Tarjetas con saldo: id de tarjeta (data/items.ts, kind 'card') → euros cargados. Sin clave, no la tiene. */
+
+  /**
+   * Tarjetas con saldo.
+   */
   cards: Record<string, number>;
+
+  /**
+   * Prompt 57:
+   * relación del jugador con cada Named Character.
+   *
+   * Es opcional para mantener compatibilidad con partidas
+   * creadas antes del sistema social.
+   */
+  social?: import('../systems/Social.ts').SocialState;
 }
 
 export interface SaveFile {

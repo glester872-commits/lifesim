@@ -186,6 +186,177 @@ if (import.meta.env.DEV) {
           return world.debugMetroPickpocket();
         },
       },
+
+// Prompt 57: depuración del sistema social.
+// Ejemplos:
+// lifesim.social.get('sara')
+// lifesim.social.dateReady('sara')
+// lifesim.social.friend('ada')
+// lifesim.social.reset('sara')
+social: {
+  get: (id = 'sara') => {
+    return state.socialOf(id);
+  },
+
+  set: (
+    id: string,
+    changes: Partial<
+      ReturnType<
+        typeof state.socialOf
+      >
+    >,
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    Object.assign(
+      profile,
+      changes,
+    );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  friend: (
+    id = 'sara',
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    profile.friendship = 45;
+    profile.trust = 30;
+    profile.attraction = 10;
+    profile.romance = 0;
+    profile.mood = 70;
+    profile.encounters =
+      Math.max(
+        profile.encounters,
+        5,
+      );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  flirtReady: (
+    id = 'sara',
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    profile.friendship = 30;
+    profile.trust = 25;
+    profile.attraction = 38;
+    profile.romance = 10;
+    profile.mood = 70;
+    profile.encounters =
+      Math.max(
+        profile.encounters,
+        4,
+      );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  dateReady: (
+    id = 'sara',
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    profile.friendship = 50;
+    profile.trust = 45;
+    profile.attraction = 60;
+    profile.romance = 35;
+    profile.mood = 80;
+    profile.encounters =
+      Math.max(
+        profile.encounters,
+        6,
+      );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  reset: (
+    id = 'sara',
+  ) => {
+    state.setSocialProfile(
+      id,
+      {
+        friendship: 0,
+        attraction: 0,
+        trust: 0,
+        romance: 0,
+        mood: 50,
+
+        encounters: 0,
+
+        contactExchanged: false,
+
+        datesAccepted: 0,
+        datesRejected: 0,
+
+        flirtSuccesses: 0,
+        flirtFailures: 0,
+
+        memories: [],
+      },
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+},
+
       // Destinos del mundo para NPC futuros: lifesim.route('HOME_ENTRANCE', 'CAFE_ENTRANCE').
       findPoint,
       // Zonas lógicas (data/zones.ts): lifesim.zoneAt('district', 48, 52), lifesim.zoneActivity(zona, {day, hour, minute}).
