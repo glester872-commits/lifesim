@@ -135,9 +135,12 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
   for (let i = 0; i < stepsFor(400_000) && t.state !== 'PAID'; i++) {
     street.step();
     if (seen[seen.length - 1] !== t.state) seen.push(t.state);
+    // Acabada la ronda, el jugador pide la cuenta desde la mesa (la escena lo hace con E: TableService.playerAsk).
+    if (t.state === 'ROUND_DONE') street.service.playerAsk('bill');
   }
-  assert.deepEqual(seen, ['OCCUPIED', 'WAITING_TO_ORDER', 'ORDERED', 'SERVED', 'WAITING_TO_PAY', 'PAID'], `flujo de la mesa: ${seen.join(' → ')}`);
-  assert.deepEqual(street.calls.map((c) => c.kind), ['order', 'served', 'finished', 'bill'], 'lo que ve el jugador');
+  assert.deepEqual(seen, ['OCCUPIED', 'WAITING_TO_ORDER', 'ORDERED', 'SERVED', 'ROUND_DONE', 'WAITING_TO_PAY', 'PAID'], `flujo de la mesa: ${seen.join(' → ')}`);
+  // 'finished' llega por cada plato o bebida que se acaba (la energía se cuenta al terminar cada cosa): se juntan los seguidos.
+  assert.deepEqual(street.calls.map((c) => c.kind).filter((k, i, all) => k !== all[i - 1]), ['order', 'served', 'finished', 'bill'], 'lo que ve el jugador');
   for (const s of ['GOING_TO_TABLE', 'TAKING_ORDER', 'GOING_TO_KITCHEN', 'WAITING_FOR_ORDER', 'DELIVERING_ORDER', 'SERVING', 'TAKING_PAYMENT']) {
     assert.ok(street.waiterStates.has(s), `el camarero de la terraza nunca estuvo en ${s}`);
   }
@@ -163,7 +166,8 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
   assert.equal(street.service.waiterState(w.id), 'GOING_TO_TABLE');
   // Se levanta con el camarero de camino.
   assert.equal(street.stand(), 0, 'cobra una mesa sin pedir nada');
-  street.runUntil(() => false, 60_000);
+  // Una hora de reloj: le sobra para volver (unos cinco minutos) y no cruza el fin de su turno, que lo mete dentro.
+  street.runUntil(() => false, 30_000);
   assert.equal(t.state, 'AVAILABLE');
   assert.equal(t.party, null);
   assert.equal(t.waiter, null, 'la mesa abandonada sigue con camarero');
@@ -177,11 +181,14 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
   again.runUntil(() => again.service.waiterState(again.waiter()!.id) === 'TAKING_ORDER', 120_000);
   assert.equal(again.service.waiterState(again.waiter()!.id), 'TAKING_ORDER');
   again.stand();
-  again.runUntil(() => false, 30_000);
+  // Hasta que se recoge: a la hora de cenar, la mesa libre la puede coger enseguida gente de la calle.
+  again.runUntil(() => u.state === 'AVAILABLE', 30_000);
   assert.equal(u.state, 'AVAILABLE', 'la mesa se queda pedida sin nadie');
   assert.equal(u.waiter, null);
   assert.deepEqual(u.plates, []);
-  assert.ok(['IDLE', 'RETURNING', 'CHECKING_TABLES'].includes(again.service.waiterState(again.waiter()!.id)!));
+  const free = (): boolean => ['IDLE', 'RETURNING', 'CHECKING_TABLES'].includes(again.service.waiterState(again.waiter()!.id)!);
+  again.runUntil(free, 30_000);
+  assert.ok(free(), 'el camarero no vuelve de la mesa abandonada');
 }
 
 // ------------------------------------------------ levantarse sin pagar: deja el dinero y la mesa se recoge
@@ -207,7 +214,8 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
   let paid = 0;
   for (const [hhmm, seed] of [['13:30', 3], ['21:00', 4], ['21:00', 5], ['13:30', 6], ['21:30', 7], ['14:00', 8]] as const) {
     const street = new Street(seed, hhmm);
-    for (let i = 0; i < stepsFor(25 * MS_PER_MIN * 2); i++) {
+    // Hora y cuarto de reloj por tirada: lo que tarda una comida entera en terraza (sentarse, pedir, comer, pagar).
+    for (let i = 0; i < stepsFor(75 * MS_PER_MIN); i++) {
       street.step();
       for (const t of street.service.tables) {
         // Quien come ahí es de verdad quien está sentado en esa silla; nadie más.
@@ -242,6 +250,7 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
     let otherUsed = false;
     for (let i = 0; i < stepsFor(250_000) && mine.state !== 'PAID'; i++) {
       street.step();
+      if (mine.state === 'ROUND_DONE') street.service.playerAsk('bill');
       if (other.party !== null) otherUsed = true;
       assert.ok(other.waiter === null || mine.waiter === null || other.waiter !== mine.waiter || other === mine);
     }

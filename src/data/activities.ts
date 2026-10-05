@@ -92,6 +92,20 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     lines: ['Arroz, un huevo, verdura salteada. No es un restaurante, pero es tuyo y es caliente.', 'Te sobra para mañana. No te sobrará.'],
   },
   {
+    id: 'shower',
+    name: 'Ducharse (15 min)',
+    minutes: 15,
+    effects: { energy: 6 },
+    lines: ['Agua caliente hasta que se empaña el espejo. Sales otra persona.', 'El calentador tarda en arrancar. Luego no hay quien te saque.'],
+  },
+  {
+    id: 'watch-tv',
+    name: 'Ver la tele (1 h)',
+    minutes: 60,
+    effects: { energy: 5 },
+    lines: ['Un capítulo. Luego otro «para ver cómo acaba». No acaba.', 'Cambias de canal hasta que se hace tarde. Ni te has enterado de qué echaban.'],
+  },
+  {
     id: 'restaurant-lunch',
     name: 'Menú del día (1 h)',
     minutes: 60,

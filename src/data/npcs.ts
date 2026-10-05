@@ -78,8 +78,12 @@ const DEFS: readonly NpcDef[] = [
   {
     id: 'marco',
     name: 'Marco',
-    cloth: '#c9d14a',
-    clothDark: '#9aa233',
+    // Uniforme de seguridad del metro: naranja arriba, pantalón negro con franja naranja por fuera de cada pernera.
+    cloth: '#e0782c',
+    clothDark: '#a9541b',
+    trousers: '#1b1b20',
+    stripe: '#f08c34',
+    shoes: '#16161a',
     hair: '#2b2622',
     lines: [
       'Seguridad. Tú pasa, que no va contigo.',
@@ -90,8 +94,12 @@ const DEFS: readonly NpcDef[] = [
   {
     id: 'rocio',
     name: 'Rocío',
-    cloth: '#c9d14a',
-    clothDark: '#9aa233',
+    // Uniforme de seguridad del metro: naranja arriba, pantalón negro con franja naranja por fuera de cada pernera.
+    cloth: '#e0782c',
+    clothDark: '#a9541b',
+    trousers: '#1b1b20',
+    stripe: '#f08c34',
+    shoes: '#16161a',
     hair: '#4a3b2f',
     lines: [
       'Hoy me toca vestíbulo. Mañana, quién sabe.',
@@ -101,8 +109,12 @@ const DEFS: readonly NpcDef[] = [
   {
     id: 'iker',
     name: 'Iker',
-    cloth: '#c9d14a',
-    clothDark: '#9aa233',
+    // Uniforme de seguridad del metro: naranja arriba, pantalón negro con franja naranja por fuera de cada pernera.
+    cloth: '#e0782c',
+    clothDark: '#a9541b',
+    trousers: '#1b1b20',
+    stripe: '#f08c34',
+    shoes: '#16161a',
     hair: '#1f1a15',
     lines: [
       'Ribera es tranquila. Casi siempre.',

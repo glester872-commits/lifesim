@@ -135,9 +135,10 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     ],
     // El domingo, más tranquilo.
     weekday: [0, 0, 0, 0, 0, 0, -1],
-    scale: 1.4,
-    // El barrio creció hacia el este (Calle del Carmen): más calle, algo más de gente.
-    maxWalkers: 46,
+    scale: 1.5,
+    // El barrio creció hacia el este (Calle del Carmen) y su vida de diario (horno, bar, tienda, plaza y parque por horas):
+    // más calle y más motivos para salir, algo más de gente.
+    maxWalkers: 60,
     // El metro: en hora punta un tren cada pocos minutos de juego, y de cada uno salen unos cuantos.
     bursts: [{ point: 'METRO_ENTRANCE', every: [[6.5, 7, 16], [7, 10, 6], [10, 17, 14], [17, 20.5, 6], [20.5, 24, 16], [0, 1.5, 24]], size: [1, 3] }],
     draws: [{ place: 'nightclub', perLevel: 2 }],
@@ -158,8 +159,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'shopper', label: 'Alguien con bolsas', line: 'Sólo venía a mirar.', weight: 2, hours: [10, 21], from: { tags: ['shop'] }, to: HOMES_OR_CITY },
       { role: 'coffee', label: 'Alguien que va a por café', line: 'Un café y empiezo.', weight: 2, hours: [7, 21.5], from: HOMES_OR_CITY, to: { points: ['CAFE_ENTRANCE'] } },
       { role: 'terrace', label: 'Alguien en la terraza', line: 'Aquí se está de maravilla.', weight: 2, hours: [10, 21.5], from: HOMES_OR_CITY, to: { points: ['CAFE_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
-      { role: 'terrace-meal', label: 'Alguien comiendo fuera', line: 'Fuera se come mejor. Y se ve pasar a la gente.', weight: 2, hours: [13, 15.5], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [30, 60], stayState: 'EAT', group: [1, 2], bond: ['coworkers', 'friends', 'couple'] },
-      { role: 'terrace-meal', label: 'Alguien cenando fuera', line: 'Con este tiempo, dentro ni loco.', weight: 2, hours: [20.5, 23], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [40, 70], stayState: 'EAT', group: [1, 2], bond: ['couple', 'friends', 'family'] },
+      { role: 'terrace-meal', label: 'Alguien comiendo fuera', line: 'Fuera se come mejor. Y se ve pasar a la gente.', weight: 3.5, hours: [13, 15.5], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [30, 60], stayState: 'EAT', group: [1, 2], bond: ['coworkers', 'friends', 'couple'] },
+      { role: 'terrace-meal', label: 'Alguien cenando fuera', line: 'Con este tiempo, dentro ni loco.', weight: 3.5, hours: [20.5, 23], from: HOMES_OR_CITY, to: { points: ['RESTAURANT_TERRACE_'] }, stay: [40, 70], stayState: 'EAT', group: [1, 2], bond: ['couple', 'friends', 'family'] },
       { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Hoy toca pierna. Por desgracia.', weight: 2, hours: [6.5, 9], from: HOMES, to: { points: ['GYM_ENTRANCE'] } },
       { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Si no voy ahora, no voy.', weight: 3, hours: [17, 21.5], from: { types: ['residence', 'transit'] }, to: { points: ['GYM_ENTRANCE'] }, group: [1, 2], bond: ['gym'] },
       { role: 'diner', label: 'Alguien que va a comer', line: 'Menú del día y a correr.', weight: 3, hours: [13, 15.5], from: { tags: ['work'], edge: true }, to: { points: ['RESTAURANT_ENTRANCE'] }, group: [1, 3], bond: ['coworkers', 'friends'] },
@@ -198,7 +199,7 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'sneaker-heads', label: 'Alguien que va a Suela', line: 'Ya sé que no tienen mi talla. Voy igual.', weight: 1.2, hours: [12, 21], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['SUELA_ENTRANCE'] }, group: [1, 2], bond: ['friends'] },
       { role: 'piercing-client', label: 'Alguien con cita en Navaja & Aro', line: 'Primero el pelo. El aro, si me da el valor.', weight: 1, hours: [12, 20], from: HOMES_OR_CITY, to: { points: ['NAVAJA_ENTRANCE'] } },
       { role: 'bar-night', label: 'Alguien que va al Gaviota', line: 'Una caña y a casa. Una.', weight: 3, hours: [17.5, 1.5], from: HOMES_OR_CITY, to: { points: ['GAVIOTA_ENTRANCE'] }, group: [1, 3], bond: ['friends', 'couple'] },
-      { role: 'bar-smoke', label: 'Alguien tomando el aire', line: 'Salgo a fumar, que dentro suena la misma canción por tercera vez.', weight: 2.5, hours: [18, 2], from: { points: ['GAVIOTA_ENTRANCE'] }, to: { points: ['GAVIOTA_SMOKE_'] }, stay: [5, 12], then: { points: ['GAVIOTA_ENTRANCE'] }, group: [1, 3], bond: ['friends'] },
+      { role: 'bar-smoke', label: 'Alguien tomando el aire', line: 'Salgo a fumar, que dentro suena la misma canción por tercera vez.', weight: 5, hours: [18, 2], from: { points: ['GAVIOTA_ENTRANCE'] }, to: { points: ['GAVIOTA_SMOKE_'] }, stay: [5, 12], then: { points: ['GAVIOTA_ENTRANCE'] }, group: [1, 3], bond: ['friends'] },
       // Eventos (data/popups.ts): sólo cuentan mientras está en marcha cada uno.
       { role: 'popup-market', label: 'Alguien mirando los puestos', line: 'Esta chaqueta es mía. Es que no lo sabe todavía.', weight: 28, popup: 'vintage-market', hours: [11, 18.5], from: HOMES_OR_CITY, to: { points: ['POPUP_BROWSE_'] }, stay: [3, 9], stayState: 'BROWSE', then: CARMEN, group: [1, 3], bond: ['friends', 'couple'] },
       { role: 'popup-market', label: 'Alguien en el pop-up', line: 'Edición limitada, dicen. Como todo.', weight: 24, popup: 'fashion-popup', hours: [12, 17.5], from: HOMES_OR_CITY, to: { points: ['POPUP_BROWSE_'] }, stay: [3, 9], stayState: 'BROWSE', then: CARMEN, group: [1, 3], bond: ['friends', 'couple'] },
@@ -214,6 +215,32 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'bus', label: 'Alguien esperando el bus', line: 'Dice ocho minutos desde hace veinte.', weight: 1, hours: [6.5, 23], from: HOMES, to: { points: ['BUS_STOP'] }, stay: [4, 12], then: CITY },
       // Gente de visita: en grupo, a la plaza a ver la fuente y el quiosco, y otra vez a la ciudad.
       { role: 'tourist', label: 'Gente de visita', line: 'Perdona, ¿la Plaza de la Fuente es esta? La del mapa.', weight: 1.5, hours: [10, 20.5], from: CITY, to: { points: ['PLAZA_FOUNTAIN', 'NEWS_KIOSK', 'PLAZA_BENCH_'] }, stay: [6, 15], then: CITY, group: [2, 3], bond: ['tourists'] },
+      // Vida de barrio en la Mayor este: el pan por la mañana, el bar de abajo (desayuno, vermú, la noche y la puerta) y la tienda que cierra la última.
+      { role: 'bakery', label: 'Alguien que va a por el pan', line: 'Una barra y dos napolitanas. Como cada mañana.', weight: 3, hours: [7.5, 11], from: HOMES, to: { points: ['BAKERY_ENTRANCE'] }, then: HOMES },
+      { role: 'bakery', label: 'Alguien que va a por el pan', line: 'La barra de la tarde, que la de la mañana ya no existe.', weight: 1, hours: [17.5, 20.5], from: HOMES_OR_CITY, to: { points: ['BAKERY_ENTRANCE'] }, then: HOMES },
+      { role: 'bakery', label: 'Alguien mirando el escaparate del horno', line: 'Sólo miro. Las palmeras no cuentan.', weight: 0.6, hours: [8, 20], from: HOMES_OR_CITY, to: { points: ['BAKERY_WINDOW'] }, stay: [1, 3], stayState: 'BROWSE', then: { points: ['BAKERY_ENTRANCE'], types: ['residence'] }, max: 2 },
+      { role: 'rincon-breakfast', label: 'Alguien que baja a desayunar', line: 'Café con leche y media tostada. Lo de siempre, que ya ni lo pido.', weight: 2.5, hours: [7.5, 10.5], from: HOMES, to: { points: ['CORNER_BAR_ENTRANCE'] } },
+      { role: 'rincon-vermut', label: 'Gente de vermú', line: 'Un vermú y unas bravas. El domingo empieza aquí.', weight: 3, hours: [12.5, 15], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['CORNER_BAR_ENTRANCE'] }, group: [2, 3], bond: ['friends', 'family', 'couple'] },
+      { role: 'rincon-night', label: 'Alguien que va al Rincón', line: 'Hay fútbol. No me gusta el fútbol. Voy igual.', weight: 1, hours: [19.5, 23.5], from: HOMES, to: { points: ['CORNER_BAR_ENTRANCE'] }, group: [1, 3], bond: ['friends'] },
+      { role: 'rincon-smoke', label: 'Alguien a la puerta del bar', line: 'Salgo un momento, que dentro está la tele a todo volumen.', weight: 0.8, hours: [9, 1], from: { points: ['CORNER_BAR_ENTRANCE'] }, to: { points: ['CORNER_BAR_SMOKE_'] }, stay: [4, 10], then: { points: ['CORNER_BAR_ENTRANCE'] }, group: [1, 2], bond: ['friends'] },
+      { role: 'late-shop', label: 'Alguien que baja a la tienda', line: 'Se me ha acabado la leche. A estas horas sólo abre Mari.', weight: 1.5, hours: [21, 1], from: HOMES, to: { points: ['GROCER_ENTRANCE'] }, then: HOMES },
+      // La Plaza de la Fuente a lo largo del día. Mañana: el periódico, el perro y quien ataja hacia el metro.
+      { role: 'kiosk', label: 'Alguien comprando el periódico', line: 'El periódico y el pan. En ese orden.', weight: 3, hours: [7.5, 11], from: HOMES, to: { points: ['NEWS_KIOSK'] }, stay: [1, 3], stayState: 'BROWSE', then: { points: ['BAKERY_ENTRANCE', 'CAFE_ENTRANCE'], types: ['residence'] }, max: 2 },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'Una vuelta a la fuente y para casa, que llego tarde.', weight: 1.5, hours: [7, 10], from: HOMES, to: HOMES, via: ['plaza-w', 'plaza-e'], pace: 'stroll', dog: true, pause: 0.6 },
+      { role: 'commuter', label: 'Alguien atajando por la plaza', line: 'Por la plaza se ataja. Dos minutos. Uno, si corro.', weight: 1.5, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT, via: ['plaza-w', 'plaza-s'] },
+      // Mañana y media tarde: los vecinos mayores en sus bancos. Tarde: familias, y quien se sienta con las bolsas.
+      { role: 'plaza-elders', label: 'Vecinos de toda la vida', line: 'Esta plaza antes tenía un cine. Y yo, pelo.', weight: 3, hours: [10, 14.5], from: HOMES, to: { points: ['PLAZA_BENCH_'] }, stay: [20, 45], stayState: 'TALK', group: [1, 2], bond: ['friends', 'couple'] },
+      { role: 'plaza-elders', label: 'Vecinos de toda la vida', line: 'Cuando baja el sol, aquí. Como siempre.', weight: 2, hours: [17, 19.5], from: HOMES, to: { points: ['PLAZA_BENCH_'] }, stay: [20, 40], stayState: 'TALK', group: [1, 2], bond: ['friends', 'couple'] },
+      { role: 'plaza-family', label: 'Una familia en la plaza', line: 'Diez minutos más y a casa, que mañana hay cole.', weight: 2.5, hours: [16.5, 20.5], from: HOMES, to: { points: ['PLAZA_FOUNTAIN', 'PLAZA_BENCH_'] }, stay: [10, 25], stayState: 'TALK', group: [2, 4], bond: ['family'] },
+      { role: 'plaza-rest', label: 'Alguien descansando con las bolsas', line: 'Me siento un momento, que las bolsas pesan más que yo.', weight: 2.5, hours: [11.5, 20], from: { tags: ['shop'] }, to: { points: ['PLAZA_BENCH_'] }, stay: [6, 15], stayState: 'PHONE', then: HOMES },
+      // Noche: grupos en la fuente y parejas en los bancos. De madrugada, casi nadie.
+      { role: 'plaza-evening', label: 'Gente en la fuente', line: '¿Cenamos algo o nos quedamos aquí hasta que nos echen?', weight: 3, hours: [20, 23], from: HOMES_OR_CITY, to: { points: ['PLAZA_FOUNTAIN', 'PLAZA_BENCH_'] }, stay: [10, 20], stayState: 'TALK', group: [2, 4], bond: ['friends'] },
+      { role: 'plaza-couple', label: 'Una pareja en un banco', line: 'Cinco minutos más. Siempre son cinco minutos más.', weight: 2, hours: [20.5, 23.5], from: HOMES_OR_CITY, to: { points: ['PLAZA_BENCH_'] }, stay: [10, 25], stayState: 'TALK', group: [2, 2], bond: ['couple'] },
+      { role: 'plaza-night', label: 'Alguien en la plaza de madrugada', line: 'Ni sueño ni ganas de subir. La fuente suena mejor de noche.', weight: 0.7, hours: [0.5, 3], from: HOMES, to: { points: ['PLAZA_BENCH_'] }, stay: [5, 15], stayState: 'PHONE', max: 2 },
+      // Parque del Olmo: los mayores al sol por la mañana, parejas al anochecer y, algún fin de semana, un cumpleaños en la hierba.
+      { role: 'park-elders', label: 'Vecinos al sol', line: 'A esta hora da el sol en este banco. Lo sabe todo el barrio.', weight: 3, hours: [9.5, 12.5], from: HOMES, to: { points: ['PARK_BENCH_'] }, stay: [20, 45], stayState: 'TALK', group: [1, 2], bond: ['friends', 'couple'] },
+      { role: 'park-couple', label: 'Una pareja en el parque', line: 'Damos otra vuelta y te acompaño.', weight: 2, hours: [19, 22.5], from: HOMES_OR_CITY, to: { points: ['PARK_BENCH_', 'PARK_TALK_'] }, stay: [10, 25], stayState: 'TALK', group: [2, 2], bond: ['couple'] },
+      { role: 'park-gathering', label: 'Un cumpleaños en el parque', line: 'Hemos traído tarta y nadie ha traído cuchillo.', weight: 1.2, hours: [17, 20.5], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['PARK_TALK_', 'PARK_BENCH_'] }, stay: [20, 40], stayState: 'TALK', group: [3, 4], bond: ['friends', 'family'], max: 4 },
       // Quien sólo cruza el barrio, a cualquier hora.
       { role: 'passer', label: 'Alguien de paso', line: 'Perdona, voy con prisa.', weight: 2, from: CITY, to: CITY },
       { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'Ya es tardísimo...', weight: 1, hours: [22, 6], from: { types: ['transit'], edge: true }, to: HOMES },
@@ -235,8 +262,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     ],
     // Viernes, sábado y domingo, más gente.
     weekday: [0, 0, 0, 0, 1, 2, 1],
-    scale: 1.1,
-    maxWalkers: 38,
+    scale: 1.5,
+    maxWalkers: 60,
     // El metro: un tren cada pocos minutos en hora punta, y de cada uno salen unos cuantos.
     bursts: [{ point: 'RB_METRO_FRONT', every: [[6.5, 10, 10], [17, 21, 8], [21, 24, 16]], size: [1, 2] }],
     draws: [{ place: 'arcade', perLevel: 1.5 }],

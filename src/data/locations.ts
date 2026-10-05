@@ -18,6 +18,14 @@ import { ARCADE, ARCHIVO, BARBERSHOP, CLUB, FASHION, GYM, MOLINILLO, OFFICE, PHA
  * (data/vallesco.ts), que generan su fachada, su puerta y su spawn.
  */
 
+/**
+ * Tu piso, Olmo 7: cocina, baño y dormitorio al fondo, cada uno tras su
+ * tabique y su puerta, y el salón delante, donde da la puerta de la escalera.
+ * Mismo tamaño que el piso abierto de antes: la puerta y el spawn no cambian.
+ *
+ *   cocina (1–6 × 2–6)  baño (8–11 × 2–5)  dormitorio (13–20 × 2–6)
+ *   salón (1–20 × 8–13), con un rellano junto a la puerta del baño
+ */
 const HOME: LocationDef = {
   id: 'home',
   name: 'Tu piso',
@@ -25,57 +33,77 @@ const HOME: LocationDef = {
   ground: [
     'WWWWWWWWWWWWWWWWWWWWWW',
     'WWWWWWWWWWWWWWWWWWWWWW',
-    'WtttttttfffffffffffffW',
-    'WtttttttfffffffffffffW',
-    'WtttttttfffffffffffffW',
-    'WtttttttfffffffffffffW',
+    'WttttttWttttWffffffffW',
+    'WttttttWttttWffffffffW',
+    'WttttttWttttWffrrrrffW',
+    'WttttttWttttWffrrrrffW',
+    'WttttttWWWtWWffffffffW',
+    'WWWttWWWfffWWWWWffWWWW',
     'WffffffffffffffffffffW',
     'WffffffffffffffffffffW',
-    'WfffffffrrrrrrrffffffW',
-    'WfffffffrrrrrrrffffffW',
-    'WfffffffrrrrrrrffffffW',
-    'WffffffffffffffffffffW',
-    'WffffffffffffffffffffW',
+    'WffrrrrffffffffffffffW',
+    'WffrrrrffffffffffffffW',
+    'WffrrrrffffffffffffffW',
     'WffffffffffffffffffffW',
     'WWWWWWWWWWDWWWWWWWWWWW',
     'WWWWWWWWWWWWWWWWWWWWWW',
   ],
   props: [
-    { kind: 'counter', tx: 1, ty: 3 },
-    { kind: 'counter', tx: 2, ty: 3 },
-    { kind: 'counter', tx: 3, ty: 3 },
-    { kind: 'shelf', tx: 5, ty: 3 },
-    { kind: 'table', tx: 3, ty: 6 },
-    { kind: 'plant', tx: 1, ty: 12 },
-    { kind: 'shelf', tx: 12, ty: 3 },
-    { kind: 'bed', tx: 19, ty: 4 },
-    { kind: 'desk', tx: 15, ty: 7 },
-    { kind: 'plant', tx: 20, ty: 12 },
-    { kind: 'wardrobe', tx: 16, ty: 3 },
-    { kind: 'sofa', tx: 6, ty: 11 },
-    { kind: 'chair-up', tx: 3, ty: 7 },
-    // Lo que hace de un piso un sitio donde se vive: luz por las ventanas, la cafetera, la nevera.
-    { kind: 'window', tx: 9, ty: 1 },
-    { kind: 'window', tx: 13, ty: 1 },
-    { kind: 'painting', tx: 19, ty: 1 },
-    { kind: 'clock', tx: 7, ty: 1 },
-    { kind: 'espresso', tx: 2, ty: 3 },
-    { kind: 'fridge', tx: 6, ty: 3 },
-    { kind: 'pendant', tx: 3, ty: 6 },
-    { kind: 'pendant', tx: 11, ty: 9 },
-    { kind: 'pendant', tx: 15, ty: 7 },
-    // Luz de casa: una lámpara de pie junto al sofá y otra de lectura al lado de la cama; un cuadro más.
-    { kind: 'floor-lamp', tx: 8, ty: 11 },
+    // Cocina: fregadero, encimera con la cafetera, fogones y nevera contra el fondo; armarios encima; mesa para dos.
+    { kind: 'sink', tx: 1, ty: 2 },
+    { kind: 'counter', tx: 2, ty: 2 },
+    { kind: 'espresso', tx: 2, ty: 2 },
+    { kind: 'counter', tx: 3, ty: 2 },
+    { kind: 'stove', tx: 4, ty: 2 },
+    { kind: 'fridge', tx: 6, ty: 2 },
+    { kind: 'wall-shelf', tx: 1, ty: 1 },
+    { kind: 'table', tx: 4, ty: 5 },
+    { kind: 'chair-right', tx: 3, ty: 5 },
+    { kind: 'chair-left', tx: 5, ty: 5 },
+    { kind: 'pendant', tx: 4, ty: 5 },
+    // Baño: lavabo con su espejo, inodoro y plato de ducha en la esquina.
+    { kind: 'mirror', tx: 8, ty: 1 },
+    { kind: 'sink', tx: 8, ty: 2 },
+    { kind: 'toilet', tx: 11, ty: 2 },
+    { kind: 'shower', tx: 8, ty: 5 },
+    { kind: 'pendant', tx: 10, ty: 3 },
+    // Dormitorio: armario y espejo de cuerpo entero, escritorio con el ordenador, cama con su lámpara y una estantería.
+    { kind: 'wardrobe', tx: 13, ty: 3 },
+    { kind: 'mirror', tx: 14, ty: 1 },
+    { kind: 'desk', tx: 16, ty: 2 },
+    { kind: 'chair-up', tx: 16, ty: 3 },
+    { kind: 'window', tx: 17, ty: 1 },
+    { kind: 'bed', tx: 19, ty: 3 },
     { kind: 'floor-lamp', tx: 20, ty: 3 },
-    { kind: 'painting', tx: 3, ty: 1 },
-    { kind: 'wall-shelf', tx: 15, ty: 1 },
+    { kind: 'shelf', tx: 20, ty: 6 },
+    { kind: 'plant', tx: 13, ty: 6 },
+    // Salón: sofá frente a la tele con la mesa baja en medio, lámpara de pie, libros, plantas y cuadros.
+    { kind: 'sofa', tx: 3, ty: 10 },
+    { kind: 'table', tx: 4, ty: 12 },
+    { kind: 'tv', tx: 3, ty: 13 },
+    { kind: 'floor-lamp', tx: 1, ty: 10 },
+    { kind: 'pendant', tx: 4, ty: 11 },
+    { kind: 'shelf', tx: 20, ty: 9 },
+    { kind: 'plant', tx: 20, ty: 13 },
+    { kind: 'plant', tx: 8, ty: 7 },
+    { kind: 'painting', tx: 12, ty: 7 },
+    { kind: 'painting', tx: 14, ty: 7 },
+    { kind: 'clock', tx: 6, ty: 7 },
+    { kind: 'pendant', tx: 12, ty: 10 },
   ],
   ambient: '#ffe6c8',
-  // Lo que se hace en casa: dormir y cocinar (data/activities.ts).
+  // Lo que se hace en casa (data/activities.ts): cocinar, ducharse, dormir, ver la tele y cambiarse en el armario o ante el espejo.
   spots: [
-    { tx: 2, ty: 3, name: 'Cocina', activities: ['cook'] },
-    { tx: 19, ty: 4, name: 'Cama', activities: ['nap', 'sleep'] },
-    { tx: 16, ty: 3, name: 'Armario', activities: [], wardrobe: true },
+    { tx: 4, ty: 2, name: 'Cocina', activities: ['cook'] },
+    { tx: 8, ty: 5, name: 'Ducha', activities: ['shower'] },
+    { tx: 19, ty: 3, name: 'Cama', activities: ['nap', 'sleep'] },
+    { tx: 13, ty: 3, name: 'Armario', activities: [], wardrobe: true },
+    { tx: 14, ty: 1, name: 'Espejo', activities: [], wardrobe: true },
+    { tx: 3, ty: 13, name: 'Tele', activities: ['watch-tv'] },
+  ],
+  inspects: [
+    { tx: 8, ty: 1, name: 'Espejo del baño', lines: ['Ojeras de serie. El espejo no miente, pero tampoco ayuda.'] },
+    { tx: 6, ty: 2, name: 'Nevera', lines: ['Lo de la compra va a la bolsa; aquí sólo queda un limón y salsa de soja.'] },
   ],
   portals: [
     { id: 'exit', tx: 10, ty: 14, label: 'Salir a la calle', to: { location: 'district', spawn: 'home-door' } },
@@ -84,19 +112,28 @@ const HOME: LocationDef = {
   spawns: {
     entry: { tx: 10, ty: 13, facing: 'up' },
   },
-  // Dónde se engancharán dormir, vestirse, el ordenador, guardar cosas y recibir visitas.
+  // Cada cosa de la casa, con nombre: lo que hoy se hace (dormir, cocinar, vestirse, sentarse) y donde se
+  // engancharán el ordenador, guardar cosas, el aseo y las visitas.
   points: {
     HOME_EXIT: { tx: 10, ty: 13, kind: 'exit', facing: 'up' },
-    HOME_BED: { tx: 18, ty: 4, kind: 'interact', facing: 'right' },
-    HOME_WARDROBE: { tx: 16, ty: 4, kind: 'interact', facing: 'up' },
-    HOME_COMPUTER: { tx: 15, ty: 8, kind: 'interact', facing: 'up' },
-    HOME_STORAGE: { tx: 12, ty: 4, kind: 'interact', facing: 'up' },
-    HOME_KITCHEN: { tx: 2, ty: 4, kind: 'interact', facing: 'up' },
-    HOME_TABLE: { tx: 3, ty: 7, kind: 'seat', facing: 'up' },
-    // El sofá, dos plazas; la mesa, su silla.
-    HOME_SOFA: { tx: 6, ty: 11, kind: 'seat', facing: 'down' },
-    HOME_SOFA_02: { tx: 7, ty: 11, kind: 'seat', facing: 'down' },
-    HOME_GUEST: { tx: 11, ty: 9, kind: 'meet' },
+    HOME_BED: { tx: 18, ty: 3, kind: 'interact', facing: 'right' },
+    HOME_WARDROBE: { tx: 13, ty: 4, kind: 'interact', facing: 'up' },
+    HOME_MIRROR: { tx: 14, ty: 2, kind: 'interact', facing: 'up' },
+    HOME_COMPUTER: { tx: 16, ty: 3, kind: 'seat', facing: 'up' },
+    HOME_STORAGE: { tx: 19, ty: 6, kind: 'interact', facing: 'right' },
+    HOME_KITCHEN: { tx: 4, ty: 3, kind: 'interact', facing: 'up' },
+    HOME_FRIDGE: { tx: 6, ty: 3, kind: 'interact', facing: 'up' },
+    HOME_KITCHEN_SINK: { tx: 1, ty: 3, kind: 'interact', facing: 'up' },
+    HOME_TABLE: { tx: 3, ty: 5, kind: 'seat', facing: 'right' },
+    HOME_TABLE_02: { tx: 5, ty: 5, kind: 'seat', facing: 'left' },
+    HOME_SINK: { tx: 8, ty: 3, kind: 'interact', facing: 'up' },
+    HOME_TOILET: { tx: 11, ty: 3, kind: 'interact', facing: 'up' },
+    HOME_SHOWER: { tx: 9, ty: 5, kind: 'interact', facing: 'left' },
+    // El sofá, dos plazas, mirando a la tele.
+    HOME_SOFA: { tx: 3, ty: 10, kind: 'seat', facing: 'down' },
+    HOME_SOFA_02: { tx: 4, ty: 10, kind: 'seat', facing: 'down' },
+    HOME_TV: { tx: 5, ty: 12, kind: 'interact', facing: 'down' },
+    HOME_GUEST: { tx: 11, ty: 10, kind: 'meet' },
   },
 };
 
@@ -169,8 +206,17 @@ const CAFE: LocationDef = {
   portals: [
     { id: 'exit', tx: 8, ty: 11, label: 'Salir a la calle', to: { location: 'district', spawn: 'cafe-door' } },
   ],
-  // Se pide en la barra, delante de Nilo.
+  // En la barra, delante de Nilo, se compra para llevar; sentado a una mesa, te toman nota (servicio de mesa).
   terminals: [{ tx: 5, ty: 6, name: 'Barra · Pausa', catalog: 'cafe-counter' }],
+  // Servicio de mesa (data/population.ts: tableService, carta 'pausa'): cada mesa, sus sillas y el sitio libre
+  // a su lado donde se para quien atiende.
+  tables: [
+    { id: 'MESA_01', seats: ['CAFE_TABLE_01', 'CAFE_TABLE_05'], service: { tx: 12, ty: 4 } },
+    { id: 'MESA_02', seats: ['CAFE_TABLE_02', 'CAFE_TABLE_06'], service: { tx: 11, ty: 8 } },
+    { id: 'MESA_03', seats: ['CAFE_TABLE_03', 'CAFE_TABLE_07'], service: { tx: 2, ty: 9 } },
+    { id: 'MESA_04', seats: ['CAFE_TABLE_04', 'CAFE_TABLE_08'], service: { tx: 14, ty: 8 } },
+    { id: 'VENTANA', seats: ['CAFE_WINDOW_SEAT'], service: { tx: 11, ty: 3 } },
+  ],
   // Nilo y la clientela los pone data/population.ts según la hora.
   npcs: [],
   spawns: {
@@ -180,6 +226,8 @@ const CAFE: LocationDef = {
     CAFE_EXIT: { tx: 8, ty: 10, kind: 'exit', facing: 'up' },
     CAFE_COUNTER: { tx: 5, ty: 7, kind: 'interact', facing: 'up' },
     CAFE_BARISTA: { tx: 5, ty: 5, kind: 'work', facing: 'down' },
+    // El pase: el final de la barra, donde el camarero recoge lo que prepara Nilo y deja las tazas.
+    CAFE_PASS: { tx: 7, ty: 6, kind: 'interact', facing: 'left' },
     ...CAFE_SEATS,
     CAFE_QUEUE_01: { tx: 5, ty: 8, kind: 'wait', facing: 'up' },
     CAFE_QUEUE_02: { tx: 5, ty: 9, kind: 'wait', facing: 'up' },

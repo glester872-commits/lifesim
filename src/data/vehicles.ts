@@ -9,7 +9,7 @@
  */
 
 /** Silueta: cómo se reparte el perfil entre capó, cabina y caja. */
-export type VehicleShape = 'hatch' | 'sedan' | 'suv' | 'van' | 'bus' | 'box-truck' | 'garbage' | 'pickup';
+export type VehicleShape = 'city' | 'hatch' | 'sedan' | 'wagon' | 'suv-compact' | 'suv' | 'van' | 'bus' | 'coach' | 'box-truck' | 'garbage' | 'pickup';
 
 /** Franjas del día con tráfico distinto. */
 export type TrafficBand = 'dawn' | 'morning' | 'midday' | 'evening' | 'night';
@@ -46,38 +46,71 @@ export interface VehicleType extends MoverType {
   height: number;
   /** Lo que lo distingue: la franja del taxi, la caja del camión, la rotativa del servicio. */
   trim?: { stripe?: string; box?: string; roof?: 'taxi' | 'beacon' | 'sign' };
+  /** Autobuses: la línea que lleva el letrero de cada variante (una por color, en orden). */
+  routes?: readonly string[];
 }
 
+/** Banda y horario del taxi: más de madrugada y de noche, menos por calles de barrio. */
+const TAXI = { colors: ['#f2f0ea'], trim: { stripe: '#c8202a', roof: 'taxi' as const }, bands: { dawn: 3, night: 2.5, evening: 1.4, morning: 0.8 }, roads: { residential: 0.6 } };
+
 export const VEHICLES: readonly VehicleType[] = [
+  // Turismos: muchos utilitarios y compactos, berlinas y familiares, SUV compactos; los grandes y los premium, pocos.
   {
-    id: 'compact', shape: 'hatch', length: 26, height: 15, pace: 1,
-    colors: ['#8a3f45', '#3f6f78', '#c49a3a', '#6d7078'],
+    id: 'city', shape: 'city', length: 26, height: 16, pace: 0.95,
+    colors: ['#e6e2da', '#8a3f45', '#3f6f78', '#c9b25a', '#2b2d33', '#9ab0c4'],
+    weight: 14, bands: { morning: 1.1, evening: 1.1, night: 0.8, dawn: 0.5 }, weekend: 1.1, roads: { residential: 1.3 },
+  },
+  {
+    id: 'compact', shape: 'hatch', length: 28, height: 16, pace: 1,
+    colors: ['#8a3f45', '#3f6f78', '#c49a3a', '#6d7078', '#e8e4dc', '#2a3550', '#1f2126'],
     weight: 22, bands: { morning: 1.2, evening: 1.2, night: 0.8, dawn: 0.5 }, weekend: 1.1,
   },
   {
-    id: 'sedan', shape: 'sedan', length: 32, height: 15, pace: 1.05,
-    colors: ['#7a4a52', '#b8b2a6', '#2f3f5e', '#3d5a45'],
-    weight: 22, bands: { morning: 1.2, evening: 1.2, night: 0.9, dawn: 0.5 }, weekend: 1.1,
+    id: 'sedan', shape: 'sedan', length: 31, height: 16, pace: 1.05,
+    colors: ['#7a4a52', '#b8b2a6', '#2f3f5e', '#3d5a45', '#1f2126', '#e6e2d8'],
+    weight: 14, bands: { morning: 1.2, evening: 1.2, night: 0.9, dawn: 0.5 }, weekend: 1.1,
   },
   {
-    id: 'suv', shape: 'suv', length: 32, height: 18, pace: 1,
+    id: 'wagon', shape: 'wagon', length: 32, height: 17, pace: 1.05,
+    colors: ['#5a6470', '#2b2d33', '#b8b2a6', '#3a4f6e'],
+    weight: 8, bands: { morning: 1.2, evening: 1.1, night: 0.7, dawn: 0.5 }, weekend: 1.2,
+  },
+  {
+    id: 'suv-compact', shape: 'suv-compact', length: 30, height: 18, pace: 1,
+    colors: ['#9aa0a6', '#e6e2d8', '#7a2f30', '#2f3f5e', '#5a6048', '#c9c2b2'],
+    weight: 12, bands: { dawn: 0.5 }, weekend: 1.2,
+  },
+  {
+    id: 'suv', shape: 'suv', length: 33, height: 20, pace: 1,
     colors: ['#2b2d33', '#9aa0a6', '#5a6048'],
-    weight: 12, bands: { dawn: 0.4 }, weekend: 1.3,
+    weight: 5, bands: { dawn: 0.4 }, weekend: 1.3,
   },
   {
-    id: 'taxi', shape: 'sedan', length: 32, height: 16, pace: 1.1,
-    colors: ['#eeeae0'], trim: { stripe: '#c0493f', roof: 'taxi' },
-    weight: 8, bands: { dawn: 3, night: 2.5, evening: 1.4, morning: 0.8 }, roads: { residential: 0.6 },
+    id: 'premium', shape: 'sedan', length: 34, height: 16, pace: 1.1,
+    colors: ['#14161a', '#3a3f48', '#e8e8ec'],
+    weight: 2.5, bands: { dawn: 0.5, night: 1.2 }, roads: { residential: 0.5 },
   },
+  // Taxis de Madrid: blancos con la banda roja en diagonal y el piloto en el techo, sobre varias carrocerías.
+  { ...TAXI, id: 'taxi', shape: 'sedan', length: 31, height: 16, pace: 1.1, weight: 4 },
+  { ...TAXI, id: 'taxi-wagon', shape: 'wagon', length: 32, height: 17, pace: 1.1, weight: 2 },
+  { ...TAXI, id: 'taxi-suv', shape: 'suv-compact', length: 30, height: 18, pace: 1.1, weight: 2 },
+  { ...TAXI, id: 'taxi-hybrid', shape: 'hatch', length: 28, height: 16, pace: 1.1, weight: 2 },
   {
     id: 'van', shape: 'van', length: 38, height: 21, pace: 0.95,
-    colors: ['#dcd8cf', '#d9b13b', '#7b5a3c'], trim: { stripe: '#4c8a54' },
+    colors: ['#dcd8cf', '#d9b13b', '#7b5a3c', '#e8e6e0'], trim: { stripe: '#4c8a54' },
     weight: 10, bands: { morning: 2.2, midday: 1.2, evening: 0.5, night: 0.1, dawn: 0.2 }, weekend: 0.4, roads: { residential: 1.2 },
   },
+  // Autobús urbano azul, de piso bajo y tres puertas; un color por línea (el letrero lleva su número).
   {
     id: 'bus', shape: 'bus', length: 80, height: 29, pace: 0.8,
-    colors: ['#2f6fa8'], trim: { stripe: '#eeeae0', roof: 'sign' },
-    weight: 5, bands: { dawn: 0.3, night: 0.6 }, weekend: 0.8, roads: { residential: 0 },
+    colors: ['#1f5fae', '#1f5fae', '#1f5fae', '#1f5fae'], routes: ['27', '34', '58', '74'],
+    weight: 4, bands: { dawn: 0.3, night: 0.6 }, weekend: 0.8, roads: { residential: 0 },
+  },
+  // Interurbano verde: sólo por la avenida (sale del barrio hacia la periferia), menos que el urbano.
+  {
+    id: 'interurban', shape: 'coach', length: 84, height: 30, pace: 0.85,
+    colors: ['#2e9a48', '#2e9a48', '#2e9a48'], routes: ['521', '561', '652'],
+    weight: 1.6, bands: { morning: 1.3, evening: 1.2, night: 0.5, dawn: 0.4 }, weekend: 0.7, roads: { residential: 0 },
   },
   {
     id: 'small-truck', shape: 'box-truck', length: 44, height: 22, pace: 0.9,

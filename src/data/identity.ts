@@ -206,6 +206,19 @@ export const ROLE_AFFINITY: Readonly<Record<string, { interests?: readonly Inter
   'popup-dj': { interests: ['music', 'nightlife'], ages: [18, 45] },
   'popup-art': { interests: ['art', 'photography', 'cinema', 'reading'] },
   tourist: { interests: ['travelling', 'photography'] },
+  // Vida de barrio: los bancos de la mañana son de los mayores; la plaza de madrugada y la fuente de noche, de gente joven; el bar, de adultos.
+  'plaza-elders': { ages: [62, 99] },
+  'park-elders': { ages: [62, 99] },
+  'plaza-evening': { ages: [16, 55] },
+  'plaza-night': { ages: [18, 45] },
+  'plaza-couple': { ages: [16, 85] },
+  'park-couple': { ages: [16, 85] },
+  'rincon-breakfast': { ages: [25, 92] },
+  'rincon-vermut': { interests: ['food'], ages: [25, 92] },
+  'rincon-night': { interests: ['football'], ages: [20, 85] },
+  'rincon-smoke': { ages: [18, 80] },
+  kiosk: { interests: ['reading'], ages: [30, 99] },
+  bakery: { interests: ['food'] },
 };
 
 /** Lo que hace en el barrio quien no vive aquí: nada que salga de un portal. */

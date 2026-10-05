@@ -18,7 +18,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -96,6 +96,10 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   'res-modern': { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#dde2e3', shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass' },
   arcade: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#2a2640', shop: 'glass', upper: 'band', lit: NEON_PINK, door: 'glass', sign: 'joystick', wallArt: 'mural' },
   sports: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#3f6f9a', shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: ['#d9772e', PALETTE.white], sign: 'ball' },
+  // Horno San Blas: revoco crema, toldo de rayas marrón y crema, escaparate de panes con luz cálida y la barra de pan.
+  bakery: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#e3cfa4', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#8a5a32', '#efe2c4'], sign: 'bread' },
+  // Alimentación Mari: azulejo verde, toldo verde y blanco, cajas de fruta y baldas a la vista y la cesta.
+  grocer: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#5f8a6e', shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: [PALETTE.leaf, PALETTE.white], sign: 'basket' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
 };
 
@@ -161,11 +165,17 @@ function drawRoofArea(ctx: Ctx, look: Look, style: BuildingStyle, tone: number, 
       for (let x = 0; x < w; x += 8) {
         const r = (k: number): number => noise(seed + x, y, k);
         // Más intemperie que en la teja: la azotea es grande y plana, y sin manchas amplias se lee como una rejilla.
-        const t = shade(base, weather(x, y) * 1.8 + (r(1) - 0.5) * 0.035);
+        const t = shade(base, weather(x, y) * 2.2 + (r(1) - 0.5) * 0.045);
         px(ctx, t, x, y, 8, 8);
-        px(ctx, shade(t, 0.03), x, y, 8, 1);
-        px(ctx, shade(t, -0.06), x, y + 7, 8, 1);
-        px(ctx, shade(t, -0.05), x + 7, y, 1, 7);
+        // Grava de la tela asfáltica: motas oscuras y alguna clara, distintas en cada losa. A zoom de
+        // juego la azotea deja de leerse como un gris liso y se lee como material.
+        for (let k = 0; k < 7; k++) {
+          const g = r(20 + k);
+          px(ctx, shade(t, g < 0.7 ? -0.06 : 0.05), x + Math.floor(r(30 + k) * 7), y + Math.floor(r(40 + k) * 7));
+        }
+        px(ctx, shade(t, 0.04), x, y, 8, 1);
+        px(ctx, shade(t, -0.08), x, y + 7, 8, 1);
+        px(ctx, shade(t, -0.06), x + 7, y, 1, 7);
         // Parche sellado: pocos y de forma irregular (a pares de losas cuadradas se leían como lunares).
         if (r(2) < 0.012) {
           px(ctx, shade(t, -0.05), x + 1, y + 2, 5 + Math.floor(r(5) * 5), 3);
@@ -175,7 +185,7 @@ function drawRoofArea(ctx: Ctx, look: Look, style: BuildingStyle, tone: number, 
       }
     }
     // Cercos de agua: donde encharca, el barro se oscurece en manchas, no en recuadros.
-    ctx.globalAlpha = 0.06;
+    ctx.globalAlpha = 0.075;
     for (let y = 3; y < h - 3; y++) {
       for (let x = 3; x < w - 3; x++) if (batch(x, y, 14, seed + 9) > 0.55) px(ctx, PALETTE.ink, x, y);
     }
@@ -670,7 +680,7 @@ function drawAwningStyle(ctx: Ctx, look: Look, k: number): void {
 }
 
 /** Lo que se expone en un escaparate (14 × 16), según el oficio y la tienda. */
-type Goods = 'rack' | 'mannequins' | 'sale' | 'crates' | 'machines' | 'chair' | 'shelves' | 'plants' | 'sneakers' | 'decks' | 'jewelry' | 'bottles';
+type Goods = 'rack' | 'mannequins' | 'sale' | 'crates' | 'machines' | 'chair' | 'shelves' | 'plants' | 'sneakers' | 'decks' | 'jewelry' | 'bottles' | 'bread';
 const GOODS_BY_STYLE: Partial<Record<BuildingStyle, readonly Goods[]>> = {
   fashion: ['mannequins', 'rack', 'sale', 'mannequins'],
   vintage: ['rack', 'mannequins', 'plants', 'rack'],
@@ -683,6 +693,8 @@ const GOODS_BY_STYLE: Partial<Record<BuildingStyle, readonly Goods[]>> = {
   sneaker: ['sneakers', 'sneakers', 'shelves', 'sneakers'],
   piercing: ['chair', 'jewelry', 'chair', 'jewelry'],
   bar: ['bottles', 'shelves', 'bottles', 'bottles'],
+  bakery: ['bread', 'bread', 'shelves', 'bread'],
+  grocer: ['crates', 'shelves', 'crates', 'shelves'],
 };
 const GOODS: readonly Goods[] = ['rack', 'mannequins', 'sale', 'crates', 'machines', 'chair', 'shelves', 'plants', 'sneakers', 'decks', 'jewelry', 'bottles'];
 
@@ -738,6 +750,13 @@ function drawGoods(ctx: Ctx, g: Goods): void {
       px(ctx, PALETTE.ink, 4, 7, 6, 5);
       px(ctx, shade(PALETTE.rug, 0.1), 4, 7, 6, 2);
       px(ctx, PALETTE.metalLit, 6, 12, 2, 3);
+      break;
+    case 'bread':
+      // Baldas de horno: barras, hogazas redondas y una bandeja de bollos, todo en tonos de corteza.
+      for (const y of [5, 10, 15]) px(ctx, shelf, 0, y, 14, 1);
+      for (const x of [1, 6]) { px(ctx, '#d9a24a', x, 3, 5, 2); px(ctx, '#f3e2b8', x + 1, 3, 1, 1); px(ctx, '#f3e2b8', x + 3, 3, 1, 1); }
+      for (const x of [1, 5, 9]) { px(ctx, '#b87a3a', x, 7, 4, 3); px(ctx, '#d9a24a', x + 1, 7, 2, 1); }
+      for (const x of [2, 5, 8, 11]) px(ctx, '#e0b060', x, 13, 2, 2);
       break;
     case 'shelves':
       for (const y of [4, 9, 14]) px(ctx, shelf, 1, y, 12, 1);
@@ -899,7 +918,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     cross: PALETTE.leafLit, scissors: PALETTE.glassLit, euro: PALETTE.amber, apple: RUST, key: PALETTE.amber,
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
-    sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e',
+    sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e', bread: PALETTE.amber,
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -939,6 +958,14 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     // Mando de recreativa: la bola roja, el palo, la base y dos botones.
     case 'joystick': px(ctx, RUST, 6, 3, 4, 3); p(7, 6, 2, 4); p(4, 10, 8, 2); px(ctx, NEON_CYAN, 11, 8, 2, 2); px(ctx, PALETTE.amber, 3, 8, 2, 2); break;
     // Pelota: el círculo con la costura en cruz.
+    // Barra de pan en diagonal: corteza dorada con sus tres cortes claros.
+    case 'bread': {
+      const crust = '#d9a24a';
+      for (let i = 0; i < 7; i++) px(ctx, crust, 3 + i, 9 - i, 3, 3);
+      px(ctx, shade(crust, -0.2), 4, 11, 2, 1);
+      for (const [x, y] of [[5, 8], [7, 6], [9, 4]] as const) px(ctx, '#f3e2b8', x, y, 2, 1);
+      break;
+    }
     case 'ball': p(6, 3, 4, 10); p(4, 5, 8, 6); p(5, 4, 6, 8); px(ctx, PALETTE.ink, 7, 3, 1, 10); px(ctx, PALETTE.ink, 4, 8, 8, 1); break;
   }
 }

@@ -4,14 +4,18 @@ import type { Walker } from '../entities/Walker';
 import type { TrainSystem } from './TrainSystem';
 import { rand, trainHere } from './PassengerAI';
 
-export type SecurityState = 'IDLE' | 'PATROL' | 'OBSERVE' | 'RETURN_TO_POSITION';
+export type SecurityState = 'IDLE' | 'PATROL' | 'OBSERVE' | 'RETURN_TO_POSITION' | 'RESPOND' | 'RESOLVE';
+
+/** Lo que tarda en resolver un aviso al llegar: hablar con quien sea y acompañarle hacia la salida. */
+const RESOLVE_MS = 2_600;
 
 const LOOK_AROUND: readonly Facing[] = ['up', 'left', 'right', 'down'];
 
 /**
  * Vigilante: espera en su puesto y, si ese día toca patrullar, hace rondas
  * cortas parándose a mirar en cada punto. Si entra un tren mientras está en el
- * puesto, lo observa. Todavía no interviene en nada.
+ * puesto, lo observa. Ante un aviso (un carterista, systems/Pickpocket.ts)
+ * deja lo que haga, acude, lo resuelve y vuelve a su puesto.
  */
 export class SecurityAI {
   state: SecurityState = 'IDLE';
@@ -24,7 +28,10 @@ export class SecurityAI {
   private route: readonly Vec2[] = [];
   private patrolling = false;
   private observedCycle = 0;
-  private readonly post: Vec2;
+  /** Aviso en curso: qué hacer al llegar y por dónde volver (el torniquete, si viene del vestíbulo). */
+  private onArrive: (() => void) | null = null;
+  private back: readonly Vec2[] = [];
+  readonly post: Vec2;
   private readonly postFacing: Facing;
   private readonly patrol: readonly Vec2[];
   private readonly patrols: boolean;
@@ -60,8 +67,45 @@ export class SecurityAI {
     return true;
   }
 
+  /** Libre para acudir a un aviso: no está ya en otro. */
+  get available(): boolean {
+    return this.state !== 'RESPOND' && this.state !== 'RESOLVE';
+  }
+
+  /**
+   * Acude a un aviso: deja la ronda, va por `path` (que nunca baja del andén a
+   * la vía: lo da systems/Pickpocket), hace `onArrive` al llegar, se queda
+   * resolviendo un momento y vuelve a su puesto por `back`.
+   */
+  respond(path: readonly Vec2[], back: readonly Vec2[], onArrive: () => void): boolean {
+    if (!this.available || path.length === 0) return false;
+    this.patrolling = false;
+    this.onArrive = onArrive;
+    this.back = back;
+    this.walker.walk([...path], this.cfg.npcWalkingSpeed * 1.25);
+    this.state = 'RESPOND';
+    return true;
+  }
+
   update(deltaMs: number, train: TrainSystem): void {
     switch (this.state) {
+      case 'RESPOND':
+        if (this.walker.step(deltaMs)) {
+          this.state = 'RESOLVE';
+          this.timer = RESOLVE_MS;
+          const arrive = this.onArrive;
+          this.onArrive = null;
+          arrive?.();
+        }
+        return;
+
+      case 'RESOLVE':
+        this.timer -= deltaMs;
+        if (this.timer > 0) return;
+        this.walker.walk([...this.back, this.post], this.cfg.npcWalkingSpeed * 0.8);
+        this.state = 'RETURN_TO_POSITION';
+        return;
+
       case 'IDLE':
         if (trainHere(train) && this.observedCycle !== train.cycle) {
           this.observedCycle = train.cycle;

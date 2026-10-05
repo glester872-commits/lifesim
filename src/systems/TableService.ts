@@ -18,7 +18,10 @@ import { between, type Rng } from './MetroDaily.ts';
  * pagan y se van; al irse queda la vajilla hasta que alguien recoge.
  *
  * Mesa: AVAILABLE → OCCUPIED → WAITING_TO_ORDER → ORDERED → SERVED →
- * WAITING_TO_PAY → PAID → (se van) DIRTY → (recogida) AVAILABLE.
+ * WAITING_TO_PAY → PAID → (se van) DIRTY → (recogida) AVAILABLE. El jugador,
+ * al acabar una ronda, queda en ROUND_DONE: pide otra (vuelve a
+ * WAITING_TO_ORDER con lo de antes en la cuenta) o la cuenta. Todas las rondas
+ * de una visita son la misma mesa y la misma cuenta: se cobra lo no pagado.
  *
  * Camarero: IDLE, CHECKING_TABLES, GOING_TO_TABLE, TAKING_ORDER,
  * GOING_TO_KITCHEN, WAITING_FOR_ORDER, DELIVERING_ORDER, SERVING,
@@ -30,7 +33,7 @@ const MS_PER_MIN = 1000 / GAME_MINUTES_PER_REAL_SECOND;
 /** Quien come en una mesa y no es un agente: el jugador. */
 export const PLAYER = -1;
 
-export type TableState = 'AVAILABLE' | 'OCCUPIED' | 'WAITING_TO_ORDER' | 'ORDERED' | 'SERVED' | 'WAITING_TO_PAY' | 'PAID' | 'DIRTY';
+export type TableState = 'AVAILABLE' | 'OCCUPIED' | 'WAITING_TO_ORDER' | 'ORDERED' | 'SERVED' | 'ROUND_DONE' | 'WAITING_TO_PAY' | 'PAID' | 'DIRTY';
 export type WaiterState =
   | 'IDLE' | 'CHECKING_TABLES' | 'GOING_TO_TABLE' | 'TAKING_ORDER' | 'GOING_TO_KITCHEN' | 'WAITING_FOR_ORDER'
   | 'DELIVERING_ORDER' | 'SERVING' | 'TAKING_PAYMENT' | 'CLEARING_TABLE' | 'RETURNING';
@@ -42,6 +45,12 @@ export interface Plate {
   item: MenuItem;
   seat: string;
   left: number;
+  /** Ya está en la mesa (las rondas que van llegando se suman a lo de antes). */
+  served: boolean;
+  /** Ya se ha pagado: la cuenta sólo cobra lo que no. */
+  paid: boolean;
+  /** Su energía ya se ha contado (al acabarlo). */
+  credited: boolean;
 }
 
 export interface Table {
@@ -89,7 +98,7 @@ export interface ServiceHost {
 
 /** Lo que el jugador tiene delante: la escena lo enseña y responde con playerOrder / playerPay. */
 export type PlayerCall =
-  | { kind: 'order'; menu: ServiceMenu; items: readonly MenuItem[] }
+  | { kind: 'order'; menu: ServiceMenu; items: readonly MenuItem[]; again: boolean }
   | { kind: 'served'; plates: readonly MenuItem[] }
   | { kind: 'finished'; energy: number }
   | { kind: 'bill'; total: number };
@@ -202,7 +211,10 @@ export class TableService {
     } else {
       this.to(t, 'SERVED');
       t.ready = t.served = true;
-      for (const p of t.plates) p.left *= 0.2 + this.rng() * 0.8;
+      for (const p of t.plates) {
+        p.served = true;
+        p.left *= 0.2 + this.rng() * 0.8;
+      }
     }
   }
 
@@ -231,7 +243,7 @@ export class TableService {
       return;
     }
     const seat = t.diners.find((d) => d.who === PLAYER)!.seat;
-    t.plates.push(...items.map((item) => ({ item, seat, left: item.duration * MS_PER_MIN })));
+    t.plates.push(...items.map((item) => ({ item, seat, served: false, paid: false, credited: false, left: item.duration * MS_PER_MIN })));
     this.placed(t);
   }
 
@@ -243,9 +255,32 @@ export class TableService {
       this.later(t, 'bill');
       return 0;
     }
+    const total = this.bill(t);
+    for (const p of t.plates) p.paid = true;
     this.to(t, 'PAID');
     this.done(t);
-    return this.bill(t);
+    return total;
+  }
+
+  /**
+   * Lo que pide el jugador desde la mesa: otra ronda o la cuenta. Llama al
+   * camarero (si están todos ocupados, la petición espera su turno en la cola).
+   * Devuelve por qué no se puede ahora, para decírselo; null si se puede.
+   */
+  playerAsk(kind: 'order' | 'bill'): string | null {
+    const t = this.playerTable;
+    if (!t) return 'No estás en una mesa.';
+    if (t.state === 'OCCUPIED' || t.state === 'WAITING_TO_ORDER') return t.waiter !== null ? 'Ya viene el camarero.' : 'Ya te han visto: ahora vienen.';
+    if (t.state === 'ORDERED') return 'Lo que has pedido está saliendo.';
+    if (kind === 'bill') {
+      if (t.state === 'WAITING_TO_PAY') return 'Ya te traen la cuenta.';
+      if (this.bill(t) === 0) return 'No debes nada.';
+      this.request(t, 'bill', 'WAITING_TO_PAY');
+      return null;
+    }
+    if (t.state === 'WAITING_TO_PAY') return 'Primero la cuenta: ya te la traen.';
+    this.request(t, 'order', 'WAITING_TO_ORDER');
+    return null;
   }
 
   /**
@@ -256,7 +291,7 @@ export class TableService {
     const t = this.playerTable;
     this.playerSeated = false;
     if (!t) return 0;
-    const owed = t.state === 'PAID' || t.plates.length === 0 ? 0 : this.bill(t);
+    const owed = this.bill(t);
     t.diners = t.diners.filter((d) => d.who !== PLAYER);
     this.empty(t);
     return owed;
@@ -275,10 +310,12 @@ export class TableService {
         return t.ready ? 'Tu pedido sale de cocina' : 'Tu pedido está en cocina';
       case 'SERVED':
         return 'Comiendo';
+      case 'ROUND_DONE':
+        return 'Terminado · E: pedir algo más o la cuenta';
       case 'WAITING_TO_PAY':
         return coming ? 'Te traen la cuenta' : 'Esperando la cuenta';
       case 'PAID':
-        return 'Pagado · puedes quedarte o irte';
+        return 'Pagado · E: pedir algo más, o levántate';
       default:
         return null;
     }
@@ -287,7 +324,7 @@ export class TableService {
   /** Si el jugador está comiendo ahora mismo (para la pose de comer). */
   get playerEating(): boolean {
     const t = this.playerTable;
-    return !!t && t.state === 'SERVED' && t.plates.some((p) => p.left > 0);
+    return !!t && t.plates.some((p) => p.served && p.left > 0);
   }
 
   // ----------------------------------------------------------------- tiempo
@@ -311,6 +348,17 @@ export class TableService {
       const a = this.agent(d.who);
       if (a && a.path.length === 0) a.state = t.state === 'SERVED' ? 'DINE' : t.diners.length > 1 ? 'TALK' : 'WAIT';
     }
+    // Lo servido se come pase lo que pase en la mesa (también mientras llega otra ronda o la cuenta).
+    let gained = 0;
+    for (const p of t.plates) {
+      if (!p.served || p.left === 0) continue;
+      p.left = Math.max(0, p.left - deltaMs);
+      if (p.left === 0 && !p.credited) {
+        p.credited = true;
+        gained += p.item.energy;
+      }
+    }
+    if (gained > 0 && t.party === PLAYER) this.onPlayer?.({ kind: 'finished', energy: gained });
     switch (t.state) {
       case 'OCCUPIED':
         if (this.allSeated(t) && this.now >= t.due) this.request(t, 'order', 'WAITING_TO_ORDER');
@@ -322,10 +370,10 @@ export class TableService {
         }
         break;
       case 'SERVED':
-        for (const p of t.plates) p.left = Math.max(0, p.left - deltaMs);
+        // Acabada la ronda: la gente pide la cuenta; el jugador decide si otra o la cuenta (playerAsk).
         if (t.plates.every((p) => p.left === 0)) {
-          if (t.party === PLAYER) this.onPlayer?.({ kind: 'finished', energy: t.plates.reduce((s, p) => s + p.item.energy, 0) });
-          this.request(t, 'bill', 'WAITING_TO_PAY');
+          if (t.party === PLAYER) this.to(t, 'ROUND_DONE');
+          else this.request(t, 'bill', 'WAITING_TO_PAY');
         }
         break;
       case 'PAID':
@@ -394,7 +442,7 @@ export class TableService {
         if (w.job === 'order') this.wait(w, a, 'TAKING_ORDER', player ? MS.playerWait : between(this.rng, ...MS.takeOrder));
         else if (w.job === 'bill') this.wait(w, a, 'TAKING_PAYMENT', player ? MS.playerWait : between(this.rng, ...MS.pay));
         else this.wait(w, a, 'CLEARING_TABLE', between(this.rng, ...MS.clear));
-        if (player && w.job === 'order') this.onPlayer?.({ kind: 'order', menu: this.menu, items: availableItems(this.menu, this.hour) });
+        if (player && w.job === 'order') this.onPlayer?.({ kind: 'order', menu: this.menu, items: availableItems(this.menu, this.hour), again: t.plates.length > 0 });
         if (player && w.job === 'bill') this.onPlayer?.({ kind: 'bill', total: this.bill(t) });
         return;
       }
@@ -432,9 +480,10 @@ export class TableService {
         a.carry = undefined;
         if (t && this.stillNeeds(t, 'deliver')) {
           t.served = true;
+          for (const p of t.plates) p.served = true;
           this.to(t, 'SERVED');
           this.done(t);
-          if (t.party === PLAYER) this.onPlayer?.({ kind: 'served', plates: t.plates.map((p) => p.item) });
+          if (t.party === PLAYER) this.onPlayer?.({ kind: 'served', plates: t.plates.filter((p) => p.left > 0).map((p) => p.item) });
         }
         return this.finish(w, a);
       case 'TAKING_PAYMENT':
@@ -505,7 +554,7 @@ export class TableService {
       if (!seat || t.plates.some((p) => p.seat === seat)) continue;
       const mine = [this.rng() < 0.8 ? pick(food) : undefined, this.rng() < 0.9 ? pick(drink) : undefined];
       if (!mine[0] && !mine[1]) mine[1] = pick(drink);
-      for (const item of mine) if (item) t.plates.push({ item, seat, left: item.duration * MS_PER_MIN * (0.8 + this.rng() * 0.4) });
+      for (const item of mine) if (item) t.plates.push({ item, seat, served: false, paid: false, credited: false, left: item.duration * MS_PER_MIN * (0.8 + this.rng() * 0.4) });
     }
   }
 
@@ -514,11 +563,12 @@ export class TableService {
     this.to(t, 'ORDERED');
     this.done(t);
     t.ready = false;
-    t.due = this.now + Math.max(...t.plates.map((p) => p.item.prep)) * MS_PER_MIN;
+    // Sale cuando esté lo más lento de lo que falta por servir (lo de rondas anteriores ya está en la mesa).
+    t.due = this.now + Math.max(0, ...t.plates.filter((p) => !p.served).map((p) => p.item.prep)) * MS_PER_MIN;
   }
 
   private bill(t: Table): number {
-    return t.plates.reduce((sum, p) => sum + p.item.price, 0);
+    return t.plates.reduce((sum, p) => sum + (p.paid ? 0 : p.item.price), 0);
   }
 
   private request(t: Table, job: Job, state: TableState): void {

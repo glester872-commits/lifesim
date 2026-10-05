@@ -144,6 +144,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   hoop: { key: 'prop-hoop', tilesHigh: 2 },
   wardrobe: { key: 'prop-wardrobe', tilesHigh: 2 },
   sofa: { key: 'prop-sofa', tilesHigh: 1, tilesWide: 2, mount: true },
+  // De espaldas a la cámara (el sofá mira al sur): de noche, la pantalla tiñe de frío la pared.
+  tv: { key: 'prop-tv', tilesHigh: 1, tilesWide: 2, light: { dy: 4, cool: true } },
   treadmill: { key: 'prop-treadmill', tilesHigh: 2, mount: true },
   // Estante de mancuernas contra el espejo: tres tiles de ancho, bajo.
   weights: { key: 'prop-weights', tilesHigh: 2, tilesWide: 3 },

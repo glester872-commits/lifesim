@@ -515,13 +515,21 @@ function drawMetroHeroGlow(ctx: Ctx): void {
     ctx.globalAlpha = 0.34 - k * 0.06;
     px(ctx, '#bfe8ff', 27, 35 - k, W - 54, 1);
   }
-  // La luz fría sube por los peldaños de arriba, cada vez más débil hacia la calle.
-  for (let k = 0; k < 5; k++) {
-    ctx.globalAlpha = 0.2 - k * 0.035;
-    px(ctx, '#cfeeff', 27, 37 + k * 3, W - 54, 1);
+  // La luz fría sube por la escalera: cada canto de peldaño la atrapa (más cerca del túnel, más fuerte)
+  // y la contrahuella de debajo queda en penumbra. Se lee escalón a escalón, no como una losa gris.
+  const sx = 26;
+  const sw = W - 52;
+  for (let k = 0; k < 9; k++) {
+    const y = H - 3 - k * 3;
+    ctx.globalAlpha = 0.08 + k * 0.05;
+    px(ctx, '#cfeeff', sx + 2, y - 2, sw - 4, 1);
+    ctx.globalAlpha = (0.08 + k * 0.05) * 0.35;
+    px(ctx, '#cfeeff', sx + 2, y - 1, sw - 4, 1);
   }
-  ctx.globalAlpha = 0.18;
-  px(ctx, WARM, 26, 42, W - 52, H - 44);
+  // Sólo los dos últimos peldaños, ya en la calle, cogen el ámbar de los apliques: un velo cálido
+  // sobre toda la bajada la aplanaba en una persiana gris.
+  ctx.globalAlpha = 0.16;
+  px(ctx, WARM, sx, H - 7, sw, 5);
   ctx.globalAlpha = 1;
 }
 

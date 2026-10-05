@@ -78,6 +78,8 @@ export type PropKind =
   // interiores
   | 'wardrobe'
   | 'sofa'
+  // tu piso: la tele en su mueble bajo, vista desde el sofá
+  | 'tv'
   | 'treadmill'
   | 'weights'
   | 'weight-bench'
@@ -275,6 +277,9 @@ export type BuildingStyle =
   // Ribera Norte: el salón recreativo y la tienda de deportes.
   | 'arcade'
   | 'sports'
+  // Calle Mayor, tramo este: el horno y la tienda de alimentación de toda la vida.
+  | 'bakery'
+  | 'grocer'
   | 'backdrop';
 
 /**
@@ -507,6 +512,8 @@ export interface NpcLook {
   /** Brazos al aire (tirantes) o manga de otro color. */
   sleeves?: string;
   trousers?: string;
+  /** Franja vertical por fuera de cada pernera (el uniforme de seguridad del metro). */
+  stripe?: string;
   /** Calzado fijo al cambiar de capa; sin él, sale del id. */
   shoes?: string;
   /** Manchas sobre el pantalón (leopardo). */

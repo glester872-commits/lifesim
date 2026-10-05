@@ -1,6 +1,7 @@
 import { PALETTE } from '../config/constants';
 import type { Facing, NpcLook } from '../types/game';
 import { px, shade, type Ctx } from './paint';
+import { shadeForm } from './Shading';
 
 /**
  * Personas de 16x24 con los pies en la base: jugador, personajes con nombre y
@@ -25,6 +26,8 @@ export interface HumanColors {
   trousers: string;
   shoes: string;
   sleeves?: string;
+  /** Franja vertical por fuera de cada pernera (uniforme de seguridad del metro). */
+  stripe?: string;
   /** Píxeles de brazo que tapa la manga (0–5); por debajo, piel. Sin él, todo el brazo. */
   sleeveLen?: number;
   /** Tatuajes que se ven con la ropa de hoy (systems/Appearance.ts decide cuáles): dónde y de qué tinta. */
@@ -51,6 +54,30 @@ export interface HumanColors {
   cane?: boolean;
 }
 
+/**
+ * Rampa con matiz para pelo, piel y ropa: la luz sube algo cálida y la sombra baja algo fría, en vez
+ * de sólo sumar o restar brillo (`shade`), que a 16 px deja los tonos lavados.
+ */
+function tone(hex: string, k: number): string {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const out = k >= 0
+    ? [r + (255 - r) * k, g + (255 - g) * k * 0.88, b + (255 - b) * k * 0.65]
+    : [r * (1 + k * 1.12), g * (1 + k), b * (1 + k * 0.72)];
+  return `#${out.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Mezcla dos colores (`k` = cuánto del segundo). */
+function blend(a: string, b: string, k: number): string {
+  const pa = Number.parseInt(a.slice(1), 16);
+  const pb = Number.parseInt(b.slice(1), 16);
+  const ch = (s: number): number => Math.round(((pa >> s) & 255) + (((pb >> s) & 255) - ((pa >> s) & 255)) * k);
+  return `#${[16, 8, 0].map((s) => ch(s).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** Rubor de las mejillas: un punto, nunca una mancha. */
+const BLUSH = '#d9735f';
+
 /** Tinta en ese sitio, si se ve. */
 const inkAt = (c: HumanColors, spot: InkSpot): string | undefined => c.ink?.find((i) => i.spot === spot)?.color;
 
@@ -62,6 +89,12 @@ function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w:
   const covered = Math.min(len, c.sleeveLen ?? len);
   px(ctx, sleeve, x, y, w, covered);
   px(ctx, skin, x, y + covered, w, len + 1 - covered);
+  if (w >= 2) {
+    // De perfil el brazo tiene dos píxeles: el de fuera con luz, el de dentro en sombra (cilindro).
+    px(ctx, tone(sleeve, 0.1), x, y, 1, covered);
+    px(ctx, tone(sleeve, -0.12), x + w - 1, y, 1, covered);
+    px(ctx, tone(skin, -0.1), x + w - 1, y + covered, 1, len + 1 - covered);
+  }
   const fore = inkAt(c, side === 'r' ? 'arm-r' : 'arm-l');
   if (fore && covered < len - 1) px(ctx, fore, x, y + len - 2, 1, 1);
   const hand = side === 'r' ? inkAt(c, 'hand-r') : undefined;
@@ -93,7 +126,7 @@ export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 1
 export const FIGHT_POSES: readonly Pose[] = [0, 7, 8, 9, 10, 27, 28, 29, 30, 31];
 
 /** Cuánto baja el tronco en cada pose: al apoyar, respirar o ponerse en guardia, uno; sentado (también en la bici), tres. */
-const drop = (pose: Pose): number => (pose === 28 ? 4 : pose === 29 ? 2 : pose === 24 ? 4 : pose === 4 || pose === 25 || pose === 26 || pose === 33 || pose === 13 || pose === 14 ? 3 : (pose >= 1 && pose <= 3) || pose === 8 || pose === 9 ? 1 : 0);
+export const drop = (pose: Pose): number => (pose === 28 ? 4 : pose === 29 ? 2 : pose === 24 ? 4 : pose === 4 || pose === 25 || pose === 26 || pose === 33 || pose === 13 || pose === 14 ? 3 : (pose >= 1 && pose <= 3) || pose === 8 || pose === 9 ? 1 : 0);
 /** Mirando el móvil, de pie o sentado. */
 const onPhone = (pose: Pose): boolean => pose === 5 || pose === 25;
 /** Sentado: las piernas de la 4, sea lo que sea lo que haga arriba. */
@@ -398,6 +431,16 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   leg(ctx, c, inner, 8, 17, 3, 5 - liftR);
   px(ctx, c.shoes, 5, 22 - liftL, 3, 2);
   px(ctx, c.shoes, 8, 22 - liftR, 3, 2);
+  // La entrepierna separa las dos piernas; la suela, más oscura que el empeine, asienta el pie.
+  px(ctx, tone(inner, -0.22), 8, 18, 1, 4 - liftR);
+  px(ctx, tone(inner, -0.1), 10, 18, 1, 4 - liftR);
+  px(ctx, tone(c.shoes, -0.3), 5, 23 - liftL, 3, 1);
+  px(ctx, tone(c.shoes, -0.3), 8, 23 - liftR, 3, 1);
+  // Uniforme: la franja baja por el canto de fuera de cada pernera, de la cadera al tobillo.
+  if (c.stripe) {
+    px(ctx, c.stripe, 5, 18, 1, 4 - liftL);
+    px(ctx, c.stripe, 10, 18, 1, 4 - liftR);
+  }
 
   // Brazos: se balancean al contrario que las piernas.
   const sleeve = c.sleeves ?? c.cloth;
@@ -468,24 +511,43 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   }
 
   // Tronco: hombros, luz a la izquierda, cintura oscura.
+  // Rampa de cuatro pasos de izquierda a derecha: luz, base, semisombra y sombra. La tela tiene
+  // volumen redondo en vez de dos franjas planas.
   px(ctx, c.cloth, 4, 10 + b, 8, 7 - b);
-  px(ctx, shade(c.cloth, 0.06), 4, 10 + b, 2, 6 - b);
+  px(ctx, tone(c.cloth, 0.12), 4, 10 + b, 2, 6 - b);
+  px(ctx, tone(c.cloth, -0.07), 9, 11 + b, 1, 5 - b);
   px(ctx, c.clothDark, 10, 11 + b, 2, 5 - b);
   px(ctx, c.clothDark, 4, 16, 8, 1);
   if (!back) px(ctx, shade(c.skin, -0.06), 7, 10 + b, 2, 1); // escote
   // Volumen de la ropa: el hombro con luz, el cuello marcado, un pliegue al centro y el cinturón que
   // separa tronco y piernas. Un píxel cada cosa: se lee a distancia sin recargar.
-  px(ctx, shade(c.cloth, 0.16), 4, 10 + b, 3, 1);
+  px(ctx, tone(c.cloth, 0.2), 4, 10 + b, 3, 1);
+  if (back) px(ctx, tone(c.cloth, 0.1), 7, 10 + b, 1, 1);
+  // Bajo el brazo de la sombra, la tela se hunde: separa brazo y tronco.
+  px(ctx, tone(c.clothDark, -0.2), 11, 11 + b, 1, 2);
   if (!back) {
-    px(ctx, shade(c.cloth, -0.2), 6, 10 + b, 1, 1);
-    px(ctx, shade(c.cloth, -0.2), 9, 10 + b, 1, 1);
-    if (b < 3) px(ctx, shade(c.cloth, -0.07), 8, 12 + b, 1, 3);
+    px(ctx, tone(c.cloth, -0.24), 6, 10 + b, 1, 1);
+    px(ctx, tone(c.cloth, -0.24), 9, 10 + b, 1, 1);
+    // Pliegues que bajan del hombro de luz hacia la cintura, en diagonal: tela, no un bloque.
+    if (b < 3) {
+      px(ctx, tone(c.cloth, -0.12), 7, 13 + b, 1, 1);
+      px(ctx, tone(c.cloth, -0.12), 8, 14 + b, 1, 1);
+      px(ctx, tone(c.cloth, 0.08), 6, 12 + b, 1, 1);
+      px(ctx, tone(c.cloth, -0.08), 9, 12 + b, 1, 1);
+    }
+  } else if (b < 3) {
+    // De espaldas: la columna, un surco suave en la tela.
+    px(ctx, tone(c.cloth, -0.08), 8, 12 + b, 1, 3);
   }
-  if (b < 3) px(ctx, shade(c.trousers, -0.32), 5, 17, 6, 1);
+  if (b < 3) px(ctx, tone(c.trousers, -0.34), 5, 17, 6, 1);
   if (!seated(pose) && pose !== 13 && pose !== 14) {
-    px(ctx, shade(c.trousers, 0.1), 5, 18, 1, 4 - stepL);
-    px(ctx, shade(c.shoes, 0.3), 5, 22 - liftL, 1, 1);
-    px(ctx, shade(c.shoes, 0.3), 8, 22 - liftR, 1, 1);
+    // El canto de la pierna de la luz; con uniforme, ahí va su franja (ver arriba).
+    px(ctx, c.stripe ?? tone(c.trousers, 0.12), 5, 18, 1, 4 - stepL);
+    px(ctx, tone(c.shoes, 0.32), 5, 22 - liftL, 1, 1);
+    px(ctx, tone(c.shoes, 0.32), 8, 22 - liftR, 1, 1);
+    // Al dar el paso, la rodilla que avanza coge luz: el paso se lee aunque el pie sólo suba un píxel.
+    if (stepL) px(ctx, tone(c.trousers, 0.16), 6, 19, 1, 1);
+    if (stepR) px(ctx, tone(inner, 0.14), 9, 19, 1, 1);
   }
 
   // Cuello y cabeza redondeada.
@@ -496,11 +558,23 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   px(ctx, c.skin, 4, 3 + b, 8, 5);
   px(ctx, shade(c.skin, -0.07), 10, 3 + b, 2, 5);
   if (!back) {
-    // Mirando el móvil, los ojos bajan: medio ojo, un píxel más abajo.
+    // Modelado de la cara, por debajo de rasgos y pelo: la barbilla en sombra, la cuenca del ojo, la
+    // nariz que echa su sombra a la derecha (luz del noroeste) y un punto de rubor en cada mejilla.
+    px(ctx, tone(c.skin, -0.08), 5, 8 + b, 6, 1);
+    px(ctx, tone(c.skin, -0.05), 6, 4 + b, 1, 1);
+    px(ctx, tone(c.skin, -0.06), 9, 4 + b, 1, 1);
+    px(ctx, tone(c.skin, 0.08), 5, 5 + b, 1, 1);
+    px(ctx, tone(c.skin, -0.12), 8, 6 + b, 1, 1);
+    px(ctx, blend(c.skin, BLUSH, 0.2), 5, 7 + b, 1, 1);
+    px(ctx, blend(tone(c.skin, -0.07), BLUSH, 0.18), 10, 7 + b, 1, 1);
+    // Mirando el móvil, los ojos bajan: medio ojo, un píxel más abajo. Los ojos, del oscuro del
+    // contorno entero: a 16 px es lo que más se lee de la cara.
     const down = onPhone(pose) ? 1 : 0;
     px(ctx, PALETTE.outline, 6, 5 + b + down, 1, 2 - down);
     px(ctx, PALETTE.outline, 9, 5 + b + down, 1, 2 - down);
-    px(ctx, shade(c.skin, -0.14), 7, 7 + b, 2, 1); // boca, apenas
+    // Boca: la comisura de la luz más marcada que la de la sombra.
+    px(ctx, tone(c.skin, -0.24), 7, 7 + b, 1, 1);
+    px(ctx, tone(c.skin, -0.14), 8, 7 + b, 1, 1);
     face(ctx, false, b, c);
   }
   hairFront(ctx, back, b, c);
@@ -602,7 +676,12 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
   if (style === 'buzz') {
     px(ctx, hair, 5, 1 + b, 6, 2);
     px(ctx, hair, 4, 2 + b, 8, 1);
-    if (back) px(ctx, hair, 4, 3 + b, 8, 3);
+    px(ctx, tone(hair, 0.14), 6, 1 + b, 2, 1);
+    px(ctx, tone(hair, -0.12), 10, 2 + b, 2, 1);
+    if (back) {
+      px(ctx, hair, 4, 3 + b, 8, 3);
+      px(ctx, tone(hair, -0.14), 4, 5 + b, 8, 1);
+    }
     return;
   }
   if (style === 'bald') {
@@ -621,21 +700,46 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
     px(ctx, hair, 2, 1 + b, 2, 6);
     px(ctx, hair, 12, 1 + b, 2, 6);
     crown(ctx, lit, 4, b, 3, 1);
-    if (back) px(ctx, hair, 3, 3 + b, 10, 6);
+    // Volumen: brillo arriba a la izquierda, la masa de la derecha y la de abajo en sombra.
+    crown(ctx, tone(hair, 0.2), 5, b, 1, 1);
+    px(ctx, tone(hair, 0.08), 2, 2 + b, 1, 3);
+    px(ctx, tone(hair, -0.16), 12, 4 + b, 2, 3);
+    if (back) {
+      px(ctx, hair, 3, 3 + b, 10, 6);
+      px(ctx, tone(hair, -0.16), 3, 8 + b, 10, 1);
+      px(ctx, tone(hair, -0.08), 10, 3 + b, 3, 5);
+    }
     hat(ctx, back, b, c);
     return;
   }
   // Base: casco de pelo con brillo arriba a la izquierda, un mechón de luz y el borde de abajo en sombra (volumen).
   px(ctx, hair, 5, 1 + b, 6, 1);
   px(ctx, hair, 4, 2 + b, 8, 2);
-  px(ctx, lit, 5, 2 + b, 2, 1);
-  px(ctx, shade(hair, 0.18), 6, 1 + b, 1, 1);
-  px(ctx, shade(hair, -0.14), 9, 3 + b, 3, 1);
-  if (back) px(ctx, hair, 4, 4 + b, 8, 4);
-  else {
+  // Brillo en arco sobre la coronilla (más fuerte arriba, se apaga hacia los lados) y la masa de la
+  // derecha en sombra fría: el casco pasa a tener volumen.
+  px(ctx, tone(hair, 0.12), 5, 2 + b, 1, 1);
+  px(ctx, tone(hair, 0.18), 6, 2 + b, 1, 1);
+  px(ctx, tone(hair, 0.26), 6, 1 + b, 2, 1);
+  px(ctx, tone(hair, 0.1), 8, 1 + b, 1, 1);
+  px(ctx, tone(hair, -0.1), 10, 1 + b, 1, 1);
+  px(ctx, tone(hair, -0.12), 11, 2 + b, 1, 1);
+  if (back) {
+    // De espaldas, la nuca: brillo arriba a la izquierda, un mechón central y la sombra abajo (sin la
+    // franja oscura de la fila 3, que de espaldas se leía como una raja en la cabeza).
+    px(ctx, hair, 4, 4 + b, 8, 4);
+    px(ctx, tone(hair, 0.1), 5, 3 + b, 2, 2);
+    px(ctx, tone(hair, -0.1), 8, 4 + b, 1, 3);
+    px(ctx, tone(hair, -0.12), 10, 3 + b, 2, 4);
+    px(ctx, tone(hair, -0.2), 4, 7 + b, 8, 1);
+  } else {
+    px(ctx, tone(hair, -0.18), 9, 3 + b, 3, 1);
     px(ctx, hair, 4, 4 + b, 3, 1); // flequillo de lado
     px(ctx, hair, 4, 5 + b, 1, 1);
     px(ctx, hair, 11, 4 + b, 1, 2);
+    // Puntas del flequillo y la patilla, en sombra: el pelo cae sobre la frente.
+    px(ctx, tone(hair, -0.12), 6, 4 + b, 1, 1);
+    px(ctx, tone(hair, -0.14), 4, 5 + b, 1, 1);
+    px(ctx, tone(hair, -0.16), 11, 5 + b, 1, 1);
   }
   if (style === 'braids' || style === 'locs') {
     // Trenzas largas y finas o rastas más gruesas y cortas: mechones con su brillo alterno.
@@ -662,19 +766,28 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
     crown(ctx, hair, 5, b, 1, 1);
     crown(ctx, hair, 8, b, 2, 1);
     px(ctx, lit, 9, 1 + b, 1, 1);
+    // Rizos: puntos de luz sueltos a la izquierda y el lado de la sombra más hundido.
+    px(ctx, tone(hair, 0.16), 3, 3 + b, 1, 1);
+    px(ctx, tone(hair, -0.16), 12, 3 + b, 1, 3);
   } else if (style === 'bun') {
     crown(ctx, hair, 6, b - 1, 4, 2);
     crown(ctx, lit, 6, b - 1, 2, 1);
-  } else if (style === 'bob') {
-    px(ctx, hair, 3, 3 + b, 1, 6);
-    px(ctx, hair, 12, 3 + b, 1, 6);
-    if (back) px(ctx, hair, 4, 8 + b, 8, 1);
-  } else if (style === 'long') {
-    px(ctx, hair, 3, 3 + b, 1, 10);
-    px(ctx, hair, 12, 3 + b, 1, 10);
-    if (back) {
+  } else if (style === 'bob' || style === 'long') {
+    // Melena: el lado de la luz con su brillo arriba, el de la sombra más oscuro y las puntas cerradas.
+    const len = style === 'bob' ? 6 : 10;
+    px(ctx, hair, 3, 3 + b, 1, len);
+    px(ctx, hair, 12, 3 + b, 1, len);
+    px(ctx, tone(hair, 0.12), 3, 3 + b, 1, 2);
+    px(ctx, tone(hair, -0.14), 12, 3 + b, 1, len);
+    px(ctx, tone(hair, -0.12), 3, 2 + len + b, 1, 1);
+    if (back && style === 'bob') px(ctx, tone(hair, -0.14), 4, 8 + b, 8, 1);
+    if (back && style === 'long') {
       px(ctx, hair, 4, 8 + b, 8, 5);
       px(ctx, lit, 5, 12 + b, 6, 1);
+      // Mechones que bajan por la espalda.
+      px(ctx, tone(hair, -0.12), 7, 8 + b, 1, 4);
+      px(ctx, tone(hair, -0.12), 10, 9 + b, 1, 3);
+      px(ctx, tone(hair, 0.08), 5, 8 + b, 1, 3);
     }
   }
   hat(ctx, back, b, c);
@@ -696,10 +809,13 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   const step = pose === 1 || pose === 2 || pose === 8 || pose === 9 || pose === 27;
 
   // Piernas: juntas quieto; al andar, una delante y otra detrás; sentado, el muslo hacia delante.
+  // Suela más oscura que el empeine en cada zapato: el pie se asienta.
   if (seated(pose)) {
     leg(ctx, c, c.trousers, 6, 17, 6, 2);
     leg(ctx, c, c.trousers, 10, 19, 2, 3);
     px(ctx, c.shoes, 10, 22, 3, 2);
+    px(ctx, tone(c.trousers, 0.14), 10, 17, 2, 1);
+    px(ctx, tone(c.shoes, -0.3), 10, 23, 3, 1);
   } else if (step) {
     const [front, rear] = pose === 2 ? [far, c.trousers] : [c.trousers, far];
     leg(ctx, c, rear, 5, 17, 3, 2);
@@ -708,15 +824,32 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     leg(ctx, c, front, 8, 17, 3, 2);
     leg(ctx, c, front, 9, 19, 3, 3);
     px(ctx, c.shoes, 9, 22, 4, 2);
+    // La rodilla de delante coge luz y la pierna de atrás se hunde: el paso se lee de lejos.
+    px(ctx, tone(front, 0.14), 10, 19, 1, 1);
+    px(ctx, tone(rear, -0.12), 4, 20, 1, 2);
+    px(ctx, tone(c.shoes, -0.3), 3, 23, 4, 1);
+    px(ctx, tone(c.shoes, -0.3), 9, 23, 4, 1);
+    // Uniforme: la franja de la pierna de cerca (la que da a la cámara), siguiendo su línea.
+    if (c.stripe) {
+      if (pose === 2) {
+        px(ctx, c.stripe, 6, 18, 1, 1);
+        px(ctx, c.stripe, 5, 19, 1, 3);
+      } else {
+        px(ctx, c.stripe, 9, 18, 1, 1);
+        px(ctx, c.stripe, 10, 19, 1, 3);
+      }
+    }
   } else {
     leg(ctx, c, c.trousers, 6, 17, 4, 5);
     px(ctx, far, 6, 18, 1, 4);
     px(ctx, c.shoes, 6, 22, 5, 2);
+    px(ctx, c.stripe ?? tone(c.trousers, 0.1), 8, 18, 1, c.stripe ? 4 : 3);
+    px(ctx, tone(c.shoes, -0.3), 6, 23, 5, 1);
   }
 
   // Tronco de perfil, con el hombro al sol y el cinturón.
   px(ctx, c.cloth, 5, 10 + b, 6, 7 - b);
-  px(ctx, shade(c.cloth, 0.06), 5, 10 + b, 2, 6 - b);
+  px(ctx, tone(c.cloth, 0.12), 5, 10 + b, 2, 6 - b);
   px(ctx, c.clothDark, 5, 16, 6, 1);
   px(ctx, shade(c.cloth, 0.16), 5, 10 + b, 4, 1);
   px(ctx, shade(c.cloth, -0.1), 10, 11 + b, 1, 5 - Math.min(b, 4));
@@ -729,8 +862,16 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   if (nape) px(ctx, nape, 7, 9 + b, 1, 1);
   px(ctx, c.skin, 5, 2 + b, 7, 7);
   px(ctx, c.skin, 12, 5 + b, 1, 2);
+  // Modelado de perfil: la mandíbula en sombra, la oreja con su hueco, la mejilla con rubor, la
+  // punta de la nariz con su sombra debajo y la boca, que antes no se veía.
+  px(ctx, tone(c.skin, -0.08), 8, 8 + b, 4, 1);
+  px(ctx, tone(c.skin, -0.06), 7, 5 + b, 1, 1);
+  px(ctx, tone(c.skin, 0.08), 11, 4 + b, 1, 1);
+  px(ctx, blend(c.skin, BLUSH, 0.2), 10, 7 + b, 1, 1);
+  px(ctx, tone(c.skin, -0.1), 12, 6 + b, 1, 1);
+  px(ctx, tone(c.skin, -0.2), 11, 7 + b, 1, 1);
   px(ctx, PALETTE.outline, 10, 5 + b, 1, 2);
-  px(ctx, shade(c.skin, -0.12), 7, 6 + b, 1, 1);
+  px(ctx, tone(c.skin, -0.14), 7, 6 + b, 1, 1);
   face(ctx, true, b, c);
 
   const hair = c.hair;
@@ -738,6 +879,8 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   if (style === 'buzz') {
     px(ctx, hair, 5, 1 + b, 6, 2);
     px(ctx, hair, 5, 3 + b, 2, 2);
+    px(ctx, tone(hair, 0.14), 7, 1 + b, 2, 1);
+    px(ctx, tone(hair, -0.12), 5, 4 + b, 2, 1);
   } else if (style === 'bald') {
     px(ctx, hair, 5, 4 + b, 2, 2);
     px(ctx, shade(c.skin, 0.1), 7, 2 + b, 2, 1);
@@ -746,11 +889,17 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     crown(ctx, hair, 3, b, 9, 3);
     px(ctx, hair, 2, 1 + b, 4, 7);
     crown(ctx, shade(hair, 0.1), 5, b, 3, 1);
+    px(ctx, tone(hair, -0.16), 2, 5 + b, 3, 2);
   } else {
     px(ctx, hair, 5, 1 + b, 6, 1);
     px(ctx, hair, 4, 2 + b, 8, 2);
-    px(ctx, shade(hair, 0.1), 6, 2 + b, 2, 1);
+    // Brillo en arco sobre la coronilla, la frente del pelo en sombra y la nuca más oscura abajo.
+    px(ctx, tone(hair, 0.14), 6, 2 + b, 2, 1);
+    px(ctx, tone(hair, 0.26), 7, 1 + b, 2, 1);
+    px(ctx, tone(hair, -0.12), 10, 3 + b, 2, 1);
     px(ctx, hair, 4, 4 + b, 3, 3);
+    px(ctx, tone(hair, -0.18), 4, 6 + b, 3, 1);
+    px(ctx, tone(hair, -0.08), 6, 4 + b, 1, 2);
     px(ctx, hair, 11, 4 + b, 1, 1);
     if (style === 'curly') px(ctx, hair, 3, 2 + b, 2, 5);
     if (style === 'braids' || style === 'locs') {
@@ -767,6 +916,10 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     if (style === 'long') {
       px(ctx, hair, 3, 4 + b, 3, 9);
       px(ctx, shade(hair, 0.1), 3, 12 + b, 3, 1);
+      // Mechones: el de fuera con luz, una raya de sombra entre medias y el pegado a la nuca, oscuro.
+      px(ctx, tone(hair, 0.1), 3, 5 + b, 1, 4);
+      px(ctx, tone(hair, -0.12), 4, 7 + b, 1, 5);
+      px(ctx, tone(hair, -0.18), 5, 6 + b, 1, 6);
     }
   }
   if (c.cap) {
@@ -866,19 +1019,27 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, sleeve, 4, 11, 2, 3);
     px(ctx, c.skin, 3, 14, 2, 1);
   } else if (pose === 1) {
+    // El brazo echa su sombra en el tronco, del lado contrario a la luz: se separa de la tela.
+    px(ctx, tone(c.cloth, -0.14), 7, 12 + b, 1, Math.max(0, Math.min(3, 4 - b)));
     arm(ctx, c, near, 5, 11 + b, 2, 4, sleeve, c.skin);
   } else if (pose === 2) {
     arm(ctx, c, near, 9, 11 + b, 2, 4, sleeve, c.skin);
   } else {
+    px(ctx, tone(c.cloth, -0.14), 9, 12 + b, 1, Math.max(0, Math.min(3, 4 - b)));
     arm(ctx, c, near, 7, 11 + b, 2, 5, sleeve, c.skin);
   }
 }
 
-/** Contorno de un píxel alrededor de la silueta: se lee sobre cualquier suelo. */
+/**
+ * Luz de forma por dentro (world/Shading: no toca el alfa, la silueta no cambia) y contorno de un
+ * píxel alrededor: se lee sobre cualquier suelo. Las dos en la misma lectura del lienzo, que el
+ * atlas de gente tiene decenas de miles de poses.
+ */
 function outline(ctx: Ctx): void {
   const { width: w, height: h } = ctx.canvas;
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
+  shadeForm(d, w, h);
   const solid = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0;
   const n = Number.parseInt(PALETTE.outline.slice(1), 16);
   const edge: number[] = [];

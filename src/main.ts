@@ -16,10 +16,16 @@ import { MetroEventManager } from './systems/MetroEventManager';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { CyclistView } from './world/CyclistView';
+import { hdCompare } from './world/HumanArtHD';
+
+import { PLAYER_COLORS, humanKey } from './world/TextureFactory';
+
+import { withAppearance } from './systems/Appearance';
 import { STREET_EVENTS } from './data/streetEvents';
 import { StreetEvent } from './systems/StreetEvents';
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
+import type { ForceOptions } from './systems/Pickpocket';
 import { HUD } from './ui/HUD';
 import { DialogueBox } from './ui/DialogueBox';
 import { TargetHint } from './ui/TargetHint';
@@ -198,6 +204,21 @@ if (import.meta.env.DEV) {
       worldRoute,
       placeInfo,
       placesOfType,
+      // El jugador a 28 × 42 (world/HumanArtHD.drawPlayerHD): lifesim.hdCompare() pone, junto a él y por parejas,
+      // a la izquierda el ORIGINAL de 16 × 24 y a la derecha el HD (la textura que usa su sprite). Otra llamada lo quita.
+      hdCompare: () => {
+        const world = game.scene.getScene('World') as WorldSceneType;
+        return hdCompare(world, { x: state.position.x, y: state.position.y + 26 }, [
+          { label: 'jugador', colors: withAppearance(PLAYER_COLORS, state.appearanceOf('player')), live: (f, p) => ({ key: humanKey('player', f, p) }) },
+        ]);
+      },
+      // Carteristas del metro (systems/Pickpocket), en un andén: lifesim.crime.forcePickpocket() y, para afinar,
+      // forcePickpocket({ victim: 'player' | 'npc', outcome: 'success' | 'fail', seen: true | false }); .status(), .resetCooldown().
+      crime: {
+        forcePickpocket: (opts?: ForceOptions) => (game.scene.getScene('World') as WorldSceneType).metroSystem?.forcePickpocket(opts) ?? 'no estás en una estación de metro',
+        status: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.pickpocketStatus() ?? 'no estás en una estación de metro',
+        resetCooldown: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.resetPickpocketCooldown(),
+      },
       // Bicis: lifesim.debugCyclists() pinta carril, posición simulada, recuadro pintado y velocidad; debugCyclists(false) lo quita.
       debugCyclists: (on = true) => { CyclistView.debug = on; },
       // Pelea callejera (data/streetEvents.ts): lifesim.fight.force(), .goto(), .pin(true|false), .despawn(),

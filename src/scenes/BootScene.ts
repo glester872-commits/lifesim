@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
+import saraHdUrl from '../assets/characters/sara-hd.png?url';
 import { buildTextures, registerAnimations, repaintPerson } from '../world/TextureFactory';
 import type { Services } from '../services';
 import type { WorldSceneData } from './WorldScene';
 
 /**
- * No carga nada de disco: todo el arte se dibuja por código. Existe para que
+ * Carga el spritesheet de Sara y genera el resto del arte por código para que
  * WorldScene arranque con las texturas y animaciones ya registradas.
  */
 export class BootScene extends Phaser.Scene {
@@ -13,6 +14,13 @@ export class BootScene extends Phaser.Scene {
   constructor(services: Services) {
     super({ key: 'Boot' });
     this.services = services;
+  }
+
+  preload(): void {
+    this.load.spritesheet('sara-hd', saraHdUrl, {
+      frameWidth: 48,
+      frameHeight: 72,
+    });
   }
 
   create(): void {

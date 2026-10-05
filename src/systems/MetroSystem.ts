@@ -12,6 +12,7 @@ import type { Announcer } from '../ui/Announcer';
 import { TrainSystem, type TrainState } from './TrainSystem';
 import { PassengerAI, rand, type PassengerWorld, type SpotPreference, type StationLayout } from './PassengerAI';
 import { SecurityAI } from './SecurityAI';
+import { Pickpocket, type ForceOptions, type PickpocketHost } from './Pickpocket';
 import {
   activeTarget,
   crowdAt,
@@ -77,6 +78,8 @@ export class MetroSystem {
   private readonly view: Train;
   private readonly passengers: PassengerAI[];
   private readonly guards: SecurityAI[];
+  /** Carteristas del andén (systems/Pickpocket); null si la escena no le da el jugador. */
+  private readonly crime: Pickpocket | null;
   private readonly events: MicroEventClock;
   private readonly layout: StationLayout;
   private readonly cfg: MetroConfig;
@@ -102,7 +105,7 @@ export class MetroSystem {
     mapWidth: number,
     cfg: MetroConfig,
     clock: MetroClock,
-    ui: { debug: MetroDebug | null; announcer: Announcer },
+    ui: { debug: MetroDebug | null; announcer: Announcer; crime?: PickpocketHost },
     arrivedByTrain: boolean,
   ) {
     this.cfg = cfg;
@@ -169,6 +172,7 @@ export class MetroSystem {
     );
     this.talkers = posts.map((g, i) => ({ sprite: this.guards[i].walker, def: getNpc(g.id) }));
     this.walkers = [...this.passengers.map((p) => p.walker), ...this.guards.map((g) => g.walker)];
+    this.crime = ui.crime ? new Pickpocket(cfg, ui.crime, this.layout, mapWidth, (text) => this.note(text)) : null;
 
     if (arrivedByTrain) this.releaseAlighting(0);
   }
@@ -179,6 +183,7 @@ export class MetroSystem {
     this.view.update(this.train, timeMs);
     for (const p of this.passengers) p.update(dt);
     for (const g of this.guards) g.update(dt, this.train);
+    this.crime?.update(dt, this.level, this.passengers, this.guards);
 
     this.contextTimer -= dt;
     if (this.contextTimer <= 0) {
@@ -398,6 +403,19 @@ export class MetroSystem {
     this.note(`megafonía (${kind})`);
   }
 
+/** Depuración (lifesim.crime): empieza un robo ya y cuenta cómo va. */
+  forcePickpocket(opts?: ForceOptions): string {
+    return this.crime ? this.crime.force(this.passengers, this.guards, opts) : 'sin carteristas en esta escena';
+  }
+
+  pickpocketStatus(): Record<string, unknown> | null {
+    return this.crime?.status() ?? null;
+  }
+
+  resetPickpocketCooldown(): void {
+    this.crime?.resetCooldown();
+  }
+
   private note(text: string): void {
     const hh = String(this.clock.hour).padStart(2, '0');
     const mm = String(this.clock.minute).padStart(2, '0');
@@ -419,6 +437,7 @@ export class MetroSystem {
       `ahora      ${this.tag} → ${this.level} · objetivo ${this.target} · en estación ${visible} · a bordo ${riding}`,
       `tren       ${train.state} · siguiente ${next}`,
       `seguridad  ${this.guards.length === 0 ? 'nadie' : this.guards.map((g) => `${g.walker.look.id} ${g.label}`).join(', ')}`,
+      `carterista ${this.crime ? String(this.crime.status().phase) : 'sin jugador'}`,
       `evento     ${this.log[0] ?? EVENT_LABEL[train.state]}`,
       ...this.log.slice(1).map((l) => `           ${l}`),
       '',

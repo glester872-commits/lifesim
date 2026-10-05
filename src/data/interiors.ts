@@ -551,10 +551,19 @@ export const WINE_BAR: LocationDef = {
   ],
   ambient: '#ffd9b0',
   ...exitTo('wine-bar', 8, 12),
+  // Servicio de mesa (data/population.ts: tableService, carta 'la-cepa'): cada mesa, sus dos sillas y,
+  // debajo, el sitio donde se para quien atiende. La barra (taburetes) sigue siendo de pedir a Bruno.
+  tables: [...WINE_TABLES, WINE_DATE_TABLE].map(([x, y], i) => ({
+    id: i < WINE_TABLES.length ? `MESA_${TWO(i)}` : 'MESA_CITAS',
+    seats: i < WINE_TABLES.length ? [`WINE_BAR_TABLE_${TWO(i * 2)}`, `WINE_BAR_TABLE_${TWO(i * 2 + 1)}`] : ['WINE_BAR_DATE_01', 'WINE_BAR_DATE_02'],
+    service: { tx: x, ty: y + 1 },
+  })),
   npcs: [],
   points: {
     WINE_BAR_EXIT: p(8, 9, 'exit', 'up'),
     WINE_BAR_STAFF: p(3, 3, 'work', 'down'),
+    // El pase: el final de la barra, donde el camarero recoge las copas y las tablas y deja lo recogido.
+    WINE_BAR_PASS: p(6, 4, 'interact', 'left'),
     WINE_BAR_WAITER: p(7, 6, 'work', 'right'),
     ...WINE_STOOLS,
     ...WINE_SEATS,

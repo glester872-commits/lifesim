@@ -183,7 +183,12 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
     // Bajo una copa siempre hay penumbra, haga sol o no: el árbol no parece pegado encima del suelo.
     if (prop.castBlob) g.fillStyle(SHADOW, 0.1).fillEllipse(p.tx * TILE + width / 2, (p.ty + 1) * TILE - 5, prop.castBlob[0] * 0.75, prop.castBlob[1] * 0.8);
     const [w, h] = prop.shadow ?? [width - 4, 4];
-    g.fillStyle(SHADOW, 0.24).fillEllipse(p.tx * TILE + width / 2 + (prop.shadow ? 2 : 0), (p.ty + 1) * TILE - 2, w, h);
+    const cx = p.tx * TILE + width / 2 + (prop.shadow ? 2 : 0);
+    const cy = (p.ty + 1) * TILE - 2;
+    // Penumbra abierta y núcleo de oclusión pegado a la base: el borde se funde en vez de cortar.
+    g.fillStyle(SHADOW, 0.12).fillEllipse(cx, cy, w + 4, h + 2);
+    g.fillStyle(SHADOW, 0.18).fillEllipse(cx, cy, w, h);
+    g.fillStyle(SHADOW, 0.16).fillEllipse(cx, cy - 1, Math.max(2, w - 6), Math.max(1, h - 2));
   }
 
   rt.draw(g);

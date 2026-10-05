@@ -18,6 +18,7 @@ const COOL_LEAF = '#3f7a5c';
 const BARK = '#8a7d62';
 const BARK_DARK = '#5e5341';
 const BARK_LIT = '#b8ab88';
+const PLANE_BARK = ['#cdc39c', '#a39a6e', '#7d7a58', '#9b9a8c'] as const;
 
 export interface Species {
   key: string;
@@ -101,8 +102,24 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
   const tw = Math.max(3, Math.round(5 * k));
   const tx = cx - Math.floor(tw / 2);
   px(ctx, BARK, tx, trunkTop, tw, footY + 2 - trunkTop);
+  if (sp.foot !== 'soil') {
+    // Plátano de sombra: la corteza se cae en placas y deja el tronco a manchas crema, oliva y gris.
+    // Con su propio generador: el del árbol sigue igual y la copa sale idéntica.
+    let b = (seed * 40503 + 7) >>> 0 || 1;
+    const brnd = (): number => (b = (Math.imul(b, 1664525) + 1013904223) >>> 0) / 4294967296;
+    for (let y = trunkTop + 1; y < footY; y += 2 + Math.floor(brnd() * 2)) {
+      const c = PLANE_BARK[Math.floor(brnd() * PLANE_BARK.length)];
+      px(ctx, c, tx + Math.floor(brnd() * Math.max(1, tw - 2)), y, Math.min(tw, 2 + Math.floor(brnd() * 2)), 2);
+    }
+  }
+  // Canto al sol a la izquierda, sombra a la derecha: el tronco es un cilindro.
+  px(ctx, BARK_LIT, tx, trunkTop, 1, footY + 2 - trunkTop);
   px(ctx, BARK_DARK, tx + tw - 2, trunkTop, 2, footY + 2 - trunkTop);
   for (let y = trunkTop + 3; y < footY - 1; y += 4 + Math.floor(rnd() * 3)) px(ctx, BARK_LIT, tx + Math.floor(rnd() * (tw - 2)), y, 2, 2);
+  // La copa echa su sombra sobre lo alto del tronco.
+  ctx.globalAlpha = 0.35;
+  px(ctx, PALETTE.ink, tx, trunkTop, tw, 3);
+  ctx.globalAlpha = 1;
   for (const dir of [-1, 1]) {
     let bx = cx;
     for (let y = trunkTop + 2; y > trunkTop - 8 * k; y--) {

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
-import { PEOPLE, personFrame } from '../world/TextureFactory';
+import { personFrame, personScale, personTexture } from '../world/TextureFactory';
 
 export type WalkerIcon = 'phone' | 'talk' | null;
 
@@ -25,7 +25,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   private seated = false;
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
-    super(scene, 0, 0, PEOPLE, personFrame(look.id, facing));
+    super(scene, 0, 0, personTexture(look.id), personFrame(look.id, facing));
     this.currentLook = look;
     this.dir = facing;
 
@@ -34,8 +34,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.setOrigin(0.5, 1);
 
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(12, 8);
-    body.setOffset(2, this.height - 8);
+    this.fit();
     body.setImmovable(true);
     body.pushable = false;
 
@@ -63,6 +62,20 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   /** El pool se recicla con otra cara: sólo mientras está fuera de escena. */
   setLook(look: NpcLook): void {
     this.currentLook = look;
+    this.fit();
+  }
+
+  /**
+   * Escala y cuerpo según el aspecto: el de 28 × 42 (world/HumanArtHD) va a 16/28 y su cuerpo, que
+   * Phaser escala con el sprite, se da en píxeles de su textura. En el mundo, los dos miden igual.
+   */
+  private fit(): void {
+    const s = personScale(this.currentLook.id);
+    this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, this.dir ?? 'down'));
+    this.setScale(s);
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    body.setSize(12 / s, 8 / s);
+    body.setOffset((this.width - 12 / s) / 2, this.height - 8 / s);
   }
 
   /** Aparece en un punto (sale del pool). */
@@ -99,7 +112,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.path = [];
     (this.body as Phaser.Physics.Arcade.Body).stop();
     this.anims.stop();
-    this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir, this.pose));
+    this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, this.dir, this.pose));
   }
 
   /** Se sienta donde está (encima del banco), mirando hacia donde mira el asiento. Se levanta al volver a andar. */
@@ -120,7 +133,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     (this.body as Phaser.Physics.Arcade.Body).stop();
     this.dir = facing;
     // Sentado, se gira sin levantarse.
-    if (this.seated) this.setTexture(PEOPLE, personFrame(this.currentLook.id, facing, 4));
+    if (this.seated) this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, facing, 4));
     else this.anims.play(`npc-${this.currentLook.id}-idle-${facing}`, true);
     this.sync();
   }
@@ -139,7 +152,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     this.dir = facing;
-    if (!this.moving) this.setTexture(PEOPLE, personFrame(this.currentLook.id, facing, this.pose));
+    if (!this.moving) this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, facing, this.pose));
     this.sync();
   }
 
@@ -166,7 +179,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       this.sync();
       if (this.path.length > 0) return false;
       this.anims.stop();
-      this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir));
+      this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, this.dir));
       return true;
     }
 

@@ -39,9 +39,11 @@ export class ServiceView {
   sync(time: number): void {
     this.used = 0;
     for (const t of this.service.tables) {
-      // Lo servido está en la mesa hasta que se recoge: lleno mientras se come, vacío después.
-      if (!t.served) continue;
-      for (const p of t.plates) {
+      // Lo servido está en la mesa hasta que se recoge: lleno mientras se come, vacío después. Con varias
+      // rondas, en cada sitio se ve lo último que llegó: un plato y un vaso (o la botella), no la pila entera.
+      const last = new Map<string, (typeof t.plates)[number]>();
+      for (const p of t.plates) if (p.served) last.set(`${p.seat}|${isDrink(p.item.dish) ? 'drink' : 'food'}`, p);
+      for (const p of last.values()) {
         const seat = this.loc.points?.[p.seat];
         if (!seat) continue;
         const facing = seat.facing ?? 'up';
@@ -53,8 +55,9 @@ export class ServiceView {
     }
     // En el pase, un plato por mesa que espera a que la lleven.
     const pass = this.pass;
-    if (pass) this.service.tables.filter((t) => t.ready && !t.served && t.state === 'ORDERED').slice(0, 3).forEach((t, i) => {
-      const food = t.plates.find((p) => !isDrink(p.item.dish)) ?? t.plates[0];
+    if (pass) this.service.tables.filter((t) => t.ready && t.state === 'ORDERED').slice(0, 3).forEach((t, i) => {
+      const waiting = t.plates.filter((p) => !p.served);
+      const food = waiting.find((p) => !isDrink(p.item.dish)) ?? waiting[0];
       if (food) this.put(`fx-${food.item.dish}-full`, pass.x - 6 + i * 6, pass.y, pass.y + 20);
     });
     // Vapor en la cocina mientras haya algo al fuego.

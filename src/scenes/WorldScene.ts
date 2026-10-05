@@ -49,6 +49,7 @@ import { Menus } from './Menus';
 import { CrowdView } from '../world/CrowdView';
 import { ServiceView } from '../world/ServiceView';
 import type { PlayerCall, TableService } from '../systems/TableService';
+import { say, type MenuItem, type MoreOption } from '../data/menus';
 import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
 import { characterLook, umbrellaFor } from '../world/WeatherLooks';
@@ -139,6 +140,11 @@ export class WorldScene extends Phaser.Scene {
   private mapWidth = 0;
   private mapHeight = 0;
   private metro: MetroSystem | null = null;
+
+  /** El metro de la escena, para las órdenes de depuración (lifesim.crime). */
+  get metroSystem(): MetroSystem | null {
+    return this.metro;
+  }
   private ambience: Ambience | null = null;
   /** Coches, furgonetas y autobuses de la calle (TrafficDef), y quien los pinta. */
   private traffic: Traffic<VehicleType> | null = null;
@@ -200,6 +206,10 @@ export class WorldScene extends Phaser.Scene {
   private serviceView: ServiceView | null = null;
   /** Sentado a una mesa con servicio y ya apuntado en ella: el camarero sabe que está. */
   private dining = false;
+  /** Lo que pidió el jugador desde la mesa (otra bebida, otra tapa...): por dónde se abre la carta cuando llega el camarero. */
+  private nextOrder: MoreOption | null = null;
+  /** El último vino pedido en esta visita: «otra copa» es otra de ese. */
+  private lastWine: MenuItem | null = null;
   /** Lo que se ha dicho en las charlas de calle (systems/Chat): la gente anónima se olvida al cambiar de sitio; quien tiene nombre, no. */
   private readonly chatLog = new ChatLog();
   /** Cierra ya la charla de calle en curso (Esc o Q), sin pasar por ninguna respuesta. Sólo mientras hay una. */
@@ -278,7 +288,27 @@ export class WorldScene extends Phaser.Scene {
           built.widthPx,
           METRO_CONFIG,
           state,
-          { debug: this.services.metroDebug, announcer: this.services.announcer },
+          {
+            debug: this.services.metroDebug,
+            announcer: this.services.announcer,
+            // Carteristas (systems/Pickpocket): dónde está el jugador, su efectivo y cómo contárselo.
+            crime: {
+              player: () => (this.player.visible ? { x: this.player.x, y: this.player.y } : null),
+              takeCash: (amount) => {
+                const taken = Math.max(0, Math.min(amount, Math.floor(state.money)));
+                state.money -= taken;
+                return taken;
+              },
+              returnCash: (amount) => {
+                state.money += amount;
+              },
+              tell: (lines) => {
+                if (this.services.dialogue.isOpen || this.services.menu.isOpen) return false;
+                this.services.dialogue.start('Andén', lines);
+                return true;
+              },
+            },
+          },
           data.byTrain ?? false,
         )
       : null;
@@ -872,7 +902,8 @@ export class WorldScene extends Phaser.Scene {
     const service = this.tableService;
     if (!this.dining && service?.tableOf(on.seat.id)) {
       service.seatPlayer(on.seat.id);
-      this.dining = true;
+      // Sólo es comensal si la mesa es suya de verdad (si la cogió otro grupo, sigue sentado sin servicio y E le levanta).
+      this.dining = service.playerTable !== undefined;
     }
     this.player.seatedFrame(time, look, service?.playerEating ?? false);
 
@@ -881,15 +912,31 @@ export class WorldScene extends Phaser.Scene {
     if (!target) {
       // A la mesa, qué pasa con lo tuyo; si no, sólo cómo levantarse.
       const status = this.dining ? this.tableService?.playerStatus() : null;
-      this.services.hint.show(status ? `${status} · levantarse` : 'Levantarse');
+      this.services.hint.show(status ? `${status} · E: opciones · Esc: levantarse` : 'Levantarse');
       this.prompt.setPosition(this.player.x, this.player.y - PLAYER_H - 8).setVisible(true);
     }
-    this.services.input.setContext({ action: target ? this.actionLabel(target) : 'Levantarse', back: false, busy: false });
+    this.services.input.setContext({ action: target ? this.actionLabel(target) : this.dining ? 'Opciones' : 'Levantarse', back: false, busy: false });
     if (this.pressedAny(['interact'])) {
       if (target) this.interact(target);
+      else if (this.dining && service) this.tableOptions(service);
       else this.standUp();
     } else if (this.pressedAny(['cancel', 'cancelAlt'])) this.standUp();
     else if (this.pressedAny(['bag'])) this.menus.openBag();
+  }
+
+  /**
+   * Sentado a una mesa con servicio, sin levantarse: seguir pidiendo (lo que
+   * ofrece el local: otra bebida, otra copa, otra tapa...), la cuenta o irse.
+   * Pedir llama al camarero; si están todos ocupados, la mesa espera su turno.
+   */
+  private tableOptions(service: TableService): void {
+    if (this.services.dialogue.isOpen || this.services.menu.isOpen) return;
+    this.menus.openTableOptions(service.menu, service.playerStatus() ?? '', (choice) => {
+      if (choice.kind === 'stand') return this.standUp();
+      const why = service.playerAsk(choice.kind === 'bill' ? 'bill' : 'order');
+      if (why) this.services.dialogue.start('Camarero', [why]);
+      else if (choice.kind === 'order') this.nextOrder = choice.more;
+    });
   }
 
   /** El servicio de mesa de donde está el jugador: el del comedor si está dentro, el de la terraza si está en la calle. */
@@ -993,6 +1040,13 @@ export class WorldScene extends Phaser.Scene {
   /** Se sienta: reserva el asiento donde lo reserva la gente, da los pasos hasta él y se sienta mirando hacia donde se mira ahí. */
   private sitDown(seat: Seat): void {
     if (this.seatTaken(seat)) return;
+    // Una mesa con servicio se reserva al echar a andar hacia ella, no al acabar de sentarse: si no, un
+    // grupo que entra en ese momento se la queda y el jugador acaba sentado sin camarero.
+    const service = this.tableService;
+    if (service?.tableOf(seat.id)) {
+      service.seatPlayer(seat.id);
+      this.dining = service.playerTable !== undefined;
+    }
     this.seatedOn = { seat, from: { x: this.player.x, y: this.player.y } };
     if (seat.id.startsWith('metro:')) this.metro?.takeSeat(Number(seat.id.slice(6)));
     this.prompt.setVisible(false);
@@ -1009,6 +1063,8 @@ export class WorldScene extends Phaser.Scene {
     // Levantarse de la mesa sin haber pagado es dejar el dinero encima: se cobra lo pedido.
     if (this.dining) {
       this.dining = false;
+      this.nextOrder = null;
+      this.lastWine = null;
       const owed = this.tableService?.playerStands() ?? 0;
       if (owed > 0) {
         this.services.state.money -= owed;
@@ -1032,33 +1088,43 @@ export class WorldScene extends Phaser.Scene {
     if (!service || !this.dining) return;
     const { state, dialogue } = this.services;
     const waiter = 'Camarero';
+    // Lo que dice depende del local (data/menus.ts: la carta lleva sus frases), nunca de su nombre.
+    const lines = service.menu.lines;
+    const named = (i: MenuItem): string => (i.wine ? `${i.wine.serving === 'bottle' ? 'la botella' : 'la copa'} de ${i.name}` : i.name.toLowerCase());
     if (call.kind === 'order') {
-      const hello = state.hour < 14 ? 'Buenos días' : state.hour < 21 ? 'Buenas tardes' : 'Buenas noches';
-      dialogue.start(waiter, [`${hello}. ¿Qué te apetece tomar?`]);
+      dialogue.start(waiter, [say(call.again ? lines.again : lines.greet)]);
+      // Por dónde se abre la carta: lo que se pidió desde la mesa; «otra copa», el mismo vino si se sirve.
+      const more = this.nextOrder;
+      this.nextOrder = null;
+      const wine = more?.sameWine && this.lastWine ? call.items.find((i) => i.id === this.lastWine?.id && i.wine?.serving === 'glass') ?? call.items.find((i) => i.wine?.wine === this.lastWine?.wine?.wine && i.wine?.serving === 'glass') : undefined;
+      const category = more?.sameWine && this.lastWine && !wine ? this.lastWine.category : more?.category;
       dialogue.once('close', () =>
         this.menus.openOrder(service.menu, call.items, waiter, (picked) => {
           service.playerOrder(picked);
-          dialogue.start(waiter, [picked.length > 0 ? `${picked.map((i) => i.name.toLowerCase()).join(' y ')}. Marchando.` : 'Sin prisa. Vuelvo en un rato.']);
-        }),
+          const lastWine = [...picked].reverse().find((i) => i.wine);
+          if (lastWine) this.lastWine = lastWine;
+          dialogue.start(waiter, [picked.length > 0 ? `${picked.map(named).join(', ')}. ${say(lines.confirm)}` : say(lines.later)]);
+        }, { wine, category }),
       );
     } else if (call.kind === 'served') {
-      dialogue.start(waiter, [`Aquí tienes: ${call.plates.map((i) => i.name.toLowerCase()).join(' y ')}. ¡Que aproveche!`]);
+      dialogue.start(waiter, [`${say(lines.serve)} ${call.plates.length > 0 ? `(${call.plates.map(named).join(', ')})` : ''}`.trim()]);
     } else if (call.kind === 'finished') {
       state.energy += call.energy;
       this.persist();
     } else if (call.kind === 'bill') {
-      dialogue.start(waiter, ['Aquí tienes la cuenta, cuando quieras.']);
+      dialogue.start(waiter, [say(lines.bill)]);
       dialogue.once('close', () =>
         this.menus.openBill(call.total, (amount) => {
           if (amount === null) {
             service.playerPay(true);
-            dialogue.start(waiter, ['Tranquilo, vuelvo luego.']);
+            dialogue.start(waiter, [say(lines.later)]);
             return;
           }
-          service.playerPay();
+          // playerPay sólo cobra una vez lo que quede sin pagar; si ya estaba pagado devuelve 0 y no se descuenta nada.
+          if (service.playerPay() === 0) return;
           state.money -= amount;
           this.persist();
-          dialogue.start(waiter, [amount > call.total ? '¡Gracias! Hasta la próxima.' : 'Gracias. ¡Hasta pronto!']);
+          dialogue.start(waiter, [say(lines.thanks)]);
         }),
       );
     }

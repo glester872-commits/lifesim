@@ -46,7 +46,7 @@ const WORK = 'work';
 
 export const PLACES: readonly PlaceDef[] = [
   // Viviendas: la tuya y los portales que pueden tener vecinos persistentes.
-  { id: 'player-home', name: 'Tu piso · Olmo 7', type: 'home', tags: ['home'], building: 'home-door', capacity: 2, why: 'Dormir y cocinar: recuperar energía sin gastar dinero.' },
+  { id: 'player-home', name: 'Tu piso · Olmo 7', type: 'home', tags: ['home'], building: 'home-door', capacity: 2, why: 'Dormir, cocinar, ducharse, ver la tele y cambiarse de ropa: recuperar energía sin gastar dinero.' },
   { id: 'res-mayor-3', name: 'Mayor 3', type: 'residence', tags: ['home'], building: 'res-mayor-3', capacity: 9 },
   { id: 'res-mayor-9', name: 'Mayor 9', type: 'residence', tags: ['home'], building: 'res-mayor-9', capacity: 6 },
   { id: 'res-olmo-3', name: 'Olmo 3', type: 'residence', tags: ['home'], building: 'res-olmo-3', capacity: 8 },
@@ -54,6 +54,10 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-avenida-20', name: 'Avenida 20', type: 'residence', tags: ['home'], building: 'res-av-20', capacity: 12 },
   { id: 'res-mayor-15', name: 'Mayor 15', type: 'residence', tags: ['home'], building: 'res-mayor-15', capacity: 10 },
   { id: 'res-mayor-20', name: 'Mayor 20', type: 'residence', tags: ['home'], building: 'res-mayor-20', capacity: 10 },
+  // La Mayor este, encima del horno, del bar y de la tienda: de aquí sale quien baja a por el pan.
+  { id: 'res-mayor-17', name: 'Mayor 17', type: 'residence', tags: ['home'], building: 'res-mayor-17', capacity: 8 },
+  { id: 'res-mayor-19', name: 'Mayor 19', type: 'residence', tags: ['home'], building: 'res-mayor-19', capacity: 9 },
+  { id: 'res-mayor-22', name: 'Mayor 22', type: 'residence', tags: ['home'], building: 'res-mayor-22', capacity: 7 },
 
   // Negocios con interior
   { id: 'cafe', name: 'Cafetería Pausa', type: 'business', tags: ['food', 'social', WORK], building: 'cafe-door', anchors: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], capacity: 10, hours: [7, 22], why: 'Desayunar algo rápido y llevarse pan o bollería para casa.' },
@@ -86,6 +90,10 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'fruit-shop', name: 'Frutería', type: 'business', tags: ['shop', 'food', WORK], building: 'fruit', capacity: 3, hours: [8, 14] },
   { id: 'hardware-store', name: 'Ferretería', type: 'business', tags: ['shop', WORK], building: 'hardware', capacity: 3, hours: [9, 20] },
   { id: 'laundry', name: 'Lavandería', type: 'business', tags: ['service'], building: 'laundry', capacity: 6, hours: [7, 23] },
+  // Calle Mayor este: lo de diario. El horno madruga, el bar abre con el primer café y cierra tarde, y la tienda es lo último abierto.
+  { id: 'bakery', name: 'Horno San Blas', type: 'business', tags: ['shop', 'food', WORK], building: 'bakery', capacity: 5, hours: [7.5, 20.5], hoursByDay: { sunday: [8, 14] } },
+  { id: 'corner-bar', name: 'Bar El Rincón', type: 'business', tags: ['food', 'social', WORK], building: 'corner-bar', anchors: ['CORNER_BAR_SMOKE_01', 'CORNER_BAR_SMOKE_02'], capacity: 20, hours: [7.5, 1] },
+  { id: 'grocer', name: 'Alimentación Mari', type: 'business', tags: ['shop', 'food', WORK], building: 'grocer', capacity: 4, hours: [9, 1] },
   { id: 'study-center', name: 'Centro de estudios', type: 'business', tags: ['study', WORK], building: 'study', capacity: 40, hours: [8, 21] },
   { id: 'civic-office', name: 'Junta municipal', type: 'business', tags: ['civic', WORK], building: 'civic', capacity: 10, hours: [9, 14] },
 

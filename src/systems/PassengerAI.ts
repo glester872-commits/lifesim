@@ -105,6 +105,8 @@ export class PassengerAI {
   private decidedRun = false;
   private forceRun = false;
   private running = false;
+  /** Metido en un robo (systems/Pickpocket.ts), de carterista o de víctima: su rutina espera mientras dura. */
+  private incident = false;
   private readonly world: PassengerWorld;
 
   constructor(walker: Walker, world: PassengerWorld) {
@@ -121,6 +123,69 @@ export class PassengerAI {
   /** Está en el andén sin hacer nada que no se pueda interrumpir. */
   get idleWaiting(): boolean {
     return this.state === 'WAITING' && !this.walker.moving && this.holdMs <= 0 && this.next === null;
+  }
+
+  // ------------------------------------------------------------ robos (systems/Pickpocket.ts)
+
+  /** Puede hacer de carterista ahora: de pie en el andén esperando, sin nada a medias. El papel es del momento, no de la persona. */
+  get freeToSteal(): boolean {
+    return this.idleWaiting && this.seat < 0 && !this.incident;
+  }
+
+  /** Puede ser la víctima: esperando en el andén, quieta (de pie o sentada). */
+  get canBeRobbed(): boolean {
+    return this.state === 'WAITING' && !this.walker.moving && !this.incident;
+  }
+
+  /** Se acerca al punto como quien busca sitio y luego sigue con lo que toca. */
+  sneakTo(to: Vec2, then: () => void): void {
+    this.incident = true;
+    this.walker.setIcon(null);
+    this.activity = 'se acerca';
+    this.go([to], then, 0.85);
+  }
+
+  /** Se queda quieto un rato (el tirón, esperar al vigilante) y luego sigue. */
+  pause(ms: number, activity: string, then: () => void): void {
+    this.incident = true;
+    this.activity = activity;
+    this.hold(ms, then);
+  }
+
+  /** La víctima: se queda quieta mientras se lo hacen. */
+  freeze(): void {
+    this.incident = true;
+    this.walker.setIcon(null);
+    this.hold(0, null);
+  }
+
+  /** La víctima se da cuenta: se gira hacia quien ha sido, protesta y, al rato, vuelve a lo suyo. */
+  noticeFrom(x: number, ms: number): void {
+    this.incident = true;
+    this.walker.halt();
+    this.walker.face(x < this.walker.x ? 'left' : 'right');
+    this.walker.setIcon('talk');
+    this.activity = '¡eh!';
+    this.hold(ms, () => this.release());
+  }
+
+  /** Fuera del robo: vuelve a esperar en su sitio. */
+  release(): void {
+    this.incident = false;
+    this.walker.setIcon(null);
+    this.walker.halt();
+    this.next = null;
+    this.holdMs = 0;
+    const home = this.seat >= 0 ? this.world.layout.seats[this.seat] : this.spot >= 0 ? this.world.layout.spots[this.spot].at : null;
+    if (home && Math.hypot(home.x - this.walker.x, home.y - this.walker.y) < 2) this.beginWaiting();
+    else this.walkToSpot();
+  }
+
+  /** El carterista se va de la estación: deprisa si se escapa, a paso normal si sale acompañado o nadie se ha enterado. */
+  escape(run: boolean, activity: string): void {
+    this.incident = false;
+    this.leave(run ? 1.7 : 1);
+    this.activity = activity;
   }
 
   // ------------------------------------------------------------ arranques
@@ -199,7 +264,8 @@ export class PassengerAI {
         if (this.holdMs <= 0) this.resume();
       }
     }
-    this.think(deltaMs);
+    // En un robo manda systems/Pickpocket: ni el tren ni el ambiente le cambian el plan.
+    if (!this.incident) this.think(deltaMs);
   }
 
   private think(deltaMs: number): void {
@@ -418,7 +484,7 @@ export class PassengerAI {
     else this.walkToSpot();
   }
 
-  private leave(): void {
+  private leave(speedScale = 1): void {
     const { layout } = this.world;
     this.leaveSeatAndSpot();
     this.walker.setIcon(null);
@@ -439,6 +505,7 @@ export class PassengerAI {
         this.walker.hide();
         this.startOffstage(this.respawnDelay());
       },
+      speedScale,
     );
   }
 

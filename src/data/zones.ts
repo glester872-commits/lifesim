@@ -101,6 +101,21 @@ export const ZONES: readonly ZoneDef[] = [
     ambience: 'commercial',
     tags: ['shops'],
   },
+  // El tramo este de la Mayor: portales de vecinos con el horno, el bar de abajo y la tienda de la esquina.
+  // Madruga (pan y desayunos), tiene su vermú y su noche de bar, y la tienda cierra la última.
+  {
+    id: 'mayor-este', name: 'Calle Mayor, tramo este', type: 'commercial', location: 'district', districtId: 'vallesco',
+    rects: [{ tx: 74, ty: 16, w: 36, h: 3 }],
+    population: {
+      label: 'vecinos, el pan, el bar de abajo, la tienda de última hora',
+      roles: { bakery: 1.4, 'rincon-breakfast': 1.3, 'rincon-vermut': 1.3, 'rincon-night': 1.3, 'rincon-smoke': 1.2, 'late-shop': 1.3, returning: 1.2 },
+    },
+    activity: { bands: [[7, 10.5, 1.3], [10.5, 13, 0.8], [13, 15.5, 1.1], [15.5, 19, 0.8], [19, 23.5, 1.2], [23.5, 24, 0.6]], rest: 0.15, weekend: 1.1, outdoor: 0.4, variation: 0.12 },
+    hours: [7.5, 1],
+    traffic: { vehicles: 0.3, bikes: 0.5, deliveries: 1.4 },
+    ambience: 'residential',
+    tags: ['shops', 'local'],
+  },
   {
     id: 'avenida', name: 'Avenida de Vallesco', type: 'main_road', location: 'district', districtId: 'vallesco',
     rects: [{ tx: 0, ty: 29, w: 110, h: 8 }],
@@ -112,8 +127,13 @@ export const ZONES: readonly ZoneDef[] = [
   {
     id: 'plaza-fuente', name: 'Plaza de la Fuente', type: 'plaza', location: 'district', districtId: 'vallesco',
     rects: [{ tx: 30, ty: 6, w: 21, h: 10 }],
-    population: { label: 'bancos, quiosco, charlas, niños y mayores', roles: { reader: 1.3, stroller: 1.2, 'metro-meet': 1.1 } },
-    activity: { bands: [[8, 11, 0.9], [11, 14, 1.3], [14, 17, 0.8], [17, 21.5, 1.4], [21.5, 23.5, 0.7]], rest: 0.15, weekend: 1.3, outdoor: 0.9, variation: 0.15 },
+    // Nodo del barrio: el periódico y el perro por la mañana, los mayores en sus bancos, familias por la tarde,
+    // grupos y parejas por la noche y casi nadie de madrugada.
+    population: {
+      label: 'periódico y perros por la mañana, mayores en los bancos, familias por la tarde, grupos y parejas de noche',
+      roles: { reader: 1.3, stroller: 1.2, 'metro-meet': 1.1, kiosk: 1.4, 'plaza-elders': 1.4, 'plaza-family': 1.4, 'plaza-rest': 1.2, 'plaza-evening': 1.4, 'plaza-couple': 1.3, 'plaza-night': 1.2 },
+    },
+    activity: { bands: [[7.5, 11, 1.1], [11, 14, 1.3], [14, 16.5, 0.8], [16.5, 21.5, 1.4], [21.5, 24, 0.8], [0, 1.5, 0.35]], rest: 0.12, weekend: 1.3, outdoor: 0.9, variation: 0.15 },
     ambience: 'commercial',
     tags: ['outdoor', 'social'],
   },
@@ -155,7 +175,7 @@ export const ZONES: readonly ZoneDef[] = [
     rects: [{ tx: 36, ty: 50, w: 38, h: 5 }],
     population: {
       label: 'paseantes, corredores, perros, gente sentada, parejas',
-      roles: { jogger: 1.3, 'dog-walker': 1.3, 'park-talk': 1.2, 'park-stroll': 1.2, park: 1.2, reader: 1.1 },
+      roles: { jogger: 1.3, 'dog-walker': 1.3, 'park-talk': 1.2, 'park-stroll': 1.2, park: 1.2, reader: 1.1, 'park-elders': 1.4, 'park-couple': 1.3, 'park-gathering': 1.3 },
     },
     activity: { bands: [[7, 9.5, 1.1], [9.5, 12, 0.8], [12, 16, 0.9], [16, 21, 1.5], [21, 23, 0.5]], rest: 0.1, weekend: 1.4, days: { 6: 1.2 }, outdoor: 1, variation: 0.18 },
     ambience: 'park',

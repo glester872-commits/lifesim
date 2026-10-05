@@ -54,8 +54,10 @@ const SKY: readonly (readonly [number, number])[] = [
   [5.5, NIGHT],
   [6.5, 0x8e84a6],
   [7.5, 0xf2d6be],
-  [9, 0xffffff],
-  [17.5, 0xffffff],
+  // De día, luz algo cálida contra la sombra azul del sol (SUN_SHADOW). El verde se queda en 255:
+  // nightAt lee el verde, así que ninguna luz se enciende antes por esto.
+  [9, 0xfffff4],
+  [17.5, 0xffffea],
   [19, 0xffe0b8],
   [20.2, 0xd09486],
   [21.2, 0x6a6294],
@@ -368,7 +370,7 @@ export class Lighting {
         const src = scene.textures.get(g.key).getSourceImage();
         this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height, w: src.width * 1.8, h: src.height * 1.4, color: WARM, strength: 0.75 });
         // Y por la escalera sube la luz fría de los tubos de abajo: el hueco se ve encendido, no un agujero.
-        this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height * 0.62, w: src.width * 0.55, h: src.height * 0.55, color: 0xdcecff, strength: 0.8 });
+        this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height * 0.62, w: src.width * 0.55, h: src.height * 0.55, color: 0xdcecff, strength: 0.55 });
       }
     }
 

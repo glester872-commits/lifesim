@@ -234,10 +234,14 @@ export class Traffic<T extends MoverType = MoverType> {
     // Al repartir, nadie encima de otro: si no cabe, no sale.
     if (this.inLane(lane).some((o) => Math.abs(o.x - at) < (o.type.length + type.length) / 2 + QUEUE_GAP)) return;
     const cruise = CRUISE * type.pace * between(this.rng, 0.9, 1.1);
+    let color = Math.floor(this.rng() * type.colors.length);
+    // Nunca dos iguales seguidos: si el de al lado en el carril es el mismo modelo y color, otro color (sin tirar más dados).
+    const near = this.inLane(lane).reduce<Vehicle<T> | null>((best, o) => (!best || Math.abs(o.x - at) < Math.abs(best.x - at) ? o : best), null);
+    if (near && near.type === type && near.color === color) color = (color + 1) % type.colors.length;
     this.vehicles.push({
       id: this.nextId++,
       type,
-      color: Math.floor(this.rng() * type.colors.length),
+      color,
       seed: Math.floor(this.rng() * 2 ** 31),
       row: lane.row,
       dir: lane.dir,

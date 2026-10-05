@@ -120,10 +120,15 @@ const BUILDINGS: readonly BuildingDef[] = [
   // Calle Mayor, tramo este: vecinos a los dos lados.
   b('res-mayor-15', 'Mayor 15', 'res-brick', [76, 4, 10, 12], 's', 80, { floors: 3, point: 'RES_MAYOR_15_ENTRANCE', inspect: ['Una bici colgada en el balcón del primero. Nadie sabe cómo la subieron.'] }),
   b('res-mayor-17', 'Mayor 17', 'res-plaster', [86, 6, 11, 10], 's', 91, { floors: 2, point: 'RES_MAYOR_17_ENTRANCE', inspect: ['«Se alquila habitación. Preguntar por Reme, segundo B».'] }),
-  b('res-mayor-19', 'Mayor 19', 'res-stone', [97, 3, 13, 13], 's', 103, { floors: 3, point: 'RES_MAYOR_19_ENTRANCE', inspect: ['Un portal de piedra con el número en azulejo.'] }),
+  // Mayor 19 y, en su planta baja de la esquina, la tienda de alimentación que cierra la última del barrio.
+  b('res-mayor-19', 'Mayor 19', 'res-stone', [97, 3, 7, 13], 's', 100, { floors: 3, point: 'RES_MAYOR_19_ENTRANCE', inspect: ['Un portal de piedra con el número en azulejo.'] }),
+  b('grocer', 'Alimentación Mari', 'grocer', [104, 3, 6, 13], 's', 106, { floors: 3, point: 'GROCER_ENTRANCE', inspect: ['Alimentación Mari. Fruta en cajas, pan de ayer a mitad de precio, hielo y pilas. Abre hasta la una.'] }),
   b('backdrop-e', 'Manzana este', 'backdrop', [86, 1, 11, 5], undefined),
   b('res-mayor-20', 'Mayor 20', 'res-stone', [76, 19, 14, 8], 'n', 82, { point: 'RES_MAYOR_20_ENTRANCE', inspect: ['El ascensor lleva un cartel de «averiado» desde el verano.'] }),
-  b('res-mayor-22', 'Mayor 22', 'res-brick', [90, 19, 20, 8], 'n', 99, { point: 'RES_MAYOR_22_ENTRANCE', inspect: ['Un patio de vecinos detrás de la reja, lleno de macetas.'] }),
+  // Mayor 22: el portal en medio, el horno a un lado y el bar de toda la vida al otro (los mismos 20 tiles de fachada).
+  b('bakery', 'Horno San Blas', 'bakery', [90, 19, 6, 8], 'n', 92, { point: 'BAKERY_ENTRANCE', inspect: ['Horno San Blas. Huele a pan desde la esquina. Barras, hogazas y napolitanas; a mediodía, empanada.'] }),
+  b('res-mayor-22', 'Mayor 22', 'res-brick', [96, 19, 7, 8], 'n', 99, { point: 'RES_MAYOR_22_ENTRANCE', inspect: ['Un patio de vecinos detrás de la reja, lleno de macetas.'] }),
+  b('corner-bar', 'Bar El Rincón', 'bar', [103, 19, 7, 8], 'n', 106, { point: 'CORNER_BAR_ENTRANCE', inspect: ['Bar El Rincón. Café con churros por la mañana, vermú al mediodía y la tele con el fútbol por la noche.'] }),
 
   // Calle del Carmen, acera norte: planta baja con tienda y vivienda encima.
   b('carmen-tinta', 'Tinta Carmen · tatuajes', 'tattoo', [76, 37, 7, 7], 's', 79, { floors: 2, enter: into('tinta'), point: 'TINTA_ENTRANCE' }),
@@ -200,6 +205,9 @@ const PROPS: readonly PropPlacement[] = [
   ...row('bench', 51, [44, 45, 52, 53]),
   at('hoop', 60, 51), at('hoop', 67, 51),
   at('lamp', 48, 53), at('lamp', 58, 53),
+
+  // Mayor este: la furgoneta del reparto del horno, una papelera, las cajas de fruta de la tienda y la pizarra del bar.
+  at('van', 84, 18), at('bin', 95, 18), at('produce', 108, 16), at('produce', 109, 16), at('sandwich-board', 102, 18),
 
   // Huecos de hierba entre el barrio viejo y el tramo este.
   ...[[74, 22], [74, 25], [74, 52]].map(([x, y]) => at('tree', x, y)),
@@ -289,6 +297,9 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   HAIR_WINDOW: p(13, 16, 'interact', 'up'), PHARMACY_WINDOW: p(20, 16, 'interact', 'up'),
   BANK_WINDOW: p(66, 16, 'interact', 'up'), SUPER_WINDOW: p(5, 18, 'interact', 'down'),
   FRUIT_WINDOW: p(21, 18, 'interact', 'down'), LAUNDRY_WINDOW: p(55, 18, 'interact', 'down'),
+  // Mayor este: escaparates del horno y de la tienda, y la acera del bar donde se sale a fumar.
+  BAKERY_WINDOW: p(94, 18, 'interact', 'down'), GROCER_WINDOW: p(107, 16, 'interact', 'up'),
+  CORNER_BAR_SMOKE_01: p(104, 18, 'meet', 'right'), CORNER_BAR_SMOKE_02: p(108, 18, 'meet', 'left'),
   // Delante del metro: quien ha quedado con alguien que llega en el próximo tren.
   METRO_MEET_01: p(27, 42, 'wait', 'right'), METRO_MEET_02: p(33, 41, 'wait', 'left'),
   // Puerta de la Sala Órbita: cola junto a la fachada y corrillo al otro lado de la calle.
@@ -335,6 +346,9 @@ const LINKS: readonly Link[] = [
     'mayor-50', 'mayor-53', 'mayor-54', 'mayor-56', 'mayor-61', 'mayor-64', 'mayor-71', 'mayor-80', 'mayor-91', 'mayor-103', 'EDGE_MAYOR_E'),
   ['RES_MAYOR_15_ENTRANCE', 'mayor-80'], ['RES_MAYOR_20_ENTRANCE', 'mayor-80'], ['RES_MAYOR_17_ENTRANCE', 'mayor-91'],
   ['RES_MAYOR_19_ENTRANCE', 'mayor-103'], ['RES_MAYOR_22_ENTRANCE', 'mayor-103'],
+  ['BAKERY_ENTRANCE', 'mayor-91'], ['BAKERY_WINDOW', 'mayor-91'],
+  ['GROCER_ENTRANCE', 'mayor-103'], ['GROCER_WINDOW', 'mayor-103'],
+  ['CORNER_BAR_ENTRANCE', 'mayor-103'], ['CORNER_BAR_SMOKE_01', 'mayor-103'], ['CORNER_BAR_SMOKE_02', 'mayor-103'],
   ['CLOTHING_STORE_ENTRANCE', 'mayor-06'], ['SUPERMARKET_ENTRANCE', 'mayor-06'],
   ['HAIR_SALON_ENTRANCE', 'mayor-14'], ['CLUB_ENTRANCE', 'mayor-14'],
   ['WINE_BAR_ENTRANCE', 'olmo-s40'],

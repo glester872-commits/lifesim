@@ -431,6 +431,28 @@ function drawSofa(ctx: Ctx): void {
   px(ctx, shade(c, 0.12), 1, 3, TILE * 2 - 2, 1);
 }
 
+/**
+ * La tele sobre su mueble bajo, contra la pared del sur: se ve de espaldas, como la ve quien
+ * entra, con el canto de la pantalla encendido arriba y el cable que baja por detrás.
+ */
+function drawTv(ctx: Ctx): void {
+  const w = TILE * 2;
+  // Mueble: tablero con luz, dos puertas y patas.
+  px(ctx, PALETTE.woodDark, 2, 9, w - 4, 6);
+  px(ctx, PALETTE.wood, 2, 9, w - 4, 1);
+  px(ctx, shade(PALETTE.woodDark, -0.12), 15, 10, 1, 5);
+  px(ctx, PALETTE.woodLit, 7, 12, 2, 1);
+  px(ctx, PALETTE.woodLit, 22, 12, 2, 1);
+  px(ctx, PALETTE.ink, 3, 15, 2, 1);
+  px(ctx, PALETTE.ink, w - 5, 15, 2, 1);
+  // La trasera de la pantalla, el pie y el canto encendido que asoma por arriba.
+  px(ctx, PALETTE.ink, 6, 2, w - 12, 6);
+  px(ctx, shade(PALETTE.ink, 0.1), 8, 3, w - 16, 4);
+  px(ctx, PALETTE.glassLit, 6, 1, w - 12, 1);
+  px(ctx, PALETTE.ink, 14, 8, 4, 1);
+  px(ctx, PALETTE.metal, 19, 7, 1, 2);
+}
+
 function drawWeightBench(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 3, 11, 2, 4);
   px(ctx, PALETTE.metal, 11, 11, 2, 4);
@@ -795,6 +817,7 @@ export function buildPropTextures(scene: Phaser.Scene): void {
 
   make(scene, 'prop-wardrobe', TILE, TILE * 2, drawWardrobe);
   make(scene, 'prop-sofa', TILE * 2, TILE, drawSofa);
+  make(scene, 'prop-tv', TILE * 2, TILE, drawTv);
   make(scene, 'prop-weight-bench', TILE, TILE, drawWeightBench);
   make(scene, 'prop-lockers', TILE * 2, TILE * 2, drawLockers);
   make(scene, 'prop-clothes-rack', TILE * 2, TILE * 2, drawClothesRack);

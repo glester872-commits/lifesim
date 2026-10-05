@@ -240,6 +240,8 @@ assert.equal(level('gym', 2, '22:00'), 'LOW', 'gimnasio 22:00');
   let cycles = 0;
   for (let ms = 0; ms < 300 * MS_PER_MIN; ms += STEP_MS) {
     crowd.update(STEP_MS, clock, player);
+    // Acabada la ronda, el jugador pide la cuenta desde la mesa (la escena lo hace con E: TableService.playerAsk).
+    if (service.playerTable?.state === 'ROUND_DONE') service.playerAsk('bill');
     if ((elapsed += STEP_MS) >= MS_PER_MIN) {
       elapsed -= MS_PER_MIN;
       clock = addMinutes(clock, 1);
@@ -266,7 +268,8 @@ assert.equal(level('gym', 2, '22:00'), 'LOW', 'gimnasio 22:00');
 restaurante sábado 19:30 → ${hhmm(clock)}: ${mates.length} acompañantes, ${waiters.length} camareros, ${cycles} mesas servidas de principio a fin`);
   console.log(`  el jugador: ${calls.join(' → ')} · pagó ${charged.toFixed(2)} €`);
   assert.ok(cycles >= 4, 'las mesas no completan el servicio');
-  assert.deepEqual(calls, ['order', 'served', 'finished', 'bill'], 'el jugador no pasa por todo el servicio');
+  // 'finished' llega por cada plato o bebida que se acaba: se juntan los seguidos.
+  assert.deepEqual(calls.filter((k, i, all) => k !== all[i - 1]), ['order', 'served', 'finished', 'bill'], 'el jugador no pasa por todo el servicio');
   assert.ok(charged > 0, 'el jugador no ha pagado');
   assert.equal(service.playerTable?.state, 'PAID');
   assert.equal(service.playerStands(), 0, 'cobra dos veces');

@@ -82,7 +82,8 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     kit: { props: ['planter', 'bike'], on: 'facade', every: 14, max: 8 },
     crowd: { everyday: 4, smart: 1, sport: 1.2, street: 0.4 },
     vehicles: { all: { van: 1.2, bus: 0.6 } },
-    facades: ['home', 'res-*', 'civic', 'wine', 'backdrop'],
+    // Con su comercio de planta baja: el horno, la tienda de alimentación y el bar de abajo.
+    facades: ['home', 'res-*', 'civic', 'wine', 'bakery', 'grocer', 'bar', 'backdrop'],
     ambience: { leaf: 1, paper: 0.4, steam: 0.8 },
   },
   // Calle Mayor y avenida: el granito de siempre, gente de recados y de oficina.

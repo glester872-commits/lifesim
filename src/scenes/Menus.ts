@@ -16,7 +16,7 @@ import { buyGarment, stockOf, takeOff, wear } from '../systems/Retail';
 import { CATEGORIES, getGarment, getStore } from '../data/retail';
 import { getDesign, getZone, STYLE_NAMES, TATTOO_DESIGNS, TATTOO_ZONES, type TattooZone } from '../data/tattoos';
 import { PLAYER_COLORS } from '../world/TextureFactory';
-import type { MenuItem, ServiceMenu } from '../data/menus';
+import { pairingFor, type MenuItem, type MoreOption, type ServiceMenu } from '../data/menus';
 import { STATIONS, type StationId } from '../data/stations';
 import { INTENSITIES, INTENSITY_ORDER, quote, settle, summary, type Intensity } from '../systems/Fitness';
 
@@ -490,41 +490,115 @@ export class Menus {
   // ---------------------------------------------------------- en la mesa
 
   /**
-   * Pedir sentado a una mesa con servicio (systems/TableService): primero de
-   * comer y luego de beber, con su precio, sólo lo que se sirve a esta hora y
-   * sin pasar de lo que se lleva encima. Se abre en vivo: el local sigue
-   * mientras se elige. Esc, o no pedir nada, es «todavía no».
+   * Pedir sentado a una mesa con servicio (systems/TableService): la carta del
+   * local por sus grupos (los de la carta, data/menus.ts), y dentro de cada
+   * uno lo que se sirve a esta hora con su precio, sin pasar de lo que se lleva
+   * encima. Se pueden pedir varias cosas en la misma comanda. Un vino se elige
+   * y luego copa o botella, con su origen, notas y cuerpo; a veces el camarero
+   * sugiere con qué acompañarlo. `start` abre por un grupo o por un vino (otra
+   * copa del mismo). Se abre en vivo: el local sigue mientras se elige. Esc, o
+   * no pedir nada, es «todavía no».
    */
-  openOrder(menu: ServiceMenu, items: readonly MenuItem[], waiter: string, onDone: (picked: MenuItem[]) => void): void {
+  openOrder(menu: ServiceMenu, items: readonly MenuItem[], waiter: string, onDone: (picked: MenuItem[]) => void, start: { category?: string; wine?: MenuItem } = {}): void {
     const { state } = this.services;
-    const course = (kind: MenuItem['kind'], picked: MenuItem[], title: string, none: string, next: (picked: MenuItem[]) => void): void => {
-      const list = items.filter((i) => i.kind === kind);
-      const spent = picked.reduce((sum, i) => sum + i.price, 0);
-      const options: MenuOption[] = list.map((i) => ({
-        label: i.name,
-        detail: euros(i.price),
-        disabled: spent + i.price > state.money ? `No te llega: llevas ${euros(state.money)}.` : undefined,
-      }));
-      options.push({ label: none });
+    const picked: MenuItem[] = [];
+    let tip = '';
+    const spent = (): number => picked.reduce((sum, i) => sum + i.price, 0);
+    const label = (i: MenuItem): string => (i.wine ? `${i.wine.serving === 'bottle' ? 'botella' : 'copa'} de ${i.name}` : i.name.toLowerCase());
+    const summary = (): string => (picked.length > 0 ? ` Llevas pedido: ${picked.map(label).join(', ')} (${euros(spent())}).` : '');
+    const afford = (i: MenuItem): string | undefined => (spent() + i.price > state.money ? `No te llega: llevas ${euros(state.money)}.` : undefined);
+    const close = (all: MenuItem[]): void => {
+      this.services.menu.close();
+      onDone(all);
+    };
+    const add = (i: MenuItem): void => {
+      picked.push(i);
+      // Maridaje: de vez en cuando, al pedir un vino sin nada de comer, el camarero sugiere una tapa.
+      tip = i.wine && !picked.some((p) => p.kind === 'food') && Math.random() < 0.4 ? (pairingFor(menu, i)?.line ?? '') : '';
+      root();
+    };
+    const root = (): void => {
+      const groups = menu.categories.filter((c) => items.some((i) => i.category === c.id));
+      const options: MenuOption[] = groups.map((c) => ({ label: c.title }));
+      options.push({ label: picked.length > 0 ? 'Eso es todo' : 'Nada, todavía no' });
       this.services.menu.open(
-        `${menu.title} · ${title}`,
-        `${waiter} espera con la libreta.${spent > 0 ? ` Llevas pedido ${euros(spent)}.` : ''}`,
+        menu.title,
+        `${tip ? `«${tip}» ` : ''}${waiter} espera con la libreta.${summary()}`,
         options,
-        (i) => next(i < list.length ? [...picked, list[i]] : picked),
-        () => {
-          this.services.menu.close();
-          onDone([]);
-        },
+        (i) => (i < groups.length ? group(groups[i].id) : close(picked)),
+        () => close([]),
         '',
         0,
         true,
       );
     };
-    course('food', [], 'de comer', 'Nada de comer', (picked) =>
-      course('drink', picked, 'de beber', picked.length > 0 ? 'Nada de beber' : 'Nada, todavía no', (all) => {
+    const group = (id: string): void => {
+      // Cada vino sale una vez (su copa): al elegirlo se pregunta copa o botella.
+      const list = items.filter((i) => i.category === id && i.wine?.serving !== 'bottle');
+      const options: MenuOption[] = list.map((i) => ({
+        label: i.name,
+        detail: i.wine ? `${euros(i.price)} la copa · ${i.wine.body}` : euros(i.price),
+        disabled: afford(i),
+      }));
+      options.push({ label: 'Volver a la carta' });
+      this.services.menu.open(
+        `${menu.title} · ${menu.categories.find((c) => c.id === id)?.title ?? ''}`,
+        `${waiter} espera con la libreta.${summary()}`,
+        options,
+        (i) => {
+          if (i >= list.length) return root();
+          if (list[i].wine) serving(list[i]);
+          else add(list[i]);
+        },
+        () => root(),
+        '',
+        0,
+        true,
+      );
+    };
+    const serving = (glass: MenuItem): void => {
+      const bottle = items.find((i) => i.wine?.wine === glass.wine?.wine && i.wine?.serving === 'bottle');
+      const choices = bottle ? [glass, bottle] : [glass];
+      const options: MenuOption[] = choices.map((i) => ({ label: i.wine?.serving === 'bottle' ? 'Botella' : 'Una copa', detail: euros(i.price), disabled: afford(i) }));
+      options.push({ label: 'Volver' });
+      this.services.menu.open(
+        glass.name,
+        `${glass.wine?.origin}. ${glass.wine?.notes}. Cuerpo ${glass.wine?.body}.`,
+        options,
+        (i) => (i < choices.length ? add(choices[i]) : group(glass.category)),
+        () => group(glass.category),
+        '',
+        0,
+        true,
+      );
+    };
+    if (start.wine) serving(start.wine);
+    else if (start.category && items.some((i) => i.category === start.category)) group(start.category);
+    else root();
+  }
+
+  /**
+   * Sentado a una mesa con servicio: lo que se puede hacer sin levantarse. Las
+   * opciones de seguir pidiendo son las del local (ServiceMenu.more: otra
+   * bebida, otra copa, otra tapa...); luego la cuenta y levantarse.
+   */
+  openTableOptions(menu: ServiceMenu, status: string, onPick: (choice: { kind: 'order'; more: MoreOption } | { kind: 'bill' } | { kind: 'stand' }) => void): void {
+    const options: MenuOption[] = [...menu.more.map((m) => ({ label: m.label })), { label: 'Pedir la cuenta' }, { label: 'Levantarse' }, { label: 'Nada' }];
+    const n = menu.more.length;
+    this.services.menu.open(
+      menu.title,
+      status,
+      options,
+      (i) => {
         this.services.menu.close();
-        onDone(all);
-      }),
+        if (i < n) onPick({ kind: 'order', more: menu.more[i] });
+        else if (i === n) onPick({ kind: 'bill' });
+        else if (i === n + 1) onPick({ kind: 'stand' });
+      },
+      () => this.services.menu.close(),
+      '',
+      0,
+      true,
     );
   }
 

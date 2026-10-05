@@ -14,6 +14,7 @@ import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
 import { buildPopUpTextures } from './PopUpArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
+import { drawPersonHD, drawPlayerHD, hdReady, HD_H, HD_SCALE, HD_W } from './HumanArtHD';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
 import { WEATHER_LOOKS } from './WeatherLooks';
@@ -445,7 +446,8 @@ function drawShadow(ctx: Ctx): void {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const d = Math.hypot((x + 0.5 - w / 2) / (w / 2), (y + 0.5 - h / 2) / (h / 2));
-      const a = d < 0.45 ? 0.42 : d < 0.72 ? 0.26 : d < 1 ? 0.1 : 0;
+      // Núcleo denso de oclusión bajo los pies y penumbra que se abre: la de antes ni se veía a zoom de juego.
+      const a = d < 0.5 ? 0.58 : d < 0.75 ? 0.36 : d < 1 ? 0.15 : 0;
       if (a === 0) continue;
       ctx.globalAlpha = a;
       px(ctx, PALETTE.ink, x, y);
@@ -508,8 +510,7 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
       for (const pose of POSES) {
         const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;
         const ctx = tex.getContext();
-        ctx.clearRect(0, 0, PLAYER_W, PLAYER_H);
-        drawHuman(ctx, facing, pose, colors);
+        drawPlayerHD(ctx, facing, pose, colors);
         tex.refresh();
       }
     }
@@ -546,6 +547,41 @@ export const PEOPLE = 'people';
 /** Lado máximo del atlas de gente, en px. */
 const ATLAS_MAX = 4096;
 export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
+
+/**
+ * Prototipo a 28 × 42 (world/HumanArtHD) para la gente: un solo anónimo, el
+ * primero de los que salen a la calle y al metro que el dibujo nuevo sabe
+ * pintar entero. Sus poses van en una textura aparte, pequeña, con los mismos
+ * nombres de fotograma; entities/Character y entities/Walker lo ponen a la
+ * escala del mundo. El resto sigue en el atlas de siempre.
+ */
+export const PEOPLE_HD = 'people-hd';
+export const HD_PERSON = PASSENGER_LOOKS.find((l) => hdReady(colorsOf(l)))?.id;
+export const personTexture = (id: string): string => (id === HD_PERSON ? PEOPLE_HD : PEOPLE);
+export const personScale = (id: string): number => (id === HD_PERSON ? HD_SCALE : 1);
+
+function buildPeopleHD(scene: Phaser.Scene): void {
+  const look = PASSENGER_LOOKS.find((l) => l.id === HD_PERSON);
+  if (!look || scene.textures.exists(PEOPLE_HD)) return;
+  const atlas = scene.textures.createCanvas(PEOPLE_HD, FACINGS.length * POSES.length * HD_W, HD_H);
+  if (!atlas) return;
+  const ctx = atlas.getContext();
+  const cell = document.createElement('canvas');
+  cell.width = HD_W;
+  cell.height = HD_H;
+  const c = cell.getContext('2d', { willReadFrequently: true });
+  if (!c) return;
+  const colors = colorsOf(look);
+  FACINGS.forEach((facing, f) =>
+    POSES.forEach((pose, i) => {
+      drawPersonHD(c, facing, pose, colors);
+      const x = (f * POSES.length + i) * HD_W;
+      ctx.drawImage(cell, x, 0);
+      atlas.add(personFrame(look.id, facing, pose), 0, x, 0, HD_W, HD_H);
+    }),
+  );
+  atlas.refresh();
+}
 
 function buildPeople(scene: Phaser.Scene): void {
   if (scene.textures.exists(PEOPLE)) return;
@@ -660,7 +696,8 @@ export function buildTextures(scene: Phaser.Scene): void {
 
   for (const facing of FACINGS) {
     for (const pose of POSES) {
-      make(scene, humanKey('player', facing, pose), PLAYER_W, PLAYER_H, (ctx) => drawHuman(ctx, facing, pose, PLAYER_COLORS));
+      // A 28 × 42 (world/HumanArtHD); entities/Player lo pone a la escala del mundo.
+      make(scene, humanKey('player', facing, pose), HD_W, HD_H, (ctx) => drawPlayerHD(ctx, facing, pose, PLAYER_COLORS));
     }
   }
 
@@ -671,6 +708,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'train-door-light', 6, 2, drawDoorLight);
 
   buildPeople(scene);
+  buildPeopleHD(scene);
 
   // Charco de luz: anillos escalonados, sin degradado suave. Blanco: world/Lighting lo tiñe (farola cálida, tubo frío).
   make(scene, 'fx-light', 56, 56, (ctx) => {
@@ -757,6 +795,6 @@ function humanAnims(scene: Phaser.Scene, prefix: string, at: (facing: Facing, po
 export function registerAnimations(scene: Phaser.Scene): void {
   humanAnims(scene, 'player', (facing, pose) => ({ key: humanKey('player', facing, pose) }));
   for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS]) {
-    humanAnims(scene, `npc-${npc.id}`, (facing, pose) => ({ key: PEOPLE, frame: personFrame(npc.id, facing, pose) }));
+    humanAnims(scene, `npc-${npc.id}`, (facing, pose) => ({ key: personTexture(npc.id), frame: personFrame(npc.id, facing, pose) }));
   }
 }

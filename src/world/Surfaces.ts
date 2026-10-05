@@ -100,6 +100,8 @@ interface SlabStyle {
   seed: number;
   /** Cuánto se aparta cada pieza del tono de su tanda. */
   spread: number;
+  /** Granito: px² por mota de sal y pimienta (sin él, sólo el grano de `slab`). */
+  grain?: number;
 }
 
 /** Una pieza con junta, bisel (luz arriba-izquierda) y, a veces, un accidente. */
@@ -147,6 +149,15 @@ function slabs(style: SlabStyle): Material['paint'] {
           if (t < 0.14) tone = mix(tone, WARM_TINT, 0.16);
           else if (t > 0.9) tone = mix(tone, COOL_TINT, 0.14);
           slab(ctx, x, y, len - 1, course - 1, tone, r, 0.05);
+          if (style.grain) {
+            // Sal y pimienta del granito: sobre todo motas oscuras, alguna clara y, rara, un brillo de mica.
+            const n = Math.floor(((len - 3) * (course - 3)) / style.grain);
+            for (let k = 0; k < n; k++) {
+              const g = r(100 + k);
+              const c = g < 0.62 ? shade(tone, -0.085) : g < 0.95 ? shade(tone, 0.06) : mix(tone, '#fff4dc', 0.35);
+              px(ctx, c, x + 1 + Math.floor(r(200 + k) * (len - 3)), y + 1 + Math.floor(r(300 + k) * (course - 3)));
+            }
+          }
         }
         x += len;
       }
@@ -538,7 +549,7 @@ function stoneFloor({ ctx, cells }: Paint): void {
 /** Los materiales, por caracteres de la rejilla (world/tiles.ts). */
 export const MATERIALS: readonly Material[] = [
   // Plaza de granito (plazuela del metro): losas grandes a matajunta.
-  { chars: 'P', paint: slabs({ base: PALETTE.plaza, course: 12, lengths: [16, 20, 24, 28], seed: 17, spread: 1 }) },
+  { chars: 'P', paint: slabs({ base: PALETTE.plaza, course: 12, lengths: [16, 20, 24, 28], seed: 17, spread: 1, grain: 14 }) },
   // Plaza mayor: losa de caliza más grande y más clara, de hiladas anchas.
   { chars: '~', paint: slabs({ base: shade(PALETTE.plaza, 0.03), course: 16, lengths: [16, 24, 32], seed: 29, spread: 0.8 }) },
   { chars: ',', paint: sidewalk },

@@ -73,8 +73,23 @@ const FOOD: Readonly<Record<Dish, readonly [string, string]>> = {
   wine: ['#7a1f2e', '#a8354a'],
   soda: ['#3a2a24', '#6a4a3a'],
   coffee: ['#4a2f20', '#e8d8c0'],
+  // Cafetería: bollería, tostada, bocadillo, zumo, té y chocolate.
+  pastry: ['#d9a24a', '#f0c878'],
+  toast: ['#d9a86a', '#c0392b'],
+  sandwich: ['#e8c890', '#8a5a2e'],
+  juice: ['#f0a030', '#ffd070'],
+  tea: ['#b86a2a', '#e8d8c0'],
+  cocoa: ['#5a3020', '#e8d8c0'],
+  // Vinoteca: quesos, embutido, aceitunas, una tapa en salsa, el blanco, el rosado y la botella.
+  cheese: ['#f0d070', '#e8b840'],
+  ham: ['#b03a3a', '#f0d8c8'],
+  olives: ['#6a7a2a', '#8a9a3a'],
+  tapa: ['#e0a040', '#c0392b'],
+  'wine-white': ['#e8dc90', '#f4ecb8'],
+  'wine-rose': ['#e88a90', '#f4b0b4'],
+  bottle: ['#2a3a2a', '#7a1f2e'],
 };
-const DRINKS: ReadonlySet<Dish> = new Set(['water', 'beer', 'wine', 'soda', 'coffee']);
+const DRINKS: ReadonlySet<Dish> = new Set(['water', 'beer', 'wine', 'wine-white', 'wine-rose', 'bottle', 'soda', 'juice', 'coffee', 'tea', 'cocoa']);
 
 /** Un plato visto desde arriba, con su comida o ya rebañado (migas y el tenedor cruzado). */
 function drawPlate(ctx: Ctx, dish: Dish, full: boolean): void {
@@ -96,7 +111,7 @@ function drawPlate(ctx: Ctx, dish: Dish, full: boolean): void {
 /** Un vaso, una caña, una copa de vino o una taza: llenos o con el fondo que queda. */
 function drawGlass(ctx: Ctx, dish: Dish, full: boolean): void {
   const [a, b] = FOOD[dish];
-  if (dish === 'coffee') {
+  if (dish === 'coffee' || dish === 'tea' || dish === 'cocoa') {
     px(ctx, PLATE, 0, 3, 5, 2);
     px(ctx, PALETTE.white, 1, 1, 3, 3);
     px(ctx, full ? a : shade(a, 0.3), 1, 1, 3, 1);
@@ -104,7 +119,15 @@ function drawGlass(ctx: Ctx, dish: Dish, full: boolean): void {
     return;
   }
   const glass = 'rgba(210,235,245,0.75)';
-  if (dish === 'wine') {
+  if (dish === 'bottle') {
+    // Botella de pie con su etiqueta clara; vacía, el cristal oscuro sin vino al trasluz.
+    px(ctx, a, 2, 0, 1, 1);
+    px(ctx, a, 1, 1, 3, 4);
+    px(ctx, '#e8dcc0', 1, 2, 3, 1);
+    if (full) px(ctx, b, 3, 3, 1, 2);
+    return;
+  }
+  if (dish === 'wine' || dish === 'wine-white' || dish === 'wine-rose') {
     // Copa: el cáliz, el tallo y el pie.
     px(ctx, glass, 1, 0, 3, 3);
     px(ctx, glass, 2, 3, 1, 1);

@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { lampShadow } from '../world/LampShadows';
 import { PLAYER_BODY, PLAYER_SPEED } from '../config/constants';
 import type { Facing } from '../types/game';
-import { PLAYER_H, PLAYER_W } from '../world/TextureFactory';
+import { PLAYER_H } from '../world/TextureFactory';
+import { HD_H, HD_SCALE, HD_W } from '../world/HumanArtHD';
 import { every } from '../world/Motion';
 import { BENCH_BAR, RACK_EMPTY, REPS, SETUP_MS } from './Character';
 import type { Motion } from '../data/stations';
@@ -57,10 +58,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setOrigin(0.5, 1);
+    // Sus texturas son de 28 × 42 (world/HumanArtHD): a escala 16/28 mide lo mismo que siempre en el mundo.
+    this.setScale(HD_SCALE);
 
+    // El cuerpo se da en píxeles de la textura y Phaser lo escala con el sprite: en el mundo, el de siempre.
     const body = this.body as Phaser.Physics.Arcade.Body;
-    body.setSize(PLAYER_BODY.width, PLAYER_BODY.height);
-    body.setOffset((PLAYER_W - PLAYER_BODY.width) / 2, PLAYER_H - PLAYER_BODY.height);
+    body.setSize(PLAYER_BODY.width / HD_SCALE, PLAYER_BODY.height / HD_SCALE);
+    body.setOffset((HD_W - PLAYER_BODY.width / HD_SCALE) / 2, HD_H - PLAYER_BODY.height / HD_SCALE);
     body.setCollideWorldBounds(true);
 
     this.shadow = scene.add.image(x, y, 'fx-shadow').setOrigin(0.5, 0.5);

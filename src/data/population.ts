@@ -183,15 +183,16 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     maxVisitors: 8,
     staff: [
       { service: 'bartender', npc: 'nilo', points: ['CAFE_BARISTA'] },
-      { service: 'waiter', points: ['CAFE_WAITER_'], serves: ['CAFE_TABLE_', 'CAFE_WINDOW_SEAT'], minLevel: 'MEDIUM' },
+      // Siempre hay quien sirve las mesas: sentarse es pedir que te atiendan (no hace falta ir a la barra).
+      { service: 'waiter', line: 'Ahora te atiendo.', points: ['CAFE_WAITER_'], serves: ['CAFE_TABLE_', 'CAFE_WINDOW_SEAT'] },
     ],
+    // Servicio de mesa (systems/TableService.ts) con la carta de cafetería: cafés, otras bebidas, desayunos y algo de comer.
+    tableService: { menu: 'pausa', pass: 'CAFE_PASS', kitchen: 'CAFE_BARISTA' },
     visitors: [
       {
-        role: 'customer', label: 'Cliente', line: 'Está bueno, pero quema.', weight: 3, party: [1, 3],
-        plan: [
-          { state: 'ORDER', points: ['CAFE_COUNTER', 'CAFE_QUEUE_'], minutes: [1, 3] },
-          { state: 'DRINK', points: ['CAFE_TABLE_', 'CAFE_WINDOW_SEAT'], minutes: [15, 40] },
-        ],
+        // Se sientan y les toman nota en la mesa: café, bollería, tostadas... al ritmo del servicio.
+        role: 'customer', label: 'Cliente', line: 'Está bueno, pero quema.', weight: 3, party: [1, 2],
+        plan: [{ state: 'DRINK', points: ['CAFE_TABLE_', 'CAFE_WINDOW_SEAT'], minutes: [25, 50] }],
       },
       // Por la mañana entra gente que pide y se va: el café va rápido.
       {
@@ -407,8 +408,11 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     maxVisitors: 12,
     staff: [
       { service: 'bartender', npc: 'bruno', points: ['WINE_BAR_STAFF'], offers: 'wine-bar' },
-      { service: 'waiter', points: ['WINE_BAR_WAITER'], serves: ['WINE_BAR_TABLE_', 'WINE_BAR_DATE_'], minLevel: 'MEDIUM' },
+      // Siempre hay quien sirve las mesas: vinos por copa o botella y tapas, llevados a la mesa.
+      { service: 'waiter', line: '¿Te recomiendo algún vino?', points: ['WINE_BAR_WAITER'], serves: ['WINE_BAR_TABLE_', 'WINE_BAR_DATE_'] },
     ],
+    // Servicio de mesa (systems/TableService.ts) con la carta de la vinoteca: tintos, blancos, rosados y tapas.
+    tableService: { menu: 'la-cepa', pass: 'WINE_BAR_PASS', kitchen: 'WINE_BAR_STAFF' },
     visitors: [
       {
         role: 'couple', label: 'Una pareja', line: '(Hablan bajito. No es tu conversación.)', weight: 3, party: [2, 2],

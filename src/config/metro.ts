@@ -43,6 +43,31 @@ export const METRO_CONFIG = {
   guardIdle: [3_000, 6_000] as const,
   guardObserve: [1_200, 2_600] as const,
 
+  /**
+   * Carteristas (systems/Pickpocket.ts). Raros y sólo con el andén lleno: probabilidad por segundo de
+   * juego según la afluencia, gente esperando mínima y un descanso largo después de cada uno. Quién hace
+   * de carterista sale al azar entre quien espera de pie: es un papel del momento, nunca del aspecto.
+   */
+  pickpocket: {
+    perSecond: { VERY_LOW: 0, LOW: 0, NORMAL: 0.0012, HIGH: 0.0028, RUSH_HOUR: 0.0045 },
+    minWaiting: 5,
+    cooldownMs: 240_000,
+    /** De cada robo, cuántos van a por el jugador si está en el andén. */
+    playerShare: 0.35,
+    /** Probabilidades: que salga bien, que la víctima lo note aun así y que lo vea un vigilante cerca. */
+    success: 0.6,
+    victimNotices: 0.35,
+    guardNotices: 0.55,
+    /** Hasta dónde ve un vigilante, en px. */
+    guardRange: 8 * 16,
+    /** Euros en efectivo que se lleva de verdad (la tarjeta y la bolsa no se tocan). */
+    cash: [5, 25] as const,
+    /** Si en este tiempo no ha llegado a la víctima, lo deja. */
+    approachTimeoutMs: 15_000,
+    /** Pase lo que pase, en este tiempo el incidente está cerrado y recogido. */
+    maxDurationMs: 60_000,
+  },
+
   npcWalkingSpeed: 34,
   /** Retraso base; cada arquetipo lo multiplica y cada NPC añade su ±30 %. */
   npcReactionDelay: 700,
