@@ -56,7 +56,7 @@ export const ALLEY_SPOTS: readonly AlleySpotDef[] = [
     lookout: { tx: 75, ty: 14, facing: 'down' },
     scan: 'up',
     entries: [{ tx: 71, ty: 17 }, { tx: 80, ty: 17 }],
-    odds: { afternoon: 0.01, evening: 0.09, late: 0.12 },
+    odds: { afternoon: 0.05, evening: 0.35, late: 0.4 },
     yieldsTo: 'patio-mayor',
   },
   {
@@ -70,6 +70,6 @@ export const ALLEY_SPOTS: readonly AlleySpotDef[] = [
     lookout: { tx: 57, ty: 42, facing: 'up' },
     scan: 'down',
     entries: [{ tx: 53, ty: 41 }, { tx: 56, ty: 51 }],
-    odds: { afternoon: 0, evening: 0.06, late: 0.09 },
+    odds: { afternoon: 0.03, evening: 0.3, late: 0.35 },
   },
 ];

@@ -60,7 +60,7 @@ for (const s of ALLEY_SPOTS) {
   }
 }
 const perWeek = (episodes.length / ALLEY_SPOTS.length / DAYS) * 7;
-assert.ok(perWeek > 0.3 && perWeek < 2, `frecuencia rara: ${perWeek.toFixed(2)} ratos por sitio y semana`);
+assert.ok(perWeek > 0.3 && perWeek < 7, `frecuencia moderada: ${perWeek.toFixed(2)} ratos por sitio y semana`);
 const hourOf = (e: Episode): number => (e.start % 1440) / 60;
 assert.ok(episodes.every((e) => hourOf(e) < 4 || hourOf(e) >= 16), 'un rato por la mañana o a mediodía');
 const night = episodes.filter((e) => hourOf(e) >= 20 || hourOf(e) < 4).length;
