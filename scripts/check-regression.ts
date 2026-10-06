@@ -84,9 +84,9 @@ for (const loc of allLocations()) {
   }
 }
 const metroSys = src('systems/MetroSystem.ts');
-assert.ok(/const y = this\.layout\.walkY \+ \d+;[\s\S]{0,400}guard\.sweep/.test(metroSys), 'el barrido del andén ya no va por la fila de paso');
-const pick = src('systems/Pickpocket.ts');
-assert.ok(/y: Math\.max\(target\.y, this\.layout\.walkY\)/.test(pick), 'beside() ya no se ciñe al andén');
+assert.ok(/const y =\s*this\.layout\.walkY \+\s*\d+;[\s\S]{0,900}guard\.sweep\(/.test(metroSys), 'el barrido del andén ya no va por la fila de paso');
+// La escolta del carterista (MetroSystem.startPickpocket): por la fila de paso, el torniquete, el vestíbulo y la salida; nunca por la vía.
+assert.ok(/escortRoute = \[[\s\S]{0,700}?\.walkY[\s\S]{0,700}?\.gate\b[\s\S]{0,400}?\.lobby[\s\S]{0,400}?\.entrance/.test(metroSys), 'la escolta del carterista ya no va por el andén hasta la salida');
 
 // 10. Guardado: un estado completo sobrevive la ida y vuelta; versión ajena o JSON roto no cargan.
 const store = new Map<string, string>();
@@ -106,6 +106,7 @@ const full: GameStateData = {
   appearance: { player: { hair: 'buzz', top: GARMENTS.find((g) => g.slot === 'top')!.id } },
   wardrobe: [GARMENTS[0].id],
   fitness: { ...START_FITNESS },
+  social: {},
 };
 assert.ok(save.save(full));
 assert.deepEqual(save.load(), full, 'el guardado no vuelve igual');

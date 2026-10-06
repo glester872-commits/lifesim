@@ -8,6 +8,7 @@ import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
 import { parseFitness, START_FITNESS } from './Fitness.ts';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations.ts';
 import { hasLocation, safePosition } from './LocationSystem.ts';
+import { parseSocialState } from './Social.ts';
 
 /**
  * Qué se guarda y qué no (política de lo pasajero). Se guarda lo que es del
@@ -46,6 +47,8 @@ export function createInitialState(): GameStateData {
     appearance: {},
     wardrobe: [],
     fitness: { ...START_FITNESS },
+    // Una partida nueva todavía no conoce a nadie (systems/Social, Prompt 57).
+    social: {},
   };
 }
 
@@ -68,67 +71,196 @@ export function restore(loaded: GameStateData | null): GameStateData {
 export const UNREADABLE_KEY = `${SAVE_KEY}.unreadable`;
 
 /**
- * Backend de persistencia. localStorage es sólo la implementación actual:
- * IndexedDB o un backend entran implementando esta interfaz.
+ * Backend de persistencia.
+ *
+ * localStorage es la implementación actual.
  */
 export interface SaveStorage {
-  read(key: string): string | null;
-  write(key: string, value: string): void;
-  remove(key: string): void;
+  read(
+    key: string,
+  ): string | null;
+
+  write(
+    key: string,
+    value: string,
+  ): void;
+
+  remove(
+    key: string,
+  ): void;
 }
 
-export class LocalStorageAdapter implements SaveStorage {
-  read(key: string): string | null {
+export class LocalStorageAdapter
+  implements SaveStorage {
+  read(
+    key: string,
+  ): string | null {
     try {
-      return window.localStorage.getItem(key);
+      return window.localStorage.getItem(
+        key,
+      );
     } catch {
       return null;
     }
   }
 
-  write(key: string, value: string): void {
+  write(
+    key: string,
+    value: string,
+  ): void {
     try {
-      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(
+        key,
+        value,
+      );
     } catch {
-      // Modo privado o cuota llena: la partida sigue, sólo no persiste.
+      /*
+       * Modo privado o cuota llena:
+       * la partida continúa aunque no persista.
+       */
     }
   }
 
-  remove(key: string): void {
+  remove(
+    key: string,
+  ): void {
     try {
-      window.localStorage.removeItem(key);
+      window.localStorage.removeItem(
+        key,
+      );
     } catch {
-      // Ignorado por el mismo motivo que write().
+      // Ignorado.
     }
   }
 }
 
-const FACINGS = new Set<string>(['up', 'down', 'left', 'right']);
+const FACINGS =
+  new Set<string>([
+    'up',
+    'down',
+    'left',
+    'right',
+  ]);
 
-function isNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
+function isNumber(
+  value: unknown,
+): value is number {
+  return (
+    typeof value ===
+      'number' &&
+    Number.isFinite(
+      value,
+    )
+  );
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isRecord = (
+  value: unknown,
+): value is Record<
+  string,
+  unknown
+> =>
+  typeof value ===
+    'object' &&
+  value !== null &&
+  !Array.isArray(
+    value,
+  );
+
+// ================================================================
+// EVENTOS
+// ================================================================
 
 /**
- * Memoria de eventos. Partidas anteriores no la tienen: empiezan con memoria
- * vacía en vez de descartarse. Un campo mal formado se vacía, no rompe la carga.
+ * Memoria narrativa del metro.
+ *
+ * Una partida antigua que no la tenga empieza vacía.
  */
-function parseEvents(value: unknown): EventMemory {
-  const empty = emptyMemory();
-  if (!isRecord(value)) return empty;
+function parseEvents(
+  value: unknown,
+): EventMemory {
+  const empty =
+    emptyMemory();
+
+  if (!isRecord(value)) {
+    return empty;
+  }
+
   return {
-    rides: isNumber(value.rides) ? value.rides : empty.rides,
-    eventsSeen: isRecord(value.eventsSeen) ? (value.eventsSeen as EventMemory['eventsSeen']) : {},
-    choicesMade: Array.isArray(value.choicesMade) ? (value.choicesMade as EventMemory['choicesMade']) : [],
-    importantNPCsMet: isRecord(value.importantNPCsMet) ? (value.importantNPCsMet as EventMemory['importantNPCsMet']) : {},
-    eventFlags: isRecord(value.eventFlags) ? (value.eventFlags as EventMemory['eventFlags']) : {},
-    eventCooldowns: isRecord(value.eventCooldowns) ? (value.eventCooldowns as EventMemory['eventCooldowns']) : {},
-    scheduled: Array.isArray(value.scheduled) ? (value.scheduled as EventMemory['scheduled']) : [],
-    lastEventRide: isNumber(value.lastEventRide) ? value.lastEventRide : empty.lastEventRide,
-    lastNarrativeAt: isNumber(value.lastNarrativeAt) ? value.lastNarrativeAt : empty.lastNarrativeAt,
+    rides:
+      isNumber(
+        value.rides,
+      )
+        ? value.rides
+        : empty.rides,
+
+    eventsSeen:
+      isRecord(
+        value.eventsSeen,
+      )
+        ? (
+            value.eventsSeen as EventMemory['eventsSeen']
+          )
+        : {},
+
+    choicesMade:
+      Array.isArray(
+        value.choicesMade,
+      )
+        ? (
+            value.choicesMade as EventMemory['choicesMade']
+          )
+        : [],
+
+    importantNPCsMet:
+      isRecord(
+        value.importantNPCsMet,
+      )
+        ? (
+            value.importantNPCsMet as EventMemory['importantNPCsMet']
+          )
+        : {},
+
+    eventFlags:
+      isRecord(
+        value.eventFlags,
+      )
+        ? (
+            value.eventFlags as EventMemory['eventFlags']
+          )
+        : {},
+
+    eventCooldowns:
+      isRecord(
+        value.eventCooldowns,
+      )
+        ? (
+            value.eventCooldowns as EventMemory['eventCooldowns']
+          )
+        : {},
+
+    scheduled:
+      Array.isArray(
+        value.scheduled,
+      )
+        ? (
+            value.scheduled as EventMemory['scheduled']
+          )
+        : [],
+
+    lastEventRide:
+      isNumber(
+        value.lastEventRide,
+      )
+        ? value.lastEventRide
+        : empty.lastEventRide,
+
+    lastNarrativeAt:
+      isNumber(
+        value.lastNarrativeAt,
+      )
+        ? value.lastNarrativeAt
+        : empty.lastNarrativeAt,
   };
 }
 
@@ -166,60 +298,228 @@ function parseState(value: unknown): GameStateData | null {
     appearance: parseAppearance(s.appearance),
     wardrobe: Array.isArray(s.wardrobe) ? [...new Set(s.wardrobe.filter((g): g is string => typeof g === 'string' && GARMENT_IDS.has(g)))] : [],
     fitness: parseFitness(s.fitness),
+    // Prompt 57: una partida anterior al sistema social carga sin nadie conocido (parseSocialState(undefined) = {}).
+    social: parseSocialState(s.social),
   };
 }
 
-/** Prenda puesta en ese hueco, si existe y es de ese hueco. */
-const garmentFor = (value: unknown, slot: 'top' | 'bottom' | 'shoes'): string | undefined =>
-  typeof value === 'string' && GARMENT_IDS.has(value) && getGarment(value).slot === slot ? value : undefined;
+// ================================================================
+// APARIENCIA
+// ================================================================
+
+const garmentFor = (
+  value: unknown,
+  slot:
+    | 'top'
+    | 'bottom'
+    | 'shoes',
+): string | undefined =>
+  typeof value ===
+    'string' &&
+  GARMENT_IDS.has(
+    value,
+  ) &&
+  getGarment(
+    value,
+  ).slot === slot
+    ? value
+    : undefined;
 
 /**
- * Aspecto de quien persiste. Partidas anteriores no lo tienen y cargan con el
- * aspecto de siempre; un peinado, una prenda o un tatuaje que ya no existe se
- * olvida, no rompe la carga.
+ * Apariencia persistente.
  */
-function parseAppearance(value: unknown): Record<string, Appearance> {
-  if (!isRecord(value)) return {};
-  const out: Record<string, Appearance> = {};
-  for (const [id, a] of Object.entries(value)) {
-    if (!isRecord(a)) continue;
-    const parsed: Appearance = {};
-    if (typeof a.hair === 'string' && HAIR_IDS.has(a.hair)) parsed.hair = a.hair as HairStyle;
-    const top = garmentFor(a.top, 'top');
-    const bottom = garmentFor(a.bottom, 'bottom');
-    if (top) parsed.top = top;
-    if (bottom) parsed.bottom = bottom;
-    const shoes = garmentFor(a.shoes, 'shoes');
-    if (shoes) parsed.shoes = shoes;
-    const tattoos = Array.isArray(a.tattoos)
-      ? a.tattoos.filter((t): t is TattooMark => isRecord(t) && typeof t.zone === 'string' && ZONE_IDS.has(t.zone) && typeof t.design === 'string' && DESIGN_IDS.has(t.design))
-      : [];
-    if (tattoos.length > 0) parsed.tattoos = tattoos.map((t) => ({ zone: t.zone, design: t.design }));
-    if (Object.keys(parsed).length > 0) out[id] = parsed;
+function parseAppearance(
+  value: unknown,
+): Record<
+  string,
+  Appearance
+> {
+  if (!isRecord(value)) {
+    return {};
   }
+
+  const out:
+    Record<
+      string,
+      Appearance
+    > = {};
+
+  for (
+    const [
+      id,
+      a,
+    ] of
+    Object.entries(value)
+  ) {
+    if (!isRecord(a)) {
+      continue;
+    }
+
+    const parsed:
+      Appearance = {};
+
+    if (
+      typeof a.hair ===
+        'string' &&
+      HAIR_IDS.has(
+        a.hair,
+      )
+    ) {
+      parsed.hair =
+        a.hair as HairStyle;
+    }
+
+    const top =
+      garmentFor(
+        a.top,
+        'top',
+      );
+
+    const bottom =
+      garmentFor(
+        a.bottom,
+        'bottom',
+      );
+
+    if (top) {
+      parsed.top =
+        top;
+    }
+
+    if (bottom) {
+      parsed.bottom =
+        bottom;
+    }
+
+    const shoes =
+      garmentFor(
+        a.shoes,
+        'shoes',
+      );
+
+    if (shoes) {
+      parsed.shoes =
+        shoes;
+    }
+
+    const tattoos =
+      Array.isArray(
+        a.tattoos,
+      )
+        ? a.tattoos.filter(
+            (
+              t,
+            ): t is TattooMark =>
+              isRecord(t) &&
+              typeof t.zone ===
+                'string' &&
+              ZONE_IDS.has(
+                t.zone,
+              ) &&
+              typeof t.design ===
+                'string' &&
+              DESIGN_IDS.has(
+                t.design,
+              ),
+          )
+        : [];
+
+    if (
+      tattoos.length > 0
+    ) {
+      parsed.tattoos =
+        tattoos.map(
+          (t) => ({
+            zone:
+              t.zone,
+
+            design:
+              t.design,
+          }),
+        );
+    }
+
+    if (
+      Object.keys(
+        parsed,
+      ).length > 0
+    ) {
+      out[id] =
+        parsed;
+    }
+  }
+
   return out;
 }
 
-/**
- * Objetos y saldos: id → número. Partidas anteriores no los tienen y cargan
- * con los bolsillos vacíos; una entrada mal formada se descarta sola.
- */
-function parseCounts(value: unknown): Record<string, number> {
-  if (!isRecord(value)) return {};
-  return Object.fromEntries(Object.entries(value).filter((e): e is [string, number] => isNumber(e[1]) && e[1] >= 0));
-}
+// ================================================================
+// INVENTARIO / TARJETAS
+// ================================================================
 
-export class SaveSystem {
-  private readonly storage: SaveStorage;
-
-  constructor(storage: SaveStorage = new LocalStorageAdapter()) {
-    this.storage = storage;
+function parseCounts(
+  value: unknown,
+): Record<string, number> {
+  if (!isRecord(value)) {
+    return {};
   }
 
-  save(state: GameStateData): boolean {
-    const file: SaveFile = { version: SAVE_VERSION, savedAt: Date.now(), state };
+  return Object.fromEntries(
+    Object.entries(
+      value,
+    ).filter(
+      (
+        e,
+      ): e is [
+        string,
+        number,
+      ] =>
+        isNumber(
+          e[1],
+        ) &&
+        e[1] >= 0,
+    ),
+  );
+}
+
+// ================================================================
+// SAVE SYSTEM
+// ================================================================
+
+export class SaveSystem {
+  private readonly storage:
+    SaveStorage;
+
+  constructor(
+    storage:
+      SaveStorage =
+      new LocalStorageAdapter(),
+  ) {
+    this.storage =
+      storage;
+  }
+
+  save(
+    state: GameStateData,
+  ): boolean {
+    const file:
+      SaveFile = {
+      version:
+        SAVE_VERSION,
+
+      savedAt:
+        Date.now(),
+
+      state,
+    };
+
     try {
-      this.storage.write(SAVE_KEY, JSON.stringify(file));
+      this.storage.write(
+        SAVE_KEY,
+        JSON.stringify(
+          file,
+        ),
+      );
+
       return true;
     } catch {
       return false;
@@ -250,6 +550,8 @@ export class SaveSystem {
   }
 
   clear(): void {
-    this.storage.remove(SAVE_KEY);
+    this.storage.remove(
+      SAVE_KEY,
+    );
   }
 }

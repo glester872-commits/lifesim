@@ -14,6 +14,7 @@ import { seededRng } from '../src/systems/MetroDaily.ts';
 import { NAMED_LAG_CAP, RECOVERY, StuckWatch, settleNamed, tileKey } from '../src/systems/Recovery.ts';
 import type { Facing, TilePoint, Vec2 } from '../src/types/game.ts';
 import type { Walker } from '../src/entities/Walker.ts';
+import type { TrainSystem } from '../src/systems/TrainSystem.ts';
 
 const STEP = 100;
 const MS_PER_MIN = 500;
@@ -181,7 +182,7 @@ function safeCrowd(crowd: Crowd, loc = getLocation(placeInfo('cafe')!.interior!)
   const station = getLocation('vallesco-station');
   const def = station.metro!;
   const at = (p: TilePoint): Vec2 => ({ x: p.tx * TILE + TILE / 2, y: p.ty * TILE + 13 });
-  /** Un Walker de mentira: el mismo contrato que entities/Walker, sin Phaser. `jammed`: no avanza. */
+  /** Un Walker de mentira: el mismo contrato que entities/Walker usa SecurityAI, sin Phaser. `jammed`: no avanza. */
   class FakeWalker {
     x = 0;
     y = 0;
@@ -199,6 +200,7 @@ function safeCrowd(crowd: Crowd, loc = getLocation(placeInfo('cafe')!.interior!)
       this.x = p.x;
       this.y = p.y;
       this.path = [];
+      this.visible = true;
     }
     walk(path: Vec2[]): void {
       this.path = path.slice();
@@ -206,7 +208,12 @@ function safeCrowd(crowd: Crowd, loc = getLocation(placeInfo('cafe')!.interior!)
     halt(): void {
       this.path = [];
     }
+    hide(): void {
+      this.visible = false;
+    }
     face(): void {}
+    setIcon(): void {}
+    say(): void {}
     step(dt: number): boolean {
       if (this.jammed || !this.path.length) return false;
       const t = this.path[0];
@@ -223,43 +230,56 @@ function safeCrowd(crowd: Crowd, loc = getLocation(placeInfo('cafe')!.interior!)
       return false;
     }
   }
+  const train = { state: 'AWAY', cycle: 0 } as unknown as TrainSystem;
   const g = def.guards[0];
   const w = new FakeWalker();
   const guard = new SecurityAI(w as unknown as Walker, at(g.post), g.facing, g.patrol.map(at), { patrols: true, onPlatform: g.post.ty < def.gates[0].ty }, METRO_CONFIG);
-  // Un aviso al otro lado del andén con el vigilante bloqueado: el camino no avanza.
-  const target = { x: at(g.post).x + 6 * TILE, y: at({ tx: 0, ty: def.walkRow }).y };
-  let arrived = false;
-  guard.respond([target], [], () => (arrived = true));
+  // Persigue a un carterista al otro lado del andén con el vigilante bloqueado: la persecución no avanza.
+  const thief = new FakeWalker();
+  thief.place({ x: at(g.post).x + 8 * TILE, y: at({ tx: 0, ty: def.walkRow }).y }, 'down');
+  let caught = false;
+  let escaped = false;
+  assert.ok(guard.chase(thief as unknown as Walker, () => (caught = true), () => (escaped = true)), 'no empieza la persecución');
+  assert.equal(guard.available, false, 'persiguiendo y libre');
   const watch = new StuckWatch();
   const levels: number[] = [];
-  for (let ms = 0; ms < 30_000 && guard.state !== 'IDLE'; ms += STEP) {
-    w.step(STEP);
+  for (let ms = 0; ms < 30_000 && guard.handlingIncident; ms += STEP) {
+    guard.update(STEP, train);
     const level = watch.check('g0', w.x / TILE, w.y / TILE, w.moving && !w.talking, STEP);
     if (level) {
       levels.push(level);
       guard.recover(level, true);
     }
   }
-  assert.equal(guard.state, 'IDLE', `el vigilante sigue en ${guard.state} (peldaños ${levels})`);
-  assert.ok(!arrived, 'el aviso abandonado no debe resolverse');
+  assert.ok(!guard.handlingIncident && guard.available, `el vigilante sigue con la incidencia (${guard.state}, peldaños ${levels})`);
+  assert.ok(escaped && !caught, 'la persecución atascada no se cierra como huida');
   assert.ok(levels.length > 0 && levels[0] === 1, `peldaños ${levels}`);
-  // Desatascado: vuelve a su puesto andando y nunca por debajo del borde del andén (la vía).
+  // Desatascado: vuelve a su puesto andando y nunca por encima del borde del andén (la vía).
   w.jammed = false;
-  guard.recover(2, false);
   const edgeY = (def.edgeRow + 1) * TILE;
-  for (let ms = 0; ms < 30_000 && w.moving; ms += STEP) {
-    w.step(STEP);
+  for (let ms = 0; ms < 30_000 && guard.state !== 'IDLE'; ms += STEP) {
+    guard.update(STEP, train);
     assert.ok(w.y >= edgeY, `el vigilante pisa la vía (y=${w.y.toFixed(0)} < ${edgeY})`);
   }
-  assert.deepEqual({ x: w.x, y: w.y }, at(g.post), 'no vuelve a su puesto');
   // Peldaño 4 a la vista: no se teletransporta; fuera de cámara, a su puesto (validado fuera de la vía).
-  w.place({ x: target.x, y: target.y }, 'up');
+  const far = { x: at(g.post).x + 5 * TILE, y: at({ tx: 0, ty: def.walkRow }).y };
+  w.place(far, 'up');
   guard.recover(4, false);
-  assert.deepEqual({ x: w.x, y: w.y }, target, 'peldaño 4 a la vista');
+  assert.deepEqual({ x: w.x, y: w.y }, far, 'peldaño 4 a la vista');
   guard.recover(4, true);
   assert.deepEqual({ x: w.x, y: w.y }, at(g.post), 'peldaño 4 fuera de cámara');
   assert.ok(g.post.ty > def.edgeRow, 'el puesto está en la vía');
-  console.log(`metro, vigilante sin avanzar: peldaños ${levels.join('→')}, deja el aviso, vuelve a su puesto sin pisar la vía`);
+  // Una escolta atascada también se cierra: el sospechoso sale de escena (nadie retenido para siempre).
+  thief.place({ x: w.x + 6, y: w.y }, 'down');
+  let escorted = false;
+  guard.chase(thief as unknown as Walker, () => guard.prepareEscort(thief as unknown as Walker, [at(def.gates[0])], () => (escorted = true)), () => {});
+  w.jammed = false;
+  for (let ms = 0; ms < 10_000 && guard.state !== 'ESCORT'; ms += STEP) guard.update(STEP, train);
+  assert.equal(guard.state, 'ESCORT', `no llega a escoltar (${guard.state})`);
+  w.jammed = true;
+  guard.recover(2, false);
+  assert.ok(escorted && !guard.handlingIncident, 'una escolta atascada deja al sospechoso retenido');
+  console.log(`metro, vigilante sin avanzar: peldaños ${levels.join('→')}, cierra la persecución como huida, vuelve a su puesto sin pisar la vía; escolta atascada cerrada`);
 }
 
 // --------------------------------------------------------------- 5. personaje con nombre colgado

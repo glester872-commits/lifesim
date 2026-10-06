@@ -197,6 +197,7 @@ export const MICRO_EVENTS = {
     { event: 'ANNOUNCEMENT', tier: 'MINOR', weight: 11 },
     { event: 'ZONE_CHANGE', tier: 'MINOR', weight: 12 },
     { event: 'GUARD_SWEEP', tier: 'UNUSUAL', weight: 6 },
+    { event: 'PICKPOCKET', tier: 'UNUSUAL', weight: 3 },
   ],
   /** Cuando se abren las puertas. */
   arrival: [

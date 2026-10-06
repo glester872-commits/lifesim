@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
 import { personFrame, personScale, personTexture } from '../world/TextureFactory';
 
-export type WalkerIcon = 'phone' | 'talk' | null;
+export type WalkerIcon = 'phone' | 'talk' | 'alert' | null;
 
 /**
  * NPC que camina en línea recta por una lista de puntos. No hay pathfinding:
@@ -15,6 +15,9 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   private currentLook: NpcLook;
   private readonly shadow: Phaser.GameObjects.Image;
   private readonly iconImage: Phaser.GameObjects.Image;
+  /** Frase breve visible sobre el NPC: gritos y reacciones del mundo. */
+  private readonly speechEl: HTMLDivElement;
+  private speechToken = 0;
   private icon: WalkerIcon = null;
   private path: Vec2[] = [];
   private speed = 0;
@@ -40,9 +43,29 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
 
     this.shadow = scene.add.image(0, 0, 'fx-shadow').setOrigin(0.5, 0.5);
     this.iconImage = scene.add.image(0, 0, 'fx-phone').setOrigin(0.5, 1).setVisible(false);
+
+    // El texto vive en HTML, fuera del canvas pixelado:
+    // así se mantiene pequeño y nítido independientemente del zoom.
+    this.speechEl = document.createElement('div');
+    this.speechEl.className = 'world-speech';
+    this.speechEl.hidden = true;
+    (document.querySelector('#overlay') ?? document.body).appendChild(this.speechEl);
+
+    scene.events.on(
+      Phaser.Scenes.Events.POST_UPDATE,
+      this.syncSpeech,
+      this,
+    );
+
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       this.shadow.destroy();
       this.iconImage.destroy();
+      scene.events.off(
+        Phaser.Scenes.Events.POST_UPDATE,
+        this.syncSpeech,
+        this,
+      );
+      this.speechEl.remove();
     });
     this.hide();
   }
@@ -107,6 +130,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     body.enable = false;
     this.anims.stop();
     this.setIcon(null);
+    this.speechToken++;
+    this.speechEl.hidden = true;
     this.setVisible(false);
     this.shadow.setVisible(false);
   }
@@ -169,8 +194,28 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   setIcon(icon: WalkerIcon): void {
     this.icon = icon;
     this.iconImage.setVisible(icon !== null);
-    if (icon) this.iconImage.setTexture(icon === 'phone' ? 'fx-phone' : 'fx-talk');
+    if (icon) {
+      this.iconImage.setTexture(
+        icon === 'phone' ? 'fx-phone' :
+        icon === 'alert' ? 'fx-alert' :
+        'fx-talk',
+      );
+    }
     this.sync();
+  }
+
+  /** Enseña una frase breve sobre la cabeza del NPC. */
+  say(text: string, duration = 3_200): void {
+    const token = ++this.speechToken;
+
+    this.speechEl.textContent = text;
+    this.speechEl.hidden = false;
+    this.syncSpeech();
+
+    this.scene.time.delayedCall(duration, () => {
+      if (token !== this.speechToken) return;
+      this.speechEl.hidden = true;
+    });
   }
 
   /** Avanza por la ruta. Devuelve true el frame en que llega al final. */
@@ -201,16 +246,48 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   }
 
   /** Profundidad por Y, igual que el jugador. */
+  /** Mantiene el bocadillo HTML encima del NPC mientras la cámara se mueve. */
+  private syncSpeech(): void {
+    if (this.speechEl.hidden || !this.visible) return;
+
+    const camera = this.scene.cameras.main;
+    const canvas = this.scene.game.canvas;
+    const rect = canvas.getBoundingClientRect();
+
+    const scaleX = rect.width / this.scene.scale.width;
+    const scaleY = rect.height / this.scene.scale.height;
+
+    const screenX =
+      rect.left +
+      (camera.x + (this.x - camera.worldView.x) * camera.zoom) * scaleX;
+
+    const screenY =
+      rect.top +
+      (camera.y + (this.y - 27 - camera.worldView.y) * camera.zoom) * scaleY;
+
+    const speechWidth = this.speechEl.offsetWidth;
+    const speechHeight = this.speechEl.offsetHeight;
+
+    const left = Math.round(screenX - speechWidth / 2);
+    const top = Math.round(screenY - speechHeight - 3);
+
+    this.speechEl.style.left = `${left}px`;
+    this.speechEl.style.top = `${top}px`;
+  }
+
   private sync(): void {
     this.setDepth(this.y);
     this.shadow.setPosition(this.x, this.y - 1).setDepth(this.y - 1);
+
     if (!this.icon) return;
     if (this.icon === 'phone') {
       // En la mano, del lado hacia el que mira.
       const side = this.dir === 'left' ? -4 : this.dir === 'right' ? 4 : 3;
       this.iconImage.setPosition(this.x + side, this.y - 7).setDepth(this.y + 1);
     } else {
-      this.iconImage.setPosition(this.x + 5, this.y - 24).setDepth(this.y + 1);
+      this.iconImage
+        .setPosition(this.x + 5, this.y - 24)
+        .setDepth(this.y + 1);
     }
   }
 }

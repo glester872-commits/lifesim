@@ -68,7 +68,7 @@ function roundtrip(label: string, before: GameStateData): GameStateData {
   const after = restore(save.load());
   for (const k of ['money', 'energy', 'day', 'hour', 'minute', 'locationId', 'facing'] as const) assert.equal(after[k], before[k], `${label}: ${k} cambia al cargar`);
   assert.deepEqual(after.position, before.position, `${label}: la posición cambia al cargar`);
-  for (const k of ['inventory', 'cards', 'appearance', 'wardrobe', 'fitness', 'events'] as const) assert.deepEqual(after[k], before[k], `${label}: ${k} cambia al cargar`);
+  for (const k of ['inventory', 'cards', 'appearance', 'wardrobe', 'fitness', 'events', 'social'] as const) assert.deepEqual(after[k], before[k], `${label}: ${k} cambia al cargar`);
   valid(label, after);
   save.save(after);
   assert.deepEqual(restore(save.load()), after, `${label}: guardar→cargar→guardar no es estable`);

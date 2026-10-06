@@ -752,6 +752,16 @@ export function buildTextures(scene: Phaser.Scene): void {
     px(ctx, PALETTE.ink, 2, 5, 2, 1);
     px(ctx, PALETTE.ink, 2, 6, 1, 1);
   });
+
+  // Alerta breve sobre una persona: incidentes, sustos y reacciones.
+  make(scene, 'fx-alert', 7, 9, (ctx) => {
+    px(ctx, PALETTE.ink, 0, 0, 7, 7);
+    px(ctx, PALETTE.amber, 1, 1, 5, 5);
+    px(ctx, PALETTE.ink, 3, 2, 1, 2);
+    px(ctx, PALETTE.ink, 3, 5, 1, 1);
+    px(ctx, PALETTE.ink, 2, 7, 3, 1);
+    px(ctx, PALETTE.ink, 3, 8, 1, 1);
+  });
   // Un libro abierto: tapas de color y las dos páginas.
   make(scene, 'fx-book', 6, 4, (ctx) => {
     px(ctx, '#8e4a50', 0, 0, 6, 4);

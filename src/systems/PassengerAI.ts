@@ -15,7 +15,8 @@ export type PassengerState =
   | 'BOARDING'
   | 'RIDING'
   | 'EXITING_TRAIN'
-  | 'LEAVING_STATION';
+  | 'LEAVING_STATION'
+  | 'DETAINED';
 
 export type SpotPreference = 'front' | 'back' | 'any';
 
@@ -105,8 +106,6 @@ export class PassengerAI {
   private decidedRun = false;
   private forceRun = false;
   private running = false;
-  /** Metido en un robo (systems/Pickpocket.ts), de carterista o de víctima: su rutina espera mientras dura. */
-  private incident = false;
   private readonly world: PassengerWorld;
 
   constructor(walker: Walker, world: PassengerWorld) {
@@ -123,69 +122,6 @@ export class PassengerAI {
   /** Está en el andén sin hacer nada que no se pueda interrumpir. */
   get idleWaiting(): boolean {
     return this.state === 'WAITING' && !this.walker.moving && this.holdMs <= 0 && this.next === null;
-  }
-
-  // ------------------------------------------------------------ robos (systems/Pickpocket.ts)
-
-  /** Puede hacer de carterista ahora: de pie en el andén esperando, sin nada a medias. El papel es del momento, no de la persona. */
-  get freeToSteal(): boolean {
-    return this.idleWaiting && this.seat < 0 && !this.incident;
-  }
-
-  /** Puede ser la víctima: esperando en el andén, quieta (de pie o sentada). */
-  get canBeRobbed(): boolean {
-    return this.state === 'WAITING' && !this.walker.moving && !this.incident;
-  }
-
-  /** Se acerca al punto como quien busca sitio y luego sigue con lo que toca. */
-  sneakTo(to: Vec2, then: () => void): void {
-    this.incident = true;
-    this.walker.setIcon(null);
-    this.activity = 'se acerca';
-    this.go([to], then, 0.85);
-  }
-
-  /** Se queda quieto un rato (el tirón, esperar al vigilante) y luego sigue. */
-  pause(ms: number, activity: string, then: () => void): void {
-    this.incident = true;
-    this.activity = activity;
-    this.hold(ms, then);
-  }
-
-  /** La víctima: se queda quieta mientras se lo hacen. */
-  freeze(): void {
-    this.incident = true;
-    this.walker.setIcon(null);
-    this.hold(0, null);
-  }
-
-  /** La víctima se da cuenta: se gira hacia quien ha sido, protesta y, al rato, vuelve a lo suyo. */
-  noticeFrom(x: number, ms: number): void {
-    this.incident = true;
-    this.walker.halt();
-    this.walker.face(x < this.walker.x ? 'left' : 'right');
-    this.walker.setIcon('talk');
-    this.activity = '¡eh!';
-    this.hold(ms, () => this.release());
-  }
-
-  /** Fuera del robo: vuelve a esperar en su sitio. */
-  release(): void {
-    this.incident = false;
-    this.walker.setIcon(null);
-    this.walker.halt();
-    this.next = null;
-    this.holdMs = 0;
-    const home = this.seat >= 0 ? this.world.layout.seats[this.seat] : this.spot >= 0 ? this.world.layout.spots[this.spot].at : null;
-    if (home && Math.hypot(home.x - this.walker.x, home.y - this.walker.y) < 2) this.beginWaiting();
-    else this.walkToSpot();
-  }
-
-  /** El carterista se va de la estación: deprisa si se escapa, a paso normal si sale acompañado o nadie se ha enterado. */
-  escape(run: boolean, activity: string): void {
-    this.incident = false;
-    this.leave(run ? 1.7 : 1);
-    this.activity = activity;
   }
 
   // ------------------------------------------------------------ arranques
@@ -264,8 +200,7 @@ export class PassengerAI {
         if (this.holdMs <= 0) this.resume();
       }
     }
-    // En un robo manda systems/Pickpocket: ni el tren ni el ambiente le cambian el plan.
-    if (!this.incident) this.think(deltaMs);
+    this.think(deltaMs);
   }
 
   private think(deltaMs: number): void {
@@ -603,6 +538,171 @@ export class PassengerAI {
     this.ambientTimer = rand(3_000, 5_000);
   }
 
+  /**
+   * Microevento de carterista.
+   *
+   * Si nadie detecta el intento, se aleja como otro pasajero cualquiera.
+   * Si alguien lo detecta, sale corriendo hacia la salida.
+   */
+  pickpocket(
+    victim: PassengerAI,
+    noticed: boolean,
+    onAttempt: () => void,
+  ): boolean {
+    if (!this.idleWaiting || !victim.idleWaiting || victim === this) return false;
+
+    const { layout } = this.world;
+
+    this.leaveSeatAndSpot();
+    this.walker.setIcon(null);
+    this.state = 'WALKING_TO_PLATFORM';
+    this.activity = 'se acerca a alguien';
+
+    const side = this.walker.x <= victim.walker.x ? -7 : 7;
+    const near = {
+      x: victim.walker.x + side,
+      y: victim.walker.y,
+    };
+
+    this.go(
+      [
+        { x: this.walker.x, y: layout.walkY },
+        { x: near.x, y: layout.walkY },
+        near,
+      ],
+      () => {
+        this.activity = 'demasiado cerca';
+        this.walker.face(side < 0 ? 'right' : 'left');
+
+        this.hold(2_000, () => {
+          onAttempt();
+
+          // Nadie se ha dado cuenta: intenta mezclarse con el flujo normal.
+          if (!noticed) {
+            this.activity = 'se aleja';
+            this.leave();
+            return;
+          }
+
+          // Lo han descubierto: huida evidente.
+          this.activity = 'huye';
+          this.walker.setIcon('alert');
+
+          this.gate = pick(layout.gates);
+          const walkY = layout.walkY + this.lane;
+
+          this.go(
+            [
+              { x: this.walker.x, y: walkY },
+              { x: this.gatePoint().x, y: walkY },
+              this.gatePoint(),
+              this.gateLobby(),
+              layout.entrance,
+            ],
+            () => {
+              this.walker.setIcon(null);
+              this.walker.hide();
+              this.startOffstage(this.respawnDelay());
+            },
+            1.55,
+          );
+        });
+      },
+      1.15,
+    );
+
+    return true;
+  }
+
+  /** Quien descubre el robo reacciona y puede gritar. */
+  reactToIncident(label: string, speech?: string): void {
+    this.activity = label;
+    this.walker.setIcon('alert');
+
+    if (speech) this.walker.say(speech, 3_400);
+
+    // window.setTimeout sobrevive a la escena: si se ha cambiado de sitio, el sprite ya no existe (active = false).
+    window.setTimeout(() => {
+      if (!this.walker.active || !this.walker.visible) return;
+
+      this.walker.setIcon(null);
+
+      if (this.state === 'WAITING') {
+        this.activity = '';
+        this.walker.face('up');
+      }
+    }, 3_800);
+  }
+
+  /** Al oír un grito, algunos pasajeros cercanos miran hacia el incidente. */
+  reactToShout(at: Vec2): void {
+    if (!this.idleWaiting) return;
+
+    const dx = at.x - this.walker.x;
+    const dy = at.y - this.walker.y;
+
+    const facing: Facing =
+      Math.abs(dx) > Math.abs(dy)
+        ? dx > 0 ? 'right' : 'left'
+        : dy > 0 ? 'down' : 'up';
+
+    this.activity = 'mira el incidente';
+    this.walker.face(facing);
+    this.walker.setIcon('alert');
+
+    window.setTimeout(() => {
+      if (!this.walker.active || !this.walker.visible || this.state !== 'WAITING') return;
+      this.walker.setIcon(null);
+      this.activity = '';
+    }, 2_800);
+  }
+
+  /** Seguridad ha alcanzado al sospechoso: deja de huir. */
+   /** Seguridad ha alcanzado al sospechoso: cancela completamente la huida. */
+  detain(): void {
+    this.leaveSeatAndSpot();
+
+    // Cancela cualquier ruta, espera o callback pendiente de la fuga.
+    this.holdMs = 0;
+    this.next = null;
+    this.timer = 0;
+    this.ambientTimer = 0;
+
+    this.forceRun = false;
+    this.decidedRun = false;
+    this.running = false;
+
+    this.walker.halt();
+    this.walker.setIcon('alert');
+
+    this.state = 'DETAINED';
+    this.activity = 'retenido por seguridad';
+  }
+
+  /**
+   * La escolta ha terminado.
+   * El sospechoso sale de escena y podrá reaparecer más adelante
+   * como otro pasajero del pool.
+   */
+  removeAfterDetention(): void {
+    if (this.state !== 'DETAINED') return;
+
+    this.holdMs = 0;
+    this.next = null;
+    this.timer = 0;
+    this.ambientTimer = 0;
+
+    this.forceRun = false;
+    this.decidedRun = false;
+    this.running = false;
+
+    this.walker.halt();
+    this.walker.setIcon(null);
+    this.walker.hide();
+
+    this.startOffstage(this.respawnDelay());
+  }
+
   /** Cambia de zona del andén (microevento). */
   changeZone(): boolean {
     if (!this.idleWaiting || this.seat >= 0) return false;
@@ -622,9 +722,9 @@ export class PassengerAI {
 
   // ------------------------------------------------------------- utilidades
 
-  /** En un robo (systems/Pickpocket) manda el robo: la recuperación de atascos no lo toca. */
+  /** Retenido o escoltado por seguridad (MetroSystem.startPickpocket): manda el vigilante, la recuperación de atascos no lo toca. */
   get inIncident(): boolean {
-    return this.incident;
+    return this.state === 'DETAINED';
   }
 
   /**
@@ -634,7 +734,7 @@ export class PassengerAI {
    * 4 (sólo si `unseen`): desaparece y vuelve a entrar más tarde.
    */
   recover(level: RecoveryLevel, unseen: boolean): void {
-    if (this.incident || this.state === 'OFFSTAGE' || this.state === 'RIDING') return;
+    if (this.inIncident || this.state === 'OFFSTAGE' || this.state === 'RIDING') return;
     const dest = this.walker.destination;
     if (level <= 2) {
       if (dest) this.walker.walk([dest], this.speed || this.world.cfg.npcWalkingSpeed);

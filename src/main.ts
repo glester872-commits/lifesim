@@ -34,7 +34,6 @@ import { StreetEvent } from './systems/StreetEvents';
 import { eventId, type EventInfo } from './systems/WorldEvents';
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
-import type { ForceOptions } from './systems/Pickpocket';
 import { HUD } from './ui/HUD';
 import { DialogueBox } from './ui/DialogueBox';
 import { TargetHint } from './ui/TargetHint';
@@ -186,7 +185,7 @@ function devEvents() {
   const now = (): number => state.day * 1440 + services.clock.minuteOfDay;
   const metro = () => (game.scene.getScene('World') as WorldSceneType).metroSystem;
   const all = (): EventInfo[] => {
-    const crime = metro()?.crimeLifecycle();
+    const crime = metro()?.pickpocketLifecycle();
     return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...(crime ? [crime] : [])];
   };
   const inspect = (id: string): EventInfo => {
@@ -202,11 +201,11 @@ function devEvents() {
     if (d) return what === 'force' ? (d.devForce(t), 'forzado') : what === 'resolve' ? d.devResolve(t) : what === 'cancel' ? d.devCancel(t) : (d.devReset(), 'enfriamiento quitado');
     const m = metro();
     if (id.startsWith('pickpocket:') && m) {
-      if (what === 'force') return m.forcePickpocket();
+      if (what === 'force') return m.debugPickpocket() ? 'en marcha' : 'nadie libre en el andén para robar';
       if (what === 'resolve') return m.resolvePickpocket();
       if (what === 'cancel') return m.cancelPickpocket();
-      m.resetPickpocketCooldown();
-      return 'enfriamiento quitado';
+      // Sin enfriamiento propio: el siguiente robo lo decide el reloj de microeventos de la estación.
+      return 'sin enfriamiento que quitar';
     }
     return inspect(id).id;
   };
@@ -288,6 +287,184 @@ if (import.meta.env.DEV) {
       listAvailableEvents: (to?: string) => console.table(events.listAvailableEvents({ ...now(), to })),
       inspectEventHistory: () => events.inspectEventHistory(),
       resetMetroEvents: () => events.resetMetroEvents(),
+      // Microeventos de estación para desarrollo.
+      metro: {
+        pickpocket: () => {
+          const world = game.scene.getScene('World') as WorldSceneType;
+          return world.debugMetroPickpocket();
+        },
+      },
+
+// Prompt 57: depuración del sistema social.
+// Ejemplos:
+// lifesim.social.get('sara')
+// lifesim.social.dateReady('sara')
+// lifesim.social.friend('ada')
+// lifesim.social.reset('sara')
+social: {
+  get: (id = 'sara') => {
+    return state.socialOf(id);
+  },
+
+  set: (
+    id: string,
+    changes: Partial<
+      ReturnType<
+        typeof state.socialOf
+      >
+    >,
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    Object.assign(
+      profile,
+      changes,
+    );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  friend: (
+    id = 'sara',
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    profile.friendship = 45;
+    profile.trust = 30;
+    profile.attraction = 10;
+    profile.romance = 0;
+    profile.mood = 70;
+    profile.encounters =
+      Math.max(
+        profile.encounters,
+        5,
+      );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  flirtReady: (
+    id = 'sara',
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    profile.friendship = 30;
+    profile.trust = 25;
+    profile.attraction = 38;
+    profile.romance = 10;
+    profile.mood = 70;
+    profile.encounters =
+      Math.max(
+        profile.encounters,
+        4,
+      );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  dateReady: (
+    id = 'sara',
+  ) => {
+    const profile =
+      state.socialOf(id);
+
+    profile.friendship = 50;
+    profile.trust = 45;
+    profile.attraction = 60;
+    profile.romance = 35;
+    profile.mood = 80;
+    profile.encounters =
+      Math.max(
+        profile.encounters,
+        6,
+      );
+
+    state.setSocialProfile(
+      id,
+      profile,
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+
+  reset: (
+    id = 'sara',
+  ) => {
+    state.setSocialProfile(
+      id,
+      {
+        friendship: 0,
+        attraction: 0,
+        trust: 0,
+        romance: 0,
+        mood: 50,
+
+        encounters: 0,
+
+        contactExchanged: false,
+
+        datesAccepted: 0,
+        datesRejected: 0,
+
+        flirtSuccesses: 0,
+        flirtFailures: 0,
+
+        memories: [],
+      },
+    );
+
+    services.save.save(
+      state.snapshot,
+    );
+
+    return state.socialOf(
+      id,
+    );
+  },
+},
+
       // Destinos del mundo para NPC futuros: lifesim.route('HOME_ENTRANCE', 'CAFE_ENTRANCE').
       findPoint,
       // Zonas lógicas (data/zones.ts): lifesim.zoneAt('district', 48, 52), lifesim.zoneActivity(zona, {day, hour, minute}).
@@ -338,12 +515,16 @@ if (import.meta.env.DEV) {
         put('veh-bus-0', undefined, 1, 'autobús');
         return 'peatón < bici < coche < autobús';
       },
-      // Carteristas del metro (systems/Pickpocket), en un andén: lifesim.crime.forcePickpocket() y, para afinar,
-      // forcePickpocket({ victim: 'player' | 'npc', outcome: 'success' | 'fail', seen: true | false }); .status(), .resetCooldown().
+      // Carteristas del metro (MetroSystem.startPickpocket: un pasajero roba a otro, seguridad persigue, retiene y
+      // escolta), en un andén: lifesim.crime.forcePickpocket(), .status() (el ciclo común), .resolve(), .cancel().
       crime: {
-        forcePickpocket: (opts?: ForceOptions) => (game.scene.getScene('World') as WorldSceneType).metroSystem?.forcePickpocket(opts) ?? 'no estás en una estación de metro',
-        status: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.pickpocketStatus() ?? 'no estás en una estación de metro',
-        resetCooldown: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.resetPickpocketCooldown(),
+        forcePickpocket: () => {
+          const m = (game.scene.getScene('World') as WorldSceneType).metroSystem;
+          return m ? (m.debugPickpocket() ? 'en marcha' : 'nadie libre en el andén para robar') : 'no estás en una estación de metro';
+        },
+        status: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.pickpocketLifecycle() ?? 'no estás en una estación de metro',
+        resolve: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.resolvePickpocket() ?? 'no estás en una estación de metro',
+        cancel: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.cancelPickpocket() ?? 'no estás en una estación de metro',
       },
       // Bicis: lifesim.debugCyclists() pinta carril, posición simulada, recuadro pintado y velocidad; debugCyclists(false) lo quita.
       debugCyclists: (on = true) => { CyclistView.debug = on; },

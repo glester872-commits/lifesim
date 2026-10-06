@@ -41,7 +41,7 @@ assert.equal(new Set(STREET_SURVIVORS.map((s) => s.belongings.join())).size, STR
 for (const f of ['src/data/streetSurvival.ts', 'src/systems/StreetSurvival.ts']) {
   assert.ok(!/import[^;]*(Pickpocket|SecurityAI|crime|police)/i.test(readFileSync(f, 'utf8')), `${f} importa algo de delitos`);
 }
-for (const f of ['src/systems/Pickpocket.ts', 'src/systems/SecurityAI.ts']) {
+for (const f of ['src/systems/MetroSystem.ts', 'src/systems/SecurityAI.ts']) {
   assert.ok(!/streetSurvival|StreetSurvival|kind === 'street'/.test(readFileSync(f, 'utf8')), `${f} sabe de la gente de la calle`);
 }
 

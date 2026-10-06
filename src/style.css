@@ -993,3 +993,40 @@ body.has-touch .dialogue__choices li {
     transition: none;
   }
 }
+
+
+/* ------------------------------------------------ texto dentro del mundo */
+
+/*
+ * Los personajes siguen siendo pixel art, pero las frases se renderizan
+ * como interfaz HTML para que no pierdan nitidez con el zoom del canvas.
+ */
+.world-speech {
+  position: absolute;
+  z-index: 40;
+  transform: translate(-50%, -100%);
+  max-width: 105px;
+  padding: 2px 5px;
+
+  border: 1px solid rgba(17, 19, 24, 0.7);
+  border-radius: 3px;
+  background: rgba(255, 253, 247, 0.97);
+
+  color: #111318;
+  font-family: var(--ui-font);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: 0;
+  text-align: center;
+
+  white-space: normal;
+  overflow-wrap: normal;
+
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+
+.world-speech[hidden] {
+  display: none;
+}
