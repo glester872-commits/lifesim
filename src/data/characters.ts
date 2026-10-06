@@ -27,6 +27,13 @@ export interface Stop {
   lines: readonly string[];
   /** Lo que dice si la paras de camino hacia aquí. */
   going: readonly string[];
+  /**
+   * Un recado o un rato que algunos días se salta (systems/Characters.dailyRoutine): se queda más en la parada
+   * anterior. Con lluvia, si es al aire libre, se lo salta siempre.
+   */
+  optional?: true;
+  /** Otros sitios para lo mismo (otra mesa, otro banco): algunos días va a uno de éstos. Con lluvia, a cubierto. */
+  alt?: readonly string[];
 }
 
 export interface Routine {
@@ -92,15 +99,15 @@ export const CHARACTERS: readonly CharacterDef[] = [
         days: on('monday', 'wednesday'),
         weight: 3,
         stops: [
-          { at: '09:40', point: 'CAFE_TABLE_05', lines: ['¡Hola! ¿Qué haces por aquí?', 'Sin café no soy persona. Literal.'], going: ['Voy a por un café, que hoy no me despierto.', '¿Te vienes?'] },
+          { at: '09:40', point: 'CAFE_TABLE_05', alt: ['CAFE_WINDOW_SEAT'], lines: ['¡Hola! ¿Qué haces por aquí?', 'Sin café no soy persona. Literal.'], going: ['Voy a por un café, que hoy no me despierto.', '¿Te vienes?'] },
           { at: '11:00', point: 'CLOTHING_STORE_RACK_03', lines: ['Tengo que pasar por la tienda...', '¿Me ayudas a ver unos outfits?'], going: ['Voy a Hilo, han sacado cosas nuevas.'] },
           { at: '12:10', point: 'CLOTHING_STORE_MIRROR', lines: ['¿Este o el negro? No me digas «los dos».'], going: ['Espera, que me lo pruebo.'] },
-          { at: '13:30', point: 'RESTAURANT_TABLE_04', lines: ['El menú de Tomás no falla.', 'Vamos a tomar algo luego, ¿no?'], going: ['Me muero de hambre, voy a comer.'] },
+          { at: '13:30', point: 'RESTAURANT_TABLE_04', alt: ['RESTAURANT_TABLE_09'], lines: ['El menú de Tomás no falla.', 'Vamos a tomar algo luego, ¿no?'], going: ['Me muero de hambre, voy a comer.'] },
           inside('15:10', SARA_HOME, 'Me voy a casa, que tengo clase online.', 'Luego te escribo.'),
           { at: '18:00', point: 'GYM_TREADMILL_02', lines: ['Una más y me voy. Bueno, dos.', 'Mañana gym, ¿vienes?'], going: ['Voy al gym, hoy toca piernas.'] },
-          { at: '19:10', point: 'GYM_MAT_02', lines: ['Estiro y me voy. Estoy muerta.'], going: ['Un poco de estiramientos y ya.'] },
-          { at: '20:15', point: 'PLAZA_BENCH_03', lines: ['Me encanta esta plaza a esta hora.', 'Me muero, este sitio es brutal.'], going: ['Voy a dar una vuelta por la plaza.'] },
-          { at: '21:00', point: 'CAFE_TERRACE_01', lines: ['¡Vamosss, que hay plan!', 'Te paso el plan por el grupo.'], going: ['He quedado en la terraza del Pausa.'] },
+          { at: '19:10', point: 'GYM_MAT_02', optional: true, lines: ['Estiro y me voy. Estoy muerta.'], going: ['Un poco de estiramientos y ya.'] },
+          { at: '20:15', point: 'PLAZA_BENCH_03', optional: true, lines: ['Me encanta esta plaza a esta hora.', 'Me muero, este sitio es brutal.'], going: ['Voy a dar una vuelta por la plaza.'] },
+          { at: '21:00', point: 'CAFE_TERRACE_01', alt: ['CAFE_TABLE_05'], lines: ['¡Vamosss, que hay plan!', 'Te paso el plan por el grupo.'], going: ['He quedado en la terraza del Pausa.'] },
           { at: '22:10', point: 'RESTAURANT_TABLE_09', lines: ['Estoy súper cansada, pero vale la pena.'], going: ['Vamos a cenar a Casa Tomás, ¿te apuntas?'] },
           inside('23:50', SARA_HOME, 'Me voy a dormir, que mañana madrugo. Más o menos.'),
         ],
@@ -112,12 +119,12 @@ export const CHARACTERS: readonly CharacterDef[] = [
         weight: 3,
         stops: [
           inside('08:50', 'METRO_ENTRANCE', 'Voy tardísimo a clase, ¡luego hablamos!'),
-          { at: '14:40', point: 'RESTAURANT_TABLE_04', lines: ['Vengo muerta de la facultad. Necesito comer ya.'], going: ['Acabo de salir de clase, ¡me muero de hambre!'] },
-          { at: '15:50', point: 'SUPERMARKET_AISLE_03', lines: ['Lista de la compra: café, café y... café.'], going: ['Paso por el súper antes de subir a casa.'] },
+          { at: '14:40', point: 'RESTAURANT_TABLE_04', alt: ['RESTAURANT_TABLE_09'], lines: ['Vengo muerta de la facultad. Necesito comer ya.'], going: ['Acabo de salir de clase, ¡me muero de hambre!'] },
+          { at: '15:50', point: 'SUPERMARKET_AISLE_03', optional: true, lines: ['Lista de la compra: café, café y... café.'], going: ['Paso por el súper antes de subir a casa.'] },
           inside('16:40', SARA_HOME, 'Me subo, que tengo que editar un vídeo.'),
           { at: '19:00', point: 'GYM_BENCH_02', lines: ['Hoy toca brazos. Mañana no me los siento.'], going: ['Me voy al gym, que si no, no voy.'] },
           inside('20:20', SARA_HOME, 'Ducha y cena. Qué planazo.'),
-          { at: '21:30', point: 'PLAZA_BENCH_03', lines: ['Salgo a que me dé el aire. Hoy ha sido largo.'], going: ['Doy una vuelta antes de dormir.'] },
+          { at: '21:30', point: 'PLAZA_BENCH_03', optional: true, lines: ['Salgo a que me dé el aire. Hoy ha sido largo.'], going: ['Doy una vuelta antes de dormir.'] },
           inside('22:30', SARA_HOME, 'Me voy ya, que mañana hay clase.'),
         ],
       },
@@ -129,7 +136,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
         stops: [
           { at: '10:40', point: 'CAFE_WINDOW_SEAT', lines: ['Hoy no tengo clase. Día de recados.'], going: ['Café primero, recados después.'] },
           { at: '11:30', point: 'CLOTHING_STORE_RACK_05', lines: ['Sólo miro. Te lo prometo.'], going: ['Voy a Hilo un segundo.'] },
-          { at: '12:30', point: 'CLOTHING_STORE_FITTING_01', lines: ['¿Tú crees que esto se lleva? Yo creo que sí.'], going: ['Me lo pruebo y ya.'] },
+          { at: '12:30', point: 'CLOTHING_STORE_FITTING_01', optional: true, lines: ['¿Tú crees que esto se lleva? Yo creo que sí.'], going: ['Me lo pruebo y ya.'] },
           inside('13:30', SARA_HOME, 'Me voy a comer a casa.'),
           inside('17:30', 'METRO_ENTRANCE', 'Me voy al centro, he quedado con las de clase.'),
           inside('21:30', SARA_HOME, 'Vuelvo a casa, que ya he tenido suficiente ciudad por hoy.'),
@@ -157,7 +164,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
         stops: [
           { at: '10:00', point: 'CAFE_TABLE_05', lines: ['Viernes. Por fin.'], going: ['Café de viernes, que me lo he ganado.'] },
           inside('11:30', SARA_HOME, 'Tengo clase online. Hasta luego.'),
-          { at: '17:00', point: 'CLOTHING_STORE_MIRROR', lines: ['Me pruebo esto y me voy, que estoy cansada.'], going: ['Paso por Hilo un momento.'] },
+          { at: '17:00', point: 'CLOTHING_STORE_MIRROR', alt: ['CLOTHING_STORE_RACK_03'], lines: ['Me pruebo esto y me voy, que estoy cansada.'], going: ['Paso por Hilo un momento.'] },
           { at: '18:30', point: 'GYM_TREADMILL_02', lines: ['Hoy me quedo en casa. Primero, gym.'], going: ['Voy al gym y luego sofá.'] },
           inside('20:00', SARA_HOME, 'Hoy me quedo en casa, que estoy reventada.'),
           { at: '21:30', point: 'RESTAURANT_TABLE_09', lines: ['Cena tranquila. El viernes también es para descansar.'], going: ['Bajo a cenar algo rápido.'] },
@@ -173,7 +180,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
         stops: [
           { at: '10:00', point: 'CAFE_TABLE_05', lines: ['Hoy salimos. No acepto un no.'], going: ['Café, que esta noche hay fiesta.'] },
           inside('11:30', SARA_HOME, 'Tengo clase online. Hasta luego.'),
-          { at: '17:00', point: 'CLOTHING_STORE_MIRROR', lines: ['Busco algo para esta noche. ¿Qué te parece?'], going: ['Necesito algo nuevo para esta noche.'] },
+          { at: '17:00', point: 'CLOTHING_STORE_MIRROR', alt: ['CLOTHING_STORE_RACK_03'], lines: ['Busco algo para esta noche. ¿Qué te parece?'], going: ['Necesito algo nuevo para esta noche.'] },
           inside('18:40', SARA_HOME, 'Me voy a arreglar, que tardo.'),
           { at: '21:30', point: 'RESTAURANT_TABLE_04', lines: ['Cena con Ada y luego... ¡a Órbita!', '¿Te vienes? Dile que sí.'], going: ['He quedado con Ada para cenar.'] },
           { at: '23:40', point: 'CLUB_BAR_02', lines: ['La primera la pago yo. La segunda, ya veremos.'], going: ['¡Nos vamos a Órbita!'] },
@@ -192,7 +199,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
           { at: '12:40', point: 'CLOTHING_STORE_RACK_03', lines: ['El sábado se compra. Es la ley.'], going: ['Paso por Hilo, que hoy hay rebajas.'] },
           { at: '13:40', point: 'CLOTHING_STORE_MIRROR', lines: ['¿Este o el negro? No me digas «los dos».'], going: ['Espera, que me lo pruebo.'] },
           { at: '15:00', point: 'RESTAURANT_TABLE_04', lines: ['Comida larga de sábado.'], going: ['Me muero de hambre.'] },
-          { at: '17:00', point: 'PARK_BENCH_01', lines: ['Un poco de sol antes de esta noche.'], going: ['Me voy al parque a no hacer nada.'] },
+          { at: '17:00', point: 'PARK_BENCH_01', optional: true, lines: ['Un poco de sol antes de esta noche.'], going: ['Me voy al parque a no hacer nada.'] },
           inside('18:30', SARA_HOME, 'A casa, que esta noche salgo.'),
           { at: '23:50', point: 'CLUB_BAR_03', lines: ['El sábado esto se llena. Me encanta.'], going: ['¡Me voy a Órbita!'] },
           { at: '00:40', point: 'CLUB_DANCE_05', lines: ['¡Vamosss!'], going: ['¡A bailar!'] },
@@ -222,10 +229,10 @@ export const CHARACTERS: readonly CharacterDef[] = [
         days: on('saturday'),
         weight: 1,
         stops: [
-          { at: '12:00', point: 'PARK_BENCH_01', lines: ['Hoy no salgo. Plan de sofá.'], going: ['Paseo corto y a casa.'] },
+          { at: '12:00', point: 'PARK_BENCH_01', alt: ['PLAZA_BENCH_03'], lines: ['Hoy no salgo. Plan de sofá.'], going: ['Paseo corto y a casa.'] },
           { at: '13:20', point: 'SUPERMARKET_FRIDGES', lines: ['Helado. Para el plan de sofá.'], going: ['Voy a por provisiones.'] },
           inside('14:20', SARA_HOME, 'Maratón de series. No me llames.'),
-          { at: '20:30', point: 'CAFE_TERRACE_01', lines: ['Sólo un café. Luego, a casa.'], going: ['Bajo un momento a la terraza.'] },
+          { at: '20:30', point: 'CAFE_TERRACE_01', alt: ['CAFE_TABLE_05'], lines: ['Sólo un café. Luego, a casa.'], going: ['Bajo un momento a la terraza.'] },
           inside('21:40', SARA_HOME, 'Me subo, que empieza el capítulo.'),
         ],
       },
@@ -236,7 +243,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
         stops: [
           { at: '12:30', point: 'CAFE_TABLE_05', lines: ['Domingo de pijama... bueno, casi.'], going: ['Café y vuelvo a casa.'] },
           inside('13:40', SARA_HOME, 'A casa, que hoy no hago nada.'),
-          { at: '18:30', point: 'PLAZA_BENCH_03', lines: ['El domingo por la tarde la plaza está en calma.'], going: ['Salgo un rato a la plaza.'] },
+          { at: '18:30', point: 'PLAZA_BENCH_03', alt: ['PARK_BENCH_01'], lines: ['El domingo por la tarde la plaza está en calma.'], going: ['Salgo un rato a la plaza.'] },
           inside('19:40', SARA_HOME, 'Mañana otra vez lunes...'),
         ],
       },
@@ -282,7 +289,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
         stops: [
           { at: '10:00', point: 'CAFE_TABLE_05', lines: ['Esta noche hemos quedado, ¿eh? No se te olvide.'], going: ['Café, que esta noche he quedado.'] },
           inside('11:30', SARA_HOME, 'Tengo clase online. Luego nos vemos.'),
-          { at: '17:00', point: 'CLOTHING_STORE_MIRROR', lines: ['Busco algo para esta noche. No me mires así.'], going: ['Paso por Hilo un momento.'] },
+          { at: '17:00', point: 'CLOTHING_STORE_MIRROR', alt: ['CLOTHING_STORE_RACK_03'], lines: ['Busco algo para esta noche. No me mires así.'], going: ['Paso por Hilo un momento.'] },
           inside('18:40', SARA_HOME, 'Me voy a arreglar, que he quedado.'),
           // El Pausa cierra a las 22:00: se va antes.
           { at: '20:00', point: 'CAFE_TERRACE_01', lines: ['Aquí estoy, en la terraza. Como dijimos.'], going: ['Voy a la terraza del Pausa, que he quedado.'] },
@@ -299,7 +306,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
           { at: '11:30', point: 'MOLINILLO_TERRACE_01', lines: ['Aquí, en el Molinillo. Como quedamos.'], going: ['Voy al Molinillo, que he quedado.'] },
           { at: '12:40', point: 'RETALES_RACK_02', lines: ['Gus guarda lo mejor para quien pregunta.'], going: ['Paso por Retales, ¿vienes?'] },
           inside('15:10', SARA_HOME, 'Me voy a comer. ¡Gracias por el rato!'),
-          { at: '20:15', point: 'PLAZA_BENCH_03', lines: ['La plaza a esta hora es lo mejor del día.'], going: ['Voy a dar una vuelta por la plaza.'] },
+          { at: '20:15', point: 'PLAZA_BENCH_03', optional: true, lines: ['La plaza a esta hora es lo mejor del día.'], going: ['Voy a dar una vuelta por la plaza.'] },
           inside('21:30', SARA_HOME, 'A casa, que mañana madrugo.'),
         ],
       },
@@ -330,11 +337,11 @@ export const CHARACTERS: readonly CharacterDef[] = [
         weight: 3,
         stops: [
           inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Llego tarde a la academia. Otra vez.'),
-          { at: '13:30', point: 'CAFE_TABLE_01', lines: ['Aquí se estudia mejor que en la academia. Hay café.'], going: ['Pausa para comer algo.'] },
+          { at: '13:30', point: 'CAFE_TABLE_01', alt: ['CAFE_WINDOW_SEAT'], lines: ['Aquí se estudia mejor que en la academia. Hay café.'], going: ['Pausa para comer algo.'] },
           inside('14:40', 'STUDY_CENTER_ENTRANCE', 'Vuelta a los apuntes.'),
           {
             at: '19:00',
-            point: 'PLAZA_BENCH_02',
+            point: 'PLAZA_BENCH_02', optional: true,
             lines: ['El centro abre a las ocho y cierra cuando les apetece.', 'Aquí todo el mundo quiere aprenderlo todo a la vez.', 'Y así acaban: sabiendo un poco de nada.'],
             going: ['Necesito despejarme un rato.'],
           },
@@ -347,10 +354,10 @@ export const CHARACTERS: readonly CharacterDef[] = [
         weight: 2,
         stops: [
           inside('09:00', 'METRO_ENTRANCE', 'Hoy tengo prácticas en el centro.'),
-          { at: '18:00', point: 'SUPERMARKET_PRODUCE', lines: ['¿Tú sabes elegir aguacates? Yo tampoco.'], going: ['Paso por el súper, que no tengo nada en la nevera.'] },
+          { at: '18:00', point: 'SUPERMARKET_PRODUCE', optional: true, lines: ['¿Tú sabes elegir aguacates? Yo tampoco.'], going: ['Paso por el súper, que no tengo nada en la nevera.'] },
           // Del súper a casa se cruza la avenida: el semáforo también cuenta (media hora de rojo, a lo sumo).
           inside('19:15', ADA_HOME, 'A dejar la compra.'),
-          { at: '20:30', point: 'CAFE_TERRACE_02', lines: ['Una caña y a casa, que mañana madrugo.'], going: ['Bajo a la terraza un rato.'] },
+          { at: '20:30', point: 'CAFE_TERRACE_02', optional: true, lines: ['Una caña y a casa, que mañana madrugo.'], going: ['Bajo a la terraza un rato.'] },
           inside('21:40', ADA_HOME, 'Me voy, que mañana hay academia.'),
         ],
       },
@@ -386,10 +393,10 @@ export const CHARACTERS: readonly CharacterDef[] = [
         days: WEEKEND,
         weight: 2,
         stops: [
-          { at: '10:30', point: 'PARK_BENCH_02', lines: ['Fin de semana de parque y libro.'], going: ['Me voy al parque a leer.'] },
-          { at: '12:00', point: 'NEWS_KIOSK', lines: ['Busco una revista que ya no existe.'], going: ['Paso por el quiosco.'] },
+          { at: '10:30', point: 'PARK_BENCH_02', alt: ['PLAZA_BENCH_02'], lines: ['Fin de semana de parque y libro.'], going: ['Me voy al parque a leer.'] },
+          { at: '12:00', point: 'NEWS_KIOSK', optional: true, lines: ['Busco una revista que ya no existe.'], going: ['Paso por el quiosco.'] },
           inside('13:00', ADA_HOME, 'A comer.'),
-          { at: '18:00', point: 'CLOTHING_STORE_RACK_02', lines: ['Sara me ha mandado a por una chaqueta. Para mí, dice.'], going: ['Voy a Hilo, que me lo ha pedido Sara.'] },
+          { at: '18:00', point: 'CLOTHING_STORE_RACK_02', optional: true, lines: ['Sara me ha mandado a por una chaqueta. Para mí, dice.'], going: ['Voy a Hilo, que me lo ha pedido Sara.'] },
           inside('19:10', ADA_HOME, 'A casa. Mañana más.'),
         ],
       },
@@ -402,7 +409,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
           { at: '10:40', point: 'VUELTA_BIN_01', lines: ['Al peso sale a nada. Hay que saber rebuscar.'], going: ['Voy a Segunda Vuelta, que los sábados reponen.'] },
           { at: '11:40', point: 'MOLINILLO_TABLE_01', lines: ['Aquí se estudia bien. Y el bizcocho es casero.'], going: ['Un café en el Molinillo.'] },
           inside('13:00', ADA_HOME, 'A comer.'),
-          { at: '18:00', point: 'CARMEN_BENCH_02', lines: ['Aquí se lee bien. Pasa gente, pero nadie grita.'], going: ['Me bajo a leer al Carmen.'] },
+          { at: '18:00', point: 'CARMEN_BENCH_02', optional: true, lines: ['Aquí se lee bien. Pasa gente, pero nadie grita.'], going: ['Me bajo a leer al Carmen.'] },
           inside('19:20', ADA_HOME, 'A casa. Mañana más.'),
         ],
       },

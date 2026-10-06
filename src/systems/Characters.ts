@@ -6,6 +6,8 @@ import { hashSeed, seededRng } from './MetroDaily.ts';
 import { weekIndex } from './Calendar.ts';
 import { getLocation } from './LocationSystem.ts';
 import { crossingOf, minutesUntilWalk } from './Signals.ts';
+import { isOpen, placeOfPoint } from './Places.ts';
+import { weatherAt } from './Weather.ts';
 
 /**
  * Dónde está un personaje con nombre es una función del reloj: nada que
@@ -17,6 +19,11 @@ import { crossingOf, minutesUntilWalk } from './Signals.ts';
  * Qué rutina le toca cada día sale de una semilla (personaje y día): se puede
  * depurar, se repite al recargar y no todos los martes son iguales. Los días
  * empiezan a las 06:00, cuando todas las rutinas duermen en casa.
+ *
+ * Dentro de la rutina, cada día tiene además su versión (dailyRoutine): sale
+ * unos minutos antes o después, a veces se salta un recado, cambia de mesa o
+ * de banco y, si llueve, se queda a cubierto. Se decide una vez por día con su
+ * semilla, así que tampoco hay saltos: a las 06:00 sigue estando en casa.
  */
 
 const DAY = 24 * 60;
@@ -243,6 +250,133 @@ export function tripsOf(routine: Routine): readonly Trip[] {
   return PLANS.get(routine)!;
 }
 
+// ================================================================
+// LA VERSIÓN DE CADA DÍA
+// ================================================================
+
+/** Minutos (±) que se puede mover una parada: casi nada si es clase, trabajo o el metro; algo más lo demás. */
+const FLEX = 10;
+const FLEX_DUTY = 4;
+/** Probabilidad de saltarse un recado opcional un día cualquiera. */
+const SKIP = 0.3;
+/** Probabilidad de ir al sitio de siempre cuando hay alternativas. */
+const USUAL = 0.55;
+/** Versiones guardadas (personaje, rutina, día, lluvia); se vacía de vez en cuando. */
+const VARIANTS = new Map<string, Routine>();
+const MAX_VARIANTS = 400;
+const RAINY = new Map<number, boolean>();
+
+/** Si ese día llueve por la mañana: lo mismo que decide las rutinas de lluvia (WorldScene.rainyDay). */
+export function rainyDay(day: number): boolean {
+  let r = RAINY.get(day);
+  if (r === undefined) {
+    r = weatherAt(day, 10).sky.endsWith('rain');
+    if (RAINY.size > MAX_VARIANTS) RAINY.clear();
+    RAINY.set(day, r);
+  }
+  return r;
+}
+
+/** Al aire libre: un punto de la calle que no es una puerta. */
+function outdoor(point: string): boolean {
+  const p = findPoint(point);
+  return !!p && p.kind !== 'entrance' && getLocation(p.location).kind === 'exterior';
+}
+
+/** ¿Está abierto el sitio de ese punto a ese minuto del día del personaje? (La madrugada es del día siguiente.) */
+function openAt(point: string, day: number, minute: number): boolean {
+  const place = placeOfPoint(point);
+  if (!place) return true;
+  const m = ((Math.floor(minute) % DAY) + DAY) % DAY;
+  return isOpen(place, m < DAY_STARTS ? day + 1 : day, Math.floor(m / 60), m % 60);
+}
+
+const hhmm = (m: number): string => {
+  const t = ((Math.round(m) % DAY) + DAY) % DAY;
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+};
+
+/** Minutos desde las 06:00: el orden de las paradas dentro de su día. */
+const sinceDawn = (hm: string): number => (minutesOf(hm) - DAY_STARTS + DAY) % DAY;
+
+/** Una versión sirve si hay camino y tiempo, el sitio está abierto al llegar y al irse, y a las 06:00 está en casa. */
+function viable(def: CharacterDef, routine: Routine, day: number): Trip[] | null {
+  let trips: Trip[];
+  try {
+    trips = plan(def, routine);
+  } catch {
+    return null;
+  }
+  const dawn = locate(trips, def.speed, DAY_STARTS, routine.id);
+  if (dawn.moving || dawn.stop.point !== def.home) return null;
+  for (let i = 0; i < trips.length; i++) {
+    const next = trips[(i + 1) % trips.length];
+    const leave = next.arrive - next.travel;
+    if (!openAt(trips[i].stop.point, day, trips[i].arrive) || !openAt(trips[i].stop.point, day, leave - 1)) return null;
+  }
+  return trips;
+}
+
+/**
+ * La rutina de ese día en concreto. Las paradas se mueven unos minutos (sin cambiar de orden), un recado opcional
+ * puede quedarse sin hacer, una parada con alternativas puede ir a otra mesa u otro banco y, si llueve, lo de
+ * fuera que se pueda saltar se salta y lo que tenga alternativa a cubierto va ahí. Si esa versión no cuadra
+ * (no llega, el sitio está cerrado), prueba sin mover horas y, si tampoco, se queda con la de siempre: nunca un
+ * callejón sin salida. Los planes con otros (Routine.outing) y los de su historia (Routine.story) no se tocan:
+ * tienen hora con alguien.
+ */
+export function dailyRoutine(def: CharacterDef, routine: Routine, day: number, rainy = false): Routine {
+  if (routine.outing || routine.story || routine.stops.length < 3) return routine;
+  const key = `${def.npc}|${routine.id}|${day}|${rainy ? 1 : 0}`;
+  const known = VARIANTS.get(key);
+  if (known) return known;
+
+  const rng = seededRng(hashSeed('day', def.npc, routine.id, day));
+  // Las tiradas, todas y en el mismo orden: que llueva no cambia lo demás que se decide ese día.
+  const rolls = routine.stops.map(() => ({ skip: rng(), usual: rng(), which: rng(), shift: rng() }));
+  const build = (moveTimes: boolean): Routine => {
+    const stops: Stop[] = [];
+    let last = -1;
+    routine.stops.forEach((stop, i) => {
+      const r = rolls[i];
+      const out = outdoor(stop.point);
+      if (stop.optional && ((rainy && out) || r.skip < SKIP)) return;
+      let point = stop.point;
+      const alts = stop.alt ?? [];
+      const covered = alts.filter((a) => !outdoor(a));
+      if (rainy && out && covered.length) point = covered[Math.floor(r.which * covered.length)];
+      else if (alts.length && r.usual >= USUAL) point = alts[Math.floor(r.which * alts.length)];
+      // Dos paradas seguidas en el mismo sitio (saltarse algo entre dos ratos en casa) son una sola.
+      if (stops.length && stops[stops.length - 1].point === point) return;
+      // Una obligación (dentro de la academia, el metro a la facultad) tiene poco margen; volver a casa, el normal.
+      const flex = point !== def.home && findPoint(point)?.kind === 'entrance' ? FLEX_DUTY : FLEX;
+      let at = stop.at;
+      const moved = sinceDawn(stop.at) + Math.round((r.shift * 2 - 1) * flex);
+      // Sin cruzar las 06:00 ni adelantar a la parada anterior.
+      if (moveTimes && moved > last && moved > 0 && moved < DAY) at = hhmm(moved + DAY_STARTS);
+      last = sinceDawn(at);
+      stops.push(at === stop.at && point === stop.point ? stop : { ...stop, at, point });
+    });
+    return { ...routine, stops };
+  };
+
+  let chosen = routine;
+  for (const candidate of [build(true), build(false)]) {
+    const trips = viable(def, candidate, day);
+    if (trips) {
+      PLANS.set(candidate, trips);
+      chosen = candidate;
+      break;
+    }
+  }
+  if (VARIANTS.size >= MAX_VARIANTS) {
+    for (const v of VARIANTS.values()) if (!def.routines.includes(v)) PLANS.delete(v);
+    VARIANTS.clear();
+  }
+  VARIANTS.set(key, chosen);
+  return chosen;
+}
+
 /** Día del personaje (empieza a las 06:00) para un minuto absoluto: (día − 1)·1440 + minuto del día. */
 export function characterDay(absMinute: number): number {
   return Math.floor((absMinute - DAY_STARTS) / DAY) + 1;
@@ -269,6 +403,11 @@ function solo(def: CharacterDef, day: number, salt: string, rainy = false): Rout
  * otra posible, cambia de planes una vez.
  */
 export function routineFor(def: CharacterDef, day: number, ctx: DayContext = {}): Routine {
+  return dailyRoutine(def, baseRoutineFor(def, day, ctx), day, ctx.rainy);
+}
+
+/** La rutina del calendario, sin la versión del día (dailyRoutine). */
+export function baseRoutineFor(def: CharacterDef, day: number, ctx: DayContext = {}): Routine {
   if (ctx.forced) {
     const forced = def.routines.find((r) => r.id === ctx.forced);
     if (forced) return forced;
@@ -284,7 +423,8 @@ export function routineFor(def: CharacterDef, day: number, ctx: DayContext = {})
 /** Dónde está en ese minuto absoluto de partida ((día − 1)·1440 + minuto del día, con decimales). */
 export function whereabouts(def: CharacterDef, absMinute: number, pick?: RoutinePicker): Whereabouts {
   const day = characterDay(absMinute);
-  const routine = pick ? pick(day) : routineFor(def, day);
+  // Sin quien fije el día (Ada, el móvil), también cuenta la lluvia: el mismo día para todos.
+  const routine = pick ? pick(day) : routineFor(def, day, { rainy: rainyDay(day) });
   return locate(tripsOf(routine), def.speed, absMinute, routine.id);
 }
 
