@@ -2,7 +2,7 @@
 // simula durante horas con exactamente esta lógica.
 import { GAME_MINUTES_PER_REAL_SECOND } from '../config/constants.ts';
 import { LEVELS, POPULATION, type Level } from '../config/population.ts';
-import { POPULATION_PROFILES, type PlanStep, type PopulationProfile, type StaffRole, type VisitorRole } from '../data/population.ts';
+import { POPULATION_PROFILES, type DrinkKind, type PlanStep, type PopulationProfile, type StaffRole, type VisitorRole } from '../data/population.ts';
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
 import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
@@ -132,6 +132,12 @@ export interface Agent {
   waits?: number;
   /** Rodeo de recuperación (systems/Recovery, peldaño 2): al acabarlo, sigue hacia aquí. */
   resume?: TilePoint;
+  /** Lo que tiene delante o en la mano (PopulationProfile.drinks): lo trae el paso de beber y se va con el cliente. */
+  drink?: DrinkKind;
+  /** Rondas pedidas en esta visita: de ella y de su id sale qué toma cada vez. */
+  round?: number;
+  /** Veces seguidas que esperó a que Tere acabase con otro pedido (acotado: nunca se queda esperando). */
+  orderWaits?: number;
 }
 
 export interface CrowdStats {
@@ -278,6 +284,7 @@ export class Crowd {
       agent.plan = plan.slice(skip + 1);
       agent.stepPoints = step.points;
       this.occupy(agent, point, step.state);
+      this.startingDrink(agent, plan.slice(0, skip + 1).some((s) => s.state === 'DRINK'));
       this.dressFor(agent, plan, skip);
       agent.timer = this.duration(step, point) * (0.2 + this.rng() * 0.8);
       this.service?.adopt(point, agent);
@@ -294,6 +301,8 @@ export class Crowd {
         mate.following = point;
         mate.sport = agent.sport;
         mate.pendingOutfit = agent.pendingOutfit;
+        mate.round = agent.round;
+        mate.drink = agent.drink ? this.drinkFor(mate) : undefined;
         this.occupy(mate, near, step.state);
         this.service?.adopt(near, mate);
         placed++;
@@ -450,6 +459,11 @@ export class Crowd {
       return;
     }
     this.service?.reserve(near, a);
+    // Quien viene con alguien toma lo suyo cuando le toca al grupo: su propio vaso, o ninguno si el grupo está pidiendo.
+    if (this.profile.drinks) {
+      a.round = lead.round;
+      a.drink = lead.drink ? this.drinkFor(a) : undefined;
+    }
     a.pendingOutfit = lead.pendingOutfit;
     a.changeLeft = undefined;
   }
@@ -491,6 +505,12 @@ export class Crowd {
   private nextVisitorStep(a: Agent): void {
     // Acaba el paso en el que se cambiaba: lo que quede por ponerse, puesto (sigue en su taquilla).
     this.applyOutfit(a);
+    // En la barra se pide de uno en uno: si quien la lleva está sirviendo a otro, espera su turno (unos segundos, como mucho).
+    if (this.profile.drinks && a.state === 'ORDER' && !a.leaveSoon && this.barkeepers().length > 0 && this.barkeepers().every((k) => k.state === 'SERVE') && (a.orderWaits = (a.orderWaits ?? 0) + 1) <= 8) {
+      a.timer = between(this.rng, 700, 1_500);
+      return;
+    }
+    a.orderWaits = 0;
     // Antes de dejar una máquina, se incorpora, recoge y se baja: nadie sale andando de una postura tumbado.
     if (a.point && a.state !== 'FINISH' && this.stationOf(a.point)) {
       a.state = 'FINISH';
@@ -541,6 +561,7 @@ export class Crowd {
       return;
     }
     a.plan.shift();
+    this.drinkCue(a, step.state);
     this.service?.reserve(point, a);
     a.stepPoints = step.points;
     a.pendingOutfit = step.outfit;
@@ -597,6 +618,8 @@ export class Crowd {
       return;
     }
     const how = identity(role).activity;
+    // Acabó de servir (la barra gira hacia el cliente y vuelve a lo suyo): ya no está ocupada.
+    if (how !== 'serve' && a.state === 'SERVE') a.state = 'WORK';
     if (how === 'serve' && role.serves && a.state !== 'SERVE') {
       const seated = this.agents.filter((c) => c.kind === 'visitor' && !c.moving && !c.leaving && c.path.length === 0 && c.point && role.serves!.some((p) => c.point!.startsWith(p)));
       const customer = nextCustomer(seated.map((c) => ({ id: c.id, x: c.x, y: c.y })), this.served, this.elapsed);
@@ -769,6 +792,8 @@ export class Crowd {
 
   private leave(a: Agent): void {
     this.release(a);
+    // El vaso se queda en la barra: quien se va no lo lleva a la calle.
+    a.drink = undefined;
     a.leaving = true;
     a.state = 'LEAVE';
     a.path = this.route(a, this.door);
@@ -778,6 +803,61 @@ export class Crowd {
     this.release(this.agents[index]);
     this.watch.forget(this.agents[index].id);
     this.agents.splice(index, 1);
+  }
+
+  // ------------------------------------------------------- bebidas a la vista
+
+  /** Lo que toma cada cual en esta ronda: de su id y su ronda, siempre lo mismo (nada de azar por frame). */
+  private drinkFor(a: Agent): DrinkKind | undefined {
+    const kinds = this.profile.drinks;
+    if (!kinds?.length) return undefined;
+    return kinds[Math.floor(seededRng(hashSeed('drink', this.loc.id, a.id, a.round ?? 0))() * kinds.length)];
+  }
+
+  /** Entra a mitad de su visita (populate): si ya le tocó beber, su vaso ya está ahí; nadie bebe con las manos vacías. */
+  private startingDrink(a: Agent, drinking: boolean): void {
+    if (!this.profile.drinks) return;
+    a.round = 1;
+    a.drink = drinking ? this.drinkFor(a) : undefined;
+  }
+
+  /** Quien lleva la barra ahora (personal con el oficio de barman que sigue de turno). */
+  private barkeepers(): Agent[] {
+    return this.agents.filter((k) => k.kind === 'staff' && k.staffRole?.service === 'barkeeper' && !k.leaving && !k.leaveSoon);
+  }
+
+  /**
+   * Pasar de pedir a beber: al pedir (ORDER) se suelta el vaso vacío y empieza otra ronda; al beber (DRINK) llega el
+   * vaso y la barra se vuelve a servirlo. Un solo pedido, una sola vez: lo reclama el primer barman libre.
+   */
+  private drinkCue(a: Agent, state: string): void {
+    if (!this.profile.drinks) return;
+    if (state === 'ORDER') {
+      a.drink = undefined;
+      a.round = (a.round ?? 0) + 1;
+    } else if (state === 'DRINK' && !a.drink) {
+      a.drink = this.drinkFor(a);
+      this.serveDrink(a);
+    }
+  }
+
+  /** El barman libre más cercano va al punto de servicio más cercano al cliente y se vuelve a él un momento: «aquí tienes». */
+  private serveDrink(customer: Agent): void {
+    const at = { tx: customer.x, ty: customer.y };
+    const keeper = this.barkeepers()
+      .filter((k) => k.path.length === 0 && !k.moving && k.state !== 'SERVE')
+      .sort((p, q) => this.distance({ tx: p.x, ty: p.y }, at) - this.distance({ tx: q.x, ty: q.y }, at))[0];
+    if (!keeper) return;
+    const spot = this.pointsMatching(keeper.staffRole!.points)
+      .filter((id) => !this.seats.has(id) || id === keeper.point)
+      .sort((p, q) => this.distance(this.pointAt(p), at) - this.distance(this.pointAt(q), at))[0];
+    if (spot && spot !== keeper.point && this.goTo(keeper, spot, 'SERVE')) {
+      keeper.face = at;
+    } else {
+      keeper.state = 'SERVE';
+      keeper.dir = facingTo({ tx: keeper.x, ty: keeper.y }, at);
+    }
+    keeper.timer = between(this.rng, 2_200, 3_800);
   }
 
   // ------------------------------------------------------- atascos (Recovery)

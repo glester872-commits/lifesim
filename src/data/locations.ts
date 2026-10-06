@@ -2,7 +2,7 @@ import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
 import { VALLESCO } from './vallesco.ts';
 import { RIBERA } from './ribera.ts';
-import { ARCADE, ARCHIVO, BARBERSHOP, CLUB, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
+import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
 /**
  * Leyenda del terreno (ver TILES en world/tiles.ts):
@@ -412,6 +412,9 @@ const RIBERA_STATION = platform(
   ],
 );
 
+/** Tres taburetes a la barra, delante del mostrador (fila 6), mirando hacia él. */
+const BAR_STOOLS: Record<string, PointDef> = Object.fromEntries([2, 3, 4].map((x, i) => [`BAR_STOOL_0${i + 1}`, { tx: x, ty: 6, kind: 'seat', facing: 'up' } as PointDef]));
+
 const BAR: LocationDef = {
   id: 'bar',
   name: 'Bar Ribera',
@@ -439,6 +442,10 @@ const BAR: LocationDef = {
     { kind: 'counter', tx: 4, ty: 5 },
     { kind: 'counter', tx: 5, ty: 5 },
     { kind: 'counter', tx: 6, ty: 5 },
+    // El extremo de la barra, donde nadie se queda de pie: ahí se pide (spots), sin cliente de por medio.
+    { kind: 'counter', tx: 7, ty: 5 },
+    { kind: 'counter', tx: 8, ty: 5 },
+    { kind: 'counter', tx: 9, ty: 5 },
     { kind: 'table', tx: 12, ty: 4 },
     { kind: 'table', tx: 15, ty: 7 },
     { kind: 'table', tx: 11, ty: 8 },
@@ -454,14 +461,38 @@ const BAR: LocationDef = {
     { kind: 'pendant', tx: 12, ty: 4 },
     { kind: 'pendant', tx: 15, ty: 7 },
     { kind: 'pendant', tx: 11, ty: 8 },
+    ...seatsFurniture(BAR_STOOLS, 'stool'),
   ],
   ambient: '#ffdcb4',
   portals: [
     { id: 'exit', tx: 8, ty: 10, label: 'Salir a la calle', to: { location: 'ribera', spawn: 'bar-door' } },
   ],
-  npcs: [{ id: 'tere', tx: 4, ty: 4, facing: 'down' }],
+  // Tere ya no está clavada en su sitio: lleva la barra como personal del local (data/population.ts, 'bar-ribera').
+  npcs: [],
+  // Pedir en la barra: el mismo mecanismo que la barra de Casa Tomás (un mostrador con sus actividades, menú de siempre).
+  spots: [{ tx: 9, ty: 5, name: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] }],
   spawns: {
     entry: { tx: 8, ty: 9, facing: 'up' },
+  },
+  points: {
+    BAR_EXIT: { tx: 8, ty: 9, kind: 'exit', facing: 'up' },
+    // Detrás de la barra, entre el botellero y el mostrador: el tirador, la estantería y la caja.
+    BAR_STAFF_01: { tx: 3, ty: 4, kind: 'work', facing: 'down' },
+    BAR_STAFF_02: { tx: 5, ty: 4, kind: 'work', facing: 'down' },
+    BAR_STAFF_03: { tx: 7, ty: 4, kind: 'work', facing: 'down' },
+    // Los taburetes de la barra (asientos de verdad, data/seating.ts): se sienta mirando al mostrador.
+    ...BAR_STOOLS,
+    // De pie en la barra, de espaldas a la sala.
+    BAR_COUNTER_01: { tx: 5, ty: 6, kind: 'wait', facing: 'up' },
+    BAR_COUNTER_02: { tx: 6, ty: 6, kind: 'wait', facing: 'up' },
+    BAR_COUNTER_03: { tx: 7, ty: 6, kind: 'wait', facing: 'up' },
+    // Alrededor de las mesas altas, de dos en dos, cara a cara.
+    BAR_TABLE_01: { tx: 11, ty: 4, kind: 'meet', facing: 'right' },
+    BAR_TABLE_02: { tx: 13, ty: 4, kind: 'meet', facing: 'left' },
+    BAR_TABLE_03: { tx: 14, ty: 7, kind: 'meet', facing: 'right' },
+    BAR_TABLE_04: { tx: 16, ty: 7, kind: 'meet', facing: 'left' },
+    BAR_TABLE_05: { tx: 10, ty: 8, kind: 'meet', facing: 'right' },
+    BAR_TABLE_06: { tx: 12, ty: 8, kind: 'meet', facing: 'left' },
   },
 };
 
@@ -489,6 +520,11 @@ export const LOCATIONS: readonly LocationDef[] = [
   TINTA,
   MOLINILLO,
   WINE_BAR,
+  // Ribera Norte: los locales de la calle de la Ribera (data/ribera.ts).
+  COLMADO,
+  RIBERA_SPORT,
+  CAFE_RIO,
+  CASA_MAR,
 ];
 
 export const START_LOCATION = VALLESCO.id;

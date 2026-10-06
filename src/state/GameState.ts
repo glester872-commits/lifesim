@@ -4,6 +4,8 @@ import type { Appearance } from '../data/appearance';
 import type { Wallet } from '../systems/Commerce';
 import { START_FITNESS, type Fitness } from '../systems/Fitness';
 import { createSocialProfile, type SocialProfile, type SocialState } from '../systems/Social';
+import { createStory, type NamedStory, type StoryState } from '../systems/Story';
+import { createPhone, type PhoneNews, type PhoneState } from '../systems/Phone';
 
 /**
  * Estado central de la partida.
@@ -55,6 +57,13 @@ export class GameState extends Phaser.Events.EventEmitter {
    */
   private _social:
     SocialState;
+
+  /** id del Named Character -> su historia con el jugador (systems/Story). */
+  private _stories:
+    StoryState;
+
+  /** El móvil (systems/Phone): hilos, planes y respuestas pendientes. */
+  private _phone: PhoneState;
 
   constructor(
     initial: GameStateData,
@@ -121,6 +130,64 @@ export class GameState extends Phaser.Events.EventEmitter {
       structuredClone(
         initial.social ?? {},
       );
+
+    this._stories =
+      structuredClone(
+        initial.stories ?? {},
+      );
+
+    this._phone = structuredClone(initial.phone ?? createPhone());
+  }
+
+  // ================================================================
+  // MÓVIL (systems/Phone)
+  // ================================================================
+
+  /** Copia del móvil: se cambia con systems/Phone y se devuelve con setPhone. */
+  get phone(): PhoneState {
+    return structuredClone(this._phone);
+  }
+
+  /** Guarda el móvil y avisa (ui/Phone se repinta; `news` son los mensajes nuevos, para notificarlos una vez). */
+  setPhone(phone: PhoneState, news: readonly PhoneNews[] = []): void {
+    this._phone = structuredClone(phone);
+    this.emit('phone', news);
+  }
+
+  // ================================================================
+  // HISTORIAS (systems/Story)
+  // ================================================================
+
+  /** Copia de su historia; si aún no tiene, una nueva con su ánimo de siempre. */
+  storyOf(
+    id: string,
+    baseMood: number,
+  ): NamedStory {
+    const story =
+      this._stories[id];
+
+    return story
+      ? structuredClone(
+          story,
+        )
+      : createStory({
+          baseMood,
+        });
+  }
+
+  setStory(
+    id: string,
+    story: NamedStory,
+  ): void {
+    this._stories[id] =
+      structuredClone(
+        story,
+      );
+
+    this.emit(
+      'story',
+      id,
+    );
   }
 
   // ================================================================
@@ -461,6 +528,13 @@ export class GameState extends Phaser.Events.EventEmitter {
         structuredClone(
           this._social,
         ),
+
+      stories:
+        structuredClone(
+          this._stories,
+        ),
+
+      phone: structuredClone(this._phone),
     };
   }
 }

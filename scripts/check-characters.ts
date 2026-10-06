@@ -6,6 +6,7 @@ import { DAY_STARTS, catchUp, routineFor, tripsOf, whereabouts, whereaboutsIn, t
 import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
 import { isOpen, placeOfPoint } from '../src/systems/Places.ts';
 import { weekday } from '../src/systems/MetroDaily.ts';
+import { weatherAt } from '../src/systems/Weather.ts';
 
 const STEP = 0.25;
 const DAY = 24 * 60;
@@ -61,19 +62,23 @@ for (const def of CHARACTERS) {
 
 const WEEKS = 8;
 const picked = new Map<string, number>();
+// Como en el juego (scenes/WorldScene): el tiempo de cada día decide si sale la rutina de lluvia.
+const rainy = (day: number): boolean => weatherAt(day, 10).sky.endsWith('rain');
 for (const def of CHARACTERS) {
-  let prev = whereabouts(def, DAY_STARTS - STEP);
+  const pick = (day: number) => routineFor(def, day, { rainy: rainy(day) });
+  let prev = whereabouts(def, DAY_STARTS - STEP, pick);
   for (let abs = DAY_STARTS; abs < WEEKS * 7 * DAY; abs += STEP) {
-    const w = whereabouts(def, abs);
+    const w = whereabouts(def, abs, pick);
     const day = Math.floor(abs / DAY) + 1;
     checkMoment(def.speed, w, prev, day, abs, `${def.npc} día ${day} ${hhmm(abs % DAY)} (${w.routine})`);
     prev = w;
   }
   for (let day = 1; day <= WEEKS * 7; day++) {
-    const key = `${def.npc}/${routineFor(def, day).id}`;
+    const key = `${def.npc}/${pick(day).id}`;
     picked.set(key, (picked.get(key) ?? 0) + 1);
   }
-  for (const r of def.routines) assert.ok(picked.get(`${def.npc}/${r.id}`), `${def.npc}: la rutina ${r.id} no sale nunca en ${WEEKS} semanas`);
+  // Las que fija su historia (Routine.story) no salen solas: las prueba scripts/check-story.ts.
+  for (const r of def.routines) if (!r.story) assert.ok(picked.get(`${def.npc}/${r.id}`), `${def.npc}: la rutina ${r.id} no sale nunca en ${WEEKS} semanas`);
 }
 
 // Los planes con otros salen para todos a la vez.

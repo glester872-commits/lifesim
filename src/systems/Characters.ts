@@ -221,9 +221,23 @@ for (const def of CHARACTERS) {
     if (routine.outing && OUTINGS[routine.outing] === undefined) throw new Error(`[${def.npc}/${routine.id}] plan desconocido ${routine.outing}`);
   }
   for (let d = 0; d < 7; d++) {
-    if (!def.routines.some((r) => !r.outing && r.days.includes(d))) throw new Error(`[${def.npc}] sin rutina suelta para el día ${d}`);
+    // La de lluvia y las de su historia no cuentan: tiene que haber una para cualquier día seco y sin nada especial.
+    if (!def.routines.some((r) => !r.outing && !r.rain && !r.story && r.days.includes(d))) throw new Error(`[${def.npc}] sin rutina suelta para el día ${d}`);
   }
 }
+
+/**
+ * Lo que cambia la rutina de un día más allá del calendario: si llueve y si su historia (systems/Story) ya lo ha
+ * fijado. Se decide una vez por día y no se toca después: cambiarlo a mitad de día la teletransportaría.
+ */
+export interface DayContext {
+  rainy?: boolean;
+  /** Id de la rutina que manda ese día (Routine.story o cualquier otra). */
+  forced?: string;
+}
+
+/** La rutina de cada día ya resuelta (WorldScene la fija por día con DayContext); sin ella, la del calendario. */
+export type RoutinePicker = (day: number) => Routine;
 
 export function tripsOf(routine: Routine): readonly Trip[] {
   return PLANS.get(routine)!;
@@ -234,8 +248,9 @@ export function characterDay(absMinute: number): number {
   return Math.floor((absMinute - DAY_STARTS) / DAY) + 1;
 }
 
-function solo(def: CharacterDef, day: number, salt: string): Routine {
-  const today = def.routines.filter((r) => !r.outing && r.days.includes(weekIndex(day)));
+function solo(def: CharacterDef, day: number, salt: string, rainy = false): Routine {
+  // Las de su historia nunca salen solas; la de lluvia, sólo si llueve.
+  const today = def.routines.filter((r) => !r.outing && !r.story && (!r.rain || rainy) && r.days.includes(weekIndex(day)));
   // Una excepción de ese día manda sobre las rutinas normales (Routine.override).
   const overrides = today.filter((r) => r.override);
   const options = overrides.length ? overrides : today;
@@ -253,18 +268,23 @@ function solo(def: CharacterDef, day: number, salt: string): Routine {
  * los que lo tienen. Si no, una suelta por peso; si repite la de ayer y había
  * otra posible, cambia de planes una vez.
  */
-export function routineFor(def: CharacterDef, day: number): Routine {
+export function routineFor(def: CharacterDef, day: number, ctx: DayContext = {}): Routine {
+  if (ctx.forced) {
+    const forced = def.routines.find((r) => r.id === ctx.forced);
+    if (forced) return forced;
+  }
   for (const r of def.routines) {
     if (!r.outing || !r.days.includes(weekIndex(day))) continue;
     if (seededRng(hashSeed('outing', r.outing, day))() < OUTINGS[r.outing]) return r;
   }
-  const first = solo(def, day, '');
-  return first === solo(def, day - 1, '') ? solo(def, day, 'otra') : first;
+  const first = solo(def, day, '', ctx.rainy);
+  return first === solo(def, day - 1, '') ? solo(def, day, 'otra', ctx.rainy) : first;
 }
 
 /** Dónde está en ese minuto absoluto de partida ((día − 1)·1440 + minuto del día, con decimales). */
-export function whereabouts(def: CharacterDef, absMinute: number): Whereabouts {
-  const routine = routineFor(def, characterDay(absMinute));
+export function whereabouts(def: CharacterDef, absMinute: number, pick?: RoutinePicker): Whereabouts {
+  const day = characterDay(absMinute);
+  const routine = pick ? pick(day) : routineFor(def, day);
   return locate(tripsOf(routine), def.speed, absMinute, routine.id);
 }
 
@@ -279,14 +299,14 @@ const CATCH_UP = 3;
  * de `here` o dentro de casa), se pone al día de golpe. Devuelve el retraso que
  * le queda tras `minutes` de juego.
  */
-export function catchUp(def: CharacterDef, now: number, lag: number, minutes: number, here: string): number {
+export function catchUp(def: CharacterDef, now: number, lag: number, minutes: number, here: string, pick?: RoutinePicker): number {
   const seen = (w: Whereabouts): boolean => w.location === here && !w.inside;
-  const was = whereabouts(def, now - lag);
+  const was = whereabouts(def, now - lag, pick);
   if (seen(was) && was.moving) return lag;
   const still = (w: Whereabouts): boolean => (seen(w) ? !w.moving && seen(was) && w.stop.point === was.stop.point : !seen(was));
-  if (still(whereabouts(def, now))) return 0;
+  if (still(whereabouts(def, now, pick))) return 0;
   const next = Math.max(0, lag - CATCH_UP * minutes);
-  return still(whereabouts(def, now - next)) ? next : lag;
+  return still(whereabouts(def, now - next, pick)) ? next : lag;
 }
 
 /** Lo mismo, con la rutina fijada: para probar cada rutina aunque su día no salga. */

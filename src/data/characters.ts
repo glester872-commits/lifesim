@@ -1,4 +1,7 @@
-import { on, WEEKEND } from '../systems/Calendar.ts';
+import { on, WEEKDAYS, WEEKEND } from '../systems/Calendar.ts';
+
+/** Cualquier día de la semana: las rutinas que fija la historia (Routine.story). */
+const ANY_DAY: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
 
 /**
  * Personajes con nombre que viven en el barrio: van de un sitio a otro según
@@ -48,6 +51,13 @@ export interface Routine {
   outing?: string;
   /** En orden de hora desde las 06:00; la última vuelve a casa antes de las 06:00. */
   stops: readonly Stop[];
+  /** Sólo entra en el sorteo los días de lluvia (systems/Characters, DayContext.rainy). */
+  rain?: true;
+  /**
+   * Nunca sale sola: la fija su historia (systems/Story) para un día concreto, por un plan con el jugador o un
+   * día malo. Por eso puede tocar cualquier día.
+   */
+  story?: true;
 }
 
 export interface CharacterDef {
@@ -236,6 +246,75 @@ export const CHARACTERS: readonly CharacterDef[] = [
         days: on('sunday'),
         weight: 1,
         stops: [inside('06:00', SARA_HOME)],
+      },
+      {
+        // Lloviendo no hay fotos fuera: café largo en la ventana, casa y una vuelta por Hilo a cubierto.
+        id: 'lluvia',
+        days: [...WEEKDAYS, 5],
+        weight: 4,
+        rain: true,
+        stops: [
+          { at: '10:40', point: 'CAFE_WINDOW_SEAT', lines: ['Con esta lluvia no grabo nada fuera. Café y ventana.', 'La luz de la lluvia es bonita, pero se me moja todo.'], going: ['Me refugio en el Pausa, que está diluviando.'] },
+          inside('12:30', SARA_HOME, 'Me subo antes de que caiga más.'),
+          { at: '17:30', point: 'CLOTHING_STORE_RACK_05', lines: ['Si no puedo grabar fuera, por lo menos miro telas.'], going: ['Voy a Hilo, que allí no llueve.'] },
+          { at: '18:30', point: 'CLOTHING_STORE_FITTING_01', lines: ['¿Esto con botas de agua? Podría funcionar. O no.'], going: ['Me pruebo una cosa.'] },
+          inside('19:40', SARA_HOME, 'A casa, que hoy el cielo no me quiere.'),
+        ],
+      },
+      // ---- Lo que fija su historia (systems/Story, data/saraStory.ts): nunca sale en el sorteo.
+      {
+        // Un día malo (una discusión, un plan que salió mal): sale lo justo.
+        id: 'dia-gris',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '13:20', point: 'SUPERMARKET_FRIDGES', lines: ['Hoy no tengo el día. Sólo vengo a por algo de comer.'], going: ['Voy al súper y me vuelvo.'] },
+          inside('14:20', SARA_HOME, 'Me subo. Hoy no estoy para nadie.'),
+        ],
+      },
+      {
+        // Ha quedado con el jugador en la terraza del Pausa (data/saraStory.ts, plan 'terraza').
+        id: 'plan-terraza',
+        days: [...WEEKDAYS, 5],
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '10:00', point: 'CAFE_TABLE_05', lines: ['Esta noche hemos quedado, ¿eh? No se te olvide.'], going: ['Café, que esta noche he quedado.'] },
+          inside('11:30', SARA_HOME, 'Tengo clase online. Luego nos vemos.'),
+          { at: '17:00', point: 'CLOTHING_STORE_MIRROR', lines: ['Busco algo para esta noche. No me mires así.'], going: ['Paso por Hilo un momento.'] },
+          inside('18:40', SARA_HOME, 'Me voy a arreglar, que he quedado.'),
+          // El Pausa cierra a las 22:00: se va antes.
+          { at: '20:00', point: 'CAFE_TERRACE_01', lines: ['Aquí estoy, en la terraza. Como dijimos.'], going: ['Voy a la terraza del Pausa, que he quedado.'] },
+          inside('21:50', SARA_HOME, 'Me subo ya, que cierran. Buenas noches.'),
+        ],
+      },
+      {
+        // Ha quedado con el jugador para un brunch en el Molinillo y mirar Retales.
+        id: 'plan-carmen',
+        days: on('wednesday', 'saturday'),
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '11:30', point: 'MOLINILLO_TERRACE_01', lines: ['Aquí, en el Molinillo. Como quedamos.'], going: ['Voy al Molinillo, que he quedado.'] },
+          { at: '12:40', point: 'RETALES_RACK_02', lines: ['Gus guarda lo mejor para quien pregunta.'], going: ['Paso por Retales, ¿vienes?'] },
+          inside('15:10', SARA_HOME, 'Me voy a comer. ¡Gracias por el rato!'),
+          { at: '20:15', point: 'PLAZA_BENCH_03', lines: ['La plaza a esta hora es lo mejor del día.'], going: ['Voy a dar una vuelta por la plaza.'] },
+          inside('21:30', SARA_HOME, 'A casa, que mañana madrugo.'),
+        ],
+      },
+      {
+        // Ha quedado con el jugador en la plaza al caer la tarde.
+        id: 'plan-plaza',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '12:30', point: 'CAFE_TABLE_05', lines: ['Esta tarde en la plaza, ¿no? Ahí estaré.'], going: ['Café y vuelvo a casa.'] },
+          inside('13:40', SARA_HOME, 'Me subo a trabajar un rato.'),
+          { at: '19:30', point: 'PLAZA_BENCH_03', lines: ['Aquí, en el banco de siempre.'], going: ['Voy a la plaza, que he quedado.'] },
+          inside('21:15', SARA_HOME, 'Me voy a cenar. Ha estado bien.'),
+        ],
       },
     ],
   },

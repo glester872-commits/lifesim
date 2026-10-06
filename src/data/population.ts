@@ -62,7 +62,15 @@ export interface StaffRole {
   offers?: OfferId;
 }
 
+/** Qué se bebe y se ve en la mano o en la barra (world/TextureFactory: fx-glass-*). */
+export type DrinkKind = 'beer' | 'wine' | 'soft' | 'water';
+
 export interface PopulationProfile {
+  /**
+   * Un local donde se bebe a la vista: lo que toma cada cliente al pasar de pedir (ORDER) a beber (DRINK), repartido por
+   * su id y su ronda (más repeticiones = más probable). Lo lleva en la mano o sobre la barra hasta que pide otra o se va.
+   */
+  drinks?: readonly DrinkKind[];
   place: string;
   /** [desde, hasta, nivel] en horas; lo que no cubren las franjas cuenta como VERY_LOW. */
   bands: readonly (readonly [number, number, Level])[];
@@ -632,6 +640,127 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
       {
         role: 'takeaway', label: 'Cliente con prisa', line: 'Para llevar, que abro la tienda.', weight: 2, hours: [8, 11],
         plan: [{ state: 'ORDER', points: ['MOLINILLO_COUNTER', 'MOLINILLO_QUEUE_'], minutes: [1, 2] }],
+      },
+    ],
+  },
+  // ---------------------------------------------------------------- Ribera Norte
+  {
+    place: 'bar-ribera',
+    // El bar de siempre: el vermú de mediodía, la caña a la salida del trabajo y lo más lleno, de noche (hasta las dos).
+    bands: [[11, 14, 'LOW'], [14, 19, 'MEDIUM'], [19, 24, 'HIGH'], [0, 2, 'MEDIUM']],
+    // Viernes y sábado, más llena; lunes, tranquila.
+    weekday: [-1, 0, 0, 0, 1, 2, 0],
+    maxVisitors: 12,
+    drinks: ['beer', 'beer', 'beer', 'wine', 'wine', 'soft', 'water'],
+    // Tere lleva la barra: va y viene entre el tirador, la estantería y la caja, y se vuelve a quien acaba de pedir.
+    staff: [{ service: 'barkeeper', npc: 'tere', points: ['BAR_STAFF_'], offers: 'bar-ribera' }],
+    visitors: [
+      {
+        // El parroquiano de la barra: pide, bebe en un taburete o de pie, se pasa a una mesa alta y, a veces, repite.
+        role: 'regular', label: 'Parroquiano', line: 'Tere, ponme otra, que ésta se ha evaporado.', weight: 3,
+        plan: [
+          { state: 'ORDER', points: ['BAR_COUNTER_'], minutes: [2, 4] },
+          { state: 'DRINK', points: ['BAR_STOOL_', 'BAR_COUNTER_'], minutes: [28, 50] },
+          { state: 'TALK', points: ['BAR_TABLE_'], minutes: [16, 32], chance: 0.45 },
+          { state: 'ORDER', points: ['BAR_COUNTER_'], minutes: [2, 4], chance: 0.4 },
+          { state: 'DRINK', points: ['BAR_STOOL_', 'BAR_COUNTER_', 'BAR_TABLE_'], minutes: [22, 40], chance: 0.4 },
+        ],
+      },
+      {
+        // Amigos: uno pide por todos y se van a una mesa alta a charlar con el vaso en la mano.
+        role: 'friends', label: 'Cliente', line: 'Una ronda más y nos vamos. Esa la dijimos hace dos.', weight: 2, party: [2, 3],
+        plan: [
+          { state: 'ORDER', points: ['BAR_COUNTER_'], minutes: [2, 4] },
+          { state: 'DRINK', points: ['BAR_TABLE_'], minutes: [34, 58] },
+          { state: 'TALK', points: ['BAR_TABLE_'], minutes: [20, 36] },
+          { state: 'ORDER', points: ['BAR_COUNTER_'], minutes: [2, 4], chance: 0.5 },
+          { state: 'DRINK', points: ['BAR_TABLE_'], minutes: [26, 44], chance: 0.5 },
+        ],
+      },
+      {
+        // Solo o en pareja, sentados a la barra: una bebida, el móvil y a otra cosa.
+        role: 'sitter', label: 'Cliente', line: 'Aquí se está bien. Hasta que cierran.', weight: 2, party: [1, 2],
+        plan: [
+          { state: 'ORDER', points: ['BAR_COUNTER_'], minutes: [2, 4] },
+          { state: 'DRINK', points: ['BAR_STOOL_'], minutes: [32, 56] },
+          { state: 'PHONE', points: ['BAR_STOOL_'], minutes: [8, 16], chance: 0.5 },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'colmado',
+    // Abierto hasta medianoche: la compra de última hora es la que más se nota.
+    bands: [[8, 11, 'LOW'], [11, 14, 'MEDIUM'], [14, 18, 'LOW'], [18, 22, 'HIGH'], [22, 24, 'MEDIUM']],
+    weekday: [0, 0, 0, 0, 1, 1, 0],
+    maxVisitors: 5,
+    staff: [{ service: 'cashier', label: 'Colmado', line: '¿Algo más? Pan ya no queda, lo siento.', look: 'uniforme-super', points: ['COLMADO_STAFF'] }],
+    visitors: [
+      {
+        role: 'customer', label: 'Cliente', line: 'Sólo venía por hielo y he salido con tres bolsas.', weight: 1,
+        plan: [
+          { state: 'BROWSE_AISLE', points: ['COLMADO_AISLE_', 'COLMADO_FRIDGE'], minutes: [1, 4], repeat: [1, 2] },
+          { state: 'QUEUE', points: ['COLMADO_QUEUE_'], minutes: [1, 2] },
+          { state: 'CHECKOUT', points: ['COLMADO_TILL'], minutes: [1, 2] },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'sports-store',
+    bands: [[10, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 21, 'HIGH']],
+    weekday: [-1, 0, 0, 0, 1, 1, 0],
+    maxVisitors: 6,
+    staff: [{ service: 'cashier', label: 'Ribera Sport', line: 'Las de correr, mejor media talla más.', look: 'uniforme-tienda', points: ['SPORT_STAFF'] }],
+    visitors: [
+      {
+        role: 'shopper', label: 'Cliente', line: 'Vengo a mirar zapatillas. Sólo a mirar.', weight: 1,
+        plan: [
+          { state: 'BROWSE', points: ['SPORT_WALL_', 'SPORT_TABLE_', 'SPORT_RACK_'], minutes: [3, 7], repeat: [1, 3] },
+          { state: 'QUEUE', points: ['SPORT_TILL', 'SPORT_QUEUE_'], minutes: [1, 3], chance: 0.5 },
+        ],
+      },
+    ],
+  },
+  {
+    place: 'cafe-rio',
+    bands: [[8, 12, 'HIGH'], [12, 16, 'MEDIUM'], [16, 20, 'HIGH'], [20, 22, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 1, 1],
+    maxVisitors: 6,
+    staff: [{ service: 'bartender', label: 'Barra', line: 'Por la tarde, vermú de grifo. Por la mañana, café, que hay que despertar.', look: 'uniforme-sala', points: ['CAFE_RIO_STAFF'] }],
+    visitors: [
+      {
+        role: 'customer', label: 'Cliente', line: 'Desde esta ventana se ve pasar medio barrio.', weight: 3, party: [1, 2],
+        plan: [
+          { state: 'ORDER', points: ['CAFE_RIO_COUNTER', 'CAFE_RIO_QUEUE_'], minutes: [1, 3] },
+          { state: 'DRINK', points: ['CAFE_RIO_TABLE_'], minutes: [15, 40] },
+        ],
+      },
+      {
+        role: 'takeaway', label: 'Cliente con prisa', line: 'Para llevar, que pierdo el metro.', weight: 2, hours: [8, 11],
+        plan: [{ state: 'ORDER', points: ['CAFE_RIO_COUNTER', 'CAFE_RIO_QUEUE_'], minutes: [1, 2] }],
+      },
+    ],
+  },
+  {
+    place: 'casa-mar',
+    bands: [[12, 14, 'MEDIUM'], [14, 16, 'HIGH'], [16, 20, 'LOW'], [20, 23, 'HIGH'], [23, 24, 'LOW']],
+    // Fin de semana, el arroz del domingo.
+    weekday: [-1, 0, 0, 0, 1, 1, 1],
+    maxVisitors: 10,
+    staff: [
+      { service: 'cook', label: 'Cocina · Casa Mar', line: 'El arroz no se toca mientras se hace. Ni se mira.', look: 'uniforme-sala', points: ['CASAMAR_STAFF'] },
+      { service: 'waiter', line: '¿Mesa dentro o en la terraza?', points: ['CASAMAR_WAITER_'], serves: ['CASAMAR_TABLE_'] },
+    ],
+    // La comida va por el servicio de mesa: piden, esperan a cocina, comen, pagan y se van.
+    tableService: { menu: 'casa-mar', pass: 'CASAMAR_PASS', kitchen: 'CASAMAR_STAFF' },
+    visitors: [
+      {
+        role: 'diner', label: 'Comensal', line: 'Aquí el arroz lo hacen como en casa de mi abuela.', weight: 1, party: [1, 2],
+        plan: [
+          { state: 'WAIT', points: ['CASAMAR_WAIT_'], minutes: [1, 3] },
+          { state: 'DINE', points: ['CASAMAR_TABLE_'], minutes: [50, 80] },
+        ],
       },
     ],
   },

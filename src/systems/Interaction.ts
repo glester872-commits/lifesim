@@ -30,7 +30,7 @@ export const INTERACTION = {
   tie: 1.5,
 } as const;
 
-export type InteractKind = 'portal' | 'npc' | 'terminal' | 'rack' | 'spot' | 'station' | 'seat' | 'inspect' | 'event';
+export type InteractKind = 'portal' | 'npc' | 'terminal' | 'rack' | 'spot' | 'station' | 'court' | 'seat' | 'inspect' | 'event';
 
 /** Quién gana en un empate: salir y entrar primero, luego personas, luego lo que se usa, luego sentarse, y lo que sólo se mira, lo último. */
 export const PRIORITY: Readonly<Record<InteractKind, number>> = {
@@ -40,9 +40,10 @@ export const PRIORITY: Readonly<Record<InteractKind, number>> = {
   rack: 3,
   spot: 4,
   station: 5,
-  seat: 6,
-  inspect: 7,
-  event: 8,
+  court: 6,
+  seat: 7,
+  inspect: 8,
+  event: 9,
 };
 
 export interface Candidate {

@@ -10,6 +10,7 @@ import type { MetroEventManager } from './systems/MetroEventManager';
 import type { Menu } from './ui/Menu';
 import type { MapScreen } from './ui/MapScreen';
 import type { PlayerInput } from './systems/PlayerInput';
+import type { PhoneScreen } from './ui/Phone';
 
 /** Sistemas compartidos; se inyectan en las Scenes por constructor. */
 export interface Services {
@@ -29,4 +30,6 @@ export interface Services {
   map: MapScreen;
   /** Joystick y botones táctiles (ui/MobileControls): el bucle los lee junto al teclado. */
   input: PlayerInput;
+  /** El móvil (tecla P o su botón): contactos y mensajes. Abierto, el jugador se para y el mundo sigue. */
+  phone: PhoneScreen;
 }

@@ -148,6 +148,13 @@ export const STORES: readonly RetailStoreDef[] = [
     ],
   },
   {
+    id: 'ribera-sport', name: 'Ribera Sport', greeting: 'Si vas a correr el domingo, empieza por las zapatillas.', thanks: 'Suerte en la carrera del canal.',
+    stock: [
+      { garment: 'zapatilla-retro', price: 74 }, { garment: 'zapatilla-blanca', price: 89 }, { garment: 'chandal-gris', price: 35 },
+      { garment: 'camiseta-tirantes', price: 18 }, { garment: 'camiseta-basica', price: 15 },
+    ],
+  },
+  {
     id: 'suela', name: 'Suela · zapatillas', greeting: 'Si no está en la pared, es que se agotó.', thanks: 'Cuídalas: la suela es lo primero que se va.',
     stock: [
       { garment: 'zapatilla-blanca', price: 95 }, { garment: 'zapatilla-retro', price: 79 },

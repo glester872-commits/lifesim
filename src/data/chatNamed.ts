@@ -26,7 +26,7 @@ export const NAMED_LINES: readonly Line[] = [
   // ------------------------------------------------------------------ Sara
   ...L('greeting', { n: 'sara' }, '¡Hola! Espera, no te muevas, que esta luz es buenísima.', 'Ey, ¡justo a tiempo! Necesito una opinión.', '¡Hola, hola! Estaba grabando, pero tú eres más importante.', 'Mira, otra cara amiga. ¿Qué tal tu día?'),
   ...L('greeting', { n: 'sara', r: 1 }, '¡Eh, tú! Qué bien verte. Cuéntame todo.', '¡Mira quién es! Vengo de mil sitios, pero para ti saco tiempo.', 'Ya estabas tardando en aparecer, ¿eh?'),
-  ...L('greeting', { n: 'sara', r: 2 }, 'Mi persona favorita del barrio. ¿Qué tienes para mí?', '¡Por fin! Necesito que me digas qué te parece lo nuevo.', 'No te lo vas a creer lo que me ha pasado hoy. Ven aquí.'),
+  ...L('greeting', { n: 'sara', r: 2, nf: ['sara_conflict'] }, 'Mi persona favorita del barrio. ¿Qué tienes para mí?', '¡Por fin! Necesito que me digas qué te parece lo nuevo.', 'No te lo vas a creer lo que me ha pasado hoy. Ven aquí.'),
   ...L('greeting', { n: 'sara', h: [20.5, 6] }, 'Buenas noches... ¿vienes al plan o nos escapamos antes?', 'Ey, ¡qué buena hora! La noche ya empieza para mí.'),
   ...L('smalltalk', { n: 'sara' }, 'Súper liada: clase, el contenido y un trabajo de patronaje que me está matando.', 'Entre los diseños y las ideas de los vídeos, mi cabeza no para.', 'Bien, pero con mil pestañas abiertas en la cabeza.', 'Genial, con la energía justa para seguir otra hora.'),
   ...L('doing', { n: 'sara', h: [8, 15] }, 'Voy a clase, o a mirar telas, o a grabar algo. Según cómo me levante.', 'Estoy con un trabajo de diseño. Lo mío es dibujar y tener ideas raras.'),
@@ -41,12 +41,31 @@ export const NAMED_LINES: readonly Line[] = [
   ...L('tired', { n: 'sara', m: ['tired'] }, 'Anoche edité hasta tarde. La edición es un pozo sin fondo.', 'Me duele hasta el pelo. Entre clases y vídeos, el cuerpo me pasa factura.'),
   ...L('positive', { n: 'sara', m: ['good'] }, 'Hoy ha ido genial: el vídeo ha subido y a la gente le ha gustado. Estoy flotando.', 'Me han escrito de una tienda para colaborar. ¡No me lo creo!'),
   ...L('joke', { n: 'sara' }, 'Dicen que no se puede vivir de la moda. Yo vivo de ella a medias, de las ideas y de los cafés.', 'Mi cuenta bancaria y yo tenemos una relación abierta. Ella entra y sale.'),
-  ...L('friendly', { n: 'sara', r: 1 }, 'Me caes bien, ¿sabes? Eres de las pocas personas que me escuchan de verdad.', 'Cuando quieras te enseño el taller, que a mí me gusta enseñarlo.'),
-  ...L('friendly', { n: 'sara', r: 2 }, 'En serio, gracias por pasarte siempre. A veces necesito justo esto: hablar con alguien sin pose.', 'Si algún día quieres salir de cualquier cosa, me dices. Yo me apunto a casi todo.'),
+  ...L('friendly', { n: 'sara', r: 1, nf: ['sara_conflict'] }, 'Me caes bien, ¿sabes? Eres de las pocas personas que me escuchan de verdad.', 'Cuando quieras te enseño el taller, que a mí me gusta enseñarlo.'),
+  ...L('friendly', { n: 'sara', r: 2, nf: ['sara_conflict'] }, 'En serio, gracias por pasarte siempre. A veces necesito justo esto: hablar con alguien sin pose.', 'Si algún día quieres salir de cualquier cosa, me dices. Yo me apunto a casi todo.'),
   ...L('compliment-back', { n: 'sara' }, '¡Ay, para! ¡Que me pongo roja y me estropeo el maquillaje!', 'Gracias, lo apunto para la próxima historia. Es broma. Gracias de verdad.'),
   ...L('joke-back', { n: 'sara' }, 'Jajaja, ¡qué malo! Pero te lo perdono porque me ha hecho gracia.', 'Eso va a la lista de cosas que repetiré sin darte crédito.'),
   ...L('bye-short', { n: 'sara', end: true }, '¡Ciao! Que me voy a seguir creando cosas.', 'Un besi, que me llama la luz. ¡Hasta luego!', '¡Nos vemos, que se me va el plan!'),
-  ...L('bye-long', { n: 'sara', end: true, r: 1 }, 'Ha sido genial verte. Si ves algo bonito por la Calle del Carmen, me lo cuentas, ¿vale?', 'Me voy a grabar antes de que se vaya la luz. Pero escríbeme, o aparece, que me encanta.'),
+  ...L('bye-long', { n: 'sara', end: true, r: 1, nf: ['sara_conflict'] }, 'Ha sido genial verte. Si ves algo bonito por la Calle del Carmen, me lo cuentas, ¿vale?', 'Me voy a grabar antes de que se vaya la luz. Pero escríbeme, o aparece, que me encanta.'),
+
+  // Lo que sólo dice según lo vivido (systems/Story, data/saraStory.ts): `f` exige esas flags, `nf` las prohíbe.
+  ...L('greeting', { n: 'sara', f: ['sara_friend'], nf: ['sara_conflict'] }, '¡Mi gente del barrio! ¿Qué me cuentas?', 'Ey, justo tú. Tenía ganas de verte.'),
+  ...L('greeting', { n: 'sara', f: ['sara_conflict'] }, 'Hola. ¿Qué querías?', 'Ah. Hola.'),
+  ...L('smalltalk', { n: 'sara', f: ['sara_conflict'] }, 'Bien. Liada. Lo normal.', 'Pues aquí. No tengo mucho que contar hoy.'),
+  ...L('bye-short', { n: 'sara', end: true, f: ['sara_conflict'] }, 'Venga. Adiós.', 'Me voy, que tengo cosas.'),
+  ...L('friendly', { n: 'sara', f: ['sara_reconciled'], nf: ['sara_conflict'] }, 'Me gusta que podamos hablar las cosas. No todo el mundo sabe.', 'Lo del otro día ya está olvidado, ¿eh? Que no se te quede ahí.'),
+  ...L('plans', { n: 'sara', f: ['sara_event_01'], nf: ['sara_conflict'] }, 'Cuando quieras repetimos lo del otro día. Me lo pasé genial.', 'Tengo que proponerte otro plan. Déjame pensar uno bueno.'),
+  ...L('smalltalk', { n: 'sara', f: ['sara_event_02'] }, 'Sigo con los diseños que te enseñé. La tercera chaqueta ya casi está.', 'Le he cambiado el cuello a la chaqueta que viste. Mejor, ¿verdad? Bueno, no la has visto. Te la enseño.'),
+  ...L('fashion', { n: 'sara', f: ['sara_tattoo'] }, 'La golondrina ya está curada. Lía dice que es de las mejores que ha hecho.', 'Ahora todo lo combino con la muñeca. Es un problema. Un problema bonito.'),
+  ...L('fashion', { n: 'sara', f: ['sara_event_02'] }, 'Lo de reutilizar las chaquetas de mi abuela va en serio: quiero presentarlo en la facultad.'),
+  ...L('friendly', { n: 'sara', f: ['sara_close_friend'], nf: ['sara_conflict'] }, 'Eres de las pocas personas con las que no tengo que hacer de Sara la de los vídeos.', 'A veces pienso que el barrio sin ti sería más aburrido. No se lo digas a nadie.'),
+  // Según dónde y qué está haciendo, y cómo está.
+  ...L('doing', { n: 'sara', p: ['gym'] }, 'Aquí, sufriendo. Hablamos, pero no me mires la cara.', 'Cardio. Lo odio. Lo necesito. Las dos cosas.'),
+  ...L('doing', { n: 'sara', p: ['nightlife'] }, 'Aquí se viene a bailar, no a hablar. ¡Pero cuéntame!', 'Estoy buscando a Ada. Siempre se pierde cerca de la barra.'),
+  ...L('doing', { n: 'sara', p: ['shop'] }, 'Mirando cosas para el proyecto. Bueno, y para mí. Sobre todo para mí.'),
+  ...L('doing', { n: 'sara', p: ['park', 'plaza'] }, 'Nada. Estoy aquí sin hacer nada y me sienta de maravilla.', 'Mirando la luz para el próximo vídeo. Y a la gente. Sobre todo a la gente.'),
+  ...L('smalltalk', { n: 'sara', m: ['down'] }, 'Hoy no tengo el día. No es por ti, ¿eh?', 'Estoy un poco de bajón. Se me pasará con un café. O con dos.'),
+  ...L('weather', { n: 'sara', w: ['rain'] }, 'Con esta lluvia no hay quien grabe nada fuera. Me tiene de mal humor.', 'Me encanta la lluvia, pero en la ventana, no en el pelo.'),
 
   // ------------------------------------------------------------------ Ada
   ...L('greeting', { n: 'ada' }, 'Dime. Pero rápido, que tengo temario.', 'Hola. Si es para preguntar, sé muchas cosas. Y las que no, las estudio.', 'Buenas. Ando liada, pero te escucho.', 'Hola. ¿Todo bien? Me ha parecido verte con cara de duda.'),

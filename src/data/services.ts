@@ -39,6 +39,7 @@ export const SERVICE_OFFERS = {
   'shop-suela': { kind: 'retail', store: 'suela', minutes: 10 },
   'club-bar': { kind: 'activities', title: 'Barra · Sala Órbita', activities: ['club-drink', 'club-water'] },
   'wine-bar': { kind: 'activities', title: 'Barra · La Cepa', activities: ['wine-glass', 'wine-board'] },
+  'bar-ribera': { kind: 'activities', title: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
 } as const satisfies Record<string, ServiceOffer>;
 
 export type OfferId = keyof typeof SERVICE_OFFERS;
@@ -60,6 +61,8 @@ export interface ServiceRole {
 export const SERVICE_ROLES = {
   waiter: { label: 'Camarero', line: 'Enseguida te atiendo.', uniform: 'uniforme-sala', activity: 'serve' },
   bartender: { label: 'Barra', line: '¿Qué te pongo?', uniform: 'uniforme-noche', activity: 'post' },
+  // Quien lleva una barra con clientes de pie y en taburete: va y viene entre sus puntos de servicio (tirador, estantería, caja) y se vuelve a quien le toca (systems/Crowd.serveDrink).
+  barkeeper: { label: 'Barra', line: '¿Qué te pongo?', uniform: 'uniforme-noche', activity: 'rounds' },
   cashier: { label: 'Caja', line: '¿Lo pagas con tarjeta?', uniform: 'uniforme-tienda', activity: 'post' },
   security: { label: 'Seguridad', line: 'Dentro, tranquilidad. Fuera, lo que quieras.', uniform: 'uniforme-noche', activity: 'post' },
   'gym-staff': { label: 'Personal del gimnasio', line: 'Si usas la cinta, límpiala después.', uniform: 'uniforme-gym', activity: 'rounds' },

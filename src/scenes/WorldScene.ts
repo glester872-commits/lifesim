@@ -12,7 +12,7 @@ import {
   TILE,
   TRANSITION_MS,
 } from '../config/constants';
-import type { Facing, NpcDef, PortalDef, RackDef, TilePoint, Vec2 } from '../types/game';
+import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
 import { Ambience } from '../world/Ambience';
@@ -31,14 +31,36 @@ import { buildLocation } from '../world/LocationBuilder';
 import { Player } from '../entities/Player';
 import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { STATIONS, getStation, type StationId } from '../data/stations';
+import { COURTS, type ShootingSpot } from '../data/courts';
+import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } from '../systems/Basketball';
 import { KIND_OF, afterLine, summary, train, type Intensity } from '../systems/Fitness';
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
 import { getNpc } from '../data/npcs';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
-import { catchUp, whereabouts, type Whereabouts } from '../systems/Characters';
+import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
+import { STORIES } from '../data/saraStory';
+import {
+  acceptPlan,
+  applyEffect,
+  beatAfterTalk,
+  chatFlags,
+  chatMood,
+  dayStart,
+  helloFor,
+  markBeat,
+  noteEvent,
+  openerFor,
+  routineOn,
+  watchPlan,
+  type Effect,
+  type NamedStory,
+  type ReadyBeat,
+  type StoryNow,
+} from '../systems/Story';
 import { offCamera, settleNamed, type StuckWatch } from '../systems/Recovery';
 import { pickTarget, wallBetween, type Candidate as PickCandidate } from '../systems/Interaction';
+import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Clock } from '../systems/Crowd';
 import { StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
@@ -55,7 +77,7 @@ import { say, type MenuItem, type MoreOption } from '../data/menus';
 import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
 import { characterLook, umbrellaFor } from '../world/WeatherLooks';
-import { hashSeed } from '../systems/MetroDaily';
+import { hashSeed, seededRng } from '../systems/MetroDaily';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
 import { AlleyDealView } from '../world/AlleyDealView';
@@ -73,10 +95,19 @@ import { DEBUG } from '../config/debug';
 import { weatherAt } from '../systems/Weather';
 import { ChatLog, Conversation, placeOf, weatherKind, type ChatTurn } from '../systems/Chat';
 import {
+  applyDelta,
   chatRelationLevel,
+  CONTACT_OFFER_NOTE,
+  contactOfferChance,
+  grantContact,
   noteSocialEncounter,
+  noteSocialMemory,
+  relationshipState,
+  type SocialProfile,
 } from '../systems/Social';
+import { NAMED_PEOPLE } from '../data/namedPeople';
 import { NAMED_VOICES } from '../data/chatNamed';
+import { INIT_SLOT, lineFor, markRead, tierOf, phoneTick, planFromTalk, sendMessage, statusOf, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneResult } from '../systems/Phone';
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
@@ -110,7 +141,21 @@ type Interactable =
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
-  | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing };
+  | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
+  | { kind: 'court'; x: number; y: number; name: string; point: string; spot: ShootingSpot };
+
+/** Lo que se dice de un tiro, sin más: dentro (limpio o rebotado) o fuera (y por dónde). */
+function shotCue(shot: Shot): string {
+  switch (shot.kind) {
+    case 'swish': return '¡Limpia!';
+    case 'rim-in': return '¡Dentro, rebotando en el aro!';
+    case 'board-in': return '¡Dentro, de tablero!';
+    case 'short': return 'Corto';
+    case 'long': return 'Largo';
+    case 'left': return 'Se va a la izquierda';
+    case 'right': return 'Se va a la derecha';
+  }
+}
 
 /** Tras cambiar de escena, el fundido (TRANSITION_MS) y lo que tarda un doble toque: E / «acción» se gastan sin hacer nada. */
 const ARRIVAL_LOCK_MS = 450;
@@ -204,6 +249,16 @@ export class WorldScene extends Phaser.Scene {
     /** Minutos que va por detrás de su horario desde la última charla. */
     lag: number;
   }[] = [];
+  /**
+   * Historias de los personajes con nombre que la tienen (systems/Story, data/saraStory.ts), leídas de GameState
+   * una vez y olvidadas cuando cambian ahí (evento 'story'): la rutina del día se consulta cada fotograma.
+   */
+  private readonly stories = new Map<string, NamedStory>();
+  /** Lo que su historia tiene que decir (un microevento, un saludo, «¡has venido!»): sale en cuanto el jugador está libre. */
+  private storyQueue: (() => void)[] = [];
+  /** El móvil (systems/Phone): el último minuto y la última franja ya mirados. */
+  private phoneMinute = -1;
+  private phoneSlot = -1;
   /** Gestos de ambiente de los personajes con nombre (systems/AmbientActions), igual que la gente de CrowdView. */
   private characterAmbient: AmbientDirector | null = null;
   /** Suelta a quien atiende al jugador: al cerrar el diálogo vuelve a lo suyo. */
@@ -263,6 +318,22 @@ export class WorldScene extends Phaser.Scene {
    * Lo que el jugador está entrenando ahora (systems/Fitness): el puesto es suyo desde que lo elige hasta que baja
    * de él (para la gente, `claimed`), aunque se corte antes. `releasing`: ya acabó y está bajando.
    */
+  /** Tirando a canasta (systems/Basketball): una actividad propia, no un entrenamiento; sus cosas se crean al empezar y se destruyen al acabar. */
+  private court: {
+    point: string;
+    spot: ShootingSpot;
+    session: ShootingSession;
+    geo: Geometry;
+    from: Vec2;
+    ball: Phaser.GameObjects.Image;
+    meter: Phaser.GameObjects.Graphics;
+    net: Phaser.GameObjects.Graphics;
+    releasing: boolean;
+    /** Hasta que se suelta la tecla con la que se empezó, no se carga un tiro. */
+    needRelease: boolean;
+    cue: { text: string; until: number } | null;
+    hintAt: number;
+  } | null = null;
   private workout: { point: string; station: StationId; intensity: Intensity; minutes: number; startMinute: number; from: Vec2; releasing: boolean; hintAt: number } | null = null;
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
@@ -381,7 +452,10 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
-      if (p.use && KIND_OF[p.use]) this.interactables.push({ kind: 'station', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, point: id, station: p.use as StationId, facing: p.facing ?? 'up' });
+      // Una canasta no es una máquina del gimnasio: tirar tiene su propia actividad (systems/Basketball).
+      const spot = COURTS[def.id]?.[id];
+      if (spot) this.interactables.push({ kind: 'court', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, name: 'Canasta', point: id, spot });
+      else if (p.use && KIND_OF[p.use]) this.interactables.push({ kind: 'station', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, point: id, station: p.use as StationId, facing: p.facing ?? 'up' });
     }
     // Donde sentarse: los mismos asientos que usa la gente (bancos, sillas, sofás, el andén).
     for (const seat of seatsIn(def)) {
@@ -501,6 +575,21 @@ export class WorldScene extends Phaser.Scene {
       this.chatEnd = null;
     };
     dialogue.on('close', onDialogueClose);
+    // Una historia cambiada en GameState (aquí o desde la consola de desarrollo) se vuelve a leer.
+    const onStory = (id: string): void => {
+      this.stories.delete(id);
+    };
+    state.on('story', onStory);
+    this.services.phone.attach({
+      now: () => Math.floor(this.absMinute()),
+      status: (npc) => this.phoneEnv().status(npc, Math.floor(this.absMinute())),
+      send: (npc, action) => this.sendPhone(npc, action),
+      read: (npc) => {
+        const phone = this.services.state.phone;
+        const read = markRead(phone, npc);
+        if (read !== phone) this.services.state.setPhone(read);
+      },
+    });
 
     const autosave = this.time.addEvent({
       delay: AUTOSAVE_INTERVAL_MS,
@@ -510,6 +599,10 @@ export class WorldScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       dialogue.off('close', onDialogueClose);
+      state.off('story', onStory);
+      this.services.phone.attach(null);
+      // Lo que su historia iba a decir aquí se pierde con la escena: lo importante (flags, plan) ya está guardado.
+      this.storyQueue = [];
       // Nada abierto se queda de la escena de antes: ni una charla (con quien hablaba, soltado) ni un menú, ni el aviso ni el botón táctil.
       this.endTalk?.();
       this.endTalk = null;
@@ -521,6 +614,7 @@ export class WorldScene extends Phaser.Scene {
       this.services.input.setContext({ action: null, back: false, busy: false });
       // Si se cambia de escena entrenando, lo hecho hasta ahora cuenta y el puesto se suelta.
       this.abortTraining();
+      this.destroyCourt();
       this.services.hint.hide();
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
       autosave.remove();
@@ -534,7 +628,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
-    const { clock, dialogue, menu, map, input } = this.services;
+    const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
 
     // El mapa es un modo de interfaz, como el menú: el jugador se para, nada responde a la E y el
@@ -547,10 +641,32 @@ export class WorldScene extends Phaser.Scene {
       if (this.pressedAny(['map', 'cancel', 'cancelAlt'])) map.close();
       return;
     }
-    if (!menu.isOpen && !dialogue.isOpen && this.pressedAny(['map'])) {
+    if (!menu.isOpen && !dialogue.isOpen && !phone.isOpen && this.pressedAny(['map'])) {
       this.player.halt();
       map.open();
       return;
+    }
+
+    // El móvil (ui/Phone): el jugador se para y el mundo sigue, así las respuestas llegan mientras mira. P lo
+    // cierra; Esc vuelve atrás. Si algo abre un diálogo o un menú (un aviso del andén), el móvil se guarda.
+    if (phone.isOpen && (dialogue.isOpen || menu.isOpen)) phone.close();
+    if (phone.isOpen) {
+      this.player.halt();
+      this.prompt.setVisible(false);
+      this.services.hint.hide();
+      input.setContext({ action: 'Elegir', back: true, busy: true });
+      if (this.pressedAny(['phone'])) phone.close();
+      else if (this.pressedAny(['cancel', 'cancelAlt'])) phone.back();
+      else if (this.pressedAny(['up', 'upAlt', 'left', 'leftAlt'])) phone.move(-1);
+      else if (this.pressedAny(['down', 'downAlt', 'right', 'rightAlt'])) phone.move(1);
+      else if (this.pressedAny(['interact', 'advance', 'advanceAlt'])) phone.confirm();
+      else {
+        const digit = DIGITS.findIndex((name) => this.pressedAny([name]));
+        if (digit >= 0) phone.pick(digit);
+      }
+    } else if (!menu.isOpen && !dialogue.isOpen && !this.court && !this.workout && !this.player.isBusyTraining && this.time.now >= this.readyAt && this.pressedAny(['phone'])) {
+      this.player.halt();
+      phone.open();
     }
 
     // Un menú abierto para el mundo: se elige con W/S y E, o con 1–9. Uno «en vivo» (pedir en la
@@ -592,6 +708,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     clock.update(delta);
+    this.phoneTick();
     this.metro?.update(delta, time);
     this.placeCharacters(delta);
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
@@ -664,13 +781,17 @@ export class WorldScene extends Phaser.Scene {
         ...this.interactables.flatMap((i) => (i.kind === 'npc' && i.sprite.visible ? [i.sprite] : [])),
       ].map((s) => ({ id: (s as Character).def.id, name: (s as Character).def.name, tx: s.x / TILE, ty: s.y / TILE })),
     );
-    if (talking || liveMenu) {
+    if (talking || liveMenu || phone.isOpen) {
       // Sentado, sigue respirando (y comiendo) mientras habla o elige.
       if (this.player.isSeated) this.player.seatedFrame(time, null, this.tableService?.playerEating ?? false);
       return;
     }
     if (this.player.isSeating) {
       this.updateSeated(time);
+      return;
+    }
+    if (this.court) {
+      this.updateCourt(time, delta);
       return;
     }
     if (this.player.isBusyTraining || this.workout) {
@@ -688,6 +809,18 @@ export class WorldScene extends Phaser.Scene {
     });
 
     this.syncState();
+
+    // Lo que su historia tiene que decir (systems/Story): de uno en uno y sólo con el jugador libre. Si no hay
+    // nada pendiente, quizá le salude ella primero al cruzarse.
+    if (!dialogue.isOpen && !menu.isOpen && this.time.now >= this.readyAt) {
+      const next = this.storyQueue.shift();
+      if (next) {
+        next();
+        return;
+      }
+      this.storyHello();
+      if (dialogue.isOpen) return;
+    }
 
     const target = this.nearestInteractable();
     this.updatePrompt(target);
@@ -761,6 +894,7 @@ export class WorldScene extends Phaser.Scene {
       cancelAlt: Phaser.Input.Keyboard.KeyCodes.Q,
       bag: Phaser.Input.Keyboard.KeyCodes.I,
       map: Phaser.Input.Keyboard.KeyCodes.M,
+      phone: Phaser.Input.Keyboard.KeyCodes.P,
     }) as Keys;
   }
 
@@ -793,6 +927,7 @@ export class WorldScene extends Phaser.Scene {
       case 'portal': return target.portal.train ? 'Subir' : target.portal.label?.startsWith('Salir') ? 'Salir' : 'Entrar';
       case 'seat': return 'Sentarse';
       case 'station': return 'Entrenar';
+      case 'court': return 'Tirar a canasta';
       case 'terminal': return 'Comprar';
       case 'rack': return 'Ver prenda';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
@@ -815,13 +950,16 @@ export class WorldScene extends Phaser.Scene {
     const heading = new Set<string>();
     const player = this.playerTile();
     for (const c of this.characters) {
+      // Quien tiene historia empieza su día (una vez) y sigue la rutina que ese día le ha fijado.
+      const pick = this.storyPicker(c.def, now);
       // Estado colgado (systems/Recovery): una charla que ya no existe o un retraso enorme donde no se le ve.
       const seenNow = c.now !== null && c.now.location === here && !c.now.inside && !offCamera(c.now, player);
       const fixed = settleNamed(c, now, this.talkSprite === c.sprite, !seenNow);
       if (fixed) this.namedRecovered[fixed]++;
-      if (c.heldAt === null && c.lag > 0) c.lag = catchUp(c.def, now, c.lag, (GAME_MINUTES_PER_REAL_SECOND * deltaMs) / 1000, here);
-      const w = whereabouts(c.def, c.heldAt ?? now - c.lag);
+      if (c.heldAt === null && c.lag > 0) c.lag = catchUp(c.def, now, c.lag, (GAME_MINUTES_PER_REAL_SECOND * deltaMs) / 1000, here, pick);
+      const w = whereabouts(c.def, c.heldAt ?? now - c.lag, pick);
       c.now = w;
+      this.watchStoryPlan(c, w, player);
       const visible = w.location === here && !w.inside;
       const seed = hashSeed('weather', c.def.npc);
       const look = outdoor ? characterLook(c.sprite.def, seed, weather) : c.sprite.def;
@@ -843,8 +981,263 @@ export class WorldScene extends Phaser.Scene {
     if (this.seatedOn && !this.seatedOn.seat.id.startsWith('metro:')) claimed.add(this.seatedOn.seat.id);
     // El puesto de quien entrena es suyo: la gente del gimnasio no lo coge (y quien estuviera, ya se ha ido).
     if (this.workout) claimed.add(this.workout.point);
+    if (this.court) claimed.add(this.court.point);
     this.crowd?.claim(claimed);
     this.street?.claim(claimed);
+  }
+
+  // ================================================================
+  // HISTORIAS (systems/Story, data/saraStory.ts)
+  // ================================================================
+
+  /** Su historia (de la caché o de GameState). */
+  // ================================================================
+  // MÓVIL (systems/Phone, ui/Phone)
+  // ================================================================
+
+  /** Lo que el móvil necesita del mundo: qué hace cada uno (con la rutina que le fije su historia) y su ánimo. */
+  private phoneEnv(): PhoneEnv {
+    return {
+      status: (npc, at): NpcStatus => {
+        const def = CHARACTERS.find((c) => c.npc === npc);
+        return statusOf(npc, at, def ? this.storyPicker(def, at) : undefined);
+      },
+      mood: (npc) => {
+        const story = this.storyOf(npc);
+        return story ? chatMood(story) : undefined;
+      },
+    };
+  }
+
+  /** Cada minuto de juego: contesta quien toque, se cierran los planes pasados y quizá alguien escribe primero. */
+  private phoneTick(): void {
+    const now = Math.floor(this.absMinute());
+    if (now === this.phoneMinute) return;
+    this.phoneMinute = now;
+    const slot = Math.floor(now / INIT_SLOT);
+    // Al llegar a la escena no se recuperan las franjas de antes: nadie escribe de golpe al cargar.
+    if (this.phoneSlot < 0) this.phoneSlot = slot;
+    const { state } = this.services;
+    const phone = state.phone;
+    const result = phoneTick(phone, state.social, now, this.phoneSlot, this.phoneEnv());
+    this.phoneSlot = slot;
+    if (result.phone !== phone) this.applyPhone(result);
+  }
+
+  /** Lo que cambia el móvil va a la misma relación de siempre (GameState.setSocialProfile) y se guarda. */
+  private applyPhone(result: PhoneResult): void {
+    const { state } = this.services;
+    for (const [npc, profile] of Object.entries(result.profiles)) state.setSocialProfile(npc, profile);
+    state.setPhone(result.phone, result.news);
+    this.persistSoon();
+  }
+
+  private sendPhone(npc: string, action: PhoneActionId): void {
+    const { state } = this.services;
+    const now = Math.floor(this.absMinute());
+    this.applyPhone(sendMessage(state.phone, state.socialOf(npc), npc, action, now, this.phoneEnv().status(npc, now)));
+  }
+
+  /** Lo que pasa en persona llega al móvil: lo aceptado (un café, una cita) es un plan, y un número dado se avisa. */
+  private phoneFromTalk(npc: string, before: SocialProfile, after: SocialProfile): void {
+    const { state } = this.services;
+    const known = new Set(before.memories.map((m) => m.id));
+    const now = Math.floor(this.absMinute());
+    const start = state.phone;
+    let phone = start;
+    for (const memory of after.memories) if (!known.has(memory.id)) phone = planFromTalk(phone, npc, memory, now);
+    if (phone !== start) state.setPhone(phone);
+    if (!before.contactExchanged && after.contactExchanged) this.services.phone.notify(npc, 'Te ha dado su número. Ya podéis escribiros.');
+  }
+
+  private storyOf(npc: string): NamedStory | undefined {
+    const def = STORIES[npc];
+    if (!def) return undefined;
+    let story = this.stories.get(npc);
+    if (!story) {
+      story = this.services.state.storyOf(npc, def.baseMood);
+      // Una partida de antes de las historias en la que ya se conocían: no se vuelve a presentar.
+      const met = this.services.state.events.importantNPCsMet[npc];
+      if (met && def.metFlag && !(def.metFlag in story.flags)) story.flags[def.metFlag] = met.firstDay;
+      this.stories.set(npc, story);
+    }
+    return story;
+  }
+
+  /** Guarda su historia (y su relación, si ha cambiado) en GameState. */
+  private saveStory(npc: string, story: NamedStory, profile?: SocialProfile): void {
+    const { state } = this.services;
+    state.setStory(npc, story);
+    this.stories.set(npc, story);
+    if (profile) state.setSocialProfile(npc, profile);
+  }
+
+  /** Su día (empieza a las 06:00) y el minuto del reloj. */
+  private storyNow(): StoryNow {
+    return { day: characterDay(this.absMinute()), minute: Math.floor(this.services.clock.minuteOfDay) };
+  }
+
+  /** Si ese día llueve por la mañana: lo que decide una rutina de lluvia o cancelar un plan de fuera. */
+  private rainyDay(day: number): boolean {
+    return weatherAt(day, 10).sky.endsWith('rain');
+  }
+
+  /**
+   * La rutina de cada día para quien tiene historia: la que su historia fijó ese día; sin fijar (un día de antes
+   * de la partida), la del calendario. Empieza su día si aún no ha empezado: una vez, al principio, para no
+   * cambiarla nunca a medias.
+   */
+  private storyPicker(def: CharacterDef, now: number): RoutinePicker | undefined {
+    const storyDef = STORIES[def.npc];
+    let story = this.storyOf(def.npc);
+    if (!storyDef || !story) return undefined;
+    const today = characterDay(now);
+    if (story.dayDone < today) {
+      const rainy = this.rainyDay(today);
+      const profile = this.services.state.socialOf(def.npc);
+      const started = dayStart(story, profile, storyDef, { day: today, rainy, pick: (forced) => routineFor(def, today, { rainy, forced }).id });
+      this.saveStory(def.npc, started.story, started.profile !== profile ? started.profile : undefined);
+      story = started.story;
+      this.persistSoon();
+    }
+    const fixed = story;
+    return (day) => routineFor(def, day, { rainy: this.rainyDay(day), forced: routineOn(fixed, day) });
+  }
+
+  /** Si hoy han quedado: el jugador a su lado en la hora del plan es que ha venido; pasada la hora, que no. */
+  private watchStoryPlan(c: (typeof this.characters)[number], w: Whereabouts, player: TilePoint): void {
+    const def = STORIES[c.def.npc];
+    const story = this.storyOf(c.def.npc);
+    if (!def || story?.plan?.status !== 'pending') return;
+    const together = w.location === this.services.state.locationId && !w.inside && Math.hypot(w.tx - player.tx, w.ty - player.ty) <= 3;
+    const profile = this.services.state.socialOf(c.def.npc);
+    const result = watchPlan(story, profile, def, this.storyNow(), together);
+    if (!result) return;
+    this.saveStory(c.def.npc, result.story, result.profile);
+    this.persistSoon();
+    if (result.kept) this.storyQueue.push(() => this.storyLines(c.sprite, def.kept.say));
+  }
+
+  /** Al cruzarse: si hoy le toca saludar primero, para al jugador ella. */
+  private storyHello(): void {
+    const here = this.services.state.locationId;
+    const player = this.playerTile();
+    for (const c of this.characters) {
+      const def = STORIES[c.def.npc];
+      const w = c.now;
+      if (!def || !w || w.location !== here || w.inside || !c.sprite.visible) continue;
+      if (Math.hypot(w.tx - player.tx, w.ty - player.ty) > def.hello.distance) continue;
+      const story = this.storyOf(c.def.npc)!;
+      const now = this.storyNow();
+      const line = helloFor(story, def, this.services.state.socialOf(c.def.npc), now);
+      if (!line) continue;
+      this.saveStory(c.def.npc, { ...story, greetedDay: now.day });
+      const name = c.sprite.def.name;
+      this.player.halt();
+      this.startTalk(c.sprite);
+      this.services.dialogue.ask(name, [line], ['Pararse a hablar', 'Ahora no'], (i) => {
+        if (i === 0) {
+          this.startTalk(c.sprite);
+          const talk = this.conversationWith(c.sprite);
+          if (talk) this.say(name, c.sprite, talk, talk.open(), c.def.npc);
+          return;
+        }
+        // No para: lo recuerda, sin más.
+        const s = structuredClone(this.storyOf(c.def.npc)!);
+        noteEvent(s, 'saludo-sin-parar', now, getLocation(here).name);
+        this.saveStory(c.def.npc, s);
+      });
+      return;
+    }
+  }
+
+  /** Dice algo de su historia, parándose a decirlo. */
+  private storyLines(sprite: Character, lines: readonly string[]): void {
+    this.player.halt();
+    this.startTalk(sprite);
+    this.services.dialogue.start(sprite.def.name, lines);
+  }
+
+  /** Aplica un efecto de su historia (flags, ánimo, lo vivido, decisión y relación) y lo guarda. */
+  private applyStory(npc: string, effect: Effect, note?: string): void {
+    const story = this.storyOf(npc);
+    const def = STORIES[npc];
+    if (!story || !def) return;
+    const before = this.services.state.socialOf(npc);
+    const { story: next, profile } = applyEffect(story, before, effect, this.storyNow(), note);
+    this.saveStory(npc, next, profile);
+    // Su historia también puede daros los números (Effect.contact): el móvil lo avisa.
+    if (!before.contactExchanged && profile.contactExchanged) this.services.phone.notify(npc, 'Te ha dado su número. Ya podéis escribiros.');
+  }
+
+  /**
+   * Al acabar una charla, quizá te ofrece su número sin pedírselo (systems/Social.contactOfferChance). Va a la
+   * cola de su historia, de uno en uno y con el jugador libre; al llegar su turno se mira otra vez, por si su
+   * historia ya os los dio. Decir que no es un «ahora no»: no rompe nada, y lo puedes pedir tú más adelante.
+   */
+  private contactOffer(npc: string, sprite: Character): void {
+    const { state } = this.services;
+    const profile = state.socialOf(npc);
+    const chance = contactOfferChance(profile, NAMED_PEOPLE[npc]?.temperament ?? 'tranquilo', state.day);
+    if (!chance || seededRng(hashSeed('contact-offer', npc, state.day, profile.encounters))() >= chance) return;
+    this.storyQueue.push(() => {
+      const current = state.socialOf(npc);
+      if (current.contactExchanged || !sprite.visible) return;
+      const rng = seededRng(hashSeed('contact-offer-line', npc, state.day, current.encounters));
+      const line = (key: string): string => lineFor(key, npc, tierOf(relationshipState(current)), rng);
+      const name = sprite.def.name;
+      this.player.halt();
+      this.startTalk(sprite);
+      this.services.dialogue.ask(name, [line('offer')], ['Sí, pásamelo', 'Ahora no'], (i) => {
+        const moment = { day: state.day, hour: state.hour, minute: state.minute };
+        const before = state.socialOf(npc);
+        const after =
+          i === 0
+            ? grantContact(before, moment, `${CONTACT_OFFER_NOTE} tras una charla`)
+            : noteSocialMemory(applyDelta(before, { friendship: 0, attraction: 0, trust: 0, romance: 0, mood: -2 }), { kind: 'CONTACT_REQUEST', outcome: 'neutral', ...moment, note: `${CONTACT_OFFER_NOTE} y le dijiste que ahora no` });
+        state.setSocialProfile(npc, after);
+        if (i === 0) this.services.phone.notify(npc, 'Te ha dado su número. Ya podéis escribiros.');
+        this.persist();
+        this.startTalk(sprite);
+        this.services.dialogue.start(name, [line(i === 0 ? 'offer-yes' : 'offer-no')]);
+      });
+    });
+  }
+
+  /** Un microevento al acabar una charla: lo dice y, si hay que elegir, aplica lo elegido. */
+  private showStoryBeat(npc: string, sprite: Character, beat: ReadyBeat): void {
+    const { dialogue } = this.services;
+    const name = sprite.def.name;
+    const note = getLocation(this.services.state.locationId).name;
+    this.saveStory(npc, markBeat(this.storyOf(npc)!, beat.id, this.storyNow()));
+    this.player.halt();
+    this.startTalk(sprite);
+    if (!beat.choices?.length) {
+      if (beat.then) this.applyStory(npc, beat.then, note);
+      dialogue.start(name, beat.say);
+      this.persist();
+      return;
+    }
+    const choices = beat.choices;
+    dialogue.ask(name, [beat.say.join(' ')], choices.map((c) => c.label), (i) => {
+      const choice = choices[i];
+      // La invitación aceptada (la primera opción) deja el plan hecho y su rutina de ese día fijada.
+      if (beat.plan && i === 0) this.saveStory(npc, acceptPlan(this.storyOf(npc)!, STORIES[npc], beat.plan));
+      this.applyStory(npc, choice.then, beat.plan ? STORIES[npc].plans[beat.plan.id]?.place : note);
+      this.persist();
+      this.startTalk(sprite);
+      dialogue.start(name, choice.reply);
+    });
+  }
+
+  /** Guarda en cuanto acabe este fotograma: placeCharacters también corre mientras se monta la escena. */
+  private persistSoon(): void {
+    this.time.delayedCall(0, () => this.persist());
+  }
+
+  /** Para la consola de desarrollo (main.ts, lifesim.story): su historia, dónde está y qué rutina hace hoy. */
+  debugStory(npc = 'sara'): { story: NamedStory | undefined; where: Whereabouts | null } {
+    return { story: this.storyOf(npc), where: this.characters.find((c) => c.def.npc === npc)?.now ?? null };
   }
 
   /**
@@ -1030,7 +1423,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Si alguien tiene ese puesto: quien lo usa, quien va de camino, un personaje con nombre o el propio jugador. */
   private stationBusy(point: string): boolean {
-    return this.charactersOn.has(point) || this.workout?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE') || (this.street?.isTaken(point) ?? false);
+    return this.charactersOn.has(point) || this.workout?.point === point || this.court?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE') || (this.street?.isTaken(point) ?? false);
   }
 
   /** Delante de una máquina del gimnasio: libre, se elige cuánto entrenar; ocupada, no. */
@@ -1101,6 +1494,150 @@ export class WorldScene extends Phaser.Scene {
     if (fraction < 0.25) return ['Lo dejas por hoy.'];
     const lead = fraction >= 0.99 ? 'Sesión terminada.' : 'Lo dejas a medias.';
     return [`${lead} ${afterLine(out.delta, w.station)}`, summary(out.next)];
+  }
+
+  /** Delante de una canasta: libre, se empieza a tirar; ocupada o sin fuerzas, se dice. */
+  private openCourt(target: Extract<Interactable, { kind: 'court' }>): void {
+    this.player.halt();
+    if (this.court || this.workout) return;
+    if (this.stationBusy(target.point)) {
+      this.services.dialogue.start('Canasta', ['Hay alguien tirando ahí. Espera o prueba otro sitio.']);
+      return;
+    }
+    if (this.services.state.energy < SHOOTING.minEnergy) {
+      this.services.dialogue.start('Canasta', ['No tienes fuerzas ni para levantar el balón. Descansa un rato.']);
+      return;
+    }
+    try {
+      this.startCourt(target);
+    } catch (error) {
+      // Sin balón o sin dibujo, un error claro y fuera: nunca se cae a un entrenamiento cualquiera.
+      console.error('[basket] no se puede empezar:', error);
+      this.destroyCourt();
+      this.services.dialogue.start('Canasta', ['No se encuentra el balón.']);
+    }
+  }
+
+  /** Reserva el sitio, va a él mirando a la canasta y crea lo que se ve: el balón, el medidor y la red. */
+  private startCourt(target: Extract<Interactable, { kind: 'court' }>): void {
+    if (!this.textures.exists('fx-ball')) throw new Error('falta el dibujo del balón (fx-ball)');
+    const p = getLocation(this.services.state.locationId).points![target.point];
+    const feet = { x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE };
+    const hx = target.spot.hoop.tx * TILE + TILE / 2;
+    const hy = (target.spot.hoop.ty + 1) * TILE;
+    // El aro está a unos 22 px del suelo de su pie (world/PropArt, drawHoop); las manos, a la altura del pecho.
+    const geo: Geometry = { hands: { x: feet.x + 3, y: feet.y - 13 }, rim: { x: hx, y: hy - 22 }, floor: { x: hx, y: hy }, feet };
+    const session = new ShootingSession(target.spot, geo, Math.random, 0.5);
+    const ball = this.add.image(geo.hands.x, geo.hands.y, 'fx-ball').setOrigin(0.5, 0.5).setVisible(false);
+    const meter = this.add.graphics().setDepth(4_000);
+    const net = this.add.graphics().setDepth(hy + 0.3).setVisible(false);
+    net.lineStyle(1, 0xe8eef2, 1);
+    net.lineBetween(-4, 0, -2, 6).lineBetween(4, 0, 2, 6).lineBetween(-2, 6, 2, 6).lineBetween(-4, 0, 4, 0);
+    net.setPosition(hx, hy - 22);
+    this.court = { point: target.point, spot: target.spot, session, geo, from: { x: this.player.x, y: this.player.y }, ball, meter, net, releasing: false, needRelease: true, cue: null, hintAt: 0 };
+    this.placeCharacters(0);
+    this.prompt.setVisible(false);
+    this.player.startTraining(feet.x, feet.y, 'up', 'basket', false, false);
+  }
+
+  /** Cada fotograma tirando: el medidor, el balón, el jugador y lo que pasa con cada tiro. Esc o «volver», para acabar. */
+  private updateCourt(time: number, delta: number): void {
+    this.syncState();
+    const c = this.court;
+    if (!c || c.releasing || !this.player.isTraining) return;
+    this.services.input.setContext({ action: 'Tirar', back: true, busy: false });
+    if (this.pressedAny(['cancel', 'cancelAlt'])) {
+      this.finishCourt();
+      return;
+    }
+    let down = this.held('interact');
+    if (c.needRelease) {
+      if (down) down = false;
+      else c.needRelease = false;
+    }
+    for (const event of c.session.update(delta, down)) {
+      if (event.type === 'release') {
+        this.services.state.energy = Math.max(0, this.services.state.energy - SHOOTING.energyPerShot);
+        this.services.clock.advanceMinutes(SHOOTING.minutesPerShot);
+      } else if (event.type === 'result') {
+        c.cue = { text: shotCue(event.shot), until: time + 1_600 };
+        if (event.shot.made) this.swayNet(c.net);
+        this.persist();
+      }
+    }
+    const pose = c.session.pose();
+    this.player.courtFrame(pose.pose, pose.lift);
+    this.drawBall(c, c.session.ball());
+    this.drawMeter(c);
+    if (time - c.hintAt > 150) {
+      c.hintAt = time;
+      const tally = `${c.session.makes}/${c.session.attempts}`;
+      const live = c.cue && c.cue.until > time ? c.cue.text : c.session.phase === 'charging' ? 'Suelta en la franja verde' : 'Mantén E para cargar y suéltalo para tirar';
+      this.services.hint.show(`Canasta · ${c.spot.label} · ${tally} · ${live} · Esc terminar`);
+    }
+    // Sin fuerzas, se acabó por hoy.
+    if (c.session.phase === 'ready' && this.services.state.energy < SHOOTING.minEnergy) this.finishCourt();
+  }
+
+  private drawBall(c: NonNullable<typeof this.court>, b: BallState | null): void {
+    if (!b) {
+      c.ball.setVisible(false);
+      return;
+    }
+    const hoopY = c.geo.floor.y;
+    // Por delante del jugador y del aro, salvo cuando pasa por detrás del tablero o rueda por el suelo.
+    const depth = b.layer === 'behind' ? hoopY - 1 : b.layer === 'floor' ? Math.max(b.y + 2, c.geo.feet.y + 0.5) : 4_000 - 1;
+    c.ball.setPosition(b.x, b.y).setScale(b.scale).setDepth(depth).setVisible(true);
+  }
+
+  /** El medidor sobre la cabeza: la franja buena de este sitio y lo que se ha cargado. */
+  private drawMeter(c: NonNullable<typeof this.court>): void {
+    const g = c.meter.clear();
+    const { phase, power } = c.session;
+    if (phase === 'flight' || phase === 'done') return;
+    const w = 28;
+    const x = this.player.x - w / 2;
+    const y = this.player.y - 40;
+    const good = SHOOTING.window * 0.4;
+    g.fillStyle(0x10141c, 0.85).fillRect(x - 1, y - 1, w + 2, 6);
+    g.fillStyle(0x4fae6a, 1).fillRect(x + Math.max(0, (c.spot.ideal - good) * w), y, Math.min(w, 2 * good * w), 4);
+    g.fillStyle(0xf2ecdc, 1).fillRect(x, y + 1, power * w, 2);
+    g.fillStyle(0xe05a47, 1).fillRect(x + power * w, y - 1, 1, 6);
+  }
+
+  /** La red se mece un momento cuando entra. */
+  private swayNet(net: Phaser.GameObjects.Graphics): void {
+    this.tweens.killTweensOf(net);
+    net.setVisible(true).setScale(1, 1);
+    this.tweens.add({ targets: net, scaleY: 1.5, scaleX: 0.85, duration: 110, yoyo: true, repeat: 1, onComplete: () => net.setVisible(false) });
+  }
+
+  /** Acaba la sesión: el balón y el medidor se van, el jugador vuelve a donde estaba y el sitio queda libre. */
+  private finishCourt(): void {
+    const c = this.court;
+    if (!c || c.releasing) return;
+    c.releasing = true;
+    const { makes, attempts } = c.session;
+    c.session.cancel();
+    this.destroyCourt(true);
+    this.services.hint.hide();
+    this.persist();
+    this.player.stopTraining(c.from.x, c.from.y, () => {
+      this.court = null;
+      this.services.input.setContext({ action: null, back: false, busy: false });
+      if (attempts > 0) this.services.dialogue.start('Canasta', [`Has metido ${makes} de ${attempts}.`, makes * 2 >= attempts ? 'No está mal para un rato en la pista.' : 'Mañana saldrá mejor.']);
+    });
+  }
+
+  /** Quita lo que se ve de la sesión; con `keep`, deja el registro (el jugador aún está volviendo). */
+  private destroyCourt(keep = false): void {
+    const c = this.court;
+    if (!c) return;
+    this.tweens.killTweensOf(c.net);
+    c.ball.destroy();
+    c.meter.destroy();
+    c.net.destroy();
+    if (!keep) this.court = null;
   }
 
   /** Si se corta de golpe (cambio de escena): se cuenta lo hecho y se suelta el puesto, sin transición. */
@@ -1290,6 +1827,7 @@ export class WorldScene extends Phaser.Scene {
       : target.kind === 'event' ? target.view.def.name
       : target.kind === 'npc' ? target.def.name
       : target.kind === 'seat' ? `Sentarse · ${target.seat.def.name}`
+      : target.kind === 'court' ? `Tirar a canasta · ${target.spot.label}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
       : target.kind === 'station' ? `Entrenar · ${STATIONS[target.station].name}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
       : '';
     if (toll) this.services.hint.show(toll);
@@ -1321,6 +1859,10 @@ export class WorldScene extends Phaser.Scene {
     }
     if (target.kind === 'station') {
       this.openTraining(target);
+      return;
+    }
+    if (target.kind === 'court') {
+      this.openCourt(target);
       return;
     }
     if (target.kind === 'portal') {
@@ -1622,6 +2164,42 @@ export class WorldScene extends Phaser.Scene {
           | 1
           | 2;
 
+      // Su historia (systems/Story): lo vivido abre frases, su ánimo de hoy manda y quizá saca algo primero.
+      const story =
+        this.storyOf(
+          id,
+        );
+
+      const storyDef =
+        STORIES[
+          id
+        ];
+
+      const told =
+        story &&
+        storyDef
+          ? {
+              flags:
+                chatFlags(
+                  story,
+                ),
+
+              mood:
+                chatMood(
+                  story,
+                ),
+
+              opener:
+                openerFor(
+                  story,
+                  storyDef,
+                  social,
+                  this.storyNow(),
+                  state.day,
+                ),
+            }
+          : {};
+
       return new Conversation(
         {
           who:
@@ -1643,6 +2221,8 @@ export class WorldScene extends Phaser.Scene {
           rel,
 
           social,
+
+          ...told,
 
           ...when,
         },
@@ -1873,11 +2453,22 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    const before =
+      this.services.state.socialOf(
+        id,
+      );
+
     this.services.state
       .setSocialProfile(
         id,
         profile,
       );
+
+    this.phoneFromTalk(
+      id,
+      before,
+      profile,
+    );
 
     /*
      * Una acción importante debe sobrevivir aunque el jugador
@@ -1991,7 +2582,100 @@ export class WorldScene extends Phaser.Scene {
       next,
     );
 
+    this.storyAfterTalk(
+      id,
+      named.sprite,
+      next,
+    );
+
+    this.contactOffer(
+      id,
+      named.sprite,
+    );
+
     this.persist();
+  }
+
+  /**
+   * Su historia al acabar una charla: primero mira si tiene algo que sacar (con lo que había antes de esta
+   * charla), luego anota la charla de hoy con el sitio, una vez al día, y que hoy ya no hace falta que salude.
+   */
+  private storyAfterTalk(
+    id: string,
+    sprite: Character,
+    profile: SocialProfile,
+  ): void {
+    const def =
+      STORIES[
+        id
+      ];
+
+    const before =
+      this.storyOf(
+        id,
+      );
+
+    if (
+      !def ||
+      !before
+    ) {
+      return;
+    }
+
+    const now =
+      this.storyNow();
+
+    const beat =
+      beatAfterTalk(
+        before,
+        def,
+        profile,
+        now,
+        this.services.state.day,
+      );
+
+    const story =
+      structuredClone(
+        before,
+      );
+
+    if (
+      !story.events.some(
+        (e) =>
+          e.id ===
+            'charla' &&
+          e.day ===
+            now.day,
+      )
+    ) {
+      noteEvent(
+        story,
+        'charla',
+        now,
+        getLocation(
+          this.services.state.locationId,
+        ).name,
+      );
+    }
+
+    story.greetedDay =
+      now.day;
+
+    this.saveStory(
+      id,
+      story,
+    );
+
+    if (beat) {
+      this.storyQueue.push(
+        () =>
+          this.showStoryBeat(
+            id,
+            sprite,
+            beat,
+          ),
+      );
+    }
   }
 
   private travel(portal: PortalDef): void {
@@ -2054,8 +2738,19 @@ export class WorldScene extends Phaser.Scene {
     this.prompt.setVisible(false);
     hint.hide();
 
-    const target = getLocation(locationId);
-    const spawn = getSpawn(target, spawnId);
+    // Una puerta mal escrita (destino o spawn que no existen) no deja al jugador a medio salir: se queda donde
+    // estaba, se le dice, y el auditor de desarrollo (lifesim.venues) lo apunta como último error de transición.
+    let target: LocationDef;
+    let spawn: SpawnDef;
+    try {
+      target = getLocation(locationId);
+      spawn = getSpawn(target, spawnId);
+    } catch (error) {
+      recordTransitionError(`${this.services.state.locationId} → ${locationId}/${spawnId}`, error);
+      this.leaving = false;
+      this.openDialogue('Puerta', ['Por aquí no se puede pasar ahora.']);
+      return;
+    }
     const position = spawnToWorld(spawn);
     state.locationId = target.id;
     state.position.x = position.x;

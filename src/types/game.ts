@@ -597,6 +597,14 @@ export interface GameStateData {
    * creadas antes del sistema social.
    */
   social?: import('../systems/Social.ts').SocialState;
+
+  /**
+   * Historia de cada Named Character con el jugador (systems/Story): flags, ánimo, lo vivido, decisiones,
+   * plan y rutina fijada por día. Opcional: una partida anterior carga sin historia.
+   */
+  stories?: import('../systems/Story.ts').StoryState;
+  /** El móvil (systems/Phone): mensajes, sin leer, respuestas pendientes y planes. Opcional: una partida anterior carga con el móvil vacío. */
+  phone?: import('../systems/Phone.ts').PhoneState;
 }
 
 export interface SaveFile {

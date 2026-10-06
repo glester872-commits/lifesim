@@ -838,7 +838,12 @@ export function availableSocialActions(
       profile,
       'ACQUAINTANCE',
     ) &&
-    profile.trust >= 20
+    profile.trust >= 20 &&
+    // Tras un «no» o un «aún no» no se vuelve a pedir enseguida.
+    !contactOnCooldown(
+      profile,
+      context.day,
+    )
   ) {
     actions.push(
       'ask-contact',
@@ -1219,6 +1224,28 @@ export function positiveChanceFor(
       50
     ) /
     300;
+
+  // El número se da a quien ya es de los suyos (amistad o algo romántico); insistir cada vez lo pone más difícil.
+  if (
+    action ===
+    'ask-contact'
+  ) {
+    if (
+      atLeast(
+        profile,
+        'FRIEND',
+      )
+    ) {
+      chance += 0.2;
+    }
+
+    chance -=
+      0.08 *
+      failedContactRequests(
+        profile,
+        context.day,
+      );
+  }
 
   if (
     profile.contactExchanged &&
@@ -1720,7 +1747,12 @@ export function resolveSocialAction(
           0.0004,
       0.01,
       0.45,
-    );
+    ) *
+    // Entre amigos o con algo romántico, el número rara vez es un «no» rotundo.
+    (action === 'ask-contact' &&
+    atLeast(before, 'FRIEND')
+      ? 0.4
+      : 1);
 
   const roll =
     rng();
@@ -2041,3 +2073,84 @@ export function socialSummary(
     )}`,
   ].join(' · ');
 }   
+
+// ================================================================
+// CONTACTO (el número de teléfono)
+// ================================================================
+
+/**
+ * Dónde está el número con esta persona, sacado de la relación y de su memoria (no se guarda aparte):
+ * UNKNOWN no os conocéis · MET os habéis visto · KNOWN os conocéis de verdad · REQUEST_AVAILABLE ya se le puede
+ * pedir · NOT_YET dijo «aún no» hace poco · REJECTED dijo que no hace poco · EXCHANGED tenéis vuestros números.
+ */
+export type ContactState =
+  | 'UNKNOWN'
+  | 'MET'
+  | 'KNOWN'
+  | 'REQUEST_AVAILABLE'
+  | 'NOT_YET'
+  | 'REJECTED'
+  | 'EXCHANGED';
+
+/** Días sin poder volver a pedirlo tras un «aún no» y tras un «no». */
+export const CONTACT_COOLDOWN: Readonly<Record<'neutral' | 'negative', number>> = { neutral: 1, negative: 3 };
+
+/** El último intento de pedir el número que no salió bien, si lo hay. */
+function lastFailedContact(profile: SocialProfile): SocialMemory | undefined {
+  const last = lastSocialMemory(profile, 'CONTACT_REQUEST');
+  // Si fuiste tú quien dijo «ahora no» a su oferta, ella no te ha rechazado: eso no cuenta como intento fallido.
+  return last && last.outcome !== 'positive' && !last.note?.startsWith(CONTACT_OFFER_NOTE) ? last : undefined;
+}
+
+export function contactOnCooldown(profile: SocialProfile, day: number): boolean {
+  const last = lastFailedContact(profile);
+  return !!last && day - last.day < CONTACT_COOLDOWN[last.outcome as 'neutral' | 'negative'];
+}
+
+function failedContactRequests(profile: SocialProfile, day: number): number {
+  return profile.memories.filter((m) => m.kind === 'CONTACT_REQUEST' && m.outcome !== 'positive' && !m.note?.startsWith(CONTACT_OFFER_NOTE) && day - m.day < 7).length;
+}
+
+export function contactState(profile: SocialProfile, day: number): ContactState {
+  if (profile.contactExchanged) return 'EXCHANGED';
+  const last = lastFailedContact(profile);
+  if (last && contactOnCooldown(profile, day)) return last.outcome === 'negative' ? 'REJECTED' : 'NOT_YET';
+  const state = relationshipState(profile);
+  if (state === 'STRANGER') return profile.encounters > 0 ? 'MET' : 'UNKNOWN';
+  return profile.trust >= 20 ? 'REQUEST_AVAILABLE' : 'KNOWN';
+}
+
+/**
+ * Os dais los números por otra vía que pedirlo (lo ofrece ella, lo da su historia): una vez, con su recuerdo.
+ * Si ya lo teníais, no cambia nada (ni se repite el recuerdo).
+ */
+export function grantContact(source: SocialProfile, moment: SocialMoment, note: string): SocialProfile {
+  if (source.contactExchanged) return source;
+  const profile = noteSocialMemory(source, { kind: 'CONTACT_REQUEST', outcome: 'positive', ...moment, note });
+  profile.contactExchanged = true;
+  return profile;
+}
+
+/** Nota del recuerdo cuando lo ofrece ella: también sirve para no ofrecerlo dos veces seguidas. */
+export const CONTACT_OFFER_NOTE = 'te ofreció su número';
+
+/**
+ * Probabilidad de que, al acabar una charla, te ofrezca su número sin pedírselo. Nunca a un desconocido ni a
+ * quien le dijo que no hace poco; más a una amistad o a quien le gustas; mucho más si hoy habéis quedado en algo
+ * (hace falta para avisarse). Una persona extrovertida lo ofrece antes que una reservada.
+ */
+export function contactOfferChance(profile: SocialProfile, temperament: Temperament, day: number): number {
+  if (profile.contactExchanged || profile.trust < 15 || contactOnCooldown(profile, day)) return 0;
+  if (profile.memories.some((m) => m.kind === 'CONTACT_REQUEST' && m.note?.startsWith(CONTACT_OFFER_NOTE) && day - m.day < 4)) return 0;
+  const state = relationshipState(profile);
+  let chance =
+    state === 'ATTRACTION' || state === 'ROMANTIC_INTEREST' || state === 'PARTNER' ? 0.45
+      : state === 'FRIEND' || state === 'CLOSE_FRIEND' ? 0.35
+        : state === 'ACQUAINTANCE' && profile.friendship >= 20 ? 0.12
+          : 0;
+  if (!chance) return 0;
+  // Un plan o una cita aceptados hoy: hay que poder avisarse.
+  if (profile.memories.some((m) => (m.kind === 'INVITATION' || m.kind === 'DATE') && m.outcome === 'positive' && m.day === day)) chance += 0.4;
+  const temper = temperament === 'extrovertido' ? 1.4 : temperament === 'reservado' ? 0.5 : 1;
+  return clamp(chance * temper, 0, 0.9);
+}

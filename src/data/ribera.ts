@@ -70,26 +70,12 @@ const BUILDINGS: readonly BuildingDef[] = [
   // El bar de siempre: su puerta y su interior no se mueven.
   b('bar-door', 'Bar Ribera', 'bar', [7, 2, 6, 7], 's', 8, { floors: 2, enter: into('bar'), point: 'RB_BAR_ENTRANCE' }),
   b('ribera-arcade', 'Salón Recreativo Nova', 'arcade', [13, 2, 6, 7], 's', 15, { floors: 2, enter: into('arcade'), point: 'RB_ARCADE_ENTRANCE' }),
-  b('ribera-colmado', 'Colmado Ribera', 'super', [22, 2, 5, 7], 's', 24, {
-    floors: 2,
-    point: 'RB_COLMADO_ENTRANCE',
-    inspect: ['Colmado Ribera, abierto hasta tarde. En la puerta, una máquina de bebidas y una pizarra: «Hielo, pan y pilas. Lo esencial».'],
-  }),
-  b('ribera-sports', 'Ribera Sport', 'sports', [27, 2, 5, 7], 's', 29, {
-    floors: 2,
-    point: 'RB_SPORTS_ENTRANCE',
-    inspect: ['Ribera Sport. Balones, zapatillas de correr y camisetas técnicas. En el escaparate, un cartel: «Carrera del canal, el primer domingo de mes».'],
-  }),
+  b('ribera-colmado', 'Colmado Ribera', 'super', [22, 2, 5, 7], 's', 24, { floors: 2, enter: into('colmado'), point: 'RB_COLMADO_ENTRANCE' }),
+  b('ribera-sports', 'Ribera Sport', 'sports', [27, 2, 5, 7], 's', 29, { floors: 2, enter: into('ribera-sport'), point: 'RB_SPORTS_ENTRANCE' }),
   b('ribera-res-2', 'Ribera 2', 'res-modern', [32, 2, 7, 7], 's', 35, { floors: 3, point: 'RB_RES_2_ENTRANCE' }),
   // Sur de la calle: dos locales con la terraza delante y su espalda al carril bici.
-  b('ribera-cafe', 'Café del Río', 'cafe', [1, 15, 8, 5], 'n', 5, {
-    point: 'RB_CAFE_ENTRANCE',
-    inspect: ['Café del Río. Desayunos hasta las doce y, por la tarde, vermú. La terraza mira a la calle y a la gente que pasa.'],
-  }),
-  b('ribera-casamar', 'Casa Mar', 'restaurant', [10, 15, 6, 5], 'n', 12, {
-    point: 'RB_CASAMAR_ENTRANCE',
-    inspect: ['Casa Mar. Arroces y pescado del día. En la pizarra: «Cenas en la terraza a partir de las ocho. Reservar, mejor».'],
-  }),
+  b('ribera-cafe', 'Café del Río', 'cafe', [1, 15, 8, 5], 'n', 5, { enter: into('cafe-rio'), point: 'RB_CAFE_ENTRANCE' }),
+  b('ribera-casamar', 'Casa Mar', 'restaurant', [10, 15, 6, 5], 'n', 12, { enter: into('casa-mar'), point: 'RB_CASAMAR_ENTRANCE' }),
 ];
 
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
@@ -157,6 +143,8 @@ const POINTS: Record<string, PointDef> = {
   HOOPS_01: use(28, 17, 'hoops', 'up'), HOOPS_02: use(27, 18, 'hoops', 'up'),
   HOOPS_03: use(31, 17, 'hoops', 'up'), HOOPS_04: use(32, 18, 'hoops', 'up'),
   RB_COURT_REST_01: p(26, 19, 'wait', 'up'), RB_COURT_REST_02: p(33, 19, 'wait', 'up'),
+  // Los tiros libres, sólo del jugador (data/courts.ts): la gente de la pista usa los HOOPS_*.
+  RB_COURT_FT_01: p(28, 19, 'interact', 'up'), RB_COURT_FT_02: p(31, 19, 'interact', 'up'),
   // La calistenia: cuatro puestos en las barras y dos esterillas para estirar.
   ...Object.fromEntries([34, 35, 36, 37].map((x, i) => [`PULLUP_${two(i)}`, use(x, 18, 'pullup', 'up')])),
   CALI_MAT_01: use(34, 19, 'stretch', 'down'), CALI_MAT_02: use(36, 19, 'stretch', 'down'),
@@ -196,6 +184,7 @@ const LINKS: readonly Link[] = [
   ...chain('rb-s16', 'rb-pl-w', 'rb-pl-s', 'rb-pl-e', 'rb-p25', 'RB_COURT_REST_01', 'rb-ct', 'RB_COURT_REST_02', 'CALI_MAT_01', 'CALI_MAT_02', 'rb-cali'),
   ['RB_METRO_FRONT', 'rb-pl-s'], ['rb-s24', 'rb-pl-e'],
   ['RB_ICE_CREAM_01', 'rb-pl-e'], ['RB_ICE_CREAM_02', 'rb-pl-e'],
+  ['RB_COURT_FT_01', 'rb-ct'], ['RB_COURT_FT_02', 'rb-ct'],
   ['HOOPS_01', 'rb-ct'], ['HOOPS_02', 'RB_COURT_REST_01'], ['HOOPS_03', 'rb-ct'], ['HOOPS_04', 'RB_COURT_REST_02'],
   ['rb-s30', 'rb-ct'], ['rb-s38', 'rb-cali'],
   ...chain('PULLUP_01', 'PULLUP_02', 'PULLUP_03', 'PULLUP_04', 'rb-cali'),

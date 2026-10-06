@@ -939,3 +939,193 @@ export const ARCADE: LocationDef = {
     ARCADE_FLOOR_02: p(12, 8, 'work'),
   },
 };
+
+// ------------------------------------------------- Ribera Norte: los locales de la calle
+//
+// Los mismos cimientos que los de Vallesco y el Carmen (room, puntos, terminales, percheros, mesas con servicio):
+// cada uno sale por su puerta a la calle de la Ribera (el spawn que genera su edificio en data/ribera.ts) y la gente
+// la pone data/population.ts según la hora. Lo que se veía desde fuera (la pizarra de la puerta), sigue dentro.
+
+/** Salida a la calle de la Ribera por la puerta de su edificio, y el spawn de entrada justo delante. */
+function riberaExit(building: string, doorX: number, h: number): Pick<LocationDef, 'portals' | 'spawns'> {
+  return {
+    portals: [{ id: 'exit', tx: doorX, ty: h - 2, label: 'Salir a la calle', to: { location: 'ribera', spawn: building } }],
+    spawns: { entry: { tx: doorX, ty: h - 3, facing: 'up' } },
+  };
+}
+
+/**
+ * Colmado Ribera: tienda de barrio abierta hasta tarde. Neveras al fondo, dos góndolas cortas, la caja junto a la
+ * puerta y la máquina de hielo. Se compra en la caja (catálogo del súper: lo esencial).
+ */
+export const COLMADO: LocationDef = {
+  id: 'colmado',
+  name: 'Colmado Ribera',
+  kind: 'interior',
+  ground: room(14, 11, 7, () => 't'),
+  props: [
+    ...many('fridge', [[2, 2], [3, 2], [4, 2], [5, 2]]),
+    ...many('gondola', [[4, 5], [5, 5], [9, 5], [10, 5]]),
+    ...many('produce', [[12, 3], [12, 4]]),
+    ...many('counter', [[10, 7], [11, 7]]),
+    at('register', 11, 7),
+    at('chalkboard', 8, 1),
+    at('plant', 1, 8),
+    ...many('tube-light', [[4, 4], [9, 4]]),
+  ],
+  ambient: '#eef6f0',
+  ...riberaExit('ribera-colmado', 7, 11),
+  terminals: [{ tx: 10, ty: 7, name: 'Caja · Colmado Ribera', catalog: 'supermarket-till' }],
+  inspects: [{ tx: 8, ty: 2, name: 'Pizarra', lines: ['«Hielo, pan y pilas. Lo esencial». Abierto hasta tarde, como dice la puerta.'] }],
+  npcs: [],
+  points: {
+    COLMADO_EXIT: p(7, 8, 'exit', 'up'),
+    COLMADO_STAFF: p(11, 6, 'work', 'down'),
+    COLMADO_TILL: p(10, 8, 'interact', 'up'),
+    COLMADO_QUEUE_01: p(9, 8, 'wait', 'right'),
+    COLMADO_FRIDGE: p(3, 3, 'interact', 'up'),
+    COLMADO_AISLE_01: p(4, 6, 'interact'),
+    COLMADO_AISLE_02: p(9, 6, 'interact'),
+    COLMADO_AISLE_03: p(11, 4, 'interact', 'right'),
+  },
+};
+
+/**
+ * Ribera Sport: tienda de deporte del barrio. Pared de zapatillas, ropa técnica en el perchero, las mesas de
+ * novedades en medio y la caja. Las prendas son las del catálogo de siempre (data/retail.ts, tienda 'ribera-sport'):
+ * se ven, se prueban y se compran con el mismo sistema que en Hilo o Suela.
+ */
+export const RIBERA_SPORT: LocationDef = {
+  id: 'ribera-sport',
+  name: 'Ribera Sport',
+  kind: 'interior',
+  ground: room(14, 11, 7, (x, y) => (y >= 5 && y <= 7 && x >= 3 && x <= 9 ? 'r' : 't')),
+  props: [
+    ...many('sneaker-wall', [[2, 1], [5, 1]]),
+    at('clothes-rack', 9, 2),
+    ...many('display-table', [[4, 5], [8, 5]]),
+    ...many('counter', [[11, 6], [12, 6]]),
+    at('register', 12, 6),
+    at('chalkboard', 7, 1),
+    at('plant', 12, 8),
+    ...many('tube-light', [[4, 4], [9, 4]]),
+  ],
+  ambient: '#f2f6ff',
+  ...riberaExit('ribera-sports', 7, 11),
+  npcs: [],
+  inspects: [{ tx: 7, ty: 2, name: 'Cartel del escaparate', lines: ['«Carrera del canal, el primer domingo de mes». Inscripciones en caja.'] }],
+  racks: [
+    { tx: 2, ty: 2, name: 'Pared de zapatillas', store: 'ribera-sport', categories: ['zapatillas'] },
+    { tx: 10, ty: 4, name: 'Ropa técnica', store: 'ribera-sport', categories: ['camiseta', 'pantalon', 'sudadera'] },
+    { tx: 4, ty: 6, name: 'Mesa de novedades', store: 'ribera-sport' },
+  ],
+  points: {
+    SPORT_EXIT: p(7, 8, 'exit', 'up'),
+    SPORT_STAFF: p(11, 5, 'work', 'down'),
+    SPORT_TILL: p(11, 7, 'interact', 'up'),
+    SPORT_QUEUE_01: p(10, 8, 'wait', 'up'),
+    SPORT_WALL_01: p(2, 2, 'interact', 'up'),
+    SPORT_WALL_02: p(5, 2, 'interact', 'up'),
+    SPORT_RACK_01: p(10, 4, 'interact', 'up'),
+    SPORT_TABLE_01: p(4, 6, 'interact', 'up'),
+    SPORT_TABLE_02: p(8, 6, 'interact', 'up'),
+    SPORT_FLOOR_01: p(6, 7, 'work'),
+  },
+};
+
+/** Café del Río: barra con cafetera y vitrina a la izquierda, seis sitios junto a las ventanas que dan al canal. */
+const CAFE_RIO_TABLES: [number, number][] = [[7, 4], [10, 4], [10, 7]];
+/** Una silla a cada lado de cada mesa, cara a cara. */
+const CAFE_RIO_SEATS: Record<string, PointDef> = Object.fromEntries(
+  CAFE_RIO_TABLES.flatMap(([x, y], i) => [
+    [`CAFE_RIO_TABLE_${TWO(i * 2)}`, p(x - 1, y, 'seat', 'right')],
+    [`CAFE_RIO_TABLE_${TWO(i * 2 + 1)}`, p(x + 1, y, 'seat', 'left')],
+  ]),
+);
+
+/**
+ * Café del Río: desayunos hasta las doce y vermú por la tarde. Se pide en la barra (catálogo de cafetería, como en
+ * el Molinillo) y se toma en las mesas de las ventanas.
+ */
+export const CAFE_RIO: LocationDef = {
+  id: 'cafe-rio',
+  name: 'Café del Río',
+  kind: 'interior',
+  ground: room(14, 10, 7, () => 'f'),
+  props: [
+    ...many('counter', [[1, 4], [2, 4], [3, 4], [4, 4]]),
+    at('espresso', 2, 4), at('pastry-case', 4, 4),
+    at('chalkboard', 1, 1),
+    ...many('window', [[7, 1], [10, 1]]),
+    ...many('cafe-table', CAFE_RIO_TABLES),
+    ...seatsFurniture(CAFE_RIO_SEATS),
+    ...many('pendant', CAFE_RIO_TABLES.map(([x, y]) => [x, y - 1] as [number, number])),
+    at('plant', 12, 7),
+  ],
+  ambient: '#ffe9cf',
+  ...riberaExit('ribera-cafe', 7, 10),
+  terminals: [{ tx: 3, ty: 4, name: 'Barra · Café del Río', catalog: 'cafe-counter' }],
+  inspects: [{ tx: 1, ty: 2, name: 'Pizarra', lines: ['Desayunos hasta las doce y, por la tarde, vermú. La terraza mira a la calle y a la gente que pasa.'] }],
+  npcs: [],
+  points: {
+    CAFE_RIO_EXIT: p(7, 7, 'exit', 'up'),
+    CAFE_RIO_STAFF: p(2, 3, 'work', 'down'),
+    CAFE_RIO_COUNTER: p(3, 5, 'interact', 'up'),
+    CAFE_RIO_QUEUE_01: p(4, 6, 'wait', 'up'),
+    ...CAFE_RIO_SEATS,
+  },
+};
+
+/** Casa Mar: seis mesas de dos en el comedor; cocina y barra al fondo, como un restaurante de puerto. */
+const CASA_MAR_TABLE_XY: [number, number][] = [[9, 4], [12, 4], [15, 4], [9, 7], [12, 7], [15, 7]];
+/** Dos sitios por mesa, delante y a su derecha, cada uno con su silla (data/seating.ts). */
+const CASA_MAR_SEATS: Record<string, PointDef> = {
+  ...Object.fromEntries(CASA_MAR_TABLE_XY.map(([x, y], i) => [`CASAMAR_TABLE_${TWO(i)}`, p(x, y + 1, 'seat', 'up')])),
+  ...Object.fromEntries(CASA_MAR_TABLE_XY.map(([x, y], i) => [`CASAMAR_TABLE_${TWO(i + 6)}`, p(x + 1, y, 'seat', 'left')])),
+};
+/** Cada mesa con sus dos sillas y el tile de su izquierda, donde se para quien atiende (systems/TableService). */
+const CASA_MAR_TABLES: TableDef[] = CASA_MAR_TABLE_XY.map(([x, y], i) => ({
+  id: `CASAMAR_MESA_${TWO(i)}`,
+  seats: [`CASAMAR_TABLE_${TWO(i)}`, `CASAMAR_TABLE_${TWO(i + 6)}`],
+  service: { tx: x - 1, ty: y },
+}));
+
+/**
+ * Casa Mar: arroces y pescado del día. Cocina con fogones y baldas al fondo, barra con el pase, y el comedor de
+ * madera. Sentarse a una mesa es pedir que te atiendan: el mismo servicio de mesa que Casa Tomás
+ * (systems/TableService) con su propia carta ('casa-mar', data/menus.ts).
+ */
+export const CASA_MAR: LocationDef = {
+  id: 'casa-mar',
+  name: 'Casa Mar',
+  kind: 'interior',
+  ground: room(18, 12, 9, (_x, y) => (y <= 3 ? 't' : 'f')),
+  props: [
+    ...many('shelf', [[2, 2], [3, 2], [7, 2]]),
+    at('stove', 5, 2),
+    ...many('counter', [[2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4]]),
+    ...many('dining-table', CASA_MAR_TABLE_XY),
+    ...seatsFurniture(CASA_MAR_SEATS),
+    at('chalkboard', 12, 1),
+    ...many('plant', [[1, 9], [16, 9]]),
+    ...many('pendant', [...CASA_MAR_TABLE_XY, [3, 5], [6, 5]]),
+  ],
+  ambient: '#ffe4c2',
+  ...riberaExit('ribera-casamar', 9, 12),
+  inspects: [{ tx: 12, ty: 2, name: 'Pizarra', lines: ['Arroces y pescado del día. «Cenas en la terraza a partir de las ocho. Reservar, mejor».'] }],
+  // Servicio de mesa (data/population.ts: tableService): sentarse a una mesa es pedir que te atiendan.
+  tables: CASA_MAR_TABLES,
+  npcs: [],
+  points: {
+    CASAMAR_EXIT: p(9, 9, 'exit', 'up'),
+    CASAMAR_COUNTER: p(4, 5, 'interact', 'up'),
+    CASAMAR_STAFF: p(4, 3, 'work', 'down'),
+    // El pase: donde recoge el camarero lo que sale de cocina y deja la vajilla sucia.
+    CASAMAR_PASS: p(7, 5, 'interact', 'up'),
+    ...CASA_MAR_SEATS,
+    CASAMAR_WAIT_01: p(8, 9, 'wait', 'up'),
+    CASAMAR_WAIT_02: p(10, 9, 'wait', 'up'),
+    CASAMAR_WAITER_01: p(8, 6, 'work'),
+    CASAMAR_WAITER_02: p(14, 9, 'work'),
+  },
+};

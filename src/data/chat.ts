@@ -52,6 +52,10 @@ export interface Tags {
   end?: true;
   /** Sólo este personaje con nombre. */
   n?: string;
+  /** Sólo con todas estas story flags activas (systems/Story); siempre junto a `n`. */
+  f?: readonly string[];
+  /** Sólo si ninguna de estas story flags está activa; siempre junto a `n`. */
+  nf?: readonly string[];
 }
 
 export interface Line extends Tags {

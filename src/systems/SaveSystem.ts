@@ -9,6 +9,8 @@ import { parseFitness, START_FITNESS } from './Fitness.ts';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations.ts';
 import { hasLocation, safePosition } from './LocationSystem.ts';
 import { parseSocialState } from './Social.ts';
+import { parseStories } from './Story.ts';
+import { createPhone, parsePhone } from './Phone.ts';
 
 /**
  * Qué se guarda y qué no (política de lo pasajero). Se guarda lo que es del
@@ -49,6 +51,8 @@ export function createInitialState(): GameStateData {
     fitness: { ...START_FITNESS },
     // Una partida nueva todavía no conoce a nadie (systems/Social, Prompt 57).
     social: {},
+    stories: {},
+    phone: createPhone(),
   };
 }
 
@@ -300,6 +304,10 @@ function parseState(value: unknown): GameStateData | null {
     fitness: parseFitness(s.fitness),
     // Prompt 57: una partida anterior al sistema social carga sin nadie conocido (parseSocialState(undefined) = {}).
     social: parseSocialState(s.social),
+    // Una partida anterior a las historias (systems/Story) carga sin ninguna.
+    stories: parseStories(s.stories),
+    // Una partida anterior al móvil carga con el móvil vacío.
+    phone: parsePhone(s.phone),
   };
 }
 

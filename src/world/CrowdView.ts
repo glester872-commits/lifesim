@@ -116,7 +116,7 @@ export class CrowdView {
       // El paraguas se abre al empezar a llover y se cierra al parar; la capucha no lleva paraguas.
       sprite.umbrella = this.outdoor && !a.staffRole ? umbrellaFor(a.id, w, sprite.def.id.endsWith('~hood')) : null;
       const ambient = this.ambientOf(a, activity, time);
-      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift: settled ? seatAt(a.point)?.lift : 0, carry: a.carry, ambient }, time);
+      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift: settled ? seatAt(a.point)?.lift : 0, carry: a.carry, drink: a.drink, ambient }, time);
     }
     // Las cosas de quien ya no está a la vista (o se ha ido del barrio), fuera.
     for (const [id, kit] of this.kits) {

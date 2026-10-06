@@ -254,7 +254,42 @@ const LA_CEPA: ServiceMenu = {
   ],
 };
 
-export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA];
+// ------------------------------------------------------------ Casa Mar (Ribera Norte)
+
+const CASA_MAR: ServiceMenu = {
+  id: 'casa-mar',
+  title: 'Casa Mar',
+  venue: 'restaurant',
+  categories: [
+    { id: 'entrantes', title: 'Para picar' },
+    { id: 'principales', title: 'Arroces y pescado' },
+    { id: 'postres', title: 'Postres' },
+    { id: 'bebidas', title: 'Bebidas' },
+  ],
+  items: [
+    { id: 'aceitunas', name: 'Aceitunas aliñadas', price: 3, kind: 'food', category: 'entrantes', prep: 2, duration: 10, energy: 4, dish: 'olives' },
+    { id: 'boquerones', name: 'Boquerones fritos', price: 8, kind: 'food', category: 'entrantes', prep: 8, duration: 18, energy: 14, dish: 'tapa' },
+    { id: 'arroz-banda', name: 'Arroz a banda (para uno)', price: 14, kind: 'food', category: 'principales', prep: 18, duration: 35, energy: 30, dish: 'stew', hours: [13, 24] },
+    { id: 'dorada', name: 'Dorada a la sal', price: 16, kind: 'food', category: 'principales', prep: 16, duration: 30, energy: 26, dish: 'fish', hours: [13, 24] },
+    { id: 'flan', name: 'Flan de la casa', price: 4.5, kind: 'food', category: 'postres', prep: 2, duration: 10, energy: 9, dish: 'cake' },
+    { id: 'agua', name: 'Agua', price: 1.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 10, energy: 2, dish: 'water' },
+    { id: 'cana', name: 'Caña', price: 2.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 15, energy: 1, dish: 'beer' },
+    { id: 'blanco', name: 'Copa de blanco', price: 3.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 20, energy: 1, dish: 'wine' },
+    { id: 'refresco', name: 'Refresco', price: 2.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 12, energy: 3, dish: 'soda' },
+  ],
+  lines: {
+    greet: ['Buenas, ¿ya sabéis qué vais a tomar?', '¿Os traigo la carta? El arroz tarda un poco.', 'Cuando queráis, os tomo nota.'],
+    again: ['¿Algo más?', '¿Otra ronda?', 'Dime, ¿qué más te pongo?'],
+    confirm: ['Marchando.', 'Enseguida.', 'Perfecto, el arroz sale en un rato.'],
+    serve: ['Aquí tienes. Que aproveche.', 'Recién hecho. ¡Que aproveche!'],
+    bill: ['La cuenta, cuando quieras.', 'Aquí tienes la cuenta. Sin prisa.'],
+    thanks: ['Gracias, hasta la próxima.', '¡Gracias! Vuelve por la terraza.'],
+    later: ['Sin prisa, vuelvo en un rato.', 'Tranquilo, luego vengo.'],
+  },
+  more: [{ label: 'Pedir otra cosa' }, { label: 'Ver carta' }],
+};
+
+export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR];
 
 export function getMenu(id: string): ServiceMenu {
   const menu = MENUS.find((m) => m.id === id);

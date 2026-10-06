@@ -107,6 +107,8 @@ const full: GameStateData = {
   wardrobe: [GARMENTS[0].id],
   fitness: { ...START_FITNESS },
   social: {},
+  stories: {},
+  phone: { threads: {}, plans: [] },
 };
 assert.ok(save.save(full));
 assert.deepEqual(save.load(), full, 'el guardado no vuelve igual');

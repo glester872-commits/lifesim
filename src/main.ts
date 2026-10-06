@@ -30,8 +30,10 @@ import { PLAYER_COLORS, humanKey } from './world/TextureFactory';
 
 import { withAppearance } from './systems/Appearance';
 import { STREET_EVENTS } from './data/streetEvents';
+import { STORIES } from './data/saraStory';
 import { StreetEvent } from './systems/StreetEvents';
 import { eventId, type EventInfo } from './systems/WorldEvents';
+import { auditableLocations, auditVenues, lastTransitionError } from './systems/VenueAudit';
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
 import { HUD } from './ui/HUD';
@@ -42,6 +44,7 @@ import { Announcer } from './ui/Announcer';
 import { PlaceBanner } from './ui/PlaceBanner';
 import { Menu } from './ui/Menu';
 import { MapScreen } from './ui/MapScreen';
+import { PhoneScreen } from './ui/Phone';
 import { MobileControls } from './ui/MobileControls';
 import { PlayerInput } from './systems/PlayerInput';
 import { METRO_CONFIG } from './config/metro';
@@ -62,6 +65,8 @@ const initial = restore(loaded);
 const state = new GameState(initial);
 const dialogue = new DialogueSystem();
 const menu = new Menu(requireEl('#menu'));
+// Ni el móvil encima del mapa ni el mapa encima del móvil: primero se cierra uno.
+const phone = new PhoneScreen(requireEl('#phone'), requireEl('#phone-button') as HTMLButtonElement, requireEl('#phone-toast'), state, () => dialogue.isOpen || menu.isOpen || services.map.isOpen);
 const services: Services = {
   state,
   clock: new TimeSystem(state),
@@ -74,8 +79,9 @@ const services: Services = {
   metroEvents: new MetroEventManager(state),
   menu,
   // No se abre encima de un diálogo o un menú: primero se termina lo que se estaba haciendo.
-  map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen),
+  map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen || phone.isOpen),
   input: new PlayerInput(),
+  phone,
 };
 
 // La paleta vive en TypeScript; el CSS la consume desde aquí para no duplicarla.
@@ -465,6 +471,36 @@ social: {
   },
 },
 
+      // Historia de un personaje con nombre (systems/Story, data/saraStory.ts): lifesim.story.get('sara') da flags,
+      // ánimo, plan, lo vivido, decisiones, rutina de hoy y dónde está; .flag('sara', 'sara_tattoo') activa una flag
+      // (sólo las que existen; false la quita) y .mood('sara', 20) le pone el ánimo. Se guarda al momento.
+      story: {
+        get: (id = 'sara') => (game.scene.getScene('World') as WorldSceneType).debugStory(id),
+        flag: (id: string, flag: string, on = true) => {
+          const def = STORIES[id];
+          if (!def) throw new Error(`${id} no tiene historia`);
+          if (!(flag in def.flags)) throw new Error(`flag desconocida: ${flag} (hay: ${Object.keys(def.flags).join(', ')})`);
+          const story = state.storyOf(id, def.baseMood);
+          if (on) story.flags[flag] ??= state.day;
+          else delete story.flags[flag];
+          state.setStory(id, story);
+          services.save.save(state.snapshot);
+          return Object.keys(story.flags);
+        },
+        mood: (id: string, mood: number) => {
+          const def = STORIES[id];
+          if (!def) throw new Error(`${id} no tiene historia`);
+          const story = state.storyOf(id, def.baseMood);
+          story.mood = Math.max(0, Math.min(100, mood));
+          state.setStory(id, story);
+          services.save.save(state.snapshot);
+          return story.mood;
+        },
+      },
+
+      // El móvil (systems/Phone): lifesim.phone.get() da hilos, pendientes y planes. Para tener el número de
+      // alguien sin pedírselo: lifesim.social.set('sara', { contactExchanged: true }).
+      phone: { get: () => state.phone },
       // Destinos del mundo para NPC futuros: lifesim.route('HOME_ENTRANCE', 'CAFE_ENTRANCE').
       findPoint,
       // Zonas lógicas (data/zones.ts): lifesim.zoneAt('district', 48, 52), lifesim.zoneActivity(zona, {day, hour, minute}).
@@ -534,6 +570,21 @@ social: {
       fight: devFight(),
       alley: devAlley(),
       events: devEvents(),
+      // Locales de un barrio (systems/VenueAudit): lifesim.venues.audit('ribera') — cada fachada con su estado (se
+      // entra, vivienda o quiosco), puerta e interior registrados, entrada y vuelta pisables, caminos, horario y gente;
+      // .lastError() da el último fallo al cruzar una puerta.
+      venues: {
+        audit: (location = state.locationId) => {
+          const rows = auditVenues(location).map((r) => ({
+            local: r.name, estado: r.kind, lugar: r.place ?? '—', interior: r.interior ?? '—', puerta: r.entrance, interiorOk: r.interiorRegistered,
+            entradaOk: r.interiorSpawnOk, vueltaOk: r.exteriorSpawnOk && r.exitReturnsHere, caminos: r.pathsOk, horario: r.hours, gente: r.population, problemas: r.problems.join(' | ') || '—',
+          }));
+          console.table(rows);
+          return rows;
+        },
+        locations: () => auditableLocations(),
+        lastError: () => lastTransitionError(),
+      },
       // NPC atascados (systems/Recovery): lifesim.npc.status() da atascados, peldaños y recuperaciones por sistema;
       // .force() corta el paso al NPC que anda más cerca y lo da por atascado; .reset() quita obstáculos y estado.
       // Con F3, el inspector muestra el total y, del más cercano, destino, tiempo parado y peldaño.

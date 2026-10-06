@@ -46,7 +46,8 @@ export const REPS: Readonly<Record<string, readonly [Pose, Pose, number]>> = {
   cable: [23, 0, 1_100],
   // Al aire libre y en el salón recreativo: dominadas, tiros a canasta, pulsar botones y pisar la máquina de ritmo.
   hang: [23, 16, 1_100],
-  shoot: [6, 15, 650],
+  // Brazos arriba soltando y recogido: la 6 y la 15 llevan barra y mancuernas dibujadas, no valen para un balón.
+  shoot: [21, 3, 650],
   play: [5, 0, 400],
   step: [1, 2, 260],
 };
@@ -68,6 +69,8 @@ export interface Placement {
   lift?: number;
   /** Lo que lleva en las manos quien sirve (systems/TableService): la bandeja o la vajilla sucia. */
   carry?: 'tray' | 'dishes';
+  /** Lo que tiene delante o en la mano (systems/Crowd: Agent.drink): se ve en la mano, o sobre la barra si está sentado. */
+  drink?: 'beer' | 'wine' | 'soft' | 'water';
   /** Un gesto de ambiente en curso (systems/AmbientActions): manda sobre la actividad al pintarse. */
   ambient?: AmbientPlacement;
 }
@@ -174,6 +177,8 @@ export class Character extends Phaser.GameObjects.Sprite {
   /** De noche, la sombra larga que le echa la farola más cercana (world/LampShadows). */
   private readonly lampShade: Phaser.GameObjects.Image;
   private readonly icon: Phaser.GameObjects.Image;
+  /** El vaso (world/TextureFactory: fx-glass-*): propio, para que conviva con el móvil o el cigarro del gesto. */
+  private readonly glass: Phaser.GameObjects.Image;
   /** Paraguas abierto (world/WeatherView lo dibuja; world/CrowdView decide quién lo lleva). */
   private readonly umbrellaImg: Phaser.GameObjects.Image;
   /** Qué paraguas lleva abierto ahora, o null. */
@@ -211,15 +216,37 @@ export class Character extends Phaser.GameObjects.Sprite {
     this.shadow = scene.add.image(0, 0, 'fx-shadow').setOrigin(0.5, 0.5);
     this.lampShade = scene.add.image(0, 0, 'fx-shadow-long').setOrigin(0, 0.5).setVisible(false);
     this.icon = scene.add.image(0, 0, 'fx-phone').setOrigin(0.5, 1).setVisible(false);
+    this.glass = scene.add.image(0, 0, 'fx-glass-beer').setOrigin(0.5, 1).setVisible(false);
     this.umbrellaImg = scene.add.image(0, 0, 'fx-umbrella-0').setOrigin(0.5, 1).setVisible(false);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
       this.shadow.destroy();
       this.lampShade.destroy();
       this.icon.destroy();
+      this.glass.destroy();
       this.umbrellaImg.destroy();
       this.under?.destroy();
       this.over?.destroy();
     });
+  }
+
+  /**
+   * El vaso de quien bebe: sentado, sobre la barra o la mesa, delante de él; de pie o andando, en la mano, con un
+   * trago de vez en cuando (cada uno a su compás). Sin bebida, escondido: al irse, el vaso se va con la sesión.
+   */
+  private drawGlass(where: Placement, x: number, y: number, seated: boolean, time: number): void {
+    if (!where.drink) {
+      this.glass.setVisible(false);
+      return;
+    }
+    const key = `fx-glass-${where.drink}`;
+    if (seated) {
+      const [ox, oy] = TABLE_OFFSET[where.dir];
+      this.glass.setTexture(key).setPosition(x + ox + 4, y + oy + 1).setDepth(y + oy + 12.5).setVisible(true);
+      return;
+    }
+    const sipping = !where.moving && every(time, this.seed * 3 + 1, 3_200 + (this.seed % 7) * 450, 1_000);
+    const side = where.dir === 'left' ? -5 : where.dir === 'up' ? 6 : 5;
+    this.glass.setTexture(key).setPosition(x + side, y - (sipping ? 14 : where.moving ? 8 : 10)).setDepth(y + (where.dir === 'up' ? -0.5 : 1)).setVisible(true);
   }
 
   /** Enseña (o esconde, con key null) lo que va con la máquina: debajo de la persona o encima. */
@@ -330,6 +357,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     if (!where) this.lampShade.setVisible(false);
     if (!where) {
       this.icon.setVisible(false);
+      this.glass.setVisible(false);
       this.umbrellaImg.setVisible(false);
       this.gear('under', null);
       this.gear('over', null);
@@ -385,6 +413,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     if (this.umbrella !== null && !seated) this.umbrellaImg.setTexture(`fx-umbrella-${this.umbrella}`).setPosition(x, y - 19).setDepth(y + 2).setVisible(true);
     else this.umbrellaImg.setVisible(false);
 
+    this.drawGlass(where, x, y, seated, time);
     const id = this.lookId;
     // Un gesto de ambiente lo pinta todo a su manera; hablando con el jugador, no.
     if (where.ambient && !this.talkingTo) {
@@ -483,7 +512,7 @@ export class Character extends Phaser.GameObjects.Sprite {
 
     // El móvil, en la mano; la charla, a ratos y cada uno a su compás.
     const talking = (activity === 'talk' || activity === 'sit-talk') && Math.floor((time + this.seed * 700) / 1800) % 3 === 0;
-    if (activity === 'eat' || activity === 'drink') {
+    if (activity === 'eat' || (activity === 'drink' && !where.drink)) {
       // Lo que tiene delante va sobre la mesa, en el tile hacia el que mira.
       const [ox, oy] = TABLE_OFFSET[where.dir];
       this.icon.setTexture(activity === 'eat' ? 'fx-plate' : 'fx-cup').setPosition(x + ox, y + oy).setDepth(y + oy + 12).setVisible(true);
@@ -494,7 +523,7 @@ export class Character extends Phaser.GameObjects.Sprite {
       // El libro abierto en el regazo; de espaldas asoma a un lado.
       const side = where.dir === 'up' ? 5 : where.dir === 'left' ? -3 : 3;
       this.icon.setTexture('fx-book').setPosition(x + side, y - 6).setDepth(y + 1).setVisible(true);
-    } else if (activity === 'sip') {
+    } else if (activity === 'sip' && !where.drink) {
       // De pie con la copa en la mano; cada uno da un trago cuando le toca, no todos a la vez.
       const raised = Math.floor((time + this.seed * 977) / 1400) % 5 === 0;
       const side = where.dir === 'left' ? -4 : where.dir === 'up' ? 5 : 4;

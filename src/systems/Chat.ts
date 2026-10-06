@@ -127,6 +127,15 @@ export interface ChatInput {
    * Sólo se pasa para Named Characters.
    */
   social?: SocialProfile;
+
+  /** Story flags activas del personaje con nombre (systems/Story): abren o cierran sus frases `f`/`nf`. */
+  flags?: readonly string[];
+
+  /** Su ánimo propio de hoy (systems/Story.chatMood), si lo tiene: manda sobre el que sale de la hora y el tiempo. */
+  mood?: Mood;
+
+  /** Lo primero que saca tras saludar (un recuerdo, un plan, un enfado): sustituye a la frase de relación. */
+  opener?: string;
 }
 
 export interface ChatContext {
@@ -171,6 +180,12 @@ export interface ChatContext {
 
   ties:
     readonly Tie[];
+
+  /** Story flags del personaje con nombre; vacío para el resto. */
+  flags:
+    readonly string[];
+
+  opener?: string;
 }
 
 const hash = (
@@ -582,11 +597,14 @@ export function buildContext(
           ],
 
     mood:
-      moodOf(
-        i.who,
-        act,
-        hour,
-        i.weather,
+      moodWith(
+        moodOf(
+          i.who,
+          act,
+          hour,
+          i.weather,
+        ),
+        i.mood,
       ),
 
     act,
@@ -634,8 +652,28 @@ export function buildContext(
         named:
           i.named,
       }),
+
+    // Las flags sólo valen para su personaje: la gente anónima nunca las lleva.
+    flags:
+      i.named
+        ? i.flags ?? []
+        : [],
+
+    opener:
+      i.named
+        ? i.opener
+        : undefined,
   };
 }
+
+/** Con prisa manda la prisa (va de camino); si no, su ánimo propio del día, si lo tiene. */
+const moodWith = (
+  base: Mood,
+  own: Mood | undefined,
+): Mood =>
+  base === 'hurried' || !own
+    ? base
+    : own;
 
 // ================================================================
 // MEMORIA DE DIÁLOGO
@@ -949,6 +987,30 @@ export function fit(
     return 0;
   }
 
+  // Lo vivido con el jugador (systems/Story): todas las `f` activas y ninguna `nf`.
+  if (
+    l.f &&
+    !l.f.every(
+      (f) =>
+        c.flags.includes(
+          f,
+        ),
+    )
+  ) {
+    return 0;
+  }
+
+  if (
+    l.nf?.some(
+      (f) =>
+        c.flags.includes(
+          f,
+        ),
+    )
+  ) {
+    return 0;
+  }
+
   if (
     l.s &&
     !l.s.some(
@@ -1089,6 +1151,11 @@ export function fit(
 
   if (l.n) {
     w *= 6;
+  }
+
+  // Lo que sólo se dice tras algo vivido pesa más que lo de siempre.
+  if (l.f) {
+    w *= 4;
   }
 
   return w;
@@ -1620,6 +1687,17 @@ export class Conversation {
      * o recordar algo importante.
      */
     if (
+      c.opener
+    ) {
+      // Lo que trae de su historia (un plan, un enfado, un recuerdo): primero eso.
+      said.push(
+        this.syntheticLine(
+          'story',
+          c.opener,
+          'friendly',
+        ),
+      );
+    } else if (
       this.socialProfile &&
       c.named
     ) {

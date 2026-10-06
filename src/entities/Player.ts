@@ -46,7 +46,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Sentado o yendo a sentarse o a levantarse: no anda con las teclas. */
   private seat: { facing: Facing; lift: number; since: number; settled: boolean } | null = null;
   /** Entrenando en una máquina o en su sitio (data/stations.ts), o yendo a ella: tampoco anda con las teclas. */
-  private training: { motion: Motion; facing: Facing; sits: boolean; sets: boolean; since: number; settled: boolean; x: number; y: number } | null = null;
+  private training: { motion: Motion | 'basket'; facing: Facing; sits: boolean; sets: boolean; since: number; settled: boolean; x: number; y: number } | null = null;
   /** Lo que se ve de la máquina mientras se usa: la banda, la jaula vacía (debajo) y la barra (encima). */
   private gearUnder?: Phaser.GameObjects.Image;
   private gearOver?: Phaser.GameObjects.Image;
@@ -199,7 +199,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
    * coloca delante, con el mismo cuerpo, poses y repeticiones que la gente del gimnasio (entities/Character).
    * Sin cuerpo desde el primer paso: la máquina es sólida y va a subirse a ella.
    */
-  startTraining(x: number, y: number, facing: Facing, motion: Motion, sits: boolean, sets: boolean): void {
+  startTraining(x: number, y: number, facing: Facing, motion: Motion | 'basket', sits: boolean, sets: boolean): void {
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(0, 0);
     body.enable = false;
@@ -280,6 +280,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.anims.timeScale = tr.motion === 'treadmill' && working ? 1.75 : 1;
     this.gear('under', under, x, under?.startsWith('fx-belt') ? y - 2 : y, y - 0.5);
     this.gear('over', over, x, y - 24 + barY, y + 0.5);
+    this.sync();
+  }
+
+  /**
+   * Tirando a canasta (systems/Basketball): la pose del momento (de pie, preparado, suelta, sigue la mano) y lo que
+   * sube del suelo al saltar. Siempre desde su sitio de verdad, mirando a la canasta.
+   */
+  courtFrame(pose: number, lift: number): void {
+    const tr = this.training;
+    if (!tr?.settled) return;
+    this.dir = tr.facing;
+    this.anims.stop();
+    this.setTexture(`player-${tr.facing}-${pose}`);
+    this.setPosition(tr.x, tr.y - lift);
+    this.gear('under', null);
+    this.gear('over', null);
     this.sync();
   }
 

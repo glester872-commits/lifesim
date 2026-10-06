@@ -731,6 +731,31 @@ export function buildTextures(scene: Phaser.Scene): void {
     px(ctx, PALETTE.woodDark, 1, 0, 3, 1);
     px(ctx, PALETTE.white, 4, 1, 1, 1);
   });
+  // Bebidas del bar (PopulationProfile.drinks): una caña con su espuma, una copa de vino, un refresco con pajita y un agua.
+  make(scene, 'fx-glass-beer', 4, 6, (ctx) => {
+    px(ctx, '#f7f2e6', 0, 0, 4, 1);
+    px(ctx, '#d9921c', 0, 1, 4, 4);
+    px(ctx, '#f0c050', 1, 2, 1, 2);
+    px(ctx, '#9aa6ad', 0, 5, 4, 1);
+  });
+  make(scene, 'fx-glass-wine', 4, 6, (ctx) => {
+    px(ctx, '#d8c3c8', 0, 0, 4, 1);
+    px(ctx, '#8e2b3d', 0, 1, 4, 2);
+    px(ctx, '#cfd8dc', 1, 3, 2, 2);
+    px(ctx, '#cfd8dc', 0, 5, 4, 1);
+  });
+  make(scene, 'fx-glass-soft', 4, 6, (ctx) => {
+    px(ctx, '#e8c040', 3, 0, 1, 3);
+    px(ctx, '#e8eef2', 0, 1, 4, 4);
+    px(ctx, '#b3412f', 0, 2, 3, 3);
+    px(ctx, '#9aa6ad', 0, 5, 4, 1);
+  });
+  make(scene, 'fx-glass-water', 4, 6, (ctx) => {
+    px(ctx, '#dfeaf0', 0, 1, 4, 4);
+    px(ctx, '#a9d3e6', 0, 2, 4, 3);
+    px(ctx, '#ffffff', 1, 2, 1, 1);
+    px(ctx, '#9aa6ad', 0, 5, 4, 1);
+  });
   make(scene, 'fx-plate', 7, 4, (ctx) => {
     px(ctx, PALETTE.white, 0, 1, 7, 2);
     px(ctx, shade(PALETTE.white, -0.15), 1, 3, 5, 1);

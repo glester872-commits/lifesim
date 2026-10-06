@@ -1030,3 +1030,434 @@ body.has-touch .dialogue__choices li {
 .world-speech[hidden] {
   display: none;
 }
+
+/* ------------------------------------------------------------------ móvil */
+
+/* El botón, debajo del del mapa y del mismo material; con lo que hay sin leer en una pastilla. */
+#phone-button {
+  position: absolute;
+  top: 54px;
+  right: 14px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 8px;
+  border: 2px solid rgba(232, 227, 218, 0.14);
+  background: rgba(14, 15, 22, 0.8);
+  color: var(--white);
+  font: 700 11px var(--ui-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#phone-button:hover,
+#phone-button:focus-visible,
+#phone-button.is-active {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.phone-button__badge,
+.phone__badge {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: var(--amber);
+  color: var(--ink);
+  font: 700 10px var(--ui-mono);
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.phone-button__badge[hidden] {
+  display: none;
+}
+
+/* El aparato: compacto, a la derecha, sin tapar el centro de la escena. */
+#phone {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 9;
+  width: 300px;
+  height: min(540px, calc(100% - 110px));
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+#phone.is-open {
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+}
+
+.phone__device {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 2px solid rgba(232, 227, 218, 0.18);
+  border-radius: 22px;
+  background: #11131c;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), inset 0 0 0 4px #090a10;
+  overflow: hidden;
+}
+
+.phone__bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 10px 16px 6px;
+  font: 700 11px var(--ui-mono);
+  color: rgba(232, 227, 218, 0.8);
+}
+
+.phone__title {
+  color: var(--white);
+  font-family: var(--ui-font);
+  font-size: 13px;
+}
+
+.phone__signal {
+  justify-self: end;
+  letter-spacing: -1px;
+  color: var(--accent);
+}
+
+.phone__screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 4px 10px 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.phone__screen[data-app="thread"] {
+  overflow: hidden;
+}
+
+.phone__nav {
+  display: flex;
+  justify-content: space-around;
+  padding: 4px 0 8px;
+  border-top: 1px solid rgba(232, 227, 218, 0.08);
+}
+
+.phone__nav button {
+  min-width: 44px;
+  min-height: 34px;
+  border: 0;
+  background: none;
+  color: rgba(232, 227, 218, 0.75);
+  font: 18px var(--ui-font);
+  cursor: pointer;
+}
+
+.phone__nav button:hover,
+.phone__nav button:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.phone__greeting,
+.phone__empty,
+.phone__note {
+  margin: 8px 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(232, 227, 218, 0.72);
+}
+
+.phone__greeting {
+  margin: 18px 6px 16px;
+  font-size: 15px;
+  color: var(--white);
+}
+
+.phone__apps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px 6px;
+}
+
+.phone__app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--white);
+  cursor: pointer;
+}
+
+.phone__app-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: linear-gradient(160deg, #2b6f69, #1d4a46);
+  font-size: 22px;
+}
+
+.phone__app.is-soon {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.phone__app.is-soon .phone__app-icon {
+  background: #2a2c38;
+}
+
+.phone__app-label {
+  font-size: 11px;
+}
+
+.phone__app .phone__badge {
+  position: absolute;
+  top: 0;
+  right: 6px;
+}
+
+.phone__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phone__row,
+.phone__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 10px;
+}
+
+.phone__row {
+  cursor: pointer;
+}
+
+.phone__head {
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid rgba(232, 227, 218, 0.08);
+}
+
+.phone__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-top: 7px solid #3a2a20;
+  background: #b08060;
+  color: rgba(14, 15, 22, 0.85);
+  font: 700 14px var(--ui-font);
+}
+
+.phone__row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.phone__row-text b {
+  font-size: 14px;
+}
+
+.phone__row-text span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: rgba(232, 227, 218, 0.65);
+}
+
+.phone__row.is-unread .phone__row-text span {
+  color: var(--white);
+}
+
+.phone__row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font: 10px var(--ui-mono);
+  color: rgba(232, 227, 218, 0.55);
+}
+
+.phone__log {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.phone__plan {
+  margin: 0 0 4px;
+  padding: 7px 10px;
+  border: 1px solid rgba(240, 180, 106, 0.4);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(232, 227, 218, 0.85);
+}
+
+.phone__plan b {
+  color: var(--amber);
+}
+
+.phone__msg {
+  max-width: 82%;
+  margin: 0;
+  padding: 7px 10px 5px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: text;
+}
+
+.phone__msg.is-them {
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+  background: #262938;
+}
+
+.phone__msg.is-me {
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+  background: #1f5651;
+}
+
+.phone__msg time {
+  display: block;
+  margin-top: 2px;
+  font: 9px var(--ui-mono);
+  text-align: right;
+  color: rgba(232, 227, 218, 0.5);
+}
+
+.phone__replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 40%;
+  padding-top: 8px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(232, 227, 218, 0.08);
+}
+
+.phone__reply {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid rgba(111, 208, 198, 0.35);
+  border-radius: 16px;
+  background: none;
+  color: var(--white);
+  font: 12px var(--ui-font);
+  cursor: pointer;
+}
+
+.phone__key {
+  font: 700 10px var(--ui-mono);
+  color: var(--accent);
+}
+
+/* Ratón o teclado: lo marcado, en el color de elegir. */
+.phone__item:hover,
+.phone__item.is-selected {
+  background: rgba(111, 208, 198, 0.12);
+  outline: none;
+}
+
+.phone__reply.is-selected,
+.phone__reply:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* El aviso: arriba en el centro, pequeño, entre el HUD y el botón del mapa; se toca para abrir. */
+#phone-toast {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(320px, calc(100vw - 32px));
+  padding: 8px 12px;
+  border: 2px solid rgba(111, 208, 198, 0.3);
+  border-radius: 14px;
+  background: rgba(17, 19, 28, 0.94);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -8px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  cursor: pointer;
+}
+
+#phone-toast.is-visible {
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 520px), (max-height: 480px) {
+  #phone-button {
+    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* En una pantalla pequeña, el del juego ocupa casi todo: dedos, no cursor. */
+  #phone {
+    left: 50%;
+    right: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    width: min(380px, calc(100vw - 16px));
+    height: calc(100% - max(16px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+    transform: translate(-50%, 10px);
+  }
+
+  #phone.is-open {
+    transform: translate(-50%, 0);
+  }
+
+  .phone__reply,
+  .phone__row {
+    min-height: 44px;
+  }
+
+  #phone-toast {
+    top: calc(max(10px, env(safe-area-inset-top)) + 60px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #phone,
+  #phone-toast {
+    transition: none;
+  }
+}
