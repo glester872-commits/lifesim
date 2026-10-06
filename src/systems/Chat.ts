@@ -2984,6 +2984,34 @@ export class Conversation {
       );
     }
 
+    /*
+     * Pedir el contacto no compite con el resto: si ya se puede (relación, confianza, sin un «no» reciente),
+     * siempre se ofrece. Si no, con sólo 3 huecos y tantas opciones, podía no salir en decenas de charlas.
+     */
+    const contact =
+      candidates.find(
+        ([option]) =>
+          option.id ===
+          'ask-contact',
+      );
+
+    if (
+      contact &&
+      chosen.length <
+        count
+    ) {
+      chosen.push(
+        contact[0],
+      );
+
+      candidates.splice(
+        candidates.indexOf(
+          contact,
+        ),
+        1,
+      );
+    }
+
     while (
       chosen.length <
       count
