@@ -320,7 +320,7 @@ function drawBusStop(ctx: Ctx): void {
 function drawParked(ctx: Ctx, id: string, color: number): void {
   const t = getVehicle(id);
   ctx.save();
-  ctx.translate(Math.round((TILE * 2 - t.length) / 2), TILE - t.height);
+  ctx.translate(Math.round((TILE * 3 - t.length) / 2), TILE * 2 - t.height);
   drawVehicle(ctx, t, t.colors[color]);
   ctx.restore();
 }
@@ -798,15 +798,15 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-sneaker-wall', TILE * 2, TILE, drawSneakerWall);
   make(scene, 'prop-bargain-bin', TILE * 2, TILE, drawBargainBin);
   make(scene, 'prop-poster-column', TILE, TILE * 3, drawPosterColumn);
-  make(scene, 'prop-car-taxi', TILE * 2, TILE, (ctx) => drawParked(ctx, 'taxi', 0));
+  make(scene, 'prop-car-taxi', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'taxi', 0));
   make(scene, 'prop-ticket-machine', TILE, TILE * 2, drawTicketMachine);
 
   make(scene, 'prop-fountain', TILE * 3, TILE * 2, drawFountain);
   make(scene, 'prop-kiosk', TILE * 2, TILE * 2, drawKiosk);
   make(scene, 'prop-bus-stop', TILE * 3, TILE * 2, drawBusStop);
-  make(scene, 'prop-car', TILE * 2, TILE, (ctx) => drawParked(ctx, 'sedan', 0));
-  make(scene, 'prop-car-b', TILE * 2, TILE, (ctx) => drawParked(ctx, 'sedan', 1));
-  make(scene, 'prop-car-c', TILE * 2, TILE, (ctx) => drawParked(ctx, 'compact', 1));
+  make(scene, 'prop-car', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'sedan', 0));
+  make(scene, 'prop-car-b', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'sedan', 1));
+  make(scene, 'prop-car-c', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'compact', 1));
   make(scene, 'prop-van', TILE * 3, TILE * 2, drawVan);
   make(scene, 'prop-bike', TILE, TILE, drawBike);
   make(scene, 'prop-bin', TILE, TILE, drawBin);

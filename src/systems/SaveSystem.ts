@@ -1,11 +1,71 @@
-// Sin Phaser: lo usan main.ts y scripts/check-economy.ts (partidas antiguas).
-import { SAVE_KEY, SAVE_VERSION } from '../config/constants.ts';
+// Sin Phaser: lo usan main.ts, state/GameState.ts y scripts/check-economy.ts y check-save-torture.ts.
+import { INITIAL_CLOCK, INITIAL_ENERGY, INITIAL_MONEY, SAVE_KEY, SAVE_VERSION, TILE } from '../config/constants.ts';
 import type { EventMemory, Facing, GameStateData, SaveFile } from '../types/game.ts';
 import { emptyMemory } from './MetroEventManager.ts';
 import { HAIR_IDS, type Appearance, type HairStyle, type TattooMark } from '../data/appearance.ts';
 import { GARMENT_IDS, getGarment } from '../data/retail.ts';
 import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
-import { parseFitness } from './Fitness.ts';
+import { parseFitness, START_FITNESS } from './Fitness.ts';
+import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations.ts';
+import { hasLocation, safePosition } from './LocationSystem.ts';
+
+/**
+ * Qué se guarda y qué no (política de lo pasajero). Se guarda lo que es del
+ * jugador: dinero, energía, reloj, dónde está, objetos, tarjetas, aspecto,
+ * ropa, forma física y la memoria de lo que ha vivido en el metro (incluidas
+ * las personas que ha conocido y lo que eligió).
+ *
+ * NO se guarda, a propósito, y al cargar empieza limpio: los sucesos en curso
+ * (peleas de patio, trapicheo, carteristas: sus enfriamientos son de la sesión),
+ * la gente de los locales y de la calle (sale del reloj y de su semilla), los
+ * vigilantes que acudían, las charlas abiertas, los retrasos de los personajes
+ * con nombre por pararse a hablar (vuelven a su horario) y el tiempo, que sale
+ * del día. Sólo se carga al arrancar, así que nada de eso puede quedar a medias.
+ */
+
+/** Partida nueva: en el portal de casa, a la hora de empezar. */
+export function createInitialState(): GameStateData {
+  const start = LOCATIONS.find((loc) => loc.id === START_LOCATION);
+  if (!start) throw new Error(`Localizacion inicial desconocida: ${START_LOCATION}`);
+  const spawn = start.spawns[START_SPAWN];
+  if (!spawn) throw new Error(`Spawn inicial desconocido: ${START_SPAWN}`);
+
+  return {
+    money: INITIAL_MONEY,
+    energy: INITIAL_ENERGY,
+    day: INITIAL_CLOCK.day,
+    hour: INITIAL_CLOCK.hour,
+    minute: INITIAL_CLOCK.minute,
+    locationId: start.id,
+    position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE },
+    facing: spawn.facing,
+    events: emptyMemory(),
+    // Se empieza sin tarjeta de transporte: se compra en la máquina del metro.
+    inventory: {},
+    cards: {},
+    appearance: {},
+    wardrobe: [],
+    fitness: { ...START_FITNESS },
+  };
+}
+
+/**
+ * De lo cargado (o de nada) a la partida con la que se arranca. Un sitio que ya
+ * no existe (renombrado o quitado) manda al portal de casa, pero conserva todo
+ * lo demás; una posición que ahora cae dentro de algo va al tile libre más
+ * cercano (systems/LocationSystem.safePosition).
+ */
+export function restore(loaded: GameStateData | null): GameStateData {
+  if (!loaded) return createInitialState();
+  if (!hasLocation(loaded.locationId)) {
+    const fresh = createInitialState();
+    return { ...loaded, locationId: fresh.locationId, position: fresh.position, facing: fresh.facing };
+  }
+  return { ...loaded, position: safePosition(loaded.locationId, loaded.position, START_SPAWN) };
+}
+
+/** Clave donde se aparta una partida que no se puede leer (rota o de una versión más nueva) antes de que el autoguardado la pise. */
+export const UNREADABLE_KEY = `${SAVE_KEY}.unreadable`;
 
 /**
  * Backend de persistencia. localStorage es sólo la implementación actual:
@@ -72,36 +132,34 @@ function parseEvents(value: unknown): EventMemory {
   };
 }
 
+/**
+ * Lo imprescindible es el dinero y el reloj: sin eso no es una partida. Lo
+ * demás tiene un valor seguro si falta o viene mal (partidas antiguas o
+ * tocadas a mano): energía acotada a 0–100, hora y minuto normalizados, sin
+ * orientación mira abajo, sin sitio o sin posición va al portal de casa
+ * (restore). Nada de eso tira la partida entera.
+ */
 function parseState(value: unknown): GameStateData | null {
   if (typeof value !== 'object' || value === null) return null;
   const s = value as Record<string, unknown>;
-  const pos = s.position as Record<string, unknown> | undefined;
+  const pos = isRecord(s.position) ? s.position : undefined;
 
-  if (
-    !isNumber(s.money) ||
-    !isNumber(s.energy) ||
-    !isNumber(s.day) ||
-    !isNumber(s.hour) ||
-    !isNumber(s.minute) ||
-    typeof s.locationId !== 'string' ||
-    typeof s.facing !== 'string' ||
-    !FACINGS.has(s.facing) ||
-    !pos ||
-    !isNumber(pos.x) ||
-    !isNumber(pos.y)
-  ) {
-    return null;
-  }
+  if (!isNumber(s.money) || !isNumber(s.day) || !isNumber(s.hour) || !isNumber(s.minute)) return null;
+
+  // Reloj: un minuto absoluto válido (día ≥ 1, 00:00–23:59), aunque venga con 24:00 o minutos de más.
+  const total = Math.max(0, Math.floor((Math.max(1, Math.floor(s.day)) - 1) * 1440 + Math.floor(s.hour) * 60 + Math.floor(s.minute)));
+  const fresh = createInitialState();
+  const located = typeof s.locationId === 'string' && pos && isNumber(pos.x) && isNumber(pos.y);
 
   return {
     money: s.money,
-    energy: s.energy,
-    day: s.day,
-    hour: s.hour,
-    minute: s.minute,
-    locationId: s.locationId,
-    position: { x: pos.x, y: pos.y },
-    facing: s.facing as Facing,
+    energy: isNumber(s.energy) ? Math.min(100, Math.max(0, s.energy)) : INITIAL_ENERGY,
+    day: Math.floor(total / 1440) + 1,
+    hour: Math.floor((total % 1440) / 60),
+    minute: total % 60,
+    locationId: located ? (s.locationId as string) : fresh.locationId,
+    position: located ? { x: pos.x as number, y: pos.y as number } : fresh.position,
+    facing: typeof s.facing === 'string' && FACINGS.has(s.facing) ? (s.facing as Facing) : 'down',
     events: parseEvents(s.events),
     inventory: parseCounts(s.inventory),
     cards: parseCounts(s.cards),
@@ -168,18 +226,27 @@ export class SaveSystem {
     }
   }
 
+  /**
+   * La partida guardada, o null si no hay o no se puede leer. Sin número de
+   * versión, o con uno anterior, se lee con los valores seguros de parseState
+   * (hasta ahora sólo existe la 1: no hace falta migrar nada más). Una partida
+   * rota o de una versión más nueva NO se pisa: se aparta a UNREADABLE_KEY
+   * antes de que el autoguardado de la partida nueva la sobrescriba.
+   */
   load(): GameStateData | null {
     const raw = this.storage.read(SAVE_KEY);
     if (!raw) return null;
+    let state: GameStateData | null = null;
     try {
       const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed !== 'object' || parsed === null) return null;
-      const file = parsed as Record<string, unknown>;
-      if (file.version !== SAVE_VERSION) return null;
-      return parseState(file.state);
+      const file = isRecord(parsed) ? parsed : {};
+      const version = file.version === undefined ? 1 : file.version;
+      if (isNumber(version) && version <= SAVE_VERSION) state = parseState(file.state);
     } catch {
-      return null;
+      state = null;
     }
+    if (!state) this.storage.write(UNREADABLE_KEY, raw);
+    return state;
   }
 
   clear(): void {

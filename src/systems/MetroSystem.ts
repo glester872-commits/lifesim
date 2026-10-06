@@ -13,6 +13,8 @@ import { TrainSystem, type TrainState } from './TrainSystem';
 import { PassengerAI, rand, type PassengerWorld, type SpotPreference, type StationLayout } from './PassengerAI';
 import { SecurityAI } from './SecurityAI';
 import { Pickpocket, type ForceOptions, type PickpocketHost } from './Pickpocket';
+import { StuckWatch } from './Recovery';
+import type { EventInfo } from './WorldEvents';
 import {
   activeTarget,
   crowdAt,
@@ -78,6 +80,9 @@ export class MetroSystem {
   private readonly view: Train;
   private readonly passengers: PassengerAI[];
   private readonly guards: SecurityAI[];
+  /** Vigía de atascos (systems/Recovery) de pasajeros y vigilantes. */
+  readonly watch = new StuckWatch();
+  private readonly camera: Phaser.Cameras.Scene2D.Camera;
   /** Carteristas del andén (systems/Pickpocket); null si la escena no le da el jugador. */
   private readonly crime: Pickpocket | null;
   private readonly events: MicroEventClock;
@@ -110,6 +115,7 @@ export class MetroSystem {
   ) {
     this.cfg = cfg;
     this.clock = clock;
+    this.camera = scene.cameras.main;
     this.debug = ui.debug;
     this.announcer = ui.announcer;
     this.mapWidth = mapWidth;
@@ -172,7 +178,7 @@ export class MetroSystem {
     );
     this.talkers = posts.map((g, i) => ({ sprite: this.guards[i].walker, def: getNpc(g.id) }));
     this.walkers = [...this.passengers.map((p) => p.walker), ...this.guards.map((g) => g.walker)];
-    this.crime = ui.crime ? new Pickpocket(cfg, ui.crime, this.layout, mapWidth, (text) => this.note(text)) : null;
+    this.crime = ui.crime ? new Pickpocket(cfg, ui.crime, this.layout, mapWidth, (text) => this.note(text), stationId) : null;
 
     if (arrivedByTrain) this.releaseAlighting(0);
   }
@@ -184,6 +190,7 @@ export class MetroSystem {
     for (const p of this.passengers) p.update(dt);
     for (const g of this.guards) g.update(dt, this.train);
     this.crime?.update(dt, this.level, this.passengers, this.guards);
+    this.watchStuck(dt);
 
     this.contextTimer -= dt;
     if (this.contextTimer <= 0) {
@@ -207,6 +214,7 @@ export class MetroSystem {
 
   shutdown(): void {
     this.announcer.hide();
+    this.crime?.shutdown();
   }
 
   // --------------------------------------------------------------- contexto
@@ -403,7 +411,36 @@ export class MetroSystem {
     this.note(`megafonía (${kind})`);
   }
 
-/** Depuración (lifesim.crime): empieza un robo ya y cuenta cómo va. */
+/**
+   * Atascos (systems/Recovery): quien tiene ruta y no avanza. Hablar con el jugador o estar en un robo
+   * (manda systems/Pickpocket) no cuenta; esperar, sentarse o mirar un cartel no tienen ruta.
+   * El peldaño 4 sólo fuera de cámara (o forzado desde depuración).
+   */
+  private watchStuck(dt: number): void {
+    const view = this.camera.worldView;
+    const unseen = (x: number, y: number, key: string): boolean => this.watch.forced(key) || !view.contains(x, y);
+    this.guards.forEach((g, i) => {
+      const w = g.walker;
+      const level = this.watch.check(`g${i}`, w.x / TILE, w.y / TILE, w.moving && !w.talking, dt);
+      if (level) g.recover(level, unseen(w.x, w.y, `g${i}`));
+    });
+    this.passengers.forEach((p, i) => {
+      const w = p.walker;
+      const level = this.watch.check(`p${i}`, w.x / TILE, w.y / TILE, w.visible && w.moving && !w.talking && !p.inIncident, dt);
+      if (level) p.recover(level, unseen(w.x, w.y, `p${i}`));
+    });
+  }
+
+  /** Depuración: da por atascado al que anda más cerca de (x, y) en píxeles. */
+  devForceStuck(x: number, y: number): string | null {
+    const all = [...this.guards.map((g, i) => [`g${i}`, g.walker] as const), ...this.passengers.map((p, i) => [`p${i}`, p.walker] as const)].filter(([, w]) => w.visible && w.moving);
+    const hit = all.sort((a, b) => Math.hypot(a[1].x - x, a[1].y - y) - Math.hypot(b[1].x - x, b[1].y - y))[0];
+    if (!hit) return null;
+    this.watch.force(hit[0], hit[1].x / TILE, hit[1].y / TILE);
+    return hit[0];
+  }
+
+  /** Depuración (lifesim.crime): empieza un robo ya y cuenta cómo va. */
   forcePickpocket(opts?: ForceOptions): string {
     return this.crime ? this.crime.force(this.passengers, this.guards, opts) : 'sin carteristas en esta escena';
   }
@@ -414,6 +451,19 @@ export class MetroSystem {
 
   resetPickpocketCooldown(): void {
     this.crime?.resetCooldown();
+  }
+
+  /** Ciclo común del carterista de esta estación (systems/WorldEvents), para lifesim.events. */
+  crimeLifecycle(): EventInfo | null {
+    return this.crime?.lifecycle() ?? null;
+  }
+
+  resolvePickpocket(): string {
+    return this.crime?.devResolve() ?? 'sin carteristas en esta escena';
+  }
+
+  cancelPickpocket(): string {
+    return this.crime?.devCancel() ?? 'sin carteristas en esta escena';
   }
 
   private note(text: string): void {

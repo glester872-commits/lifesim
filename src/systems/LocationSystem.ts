@@ -118,7 +118,7 @@ function maskOf(loc: LocationDef): boolean[][] {
  * Calzada: por donde van coches y bicis (carriles, línea central, pasos de
  * cebra y carril bici). Se pisa, pero nadie se para ahí a esperar ni a posarse.
  */
-export const ROADWAY: ReadonlySet<string> = new Set(['.', '=', ':', 'z', 'b']);
+export const ROADWAY: ReadonlySet<string> = new Set(['.', '=', ':', 'z', 'b', 'u', 'l']);
 
 export function isWalkable(loc: LocationDef, tx: number, ty: number): boolean {
   return maskOf(loc)[ty]?.[tx] === false;
@@ -310,13 +310,29 @@ export function spawnToWorld(spawn: SpawnDef): { x: number; y: number } {
 }
 
 /**
- * Posición guardada, o un spawn si ahora cae dentro de algo. Pasa cuando un
- * mapa se rediseña: la partida se conserva, sólo cambia dónde apareces.
+ * Posición guardada, o la más cercana que valga si ahora cae dentro de algo,
+ * en la vía del metro o no es un número. Pasa cuando un mapa se rediseña: la
+ * partida se conserva, sólo cambia dónde apareces (el tile libre más cercano,
+ * a 3 tiles como mucho; si no hay, el spawn).
  */
 export function safePosition(locationId: string, position: Vec2, fallbackSpawn: string): Vec2 {
   const loc = getLocation(locationId);
+  // En una estación, por encima del borde del andén está la vía: ahí no se aparece nunca.
+  const ok = (x: number, y: number): boolean => isWalkable(loc, x, y) && (!loc.metro || y >= loc.metro.edgeRow);
+  const fallback = (): Vec2 => spawnToWorld(loc.spawns[fallbackSpawn] ?? Object.values(loc.spawns)[0]);
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return fallback();
   const tx = Math.floor(position.x / TILE);
   const ty = Math.floor((position.y - 1) / TILE);
-  if (isWalkable(loc, tx, ty)) return position;
-  return spawnToWorld(loc.spawns[fallbackSpawn] ?? Object.values(loc.spawns)[0]);
+  if (ok(tx, ty)) return position;
+  for (let r = 1; r <= 3; r++) {
+    let best: { tx: number; ty: number } | null = null;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r || !ok(tx + dx, ty + dy)) continue;
+        if (!best || Math.hypot(dx, dy) < Math.hypot(best.tx - tx, best.ty - ty)) best = { tx: tx + dx, ty: ty + dy };
+      }
+    }
+    if (best) return spawnToWorld({ ...best, facing: 'down' });
+  }
+  return fallback();
 }

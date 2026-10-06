@@ -1,11 +1,8 @@
 import Phaser from 'phaser';
 import type { EventMemory, Facing, GameStateData } from '../types/game';
 import type { Appearance } from '../data/appearance';
-import { emptyMemory } from '../systems/MetroEventManager';
 import type { Wallet } from '../systems/Commerce';
 import { START_FITNESS, type Fitness } from '../systems/Fitness';
-import { INITIAL_CLOCK, INITIAL_ENERGY, INITIAL_MONEY, TILE } from '../config/constants';
-import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations';
 
 /**
  * Estado central de la partida.
@@ -156,27 +153,5 @@ export class GameState extends Phaser.Events.EventEmitter {
   }
 }
 
-export function createInitialState(): GameStateData {
-  const start = LOCATIONS.find((loc) => loc.id === START_LOCATION);
-  if (!start) throw new Error(`Localizacion inicial desconocida: ${START_LOCATION}`);
-  const spawn = start.spawns[START_SPAWN];
-  if (!spawn) throw new Error(`Spawn inicial desconocido: ${START_SPAWN}`);
-
-  return {
-    money: INITIAL_MONEY,
-    energy: INITIAL_ENERGY,
-    day: INITIAL_CLOCK.day,
-    hour: INITIAL_CLOCK.hour,
-    minute: INITIAL_CLOCK.minute,
-    locationId: start.id,
-    position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE },
-    facing: spawn.facing,
-    events: emptyMemory(),
-    // Se empieza sin tarjeta de transporte: se compra en la máquina del metro.
-    inventory: {},
-    cards: {},
-    appearance: {},
-    wardrobe: [],
-    fitness: { ...START_FITNESS },
-  };
-}
+// La partida nueva vive en systems/SaveSystem (sin Phaser: también la usan los scripts de comprobación).
+export { createInitialState } from '../systems/SaveSystem';

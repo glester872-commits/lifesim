@@ -21,11 +21,11 @@ const TOP_PAD = 5;
 export const RIDER_FRAMES = 5;
 export const RIDER_STOPPED = 4;
 /** Luces de la bici en la celda (mirando a la derecha): se encienden de noche encima. */
-export const RIDER_LAMPS = { head: [19, 12 + TOP_PAD], tail: [3, 15 + TOP_PAD] } as const;
+export const RIDER_LAMPS = { head: [18, 12 + TOP_PAD], tail: [4, 15 + TOP_PAD] } as const;
 
 type Pt = readonly [number, number];
-const REAR: Pt = [5, 21];
-const FRONT: Pt = [17, 21];
+const REAR: Pt = [6, 21];
+const FRONT: Pt = [16, 21];
 const CRANK: Pt = [10, 21];
 const SEAT: Pt = [8, 14];
 /** Pedal cercano en cada fotograma de pedalada (un cuarto de vuelta cada uno), y su rodilla. */
@@ -156,7 +156,7 @@ function drawRider(ctx: Ctx, r: RiderLook, c: HumanColors, body: HTMLCanvasEleme
   const lean = r.bike.lean ? 1 : 0;
   const bar: Pt = r.bike.frame === 'road' ? [16, 12] : [15, 11];
 
-  px(ctx, 'rgba(0,0,0,0.3)', 3, 24, 18, 2);
+  px(ctx, 'rgba(0,0,0,0.3)', 4, 24, 15, 2);
   // Pierna de detrás: detrás de todo, más oscura.
   const far = stopped ? 0 : (f + 2) % 4;
   leg(ctx, shade(c.trousers, -0.18), shade(c.shoes, -0.1), KNEES[far], PEDALS[far]);
@@ -209,13 +209,13 @@ function leg(ctx: Ctx, color: string, shoe: string, knee: Pt, foot: Pt): void {
   px(ctx, shoe, foot[0] - 1, foot[1], 3, 1);
 }
 
-/** Rueda de radio 4: cubierta, llanta y dos radios que giran con la pedalada. */
+/** Rueda de radio 3,5 (unos 70 cm a la escala del peatón): cubierta, llanta y dos radios que giran con la pedalada. */
 function wheel(ctx: Ctx, [cx, cy]: Pt, f: number): void {
   for (let dy = -4; dy <= 4; dy++) {
     for (let dx = -4; dx <= 4; dx++) {
       const d = Math.hypot(dx, dy);
-      if (d > 3.5 && d <= 4.5) px(ctx, PALETTE.ink, cx + dx, cy + dy);
-      else if (d > 2.6 && d <= 3.5) px(ctx, shade(PALETTE.metal, 0.25), cx + dx, cy + dy);
+      if (d > 2.8 && d <= 3.7) px(ctx, PALETTE.ink, cx + dx, cy + dy);
+      else if (d > 2 && d <= 2.8) px(ctx, shade(PALETTE.metal, 0.25), cx + dx, cy + dy);
     }
   }
   const a = (f * Math.PI) / 4;
@@ -238,8 +238,8 @@ function frame(ctx: Ctx, bike: BikeType, color: string, bar: Pt): void {
   } else {
     // Cuadro abierto de paseo, guardabarros y manillar alto.
     line(ctx, color, CRANK[0], CRANK[1] - 1, head[0], head[1] + 2);
-    px(ctx, color, REAR[0] - 3, REAR[1] - 5, 6, 1);
-    px(ctx, color, FRONT[0] - 3, FRONT[1] - 5, 6, 1);
+    px(ctx, color, REAR[0] - 3, REAR[1] - 4, 6, 1);
+    px(ctx, color, FRONT[0] - 3, FRONT[1] - 4, 6, 1);
     px(ctx, PALETTE.ink, bar[0] - 1, bar[1], 3, 1);
     if (bike.frame === 'rental') {
       // La del servicio público: batería azul en el tubo y portabultos delante.

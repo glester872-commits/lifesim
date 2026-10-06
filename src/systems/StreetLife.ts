@@ -23,6 +23,9 @@ import { crossingOf, signalAt, waitSpots } from './Signals.ts';
 import { SeatRegistry } from './SeatRegistry.ts';
 import { TableService } from './TableService.ts';
 import { HEAVY_RAIN, outdoorAppeal, weatherAt, type Weather } from './Weather.ts';
+import type { StreetSurvivor, SurvivalState } from '../data/streetSurvival.ts';
+import { planFor, survivorsOf, type SurvivalPlan } from './StreetSurvival.ts';
+import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
 
 /**
  * El tiempo en la calle: con lluvia o frío hay menos gente (quien puede, se
@@ -151,6 +154,11 @@ export interface Walker extends Agent {
   /** En grupo: qué tipo de grupo es y, para quien acompaña, qué es de quien lo lleva (systems/People). */
   bond?: Bond;
   tie?: RelationType;
+  /** Quien vive en la calle: quién es (data/streetSurvival.ts) y qué va a hacer al llegar a su sitio. */
+  survivor?: StreetSurvivor;
+  goal?: SurvivalState;
+  /** Ms que lleva esperando en un semáforo: pasado RECOVERY.holdMs, ya no es esperar (systems/Recovery). */
+  heldMs?: number;
 }
 
 /**
@@ -184,6 +192,13 @@ export class StreetLife {
   readonly agents: Walker[] = [];
   /** Rutas que no se encontraron: debe quedarse en cero (lo comprueba la simulación). */
   pathFailures = 0;
+  /** Vigía de atascos (systems/Recovery). */
+  readonly watch = new StuckWatch();
+  /** Obstáculos temporales (un tile cortado): nadie entra en ellos y los rodeos los esquivan. */
+  readonly blocked = new Set<string>();
+  private player: TilePoint = { tx: -999, ty: -999 };
+  /** Calzada, carril bici y vías sin paso de cebra: ningún rodeo de recuperación pasa por ahí. */
+  private roadTiles?: Set<string>;
   private readonly loc: LocationDef;
   private readonly profile: StreetProfile;
   private readonly places: PlaceInfo[];
@@ -196,6 +211,8 @@ export class StreetLife {
   /** Servicio de mesa de la terraza (el mismo que dentro): mesas, comandas, cuenta y su camarero. Null si la calle no tiene. */
   readonly service: TableService | null;
   private claimed: ReadonlySet<string> = new Set();
+  /** Personas (índice de aspecto = identidad) que ahora mismo están en otro sitio de la escena: el corro de una pelea, un trapicheo. */
+  private elsewhere: ReadonlySet<number> = new Set();
   private nextId = 1;
   private tick = 0;
   /** El tiempo de ahora: decide qué viajes apetecen y a qué paso se va. */
@@ -272,6 +289,32 @@ export class StreetLife {
   }
 
   /**
+   * Quién está ahora en otro sitio de esta escena (el corro de una pelea, un trapicheo): cada índice de
+   * aspecto es una persona (data/identity.ts) y no puede estar en dos sitios a la vez. Quien sale a la calle
+   * ya no es nadie de esos; quien ya andaba por ahí con esa cara pasa a ser otra persona, pero sólo fuera
+   * de cámara: nadie cambia de cara delante del jugador.
+   */
+  claimLooks(looks: ReadonlySet<number>): void {
+    this.elsewhere = looks;
+    if (looks.size === 0) return;
+    for (const a of this.agents) {
+      if (a.kind !== 'visitor' || a.leader || !looks.has(a.look) || !offCamera({ tx: a.x, ty: a.y }, this.player)) continue;
+      const used = this.usedLooks();
+      a.look = this.pickLook(a.rule, a.path[a.path.length - 1] ?? { tx: a.x, ty: a.y }, used);
+      // Quien iba con esa persona sigue siendo quien era: el grupo ya no es «de» nadie concreto.
+      a.bond = undefined;
+      a.tie = undefined;
+    }
+  }
+
+  /** Aspectos que no se pueden repetir: los de la calle y los de quien está en otro sitio de la escena. */
+  private usedLooks(): Set<number> {
+    const used = new Set(this.agents.map((a) => a.look));
+    for (const l of this.elsewhere) used.add(l);
+    return used;
+  }
+
+  /**
    * Reservas huérfanas: de alguien que ya no está, que ya no va a ese sitio o
    * que lleva demasiado reservado sin llegar. Se sueltan; si el dueño seguía
    * por ahí, deja de tener destino y se va al llegar. Nada queda bloqueado.
@@ -280,6 +323,8 @@ export class StreetLife {
     const freed = this.seats.sweep((owner, seat, state, age) => {
       const a = this.agents.find((x) => x.id === owner);
       if (!a || a.vanish || a.stayPoint !== seat) return false;
+      // Quien vive en la calle tiene su sitio aunque tarde en llegar (viene andando desde el otro lado del barrio).
+      if (a.kind === 'street') return true;
       return state === 'occupied' ? a.staying : age < RESERVE_TTL_MS;
     });
     for (const { owner } of freed) {
@@ -302,6 +347,7 @@ export class StreetLife {
     this.rng = seededRng(hashSeed('street-populate', this.loc.id, clock.day, slot));
     const target = streetTargetAt(this.profile, clock);
     this.staffShift(clock);
+    this.survivorShift(clock, true);
     for (let tries = 0; this.walkers().length < target && tries < target * 4; tries++) this.startTrip(clock, player, target, true);
     this.rng = this.baseRng;
     this.refresh(clock);
@@ -322,10 +368,21 @@ export class StreetLife {
       this.sweepSeats();
       this.reconcile(clock, player);
     }
+    this.player = player;
+    for (const a of [...this.agents]) {
+      // Atascos: quien tiene camino y no avanza. Hablar, la pausa del grupo o una parada breve no cuentan;
+      // el semáforo, sólo si la espera pasa de RECOVERY.holdMs (un semáforo que no cambia nunca).
+      a.heldMs = a.hold ? (a.heldMs ?? 0) + deltaMs : 0;
+      const pausing = a.delay > 0 || (a.timer > 0 && !a.staying && !a.settled && a.kind !== 'staff');
+      const active = a.path.length > 0 && !a.talking && !pausing && (!a.hold || a.heldMs > RECOVERY.holdMs);
+      const level = this.watch.check(a.id, a.x, a.y, active, deltaMs);
+      if (level) this.recover(a, level);
+    }
     for (const a of this.agents) {
       // Hablando con el jugador: quieto donde está; su plan sigue al despedirse.
       if (a.talking) a.moving = false;
       else if (a.kind === 'staff') this.advanceStaff(a, deltaMs);
+      else if (a.kind === 'street') this.advanceSurvivor(a, deltaMs);
       else if (Math.abs(a.x - player.tx) > FULL_SIM_RADIUS || Math.abs(a.y - player.ty) > FULL_SIM_RADIUS) {
         // Lejos del jugador (y fuera de cámara): el mismo viaje, a pasos gruesos. Nadie lo ve dar saltos.
         a.farMs = (a.farMs ?? 0) + deltaMs;
@@ -343,6 +400,7 @@ export class StreetLife {
       const a = this.agents[i];
       if (a.vanish && a.path.length === 0 && a.delay <= 0 && !a.talking) {
         this.release(a);
+        this.watch.forget(a.id);
         this.agents.splice(i, 1);
       }
     }
@@ -352,11 +410,12 @@ export class StreetLife {
   private reconcile(clock: Clock, player: TilePoint): void {
     this.refresh(clock);
     this.staffShift(clock);
+    this.survivorShift(clock, false);
     const { target } = this.stats;
     const walking = this.walkers().length;
     if (walking < target) this.startTrip(clock, player, target, false);
     else if (walking > target + 2) {
-      const staying = this.agents.filter((a) => a.staying && !a.leader).sort((a, b) => b.timer - a.timer);
+      const staying = this.agents.filter((a) => a.staying && !a.leader && a.kind === 'visitor').sort((a, b) => b.timer - a.timer);
       for (const a of staying.slice(0, 2)) a.timer = Math.min(a.timer, 1_500);
     }
     this.refresh(clock);
@@ -511,6 +570,11 @@ export class StreetLife {
   private walk(a: Walker, deltaMs: number): void {
     if (this.atCrossing(a)) return;
     const target = a.path[0];
+    // Un obstáculo temporal justo delante: espera (y el vigía de atascos decide).
+    if (aheadBlocked(this.blocked, { tx: a.x, ty: a.y }, target)) {
+      a.moving = false;
+      return;
+    }
     const dx = target.tx - a.x;
     const dy = target.ty - a.y;
     const dist = Math.hypot(dx, dy);
@@ -525,6 +589,12 @@ export class StreetLife {
     a.x = target.tx;
     a.y = target.ty;
     a.path.shift();
+    // Acabó el rodeo de recuperación: sigue hacia donde iba, por la acera.
+    if (a.path.length === 0 && a.resume) {
+      const to = a.resume;
+      a.resume = undefined;
+      a.path = this.detour(target, to) ?? [];
+    }
     if (a.waitAt === target) {
       // En su sitio del bordillo: espera mirando a la calzada hasta que el muñeco se ponga verde.
       a.waitAt = undefined;
@@ -601,7 +671,7 @@ export class StreetLife {
   // ------------------------------------------------------ personal de terraza
 
   private walkers(): Walker[] {
-    return this.agents.filter((a) => a.kind !== 'staff');
+    return this.agents.filter((a) => a.kind === 'visitor');
   }
 
   /**
@@ -679,6 +749,126 @@ export class StreetLife {
     return path ? path.slice(1) : [];
   }
 
+  // -------------------------------------------------- quien vive en la calle
+
+  /**
+   * Quien vive en la calle (data/streetSurvival.ts): sus sitios por horas y, con
+   * lluvia, uno a cubierto (systems/StreetSurvival.planFor). Aquí sólo se le
+   * lleva: al llegar el jugador ya está en su sitio; si no, entra por el borde
+   * más cercano. Va de un sitio a otro por el grafo, como cualquiera (aceras y
+   * pasos de cebra, esperando al verde), y cuando no le toca estar se va por un
+   * borde. Estados: MOVE andando y, en su sitio, el del plan (SLEEP, SIT, REST,
+   * ASK, SHELTER, IDLE). No cuenta para la gente que pasa ni hace viajes.
+   */
+  private survivorShift(clock: Clock, instant: boolean): void {
+    for (const s of survivorsOf(this.loc.id)) {
+      const plan = planFor(s, clock, this.weather);
+      const a = this.agents.find((w) => w.survivor === s && !w.vanish);
+      if (!plan) {
+        if (a && !a.talking) this.survivorLeaves(a);
+        continue;
+      }
+      if (!a) {
+        this.addSurvivor(s, plan, instant);
+        continue;
+      }
+      a.goal = plan.state;
+      // De camino o hablando: el cambio de sitio, al llegar o al despedirse.
+      if (a.talking || a.path.length > 0) continue;
+      const spot = a.point && plan.spots.includes(a.point) ? a.point : this.freeSpot(plan, a.id);
+      if (!spot || spot === a.point) continue;
+      const path = a.point ? routeThrough([a.point, spot]) : null;
+      this.claimSpot(a, spot);
+      a.path = path ? path.slice(1) : this.gridPath(a, this.pointAt(spot));
+      a.state = 'MOVE';
+      a.staying = false;
+    }
+  }
+
+  /** El primero de sus sitios que esté libre: ni otro sentado ahí ni otro que vaya. */
+  private freeSpot(plan: SurvivalPlan, owner: number): string | undefined {
+    return plan.spots.find((id) => (!this.seats.has(id) || this.seats.heldBy(id, owner)) && !this.agents.some((o) => o.id !== owner && (o.point === id || o.stayPoint === id)));
+  }
+
+  private claimSpot(a: Walker, spot: string): void {
+    if (a.stayPoint) this.seats.release(a.stayPoint, a.id);
+    a.point = spot;
+    a.stayPoint = spot;
+    this.seats.reserve(spot, a.id);
+  }
+
+  private addSurvivor(s: StreetSurvivor, plan: SurvivalPlan, instant: boolean): void {
+    const spot = this.freeSpot(plan, -1);
+    if (!spot) return;
+    const at = this.pointAt(spot);
+    const edge = this.nearestEdge(at);
+    // Su aspecto, el de cualquier vecino: sale de su id, no de quién es.
+    const look = Math.abs(hashSeed('street-look', s.id)) % PASSENGER_LOOKS.length;
+    // Con su propio azar: que esté o no esté no cambia a nadie más de la calle (ni las simulaciones con semilla).
+    const shared = this.rng;
+    this.rng = seededRng(hashSeed('street-survivor-walk', s.id));
+    const a = this.newWalker(undefined, instant || !edge ? at : this.pointAt(edge), [], look);
+    this.rng = shared;
+    Object.assign(a, { kind: 'street', role: `street-${s.profiles[0]}`, label: s.label, survivor: s, belongings: s.belongings, dog: s.dog, goal: plan.state });
+    a.speed *= 0.8;
+    this.claimSpot(a, spot);
+    if (instant || !edge) {
+      this.settleSurvivor(a);
+      return;
+    }
+    const path = routeThrough([edge, spot]);
+    a.path = path ? path.slice(1) : this.gridPath(a, at);
+    a.state = 'MOVE';
+  }
+
+  /** Recoge y se va por el borde más cercano; si iba de camino, primero llega a donde iba. */
+  private survivorLeaves(a: Walker): void {
+    const edge = this.nearestEdge({ tx: Math.round(a.x), ty: Math.round(a.y) });
+    const out = a.point && edge ? routeThrough([a.point, edge]) : null;
+    this.release(a);
+    a.vanish = true;
+    a.staying = false;
+    a.state = 'MOVE';
+    a.path = [...a.path, ...(out ? out.slice(1) : [])];
+  }
+
+  private settleSurvivor(a: Walker): void {
+    a.moving = false;
+    a.staying = true;
+    if (a.point) {
+      this.seats.occupy(a.point, a.id);
+      a.dir = this.loc.points?.[a.point]?.facing ?? a.dir;
+    }
+    a.state = a.goal ?? 'IDLE';
+  }
+
+  private advanceSurvivor(a: Walker, deltaMs: number): void {
+    if (a.path.length > 0) {
+      this.walk(a, deltaMs);
+      // Tras cruzar con el verde, el semáforo lo deja en WALK: para quien vive en la calle, andar es MOVE.
+      if (a.state === 'WALK') a.state = 'MOVE';
+      if (a.path.length > 0 || a.vanish) return;
+    }
+    if (a.vanish) return;
+    if (!a.staying) this.settleSurvivor(a);
+    else a.state = a.goal ?? a.state;
+  }
+
+  /** El borde del barrio más cerca de ese tile. */
+  private nearestEdge(at: TilePoint): string | undefined {
+    let best: string | undefined;
+    let bestD = Infinity;
+    for (const [id, p] of Object.entries(this.loc.points ?? {})) {
+      if (p.kind !== 'edge') continue;
+      const d = Math.hypot(p.tx - at.tx, p.ty - at.ty);
+      if (d < bestD) {
+        bestD = d;
+        best = id;
+      }
+    }
+    return best;
+  }
+
   // -------------------------------------------------------------- viajes
 
   /** Sale alguien (o un grupo) a hacer un viaje que tenga sentido ahora. Midway: ya iba de camino. */
@@ -726,7 +916,7 @@ export class StreetLife {
     // quien tiene con quién ir; los demás del grupo salen de sus relaciones de ese tipo.
     const dest = full[full.length - 1];
     const bonds = size > 1 ? (rule.bond ?? ['friends']) : undefined;
-    const used = new Set(this.agents.map((a) => a.look));
+    const used = this.usedLooks();
     // Primero qué grupo es (el primero de la regla, el más típico, pesa más); luego alguien que tenga con quién.
     const bond = bonds ? pick(this.rng, bonds.map((b, i) => [b, bonds.length - i] as const)) : undefined;
     const leaderLook = this.pickLook(rule, dest, used, bond, size);
@@ -885,7 +1075,7 @@ export class StreetLife {
   // -------------------------------------------------------- altas y bajas
 
   private newWalker(rule: TripRule | undefined, at: TilePoint, path: TilePoint[], chosen?: number): Walker {
-    const look = chosen ?? this.pickLook(rule, path[path.length - 1] ?? at, new Set(this.agents.map((a) => a.look)));
+    const look = chosen ?? this.pickLook(rule, path[path.length - 1] ?? at, this.usedLooks());
     const walker: Walker = {
       id: this.nextId++, kind: 'visitor', role: rule?.role ?? '', label: rule?.label ?? '', line: rule?.line ?? '', look,
       x: at.tx, y: at.ty, dir: 'down', moving: false, state: 'WALK',
@@ -905,6 +1095,120 @@ export class StreetLife {
 
   private companions(a: Walker): Walker[] {
     return this.agents.filter((c) => c.leader === a);
+  }
+
+  // ------------------------------------------------------- atascos (Recovery)
+
+  /** Tiles que un rodeo no pisa: calzada y carriles (salvo el paso de cebra) y los obstáculos temporales. */
+  private avoid(): Set<string> {
+    if (!this.roadTiles) {
+      this.roadTiles = new Set();
+      this.loc.ground.forEach((row, ty) => [...row].forEach((ch, tx) => ROADWAY.has(ch) && ch !== 'z' && this.roadTiles!.add(`${tx},${ty}`)));
+    }
+    return new Set([...this.roadTiles, ...this.blocked]);
+  }
+
+  /** Para quedarse o reaparecer: pisable, en la acera (ni calzada ni carril), sin obstáculo y dentro del mapa. */
+  private standable(t: TilePoint): boolean {
+    return isWalkable(this.loc, t.tx, t.ty) && !this.onRoadway(t) && !this.blocked.has(tileKey(t));
+  }
+
+  /** Camino por tiles de `from` a `to` sin pisar la calzada ni los obstáculos (sin `from`). */
+  private detour(from: TilePoint, to: TilePoint): TilePoint[] | null {
+    const path = tilePath(this.loc, { tx: Math.round(from.tx), ty: Math.round(from.ty) }, { tx: Math.round(to.tx), ty: Math.round(to.ty) }, this.avoid());
+    return path && path.length > 1 ? path.slice(1) : null;
+  }
+
+  /**
+   * Un peldaño de systems/Recovery. 1: rodeo por la acera hasta donde iba.
+   * 2: al tile de acera alcanzable más cerca del destino, y de ahí sigue.
+   * 3: deja lo que hacía: quien pasea se va por el borde más cercano, quien
+   * vive en la calle se marcha (su horario lo trae luego), el personal vuelve
+   * a su puesto. 4: fuera de cámara, quien pasea o vive en la calle sale de
+   * la escena y el personal reaparece en su puesto; a la vista, espera.
+   */
+  private recover(a: Walker, level: RecoveryLevel): void {
+    const dest = a.resume ?? a.path[a.path.length - 1];
+    const here = { tx: Math.round(a.x), ty: Math.round(a.y) };
+    // Quien espera un semáforo que no cambia deja de esperarlo.
+    a.hold = undefined;
+    a.waitAt = undefined;
+    if (level === 1 && dest) {
+      const path = this.detour(here, dest);
+      if (path) a.path = path;
+      return;
+    }
+    if (level === 2 && dest) {
+      const avoid = this.avoid();
+      const near = nearestReachable(here, (t) => isWalkable(this.loc, t.tx, t.ty) && !avoid.has(tileKey(t)), (t) => Math.hypot(t.tx - dest.tx, t.ty - dest.ty), (t) => this.standable(t), 12);
+      if (near && near.length > 0) {
+        a.path = near;
+        a.resume = dest;
+      }
+      return;
+    }
+    if (level === 3) {
+      a.resume = undefined;
+      if (a.kind === 'staff') {
+        a.path = this.detour(here, this.pointAt(a.post!.base)) ?? [];
+        a.state = 'WORK';
+        a.timer = 0;
+        return;
+      }
+      if (a.kind === 'street') {
+        a.path = [];
+        this.survivorLeaves(a);
+        if (a.path.length > 0) a.path = this.detour(here, a.path[a.path.length - 1]) ?? a.path;
+        return;
+      }
+      const edge = this.nearestEdge(here);
+      this.release(a);
+      a.leader = undefined;
+      a.staying = false;
+      a.vanish = true;
+      a.state = 'WALK';
+      // Sin rodeo hasta el borde, se queda con el camino que tenía: el peldaño 4 lo saca fuera de cámara.
+      a.path = (edge && this.detour(here, this.pointAt(edge))) || a.path;
+      return;
+    }
+    if (level !== 4) return;
+    const forced = this.watch.forced(a.id);
+    if (!forced && !offCamera(here, this.player)) return;
+    if (a.kind === 'staff') {
+      const base = this.pointAt(a.post!.base);
+      if (!forced && !offCamera(base, this.player)) return;
+      a.x = base.tx;
+      a.y = base.ty;
+      a.path = [];
+      a.state = 'WORK';
+      a.timer = 0;
+      return;
+    }
+    // Fuera de cámara: sale de escena (el horario o el siguiente viaje traen a otro).
+    this.release(a);
+    a.vanish = true;
+    a.path = [];
+    a.delay = 0;
+    a.talking = false;
+  }
+
+  /** Depuración: corta el tile de delante del más cercano que esté andando y lo da por atascado. Devuelve su id. */
+  devForceStuck(near: TilePoint): number | null {
+    const walking = this.agents.filter((a) => a.path.length > 0 && !a.talking && !a.hold && a.delay <= 0);
+    const d = (a: Walker): number => Math.hypot(a.x - near.tx, a.y - near.ty);
+    const a = walking.sort((p, q) => d(p) - d(q))[0];
+    if (!a) return null;
+    const t = a.path[0];
+    const len = Math.hypot(t.tx - a.x, t.ty - a.y) || 1;
+    this.blocked.add(tileKey({ tx: a.x + ((t.tx - a.x) / len) * 0.6, ty: a.y + ((t.ty - a.y) / len) * 0.6 }));
+    this.watch.force(a.id, a.x, a.y);
+    return a.id;
+  }
+
+  /** Depuración: quita los obstáculos temporales y el estado de recuperación. */
+  devResetRecovery(): void {
+    this.blocked.clear();
+    this.watch.reset();
   }
 
   // --------------------------------------------------------- puntos y tiles

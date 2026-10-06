@@ -79,6 +79,11 @@ export class StreetEventView {
   phaseNow: EventPhase = 'none';
   ringActive = false;
   private present: Presence[] = [];
+
+  /** Quién está ahora en el corro (también quien pelea): esas personas no pueden andar a la vez por la calle (StreetLife.claimLooks). */
+  get looks(): number[] {
+    return this.present.map((p) => p.member.look);
+  }
   /**
    * Retraso de cada uno (minutos de juego): quien habla con el jugador se para
    * (su reloj no avanza) y, al despedirse, sigue desde donde estaba, un poco

@@ -38,7 +38,7 @@ const TERRAIN: Readonly<Record<string, Terrain>> = {
   c: 'path',
   ',': 'sidewalk', y: 'sidewalk',
   '~': 'plaza', P: 'plaza', T: 'plaza',
-  '.': 'road', ':': 'road', '=': 'road',
+  '.': 'road', ':': 'road', '=': 'road', u: 'road', l: 'road', V: 'green',
   b: 'bike', z: 'crossing', k: 'court',
   a: 'water', q: 'water', R: 'rail',
 };

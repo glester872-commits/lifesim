@@ -88,8 +88,10 @@ const DIRT = '#7a6248';
 const LEAF_FALL = ['#b88046', '#9a6a3a', '#c9a13a', '#8d7a3c'] as const;
 
 /** Por donde se camina fuera: donde la calzada los toca hay bordillo y cuneta. */
-const WALKWAY = new Set([',', 'P', 'c', '~', 'T']);
-const ROAD = new Set(['.', ':', '=', 'z', 'b']);
+const WALKWAY = new Set([',', 'P', 'c', '~', 'T', 'V']);
+const ROAD = new Set(['.', ':', '=', 'z', 'b', 'u', 'l']);
+/** Carriles de circulación: parches, grietas y tapas de registro. */
+const LANE = new Set(['.', 'u', 'l']);
 
 // --------------------------------------------------------- losas y baldosas
 
@@ -280,7 +282,7 @@ function asphalt({ ctx, cells, at }: Paint): void {
     const r = (k: number): number => hash(tx, ty, k + 51);
     const X = tx * TILE;
     const Y = ty * TILE;
-    if (ch === '.' && r(1) < 0.035) {
+    if (LANE.has(ch) && r(1) < 0.035) {
       const w = 12 + Math.floor(r(2) * 18);
       const h = 7 + Math.floor(r(3) * 7);
       // Parche: apenas más oscuro, con el borde sellado y las esquinas mordidas.
@@ -290,7 +292,7 @@ function asphalt({ ctx, cells, at }: Paint): void {
       px(ctx, shade(base, -0.045), X + 2, Y + 1 + h, w - 3, 1);
       px(ctx, shade(base, -0.045), X + 1, Y + 3, 1, h - 2);
       ctx.globalAlpha = 1;
-    } else if (ch === '.' && r(1) < 0.08) {
+    } else if (LANE.has(ch) && r(1) < 0.08) {
       // Grieta larga sellada con alquitrán: más oscura y algo brillante.
       let x = X + Math.floor(r(4) * 8);
       let y = Y + Math.floor(r(5) * 10);
@@ -332,7 +334,7 @@ function asphalt({ ctx, cells, at }: Paint): void {
       }
     }
     // Tapa de registro: en mitad de carril, pocas y sin pisar marcas ni cunetas.
-    if (ch === '.' && !kerbAbove && !kerbBelow && hash(tx, ty, 77) < 0.03) {
+    if (LANE.has(ch) && !kerbAbove && !kerbBelow && hash(tx, ty, 77) < 0.03) {
       const cx = X + 8;
       const cy = Y + 8;
       for (let y = -5; y <= 5; y++) {
@@ -355,6 +357,15 @@ function asphalt({ ctx, cells, at }: Paint): void {
       }
     };
     if (ch === '=') paint(X, Y + 14, TILE, 2);
+    // Separación entre dos carriles del mismo sentido: discontinua larga en el borde de abajo.
+    if (ch === 'l' && tx % 3 !== 2) paint(X, Y + 15, TILE, 1);
+    if (ch === 'u') {
+      // Bus-taxi: línea ancha continua del lado de los otros carriles, y BUS / TAXI pintado de tanto en tanto.
+      if (LANE.has(at(tx, ty - 1))) paint(X, Y, TILE, 2);
+      if (LANE.has(at(tx, ty + 1))) paint(X, Y + 14, TILE, 2);
+      const word = tx % 16 === 3 ? 'BUS' : tx % 16 === 11 ? 'TAXI' : null;
+      if (word) [...word].forEach((l, i) => LETTERS[l].forEach((row, y) => [...row].forEach((c, x) => c === 'X' && paint(X + 1 + i * 4 + x, Y + 5 + y, 1, 1))));
+    }
     if (ch === ':' && tx % 2 === 0) paint(X + 2, Y + 7, 12, 2);
     if (ch === 'z') {
       paint(X + 1, Y + 1, 14, 5);
@@ -382,6 +393,45 @@ function asphalt({ ctx, cells, at }: Paint): void {
 const BIKE_GLYPH = ['...X...XX..', '....X.X....', '.XXXXXXX.X.', 'X..XX..XX.X', 'X...X...X.X', '.XXX.....X.'];
 const ARROW_EAST = ['...X..', '....X.', 'XXXXXX', '....X.', '...X..'];
 const ARROW_WEST = ARROW_EAST.map((r) => [...r].reverse().join(''));
+
+/** Letras de 3 × 5 para lo pintado en el carril bus-taxi. */
+const LETTERS: Readonly<Record<string, readonly string[]>> = {
+  B: ['XXX', 'X.X', 'XX.', 'X.X', 'XXX'], U: ['X.X', 'X.X', 'X.X', 'X.X', 'XXX'], S: ['XXX', 'X..', 'XXX', '..X', 'XXX'],
+  T: ['XXX', '.X.', '.X.', '.X.', '.X.'], A: ['.X.', 'X.X', 'XXX', 'X.X', 'X.X'], X: ['X.X', 'X.X', '.X.', 'X.X', 'X.X'], I: ['XXX', '.X.', '.X.', '.X.', 'XXX'],
+};
+
+/**
+ * Mediana de la avenida: bordillo de granito a cada lado y, en medio, un seto
+ * bajo sobre tierra, en matas. Junto a un paso de cebra, el refugio acaba en
+ * morro: el bordillo dobla y el seto se recoge.
+ */
+function median({ ctx, cells, at }: Paint): void {
+  const kerb = PALETTE.kerb;
+  for (const [tx, ty] of cells) {
+    const X = tx * TILE;
+    const Y = ty * TILE;
+    px(ctx, shade(DIRT, -0.05), X, Y, TILE, TILE);
+    px(ctx, kerb, X, Y, TILE, 3);
+    px(ctx, shade(kerb, 0.08), X, Y, TILE, 1);
+    px(ctx, shade(kerb, -0.12), X, Y + TILE - 3, TILE, 3);
+    px(ctx, shade(kerb, -0.22), X, Y + TILE - 1, TILE, 1);
+    const left = at(tx - 1, ty) !== 'V';
+    const right = at(tx + 1, ty) !== 'V';
+    if (left) px(ctx, kerb, X, Y, 3, TILE - 1);
+    if (right) px(ctx, shade(kerb, -0.06), X + TILE - 3, Y, 3, TILE - 1);
+    // Seto en matas: oscuro abajo, verde en medio y la luz arriba; se recoge en los morros.
+    const x0 = X + (left ? 4 : 0);
+    const x1 = X + TILE - (right ? 4 : 0);
+    for (let x = x0; x < x1; x += 3) {
+      const r = hash(x, ty, 301);
+      const top = Y + 3 + Math.floor(r * 2);
+      const w = Math.min(3, x1 - x);
+      px(ctx, PALETTE.grassDark, x, top + 2, w, Y + TILE - 4 - (top + 2));
+      px(ctx, PALETTE.grass, x, top + 1, w, 3);
+      px(ctx, PALETTE.leafLit, x + (r < 0.5 ? 0 : 1), top, Math.min(2, w), 1);
+    }
+  }
+}
 
 /** Un paso de cebra que corta un carril bici: a un lado del paso, en su misma fila, sigue el carril. */
 function bikeCrossing(at: (tx: number, ty: number) => string, tx: number, ty: number): boolean {
@@ -553,7 +603,8 @@ export const MATERIALS: readonly Material[] = [
   // Plaza mayor: losa de caliza más grande y más clara, de hiladas anchas.
   { chars: '~', paint: slabs({ base: shade(PALETTE.plaza, 0.03), course: 16, lengths: [16, 24, 32], seed: 29, spread: 0.8 }) },
   { chars: ',', paint: sidewalk },
-  { chars: '.:=zb', paint: asphalt },
+  { chars: '.:=zblu', paint: asphalt },
+  { chars: 'V', paint: median },
   { chars: 'c', paint: cobble },
   { chars: 'g', paint: grass },
   { chars: 'd', paint: dirt },

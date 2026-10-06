@@ -9,6 +9,8 @@ import { dressedLook, gymLook, umbrellaFor } from './WeatherLooks';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
 import { placeOfPoint } from '../systems/Places';
 import type { AmbientPlacement } from '../entities/Character';
+import type { Belonging } from '../data/streetSurvival';
+import { belongingKey, blanketOf, buildSurvivalTextures, sleeperTexture } from './SurvivalArt';
 
 /** Margen en px alrededor de la cámara dentro del cual la gente ya tiene sprite. */
 const MARGIN = 96;
@@ -38,6 +40,9 @@ export class CrowdView {
 
   /** Gestos de ambiente (systems/AmbientActions): sólo si quien crea la vista da la hora. El corro de una pelea lleva los suyos. */
   private readonly ambient: AmbientDirector | null;
+  /** Las cosas de quien vive en la calle (y su figura dormida), por agente; y a quién se le han pintado este frame. */
+  private readonly kits = new Map<number, Map<string, Phaser.GameObjects.Image>>();
+  private readonly kitShown = new Set<number>();
 
   constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean, hour?: () => number) {
     this.scene = scene;
@@ -74,6 +79,10 @@ export class CrowdView {
       if (px < view.x - MARGIN || px > view.right + MARGIN || py < view.y - MARGIN || py > view.bottom + MARGIN + 24) continue;
       // En la ducha no se ve: la puerta del cubículo la tapa (sale cuando acaba, ya andando).
       if (a.state === 'SHOWER' && !a.moving && a.path.length === 0) continue;
+      // Quien vive en la calle y duerme: tumbado bajo su manta (world/SurvivalArt), no de pie. No se le despierta.
+      const asleep = a.kind === 'street' && a.state === 'SLEEP' && !a.moving && a.path.length === 0;
+      if (a.belongings) this.kitOf(a, px, py, asleep);
+      if (asleep) continue;
       here.add(a.id);
       let sprite = this.sprites.get(a.id);
       if (!sprite) {
@@ -95,12 +104,27 @@ export class CrowdView {
       const settled = !a.moving && !a.leaving && a.path.length === 0;
       // Esperando (un semáforo, una pausa): el móvil, casi siempre; quien corre, sigue trotando en el sitio.
       const waiting = !a.moving && a.state === 'WAIT';
-      const activity = settled ? activityAt(a.point, a.state, a.id) : a.gait === 'jog' ? 'run' : waiting ? activityAt(undefined, 'WAIT', a.id) : 'idle';
+      const activity = settled
+        ? a.kind === 'street'
+          ? streetActivity(a)
+          : activityAt(a.point, a.state, a.id)
+        : a.gait === 'jog'
+          ? 'run'
+          : waiting
+            ? activityAt(undefined, 'WAIT', a.id)
+            : 'idle';
       // El paraguas se abre al empezar a llover y se cierra al parar; la capucha no lleva paraguas.
       sprite.umbrella = this.outdoor && !a.staffRole ? umbrellaFor(a.id, w, sprite.def.id.endsWith('~hood')) : null;
       const ambient = this.ambientOf(a, activity, time);
       sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift: settled ? seatAt(a.point)?.lift : 0, carry: a.carry, ambient }, time);
     }
+    // Las cosas de quien ya no está a la vista (o se ha ido del barrio), fuera.
+    for (const [id, kit] of this.kits) {
+      if (this.kitShown.has(id)) continue;
+      for (const img of kit.values()) img.destroy();
+      this.kits.delete(id);
+    }
+    this.kitShown.clear();
     for (const [id, sprite] of this.sprites) {
       if (here.has(id)) continue;
       // Fuera de la vista no se lleva su gesto: al volver, elige otro a mitad.
@@ -133,6 +157,47 @@ export class CrowdView {
     return choice && { frame: ambientFrame(choice, time), start: choice.start, companion: choice.companion, table: atTable(a.point) };
   }
 
+  /**
+   * Lo que lleva quien vive en la calle, a su lado y a sus pies: el cartón
+   * debajo, la manta enrollada, las bolsas y la mochila al lado, el vaso delante
+   * si está pidiendo y el carro, también andando (delante, empujándolo). Dormido,
+   * él mismo tumbado bajo la manta. Seis personas como mucho: imágenes sueltas.
+   */
+  private kitOf(a: Agent, px: number, py: number, asleep: boolean): void {
+    buildSurvivalTextures(this.scene);
+    this.kitShown.add(a.id);
+    const kit = this.kits.get(a.id) ?? new Map<string, Phaser.GameObjects.Image>();
+    this.kits.set(a.id, kit);
+    const settled = !a.moving && a.path.length === 0;
+    const has = (b: Belonging): boolean => !!a.belongings?.includes(b);
+    const lift = settled ? (seatAt(a.point)?.lift ?? 0) : 0;
+    const show = (key: string, texture: string, on: boolean, x: number, y: number, depth: number, flip = false): void => {
+      let img = kit.get(key);
+      if (!on) {
+        img?.setVisible(false);
+        return;
+      }
+      if (!img || img.texture.key !== texture) {
+        img?.destroy();
+        img = this.scene.add.image(0, 0, texture).setOrigin(0.5, 1);
+        kit.set(key, img);
+      }
+      img.setPosition(Math.round(x), Math.round(y)).setDepth(depth).setFlipX(flip).setVisible(true);
+    };
+    show('cardboard', belongingKey('cardboard'), has('cardboard') && settled && lift === 0, px + (asleep ? 4 : 0), py + 1, py - 14);
+    show('sleeper', sleeperTexture(this.scene, a.look, blanketOf(a.label)), asleep, px + 5, py - lift, py + 1);
+    const awake = settled && !asleep;
+    show('blanket', belongingKey('blanket'), has('blanket') && awake, px + 9, py, py);
+    show('bags', belongingKey('bags'), has('bags') && settled, px - (asleep ? 6 : 10), py, py);
+    show('backpack', belongingKey('backpack'), has('backpack') && awake, px + (has('blanket') ? 15 : 9), py, py);
+    show('cup', belongingKey('cup'), has('cup') && awake && a.state === 'ASK', px + 6, py + 3, py + 3);
+    // El carro: aparcado a su lado o, andando, delante en la dirección en la que va.
+    const side = a.dir === 'left' || a.dir === 'right';
+    const cx = settled ? px - 13 : px + (a.dir === 'left' ? -12 : a.dir === 'right' ? 12 : 10);
+    const cy = py + (settled || side ? 0 : a.dir === 'down' ? 6 : -4);
+    show('cart', belongingKey('cart'), has('cart'), cx, cy, cy, a.dir === 'left');
+  }
+
   /** Hacia dónde queda quien viene con él (su grupo), si está parado a su lado. */
   private companionOf(a: Agent): ReturnType<typeof facingTowards> | undefined {
     let best: Agent | undefined;
@@ -148,6 +213,17 @@ export class CrowdView {
     }
     return best && facingTowards(a, best);
   }
+}
+
+/**
+ * Lo que se le ve hacer en su sitio a quien vive en la calle: en un banco, lo
+ * de cualquiera sentado (mirar pasar a la gente, el móvil...); en el suelo,
+ * sentado en su cartón o su manta, o de pie si está recogiendo o sin nada.
+ */
+function streetActivity(a: Agent): ReturnType<typeof activityAt> {
+  if (seatAt(a.point)) return activityAt(a.point, a.state === 'ASK' ? undefined : a.state, a.id);
+  const seated = a.state === 'SIT' || a.state === 'REST' || a.state === 'ASK' || (a.state === 'SHELTER' && !!a.belongings?.some((b) => b === 'cardboard' || b === 'blanket'));
+  return seated ? 'sit' : 'idle';
 }
 
 /**

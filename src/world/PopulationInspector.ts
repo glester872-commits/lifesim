@@ -5,6 +5,13 @@ import { NAMED_RELATIONSHIPS } from '../data/namedPeople';
 import { getNpc } from '../data/npcs';
 import { zoneAt, type ZoneClock } from '../systems/Zones';
 import type { TilePoint } from '../types/game';
+import type { WatchEntry } from '../systems/Recovery';
+
+/** Atascos (systems/Recovery): cuántos hay en la escena y el estado de recuperación de cada agente. */
+export interface RecoveryView {
+  stuck: number;
+  entry: (a: Agent) => WatchEntry | undefined;
+}
 
 /**
  * Inspector de gente, sólo con el modo depuración (config/debug.ts, F3 en
@@ -32,7 +39,7 @@ export class PopulationInspector {
     document.body.appendChild(this.panel);
   }
 
-  update(player: TilePoint, location: string, clock: ZoneClock, agents: readonly Agent[], named: readonly NamedNearby[]): void {
+  update(player: TilePoint, location: string, clock: ZoneClock, agents: readonly Agent[], recovery: RecoveryView, named: readonly NamedNearby[]): void {
     const d = (x: number, y: number): number => Math.hypot(x - player.tx, y - player.ty);
     const agent = [...agents].sort((a, b) => d(a.x, a.y) - d(b.x, b.y))[0];
     const person = [...named].sort((a, b) => d(a.tx, a.ty) - d(b.tx, b.ty))[0];
@@ -40,6 +47,14 @@ export class PopulationInspector {
     if (person && d(person.tx, person.ty) < 4 && (!agent || d(person.tx, person.ty) <= d(agent.x, agent.y))) {
       text = this.describeNamed(person, location);
     } else if (agent && d(agent.x, agent.y) < 4) text = this.describe(agent as Walker, location, clock);
+    // Atascos: el total de la escena y, de quien se inspecciona, a dónde va, cuánto lleva parado y en qué peldaño.
+    const rec = agent && d(agent.x, agent.y) < 4 && !text.includes('personaje con nombre') ? agent : undefined;
+    const goal = rec ? (rec.resume ?? rec.path[rec.path.length - 1]) : undefined;
+    const e = rec ? recovery.entry(rec) : undefined;
+    text += `
+atascados en escena: ${recovery.stuck}`;
+    if (rec) text += `
+destino: ${goal ? `${goal.tx},${goal.ty}` : '—'} · parado ${((e?.stall ?? 0) / 1000).toFixed(1)} s · peldaño ${e?.level ?? 0}${e?.forced ? ' (forzado)' : ''}`;
     if (text !== this.last) this.panel.textContent = this.last = text;
   }
 

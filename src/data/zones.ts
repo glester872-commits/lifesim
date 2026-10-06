@@ -86,7 +86,7 @@ export const ZONES: readonly ZoneDef[] = [
   // Por defecto, todo el barrio es de vecinos: poca gente, portales.
   {
     id: 'vallesco-residencial', name: 'Calles residenciales', type: 'residential', location: 'district', districtId: 'vallesco',
-    rects: [{ tx: 0, ty: 0, w: 110, h: 56 }],
+    rects: [{ tx: 0, ty: 0, w: 110, h: 61 }],
     population: { label: 'vecinos, gente que entra y sale de casa', roles: { returning: 1.3, 'dog-walker': 1.2, errands: 0.8 } },
     activity: { bands: [[7, 9, 1.1], [9, 13, 0.7], [13, 15, 0.8], [15, 19, 0.8], [19, 22, 1.1], [22, 24, 0.5]], rest: 0.25, weekend: 0.9, outdoor: 0.4, variation: 0.1 },
     ambience: 'residential',
@@ -118,7 +118,7 @@ export const ZONES: readonly ZoneDef[] = [
   },
   {
     id: 'avenida', name: 'Avenida de Vallesco', type: 'main_road', location: 'district', districtId: 'vallesco',
-    rects: [{ tx: 0, ty: 29, w: 110, h: 8 }],
+    rects: [{ tx: 0, ty: 29, w: 110, h: 13 }],
     population: { label: 'mucha gente de paso, bus, bicis, repartos', roles: { commuter: 1.4, office: 1.2, bus: 1.3, passer: 1.3 } },
     activity: { bands: COMMUTE, rest: 0.35, weekend: 0.8, outdoor: 0.3, variation: 0.08 },
     traffic: { vehicles: 1, bikes: 1, deliveries: 1.3 },
@@ -163,7 +163,7 @@ export const ZONES: readonly ZoneDef[] = [
   },
   {
     id: 'plazuela-metro', name: 'Plazuela del Metro', type: 'metro', location: 'district', districtId: 'vallesco',
-    rects: [{ tx: 22, ty: 37, w: 15, h: 9 }],
+    rects: [{ tx: 22, ty: 42, w: 15, h: 9 }],
     population: { label: 'viajeros, esperas, oleadas de cada tren', roles: { 'metro-arrival': 1.3, 'metro-meet': 1.3, commuter: 1.3 } },
     activity: { bands: COMMUTE, rest: 0.3, weekend: 0.75, outdoor: 0.2, variation: 0.08 },
     hours: [6, 1.5],
@@ -172,7 +172,7 @@ export const ZONES: readonly ZoneDef[] = [
   },
   {
     id: 'parque-olmo', name: 'Parque del Olmo', type: 'park', location: 'district', districtId: 'vallesco',
-    rects: [{ tx: 36, ty: 50, w: 38, h: 5 }],
+    rects: [{ tx: 36, ty: 55, w: 38, h: 5 }],
     population: {
       label: 'paseantes, corredores, perros, gente sentada, parejas',
       roles: { jogger: 1.3, 'dog-walker': 1.3, 'park-talk': 1.2, 'park-stroll': 1.2, park: 1.2, reader: 1.1, 'park-elders': 1.4, 'park-couple': 1.3, 'park-gathering': 1.3 },
@@ -183,7 +183,7 @@ export const ZONES: readonly ZoneDef[] = [
   },
   {
     id: 'calle-carmen', name: 'Calle del Carmen', type: 'commercial', location: 'district', districtId: 'vallesco',
-    rects: [{ tx: 74, ty: 37, w: 36, h: 14 }],
+    rects: [{ tx: 74, ty: 42, w: 36, h: 14 }],
     population: {
       label: 'tiendas vintage, cafés, parejas y grupos',
       roles: {
@@ -210,7 +210,7 @@ export const ZONES: readonly ZoneDef[] = [
   },
   {
     id: 'la-cepa', name: 'La Cepa', type: 'nightlife', location: 'district', districtId: 'vallesco',
-    rects: [{ tx: 27, ty: 49, w: 9, h: 6 }],
+    rects: [{ tx: 27, ty: 54, w: 9, h: 6 }],
     population: { label: 'copas tranquilas, citas', roles: { 'night-walker': 1.2 } },
     activity: { bands: [[0, 1.5, 1.1], [6, 17, 0.2], [17, 19, 0.7], [19, 24, 1.4]], rest: 0.3, days: { 4: 1.2, 5: 1.3 }, outdoor: 0.4, variation: 0.15 },
     hours: [18, 1],

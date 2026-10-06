@@ -1,11 +1,10 @@
 import Phaser from 'phaser';
 import './style.css';
 import { PALETTE } from './config/constants';
-import { createInitialState, GameState } from './state/GameState';
+import { GameState } from './state/GameState';
 import { TimeSystem } from './systems/TimeSystem';
 import { DialogueSystem } from './systems/DialogueSystem';
-import { SaveSystem } from './systems/SaveSystem';
-import { hasLocation, safePosition } from './systems/LocationSystem';
+import { restore, SaveSystem } from './systems/SaveSystem';
 import { findPoint, pointsOfKind, route, worldRoute } from './systems/Navigation';
 import { zoneActivity, zoneAt } from './systems/Zones';
 import { DEBUG } from './config/debug';
@@ -16,13 +15,23 @@ import { MetroEventManager } from './systems/MetroEventManager';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { CyclistView } from './world/CyclistView';
-import { hdCompare } from './world/HumanArtHD';
+import { HD_SCALE, hdCompare } from './world/HumanArtHD';
+import { riderTexture } from './world/CyclistArt';
+import { BIKES } from './data/bikes';
+import { PASSENGER_LOOKS } from './data/npcs';
+import { ALLEY_SPOTS } from './data/alleyDeals';
+import { AlleyDeal } from './systems/AlleyDeals';
+import { AlleyDealView } from './world/AlleyDealView';
+
+/** Lo que pone lifesim.scaleCompare() (sólo en desarrollo). */
+let scaleShown: Phaser.GameObjects.GameObject[] = [];
 
 import { PLAYER_COLORS, humanKey } from './world/TextureFactory';
 
 import { withAppearance } from './systems/Appearance';
 import { STREET_EVENTS } from './data/streetEvents';
 import { StreetEvent } from './systems/StreetEvents';
+import { eventId, type EventInfo } from './systems/WorldEvents';
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
 import type { ForceOptions } from './systems/Pickpocket';
@@ -47,12 +56,9 @@ function requireEl(selector: string): HTMLElement {
 
 const save = new SaveSystem();
 const loaded = save.load();
-// Si el mapa cambió desde que se guardó y la posición cae dentro de algo, se
-// aparece en la entrada de esa localización: la partida se conserva entera.
-const initial =
-  loaded && hasLocation(loaded.locationId)
-    ? { ...loaded, position: safePosition(loaded.locationId, loaded.position, 'start') }
-    : createInitialState();
+// Si el mapa cambió desde que se guardó (un sitio renombrado, una posición que ahora cae dentro de algo),
+// systems/SaveSystem.restore recoloca al jugador y conserva el resto de la partida.
+const initial = restore(loaded);
 
 const state = new GameState(initial);
 const dialogue = new DialogueSystem();
@@ -167,6 +173,103 @@ function devFight() {
   };
 }
 
+/**
+ * Todos los sucesos del mundo con el mismo ciclo (systems/WorldEvents), sólo en desarrollo:
+ * lifesim.events.list() (tabla: id, ciclo, fase, edad, participantes, quien acude, enfriamiento),
+ * .active(), .inspect(id), .force(id), .resolve(id), .cancel(id), .resetCooldown(id).
+ * Ids: fight:<evento>, alley:<sitio> y, dentro de una estación, pickpocket:<estación>.
+ * No es otro gestor: cada orden va al sistema de siempre (StreetEvents, AlleyDeals, Pickpocket).
+ */
+function devEvents() {
+  const fights = new Map(STREET_EVENTS.map((d) => [eventId('fight', d.id), new StreetEvent(d, getLocation(d.location))]));
+  const deals = new Map(ALLEY_SPOTS.map((s) => [eventId('alley', s.id), new AlleyDeal(s, getLocation(s.location))]));
+  const now = (): number => state.day * 1440 + services.clock.minuteOfDay;
+  const metro = () => (game.scene.getScene('World') as WorldSceneType).metroSystem;
+  const all = (): EventInfo[] => {
+    const crime = metro()?.crimeLifecycle();
+    return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...(crime ? [crime] : [])];
+  };
+  const inspect = (id: string): EventInfo => {
+    const e = all().find((x) => x.id === id);
+    if (!e) throw new Error(`No hay suceso '${id}'. Hay: ${all().map((x) => x.id).join(', ')}`);
+    return e;
+  };
+  const act = (id: string, what: 'force' | 'resolve' | 'cancel' | 'reset'): string => {
+    const t = now();
+    const f = fights.get(id);
+    if (f) return what === 'force' ? (f.devForce(t), 'forzada') : what === 'resolve' ? f.devResolve(t) : what === 'cancel' ? f.devCancel(t) : (f.devReset(), 'enfriamiento quitado');
+    const d = deals.get(id);
+    if (d) return what === 'force' ? (d.devForce(t), 'forzado') : what === 'resolve' ? d.devResolve(t) : what === 'cancel' ? d.devCancel(t) : (d.devReset(), 'enfriamiento quitado');
+    const m = metro();
+    if (id.startsWith('pickpocket:') && m) {
+      if (what === 'force') return m.forcePickpocket();
+      if (what === 'resolve') return m.resolvePickpocket();
+      if (what === 'cancel') return m.cancelPickpocket();
+      m.resetPickpocketCooldown();
+      return 'enfriamiento quitado';
+    }
+    return inspect(id).id;
+  };
+  const row = (e: EventInfo) => ({
+    id: e.id,
+    ciclo: e.lifecycle,
+    fase: e.phase,
+    edad: e.age === null ? '—' : `${Math.round(e.age)} ${e.unit}`,
+    quedaComoMucho: e.maxLeft === null ? '—' : `${Math.round(e.maxLeft)} ${e.unit}`,
+    participantes: e.participants.length,
+    acuden: e.responders.join(', ') || '—',
+    enfriamiento: e.cooldownLeft > 0 ? `${Math.round(e.cooldownLeft)} ${e.unit}` : '—',
+    forzado: e.forced,
+  });
+  return {
+    list: () => {
+      const rows = all().map(row);
+      console.table(rows);
+      return rows;
+    },
+    active: () => all().filter((e) => e.lifecycle !== 'ELIGIBLE' && e.lifecycle !== 'COOLDOWN').map(row),
+    inspect,
+    force: (id: string) => ({ result: act(id, 'force'), ...row(inspect(id)) }),
+    resolve: (id: string) => ({ result: act(id, 'resolve'), ...row(inspect(id)) }),
+    cancel: (id: string) => ({ result: act(id, 'cancel'), ...row(inspect(id)) }),
+    resetCooldown: (id: string) => ({ result: act(id, 'reset'), ...row(inspect(id)) }),
+  };
+}
+
+/**
+ * Trapicheo en callejones (systems/AlleyDeals), sólo en desarrollo: lifesim.alley.spots(), .status(id?),
+ * .force(id?), .cancel(id?), .authority(id?) (prueba la retirada por alguien de uniforme), .goto(id?),
+ * .zones(true|false) (dibuja los sitios y su estado) y .reset(id?) (quita el enfriamiento).
+ */
+function devAlley() {
+  const deals = new Map(ALLEY_SPOTS.map((s) => [s.id, new AlleyDeal(s, getLocation(s.location))]));
+  const pick = (id?: string): AlleyDeal => {
+    const d = deals.get(id ?? ALLEY_SPOTS[0].id);
+    if (!d) throw new Error(`No hay sitio '${id}'. Hay: ${[...deals.keys()].join(', ')}`);
+    return d;
+  };
+  const now = (): number => state.day * 1440 + services.clock.minuteOfDay;
+  const status = (id?: string) => ({ id: pick(id).spot.id, ...pick(id).devStatus(now()) });
+  return {
+    spots: () => ALLEY_SPOTS.map((s) => ({ id: s.id, name: s.name, area: s.area, odds: s.odds })),
+    status,
+    force: (id?: string) => (pick(id).devForce(now()), status(id)),
+    cancel: (id?: string) => (pick(id).interrupt(now(), 'dev'), status(id)),
+    authority: (id?: string) => (pick(id).interrupt(now(), 'authority'), status(id)),
+    reset: (id?: string) => (pick(id).devReset(), status(id)),
+    goto: (id?: string) => {
+      const s = pick(id).spot;
+      const at = s.entries[0];
+      (game.scene.getScene('World') as WorldSceneType).teleport(s.location, at, 'up');
+      return `${s.name}: ${s.location} (${at.tx}, ${at.ty})`;
+    },
+    zones: (on = true) => {
+      AlleyDealView.debug = on;
+      return on ? 'sitios a la vista' : 'ocultos';
+    },
+  };
+}
+
 if (import.meta.env.DEV) {
   // F3: modo depuración (bordes y nombres de zonas, panel del metro, bicis). Apagado al arrancar; en producción no existe.
   window.addEventListener('keydown', (e) => {
@@ -212,6 +315,29 @@ if (import.meta.env.DEV) {
           { label: 'jugador', colors: withAppearance(PLAYER_COLORS, state.appearanceOf('player')), live: (f, p) => ({ key: humanKey('player', f, p) }) },
         ]);
       },
+      // Escala (sólo en desarrollo): lifesim.scaleCompare() pone en fila, junto al jugador y en su misma línea de suelo,
+      // un peatón, un ciclista, un turismo y un autobús con las texturas del juego a 1:1. Otra llamada lo quita.
+      scaleCompare: () => {
+        const world = game.scene.getScene('World') as WorldSceneType;
+        if (scaleShown.length) {
+          scaleShown.forEach((o) => o.destroy());
+          scaleShown = [];
+          return 'quitado';
+        }
+        const base = state.position.y + 12;
+        let x = state.position.x + 14;
+        const put = (key: string, frame: number | undefined, scale: number, label: string): void => {
+          const img = world.add.image(x, base, key, frame).setOrigin(0, 1).setScale(scale).setDepth(base + 200);
+          const t = world.add.text(x, base + 2, label, { fontFamily: 'monospace', fontSize: '24px', color: '#fff', backgroundColor: '#000a' }).setScale(0.25).setDepth(base + 201);
+          scaleShown.push(img, t);
+          x += img.displayWidth + 8;
+        };
+        put(humanKey('player', 'right', 0), undefined, HD_SCALE, 'peatón');
+        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, 1, 'bici');
+        put('veh-compact-0', undefined, 1, 'coche');
+        put('veh-bus-0', undefined, 1, 'autobús');
+        return 'peatón < bici < coche < autobús';
+      },
       // Carteristas del metro (systems/Pickpocket), en un andén: lifesim.crime.forcePickpocket() y, para afinar,
       // forcePickpocket({ victim: 'player' | 'npc', outcome: 'success' | 'fail', seen: true | false }); .status(), .resetCooldown().
       crime: {
@@ -225,6 +351,16 @@ if (import.meta.env.DEV) {
       // .resetCooldown(), .status(). Sin argumento, la del patio de la Mayor; con uno, el id de otro evento.
       // Es la misma noche que las del calendario (systems/StreetEvents.ts): la misma gente, poses, corro y recogida.
       fight: devFight(),
+      alley: devAlley(),
+      events: devEvents(),
+      // NPC atascados (systems/Recovery): lifesim.npc.status() da atascados, peldaños y recuperaciones por sistema;
+      // .force() corta el paso al NPC que anda más cerca y lo da por atascado; .reset() quita obstáculos y estado.
+      // Con F3, el inspector muestra el total y, del más cercano, destino, tiempo parado y peldaño.
+      npc: {
+        status: () => (game.scene.getScene('World') as WorldSceneType).recoveryStatus(),
+        force: () => (game.scene.getScene('World') as WorldSceneType).forceStuck(),
+        reset: () => (game.scene.getScene('World') as WorldSceneType).resetRecovery(),
+      },
       // El tiempo: lifesim.weather.now() y, para probar, lifesim.weather.force({ rain: 0.9, celsius: 5 }) (null: el del calendario).
       weather: {
         now: () => weatherAt(state.day, state.hour + state.minute / 60),

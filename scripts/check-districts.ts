@@ -70,7 +70,7 @@ const share = (id: DistrictId): number => {
 assert.ok(share('vintage') > share('residential') * 3, `Carmen ${share('vintage').toFixed(2)} vs vecinos ${share('residential').toFixed(2)}`);
 
 // Y su tráfico: el carril bici del Olmo acaba en el Carmen y lleva más bici de paseo; la avenida, más taxi de noche.
-const bikes = withDistrictLanes(district, district.traffic!.bikes!).lanes.find((l) => l.row === 47)!;
+const bikes = withDistrictLanes(district, district.traffic!.bikes!).lanes.find((l) => l.row === 52)!;
 assert.ok((bikes.mix?.midday?.casual ?? 1) > 1.1, 'el carril del Carmen lleva bicis de paseo');
 const cars = withDistrictLanes(district, district.traffic!).lanes[0];
 assert.ok((cars.mix?.night?.taxi ?? 1) > (cars.mix?.midday?.taxi ?? 1), 'de noche pasa más taxi por la avenida');

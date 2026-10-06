@@ -55,6 +55,16 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     return this.path.length > 0;
   }
 
+  /** Parado hablando con el jugador: su ruta espera (systems/Recovery no lo cuenta como atascado). */
+  get talking(): boolean {
+    return this.resumeDir !== null;
+  }
+
+  /** Último punto de su ruta, si va a alguna parte. */
+  get destination(): Vec2 | undefined {
+    return this.path[this.path.length - 1];
+  }
+
   get facing(): Facing {
     return this.dir;
   }

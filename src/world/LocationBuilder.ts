@@ -69,8 +69,8 @@ export function solidRects(mask: readonly (readonly boolean[])[]): Rect[] {
 }
 
 /** Aceras y calzada, por carácter de la rejilla: donde se tocan hay bordillo. */
-const WALKWAY = new Set([',', '~', 'c', 'P', 'T']);
-const ROADWAY = new Set(['.', ':', '=', 'b']);
+const WALKWAY = new Set([',', '~', 'c', 'P', 'T', 'V']);
+const ROADWAY = new Set(['.', ':', '=', 'b', 'u', 'l']);
 const SHADOW = 0x140f1c;
 /** Matices de copa: multiplican, así que blanco es el dibujo tal cual y los demás lo desvían un poco. */
 const CANOPY_TINTS = [0xffffff, 0xf2faea, 0xfff4e4, 0xeef2ec, 0xf8fff2] as const;

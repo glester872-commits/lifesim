@@ -7,6 +7,7 @@ import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { weekIndex } from './Calendar.ts';
 import { isWalkable } from './LocationSystem.ts';
 import { weatherAt } from './Weather.ts';
+import { eventId, type EventInfo, type Lifecycle } from './WorldEvents.ts';
 
 /**
  * Un evento de calle (data/streetEvents.ts) noche a noche. No guarda estado:
@@ -382,6 +383,10 @@ export class StreetEvent {
     if (dev?.forced) {
       if (t < tailOf(dev.forced)) return dev.forced;
       dev.forced = undefined;
+      // Una pelea por sitio y noche: tras una forzada o resuelta a mano, la del calendario de esta noche ya no
+      // empieza (ni reaparece entera la que se resolvió: la forzada era su copia dispersada).
+      const natural = this.naturalAt(t);
+      if (natural.happens && t < tailOf(natural)) dev.clearUntil = Math.max(dev.clearUntil ?? -Infinity, tailOf(natural));
     }
     if (dev?.clearUntil !== undefined && t < dev.clearUntil) return { ...this.naturalAt(t), happens: false };
     return this.naturalAt(t);
@@ -456,6 +461,72 @@ export class StreetEvent {
 
   phase(t: number): EventPhase {
     return phaseAt(this.nightAt(t), t);
+  }
+
+  /**
+   * Dónde está en el ciclo común (systems/WorldEvents): corro formándose
+   * (SPAWNING), pelea o descanso (ACTIVE), el vigía acaba de avisar
+   * (RESOLUTION), la gente saliendo (CLEANUP) y, acabada la de esta noche o
+   * retirada a mano, COOLDOWN hasta el día siguiente: una pelea por patio y noche.
+   */
+  lifecycle(t: number): EventInfo {
+    const dev = DEV.get(this.def.id);
+    const n = this.nightAt(t);
+    const phase = n.happens && t < tailOf(n) ? phaseAt(n, t) : 'none';
+    const present = phase === 'none' ? [] : this.presentAt(t);
+    const today = Math.floor(t / 1440);
+    let lifecycle: Lifecycle;
+    let cooldownLeft = 0;
+    if (phase === 'gathering') lifecycle = 'SPAWNING';
+    else if (phase === 'fight' || phase === 'break') lifecycle = 'ACTIVE';
+    else if (phase === 'dispersing') lifecycle = n.raidAt !== null && t < n.raidAt + 2 ? 'RESOLUTION' : 'CLEANUP';
+    // Acabada la fase pero aún sale gente: sigue la recogida hasta que se va el último.
+    else if (n.happens && t >= n.start && t < tailOf(n)) lifecycle = 'CLEANUP';
+    else {
+      // Acabada la de una noche (que suele acabar de madrugada, ya en el día siguiente), enfría hasta el mediodía siguiente.
+      const clear = dev?.clearUntil ?? -Infinity;
+      const doneUntil = [today - 1, today]
+        .filter((d) => this.night(d).happens && t >= tailOf(this.night(d)))
+        .map((d) => (d + 1) * 1440 + 12 * 60)
+        .filter((until) => t < until);
+      cooldownLeft = Math.max(t < clear ? clear - t : 0, ...doneUntil.map((u) => u - t), 0);
+      lifecycle = cooldownLeft > 0 ? 'COOLDOWN' : 'ELIGIBLE';
+    }
+    const live = phase !== 'none';
+    return {
+      id: eventId('fight', this.def.id),
+      type: 'fight',
+      location: this.def.location,
+      anchor: { tx: Math.round(this.center.tx), ty: this.center.ty },
+      lifecycle,
+      phase,
+      age: live ? t - n.start : null,
+      maxLeft: live ? tailOf(n) - t : null,
+      unit: 'min',
+      participants: present.map((p) => ({ id: `${this.def.id}#${p.member.id}`, role: p.member.role })),
+      responders: [],
+      cooldownLeft,
+      forced: !!dev?.forced,
+    };
+  }
+
+  /** Depuración: resuelve la pelea en curso como cuando avisa el vigía: todos se van andando (o corriendo). */
+  devResolve(t: number): string {
+    const n = this.nightAt(t);
+    const phase = phaseAt(n, t);
+    if (!n.happens || phase === 'none' || phase === 'dispersing') return 'no hay pelea en marcha';
+    const dev = DEV.get(this.def.id) ?? {};
+    // La del calendario está en la caché de noches: se dispersa una copia (que pasa a mandar) para no tocarla.
+    const own = dev.forced === n ? n : { ...n, members: n.members.map((m) => ({ ...m })) };
+    scatter(own, t);
+    DEV.set(this.def.id, { ...dev, forced: own, pinned: false });
+    return 'el vigía avisa: el corro se deshace';
+  }
+
+  /** Depuración: la cancela ya (nadie en el patio desde este momento); equivale a devDespawn. */
+  devCancel(t: number): string {
+    this.devDespawn(t);
+    return 'retirada: el patio queda vacío';
   }
 
   /** Camino de tile en tile sin pisar el corro; si cabe, sin pisar tampoco los sitios de los demás. */

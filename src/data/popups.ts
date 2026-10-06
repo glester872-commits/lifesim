@@ -63,11 +63,11 @@ export const POPUPS: readonly PopUpDef[] = [
     id: 'vintage-market', name: 'Mercadillo vintage', location: 'district',
     days: [5, 6], hours: [11, 18.5], chance: 0.34, extra: 12, outdoor: true, setup: 1.5,
     props: [
-      { piece: 'stall-vintage', tx: 80, ty: 48, solid: 2 },
-      { piece: 'stall-vintage', tx: 85, ty: 48, solid: 2 },
-      { piece: 'stall-vintage', tx: 92, ty: 48, solid: 2 },
-      { piece: 'stall-vintage', tx: 96, ty: 48, solid: 2 },
-      { piece: 'stall-vintage', tx: 105, ty: 48, solid: 2 },
+      { piece: 'stall-vintage', tx: 80, ty: 53, solid: 2 },
+      { piece: 'stall-vintage', tx: 85, ty: 53, solid: 2 },
+      { piece: 'stall-vintage', tx: 92, ty: 53, solid: 2 },
+      { piece: 'stall-vintage', tx: 96, ty: 53, solid: 2 },
+      { piece: 'stall-vintage', tx: 105, ty: 53, solid: 2 },
     ],
   },
   // Cola de una zapatilla: jueves o sábado por la mañana. Una pizarra, cajas apiladas y una cola de verdad.
@@ -75,8 +75,8 @@ export const POPUPS: readonly PopUpDef[] = [
     id: 'sneaker-release', name: 'Lanzamiento de zapatillas', location: 'district',
     days: [3, 5], hours: [10, 15], chance: 0.16, extra: 9, outdoor: true, setup: 1,
     props: [
-      { piece: 'sign-sneaker', tx: 104, ty: 46 },
-      { piece: 'boxes', tx: 108, ty: 44, solid: 1 },
+      { piece: 'sign-sneaker', tx: 104, ty: 51 },
+      { piece: 'boxes', tx: 108, ty: 49, solid: 1 },
     ],
   },
   // Pop-up de moda: de viernes a domingo por la mañana y la tarde, una carpa blanca y un puesto.
@@ -84,25 +84,25 @@ export const POPUPS: readonly PopUpDef[] = [
     id: 'fashion-popup', name: 'Pop-up de moda', location: 'district',
     days: [4], span: 3, hours: [12, 17.5], chance: 0.2, extra: 7, outdoor: true, setup: 2,
     props: [
-      { piece: 'tent', tx: 95, ty: 48, solid: 3 },
-      { piece: 'stall-fashion', tx: 85, ty: 48, solid: 2 },
+      { piece: 'tent', tx: 95, ty: 53, solid: 3 },
+      { piece: 'stall-fashion', tx: 85, ty: 53, solid: 2 },
     ],
   },
   // DJ pequeño: sábados por la noche, cabina junto a la tienda de segunda mano y gente bailando en la acera.
   {
     id: 'dj-event', name: 'DJ en la calle', location: 'district',
     days: [5], hours: [20, 1], chance: 0.26, extra: 10, outdoor: true, setup: 1, glow: 'dj',
-    props: [{ piece: 'booth', tx: 92, ty: 48, solid: 2 }],
+    props: [{ piece: 'booth', tx: 92, ty: 53, solid: 2 }],
   },
   // Inauguración de arte: jueves y viernes por la tarde-noche; caballetes a lo largo de la acera, copas en la mano.
   {
     id: 'art-event', name: 'Inauguración de arte', location: 'district',
     days: [3, 4], hours: [19, 23], chance: 0.3, extra: 8, outdoor: true, setup: 1, glow: 'gallery',
     props: [
-      { piece: 'easel', tx: 80, ty: 48, solid: 1 },
-      { piece: 'easel', tx: 83, ty: 48, solid: 1 },
-      { piece: 'easel', tx: 87, ty: 48, solid: 1 },
-      { piece: 'easel', tx: 98, ty: 48, solid: 1 },
+      { piece: 'easel', tx: 80, ty: 53, solid: 1 },
+      { piece: 'easel', tx: 83, ty: 53, solid: 1 },
+      { piece: 'easel', tx: 87, ty: 53, solid: 1 },
+      { piece: 'easel', tx: 98, ty: 53, solid: 1 },
     ],
   },
 ];

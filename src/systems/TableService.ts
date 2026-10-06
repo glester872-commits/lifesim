@@ -391,6 +391,21 @@ export class TableService {
 
   // --------------------------------------------------------------- camareros
 
+  /**
+   * ¿Hay alguien de servicio que pueda atender las mesas ahora? Sin tocar nada (drives() suelta al que se va):
+   * lo mira el jugador antes de hacerse comensal y mientras espera. Con el turno acabado o el local cerrado, no.
+   */
+  get staffed(): boolean {
+    return this.host.agents.some(
+      (a) =>
+        a.kind === 'staff' &&
+        !a.leaveSoon &&
+        !a.leaving &&
+        !(a as { vanish?: boolean }).vanish &&
+        (this.host.isWaiter ? this.host.isWaiter(a) : a.staffRole?.service === 'waiter' && !!a.staffRole.serves),
+    );
+  }
+
   /** Si este es un camarero de este servicio (y sigue de turno). Si se va, suelta lo que tenía. */
   drives(a: Agent): boolean {
     if (a.kind !== 'staff') return false;

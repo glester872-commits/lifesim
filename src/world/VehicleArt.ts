@@ -120,8 +120,11 @@ function arch(ctx: Ctx, cx: number, cy: number, r: number, bottom: number): void
   }
 }
 
-function car(p: Paint, t: VehicleType, pr: CarProfile): VehicleLamps {
+function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
   const { ctx, L, H, body } = p;
+  // Los perfiles están medidos para 16 px de alto; uno más alto los estira en vertical (cristal y chapa a la vez).
+  const k = (H - 4) / 12;
+  const pr: CarProfile = { ...base, roof: Math.round(base.roof * k), belt: Math.round(base.belt * k), hood: Math.round(base.hood * k), deck: Math.round(base.deck * k) };
   const bottom = H - 4;
   const glassFrom = Math.max(pr.rearBase, pr.glassFrom ?? 0);
   for (let x = 1; x < L - 1; x++) {
@@ -176,7 +179,7 @@ function car(p: Paint, t: VehicleType, pr: CarProfile): VehicleLamps {
     for (let y = pr.belt + 1; y < bottom - 1; y++) px(ctx, t.trim.stripe, x0 - Math.round((y - pr.belt) * 0.7), y, 3, 1);
   }
   // Ruedas en sus pasos.
-  const r = H >= 19 ? 4 : 3;
+  const r = Math.round(H / 5);
   const cy = H - r - 1;
   for (const q of pr.wheels) {
     const cx = Math.round(q * L);
@@ -279,7 +282,7 @@ function bus(p: Paint, route: string, coach: boolean): VehicleLamps {
   px(ctx, HEAD, L - 3, bottom - 5, 2, 1);
   px(ctx, TAIL, 1, bottom - 7, 2, 3);
   px(ctx, '#26252b', 1, bottom - 1, L - 2, 1);
-  const r = 4;
+  const r = 5;
   const cy = H - r - 1;
   for (const cx of [L - 21, Math.round(L * (coach ? 0.2 : 0.17))]) {
     arch(ctx, cx, cy, r + 1, bottom);
@@ -306,7 +309,7 @@ function cabover(p: Paint, rear: (w: number) => void): VehicleLamps {
   px(ctx, TINT, x + 2, H - 15, 5, 4);
   const w = L - cab - 4;
   rear(w);
-  const r = 3;
+  const r = 4;
   const cy = H - r - 1;
   for (const cx of [Math.round(L * 0.18), ...(L >= 50 ? [Math.round(L * 0.18) + 7] : []), L - 7]) {
     arch(ctx, cx, cy, r + 1, H - 4);

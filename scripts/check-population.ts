@@ -104,7 +104,7 @@ const sameGender = couples.filter((r) => IDENTITIES[r.a].gender === IDENTITIES[r
 // ------------------------------------------------ grupos en la calle
 const loc = getLocation('district');
 const street = new StreetLife(loc, streetProfileFor('district')!, seededRng(7));
-const player = { tx: 72, ty: 53 };
+const player = { tx: 72, ty: 58 };
 let clock = { day: 6, hour: 11, minute: 0 };
 street.populate(clock, player);
 // Quien acompaña y a quién acompañaba al verlo (si luego se despide y sigue solo, deja de tener grupo).

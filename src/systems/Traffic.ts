@@ -55,7 +55,7 @@ export function vehicleWeights<T extends MoverType>(def: LaneFlow, catalog: read
   const zone = lane?.mix?.[band];
   return catalog.map((t): [T, number] => [
     t,
-    t.weight * (t.bands?.[band] ?? 1) * (weekend ? (t.weekend ?? 1) : 1) * (t.roads?.[def.road] ?? 1) * (def.mix?.[t.id] ?? 1) * (zone?.[t.id] ?? 1),
+    t.weight * (t.bands?.[band] ?? 1) * (weekend ? (t.weekend ?? 1) : 1) * (t.roads?.[def.road] ?? 1) * (def.mix?.[t.id] ?? 1) * (zone?.[t.id] ?? 1) * (lane?.bias?.[t.id] ?? lane?.bias?.['*'] ?? 1),
   ]);
 }
 

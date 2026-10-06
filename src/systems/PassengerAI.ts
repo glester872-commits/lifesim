@@ -1,9 +1,9 @@
-import Phaser from 'phaser';
-import { ARCHETYPES, type MetroConfig } from '../config/metro';
+import { ARCHETYPES, type MetroConfig } from '../config/metro.ts';
+import type { RecoveryLevel } from './Recovery';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
 import type { Walker } from '../entities/Walker';
 import type { TrainSystem } from './TrainSystem';
-import { weighted, type Archetype, type ArchetypeParams, type CrowdProfile, type StationMood } from './MetroDaily';
+import { weighted, type Archetype, type ArchetypeParams, type CrowdProfile, type StationMood } from './MetroDaily.ts';
 
 export type PassengerState =
   /** En el pool, fuera de escena. No cuesta nada por frame. */
@@ -357,7 +357,7 @@ export class PassengerAI {
   private beginWaiting(): void {
     if (this.patience <= 0) {
       const [min, max] = this.world.cfg.patienceTrains;
-      this.patience = Phaser.Math.Between(min, max);
+      this.patience = min + Math.floor(Math.random() * (max - min + 1));
     }
     this.state = 'WAITING';
     this.activity = this.seat >= 0 ? 'sentado' : '';
@@ -555,7 +555,7 @@ export class PassengerAI {
       case 'stroll': {
         const at = home();
         const dx = (Math.random() < 0.5 ? -1 : 1) * rand(18, 40);
-        const x = Phaser.Math.Clamp(at.x + dx, 24, layout.doorXs[layout.doorXs.length - 1] + 24);
+        const x = Math.min(Math.max(at.x + dx, 24), layout.doorXs[layout.doorXs.length - 1] + 24);
         this.activity = 'da unos pasos';
         this.go([{ x, y: layout.walkY + rand(0, 14) }], () =>
           this.hold(rand(800, 1_800), () => this.go([at], () => this.walker.face('up'))),
@@ -621,6 +621,36 @@ export class PassengerAI {
   }
 
   // ------------------------------------------------------------- utilidades
+
+  /** En un robo (systems/Pickpocket) manda el robo: la recuperación de atascos no lo toca. */
+  get inIncident(): boolean {
+    return this.incident;
+  }
+
+  /**
+   * Un peldaño de systems/Recovery. 1–2: vuelve a echar a andar recto hacia
+   * donde iba (el andén es abierto: no hay más ruta que esa); lo que tenía que
+   * hacer al llegar sigue en pie. 3: deja lo que hacía y se va de la estación.
+   * 4 (sólo si `unseen`): desaparece y vuelve a entrar más tarde.
+   */
+  recover(level: RecoveryLevel, unseen: boolean): void {
+    if (this.incident || this.state === 'OFFSTAGE' || this.state === 'RIDING') return;
+    const dest = this.walker.destination;
+    if (level <= 2) {
+      if (dest) this.walker.walk([dest], this.speed || this.world.cfg.npcWalkingSpeed);
+      return;
+    }
+    if (level === 3) {
+      if (this.state !== 'LEAVING_STATION') this.leave();
+      else if (dest) this.walker.walk([dest], this.speed || this.world.cfg.npcWalkingSpeed);
+      return;
+    }
+    if (!unseen) return;
+    this.leaveSeatAndSpot();
+    this.walker.halt();
+    this.walker.hide();
+    this.startOffstage(this.respawnDelay());
+  }
 
   private go(path: Vec2[], then: (() => void) | null, speedScale = 1): void {
     this.holdMs = 0;

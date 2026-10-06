@@ -34,7 +34,7 @@ export const windowKind = (i: number): WindowKind => WINDOW_KINDS[Math.floor(win
 const INK = 0x140f1c;
 const CURTAINS = [0xe8dcc8, 0xc9a27a, 0xb86a5a, 0x7a8cb0, 0xd8c890] as const;
 const WALKWAY = new Set([',', '~', 'c', 'P', 'T']);
-const ROADWAY = new Set(['.', ':', '=', 'b']);
+const ROADWAY = new Set(['.', ':', '=', 'b', 'u', 'l']);
 /** Estilos de vecinos: los que llevan bajante (un local de cristal, no). */
 const HOUSING = /^(res-|home|backdrop)/;
 

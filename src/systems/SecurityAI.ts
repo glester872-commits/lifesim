@@ -2,7 +2,8 @@ import type { MetroConfig } from '../config/metro';
 import type { Facing, Vec2 } from '../types/game';
 import type { Walker } from '../entities/Walker';
 import type { TrainSystem } from './TrainSystem';
-import { rand, trainHere } from './PassengerAI';
+import { rand, trainHere } from './PassengerAI.ts';
+import type { RecoveryLevel } from './Recovery';
 
 export type SecurityState = 'IDLE' | 'PATROL' | 'OBSERVE' | 'RETURN_TO_POSITION' | 'RESPOND' | 'RESOLVE';
 
@@ -145,6 +146,41 @@ export class SecurityAI {
         if (this.walker.step(deltaMs)) this.idle();
         return;
     }
+  }
+
+  /**
+   * Un peldaño de systems/Recovery. 1: vuelve a echar a andar hacia donde iba.
+   * 2: deja el aviso o la ronda y vuelve a su puesto (por el torniquete si
+   * venía del vestíbulo: el mismo `back`, que nunca baja a la vía). 3: se para
+   * donde está y retoma su turno desde ahí. 4 (sólo si `unseen`): aparece en
+   * su puesto, que está validado fuera de la vía (scripts/check-regression).
+   */
+  recover(level: RecoveryLevel, unseen: boolean): void {
+    const dest = this.walker.destination;
+    if (level === 1) {
+      if (dest) this.walker.walk([dest], this.cfg.npcWalkingSpeed);
+      return;
+    }
+    if (level === 2) {
+      const back = this.state === 'RESPOND' ? [...this.back] : [];
+      this.onArrive = null;
+      this.patrolling = false;
+      this.walker.walk([...back, this.post], this.cfg.npcWalkingSpeed * 0.8);
+      this.state = 'RETURN_TO_POSITION';
+      return;
+    }
+    if (level === 3) {
+      this.onArrive = null;
+      this.patrolling = false;
+      this.walker.halt();
+      this.idle();
+      return;
+    }
+    if (!unseen) return;
+    this.onArrive = null;
+    this.patrolling = false;
+    this.walker.place(this.post, this.postFacing);
+    this.idle();
   }
 
   private startRoute(route: readonly Vec2[]): void {

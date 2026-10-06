@@ -86,9 +86,9 @@ function graphRoute(loc: LocationDef, fromId: string, toId: string): TilePoint[]
  * Anchura primero por tiles transitables; los NPC quietos cuentan como muebles.
  * A una máquina o un asiento (sólidos) sólo se sube quien acaba el camino en él.
  */
-function gridRoute(loc: LocationDef, a: TilePoint, b: TilePoint): TilePoint[] | null {
+function gridRoute(loc: LocationDef, a: TilePoint, b: TilePoint, avoid?: ReadonlySet<string>): TilePoint[] | null {
   const key = (p: TilePoint): string => `${p.tx},${p.ty}`;
-  const blocked = new Set(loc.npcs.map(key));
+  const blocked = new Set([...loc.npcs.map(key), ...(avoid ?? [])]);
   const goal = key(b);
   // A una máquina (la cinta, el banco) se sube sólo quien va a usarla: es sólida salvo como final del camino.
   const onto = mountAt(loc, b.tx, b.ty);
@@ -160,6 +160,7 @@ export function worldRoute(fromId: string, toId: string): Leg[] | null {
 }
 
 /** Camino por tiles dentro de una localización, entre dos tiles cualesquiera. */
-export function tilePath(loc: LocationDef, from: TilePoint, to: TilePoint): TilePoint[] | null {
-  return gridRoute(loc, from, to);
+/** `avoid`: tiles cortados ahora mismo (obstáculos temporales, systems/Recovery). */
+export function tilePath(loc: LocationDef, from: TilePoint, to: TilePoint, avoid?: ReadonlySet<string>): TilePoint[] | null {
+  return gridRoute(loc, from, to, avoid);
 }

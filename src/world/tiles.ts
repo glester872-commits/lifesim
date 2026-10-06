@@ -36,6 +36,10 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   '=': { key: 'tile-asphalt-centre', solid: false, variants: 1 },
   // Carril bici pintado en la calzada, junto al bordillo: lo pinta world/Surfaces con el asfalto.
   b: { key: 'tile-asphalt', solid: false, variants: 2 },
+  // Avenida ancha: carril bus-taxi (con su línea ancha y BUS / TAXI pintado), carril con la discontinua debajo y la mediana ajardinada.
+  u: { key: 'tile-asphalt', solid: false, variants: 2 },
+  l: { key: 'tile-asphalt', solid: false, variants: 2 },
+  V: { key: 'tile-grass', solid: true, variants: 3 },
   o: { key: 'tile-office-carpet', solid: false, variants: 2 },
   n: { key: 'tile-dance-floor', solid: false, variants: 3 },
   // Visual V2: adoquín de granito de plaza (con cenefa donde toca otro suelo) y franja podotáctil.
@@ -132,9 +136,10 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   fountain: { key: 'prop-fountain', tilesHigh: 2, tilesWide: 3, ambient: 'spray' },
   kiosk: { key: 'prop-kiosk', tilesHigh: 2, tilesWide: 2 },
   'bus-stop': { key: 'prop-bus-stop', tilesHigh: 2, tilesWide: 3 },
-  car: { key: 'prop-car', tilesHigh: 1, tilesWide: 2 },
-  'car-b': { key: 'prop-car-b', tilesHigh: 1, tilesWide: 2 },
-  'car-c': { key: 'prop-car-c', tilesHigh: 1, tilesWide: 2 },
+  // Coches aparcados: tres tiles de largo, como los que circulan (data/vehicles.ts); el techo asoma por la fila de arriba.
+  car: { key: 'prop-car', tilesHigh: 2, tilesWide: 3 },
+  'car-b': { key: 'prop-car-b', tilesHigh: 2, tilesWide: 3 },
+  'car-c': { key: 'prop-car-c', tilesHigh: 2, tilesWide: 3 },
   van: { key: 'prop-van', tilesHigh: 2, tilesWide: 3 },
   bike: { key: 'prop-bike', tilesHigh: 1 },
   bin: { key: 'prop-bin', tilesHigh: 1 },

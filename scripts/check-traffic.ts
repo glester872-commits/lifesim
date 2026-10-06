@@ -18,7 +18,7 @@ const bikes = def.bikes!;
 const signals = loc.signals ?? [];
 const width = loc.ground[0].length;
 const widthPx = width * TILE;
-const CAR_ROAD = new Set(['.', '=', ':', 'z']);
+const CAR_ROAD = new Set(['.', '=', ':', 'z', 'u', 'l']);
 const BIKE_ROAD = new Set(['b', 'z']);
 
 // ------------------------------------------------------------ la calzada
@@ -43,7 +43,34 @@ for (const lane of bikes.lanes) {
 loc.ground.forEach((row, y) => [...row].forEach((ch, x) => ch === 'b' && assert.ok(bikes.lanes.some((l) => l.row === y), `carril bici suelto en (${x}, ${y})`)));
 
 // ------------------------------------------------------------ los pesos
-for (const t of VEHICLES) assert.ok(t.length >= 26 && t.length <= 96, `${t.id}: largo raro`);
+// ------------------------------------------------------------ escala: peatón < bici < coche < autobús
+// En px de mundo, como se ven (TrafficView y CyclistView pintan a 1:1): el peatón mide 16 × 24.
+const CARS = VEHICLES.filter((t) => !['bus', 'coach', 'box-truck', 'garbage'].includes(t.shape));
+const BUSES = VEHICLES.filter((t) => t.shape === 'bus' || t.shape === 'coach');
+const shortestCar = Math.min(...CARS.map((t) => t.length));
+const longestCar = Math.max(...CARS.map((t) => t.length));
+for (const b of BIKES) assert.ok(b.length < shortestCar * 0.65, `${b.id}: la bici (${b.length}) se acerca al coche más corto (${shortestCar})`);
+assert.ok(shortestCar > 24 * 1.35, `coches de juguete: el más corto (${shortestCar}) apenas pasa del alto de una persona`);
+for (const t of CARS) assert.ok(t.height >= 19 && t.height <= 25 && t.length <= 48, `${t.id}: ${t.length} × ${t.height} fuera de escala`);
+for (const b of BUSES) assert.ok(b.length >= longestCar * 2 && b.height > Math.max(...CARS.map((t) => t.height)), `${b.id}: no se lee más grande que un coche`);
+for (const t of VEHICLES) assert.ok(t.length >= 30 && t.length <= 112, `${t.id}: largo raro`);
+
+// ------------------------------------------------------------ la avenida: tres carriles por sentido, mediana, bus-taxi fuera
+const byDir = (d: 1 | -1) => def.lanes.filter((l) => l.dir === d).map((l) => l.row).sort((a, b) => a - b);
+assert.equal(byDir(-1).length, 3, 'la avenida no tiene tres carriles hacia el oeste');
+assert.equal(byDir(1).length, 3, 'la avenida no tiene tres carriles hacia el este');
+const medianRow = Math.max(...byDir(-1)) + 1;
+assert.equal(medianRow, Math.min(...byDir(1)) - 1, 'entre los dos sentidos no hay una sola fila de mediana');
+for (let x = 0; x < width; x++) assert.ok('Vz,'.includes(loc.ground[medianRow][x]), `mediana interrumpida en (${x}, ${medianRow})`);
+// El de fuera de cada sentido es el bus-taxi: autobuses sólo ahí.
+const outer = [Math.min(...byDir(-1)), Math.max(...byDir(1))];
+for (const lane of def.lanes) {
+  const w = new Map(vehicleWeights(def, VEHICLES, 2, 9, lane).map(([t, n]) => [t.id, n]));
+  if (outer.includes(lane.row)) {
+    assert.ok(loc.ground[lane.row].includes('u'), `carril ${lane.row}: el de fuera sin marcas de bus-taxi`);
+    assert.ok(w.get('bus')! > 0 && w.get('compact')! < w.get('taxi')!, `carril ${lane.row}: el bus-taxi no prefiere autobuses y taxis`);
+  } else assert.equal(w.get('bus'), 0, `carril ${lane.row}: autobús fuera del bus-taxi`);
+}
 assert.equal(vehicleWeights({ ...def, road: 'residential' }, VEHICLES, 3, 12).find(([t]) => t.id === 'bus')![1], 0, 'autobús en calle de barrio');
 
 // ------------------------------------------------------------ una semana

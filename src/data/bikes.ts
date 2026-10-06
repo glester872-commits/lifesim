@@ -32,28 +32,28 @@ export interface BikeType extends MoverType {
 
 export const BIKES: readonly BikeType[] = [
   {
-    id: 'commuter', frame: 'road', length: 22, pace: 0.9, colors: ['#2b2d33', '#8a3f45', '#3f6f78'],
+    id: 'commuter', frame: 'road', length: 20, pace: 0.9, colors: ['#2b2d33', '#8a3f45', '#3f6f78'],
     helmet: 0.75, pack: 0.7, lean: true,
     weight: 10, bands: { morning: 2, evening: 1.8, dawn: 0.3, night: 0.5 }, weekend: 0.4,
   },
   {
-    id: 'casual', frame: 'city', length: 22, pace: 0.62, colors: ['#5f7f5a', '#c9b98f', '#6c5a7a'],
+    id: 'casual', frame: 'city', length: 20, pace: 0.62, colors: ['#5f7f5a', '#c9b98f', '#6c5a7a'],
     helmet: 0.15, pack: 0.2, basket: true, lean: false,
     weight: 8, bands: { midday: 1.6, dawn: 0.1, night: 0.4 }, weekend: 2,
   },
   {
-    id: 'rental', frame: 'rental', length: 22, pace: 0.75, colors: ['#e6e2d8'],
+    id: 'rental', frame: 'rental', length: 20, pace: 0.75, colors: ['#e6e2d8'],
     helmet: 0.1, pack: 0.3, lean: false,
     weight: 6, bands: { evening: 1.3, dawn: 0.3 },
   },
   {
     // Patinadores: de pie sobre la tabla, despacio, sobre todo por la tarde y el fin de semana. Pocos en general: en el Carmen y el parque, más (data/districts.ts).
-    id: 'skater', frame: 'skate', length: 22, pace: 0.5, colors: ['#c0493f', '#3f6f78', '#d8b04a', '#2b2d33'],
+    id: 'skater', frame: 'skate', length: 20, pace: 0.5, colors: ['#c0493f', '#3f6f78', '#d8b04a', '#2b2d33'],
     helmet: 0, pack: 0, lean: false,
     weight: 1.5, bands: { midday: 1.4, evening: 2.2, dawn: 0.05, night: 0.5, morning: 0.3 }, weekend: 2.5,
   },
   {
-    id: 'courier', frame: 'road', length: 22, pace: 0.95, colors: ['#2b2d33', '#4c4f57'],
+    id: 'courier', frame: 'road', length: 20, pace: 0.95, colors: ['#2b2d33', '#4c4f57'],
     helmet: 0.8, pack: 0, cube: '#e2b93b', lean: true,
     weight: 4, bands: { midday: 1.8, evening: 2, morning: 0.4, dawn: 0.2, night: 1.2 },
   },

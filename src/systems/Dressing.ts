@@ -26,7 +26,7 @@ import { districtAt, zonesOf } from './Districts.ts';
  */
 
 const WALKWAY = new Set([',', 'P', 'c', '~', 'T']);
-const ASPHALT = new Set(['.', ':', '=']);
+const ASPHALT = new Set(['.', ':', '=', 'u', 'l']);
 const RESIDENTIAL = (b: BuildingDef): boolean => b.style === 'home' || b.style.startsWith('res-');
 
 function hash(a: number, b: number, c = 0): number {
@@ -243,10 +243,10 @@ function works(s: Site): void {
 function parking(s: Site): void {
   for (let y = 0; y < s.h; y++) {
     let signed = false;
-    for (let x = 2; x < s.w - 3; ) {
+    for (let x = 2; x < s.w - 4; ) {
       // Segunda fila de una calle estrecha sin tráfico: se deja libre para pasar.
       const narrowSecondRow = s.isKerbLane(x, y - 1) && !s.isTraffic(y) && !s.isTraffic(y - 1);
-      if (!s.isKerbLane(x, y) || !s.isKerbLane(x + 1, y) || narrowSecondRow) {
+      if (!s.isKerbLane(x, y) || !s.isKerbLane(x + 1, y) || !s.isKerbLane(x + 2, y) || narrowSecondRow) {
         x++;
         signed = false;
         continue;
@@ -257,7 +257,7 @@ function parking(s: Site): void {
         if (!signed) signed = s.place('parking-sign', x, kerb);
         // Zona de pago: un parquímetro en el bordillo cada pocos coches, pegado a uno de ellos.
         else if (hash(x, y, 31) < 0.34) s.place('parking-meter', x + 1, kerb);
-        x += 2 + (hash(x, y, 12) < 0.5 ? 1 : 0);
+        x += 3 + (hash(x, y, 12) < 0.5 ? 1 : 0);
       } else x++;
     }
   }
@@ -374,7 +374,9 @@ function districtKits(s: Site): void {
       if (n >= quota) break;
       // Empieza por la pieza que le toca a este tile y, si no cabe, prueba las demás del kit.
       const first = Math.floor(hash(x, y, 60 + zi) * kit.props.length);
-      const kinds = kit.props.map((_, i) => kit.props[(first + i) % kit.props.length]);
+      // Con pared detrás, primero lo alto (el cartel va contra el muro); lo bajo cabe en cualquier sitio.
+      const wall = inBuilding(x, y - 1);
+      const kinds = kit.props.map((_, i) => kit.props[(first + i) % kit.props.length]).sort((a, b) => (wall ? (PROPS[b].tilesHigh ?? 1) - (PROPS[a].tilesHigh ?? 1) : 0));
       if (kinds.some((kind) => ((PROPS[kind].tilesHigh ?? 1) === 1 || inBuilding(x, y - 1)) && s.place(kind, x, y))) n++;
     }
   });

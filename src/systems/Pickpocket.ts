@@ -3,6 +3,7 @@ import type { Vec2 } from '../types/game';
 import type { CrowdLevel } from './MetroDaily';
 import type { PassengerAI, StationLayout } from './PassengerAI';
 import type { SecurityAI } from './SecurityAI';
+import { eventId, type EventInfo, type Lifecycle } from './WorldEvents.ts';
 
 /**
  * Carteristas en el andén del metro: raros, sólo con gente, y siempre con
@@ -56,21 +57,35 @@ const pickOne = <T>(items: readonly T[]): T | undefined => items[Math.floor(Math
 const dist = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y);
 const feet = (who: PassengerAI | SecurityAI): Vec2 => ({ x: who.walker.x, y: who.walker.y });
 
+/**
+ * Lo que sobrevive a la escena, por estación: el enfriamiento y los últimos robos. Cada vez que se entra en
+ * la estación se crea otro Pickpocket; sin esto, salir y volver a entrar se saltaba el enfriamiento.
+ */
+const SHARED = new Map<string, { cooldown: number; log: string[] }>();
+
 export class Pickpocket {
   private incident: Incident | null = null;
-  private cooldown = 0;
+  private readonly shared: { cooldown: number; log: string[] };
   private rollTimer = 1_000;
   /** Lo que se le contará al jugador más tarde (darse cuenta de que le falta dinero) o cuando se pueda. */
   private told: { lines: readonly string[]; delay: number }[] = [];
-  /** Los últimos robos, para el estado de depuración. */
-  readonly log: string[] = [];
   private readonly cfg: MetroConfig;
   private readonly host: PickpocketHost;
   private readonly layout: StationLayout;
   private readonly mapWidth: number;
   private readonly note: (text: string) => void;
+  private readonly station: string;
 
-  constructor(cfg: MetroConfig, host: PickpocketHost, layout: StationLayout, mapWidth: number, note: (text: string) => void) {
+  /** Los últimos robos, para el estado de depuración. */
+  get log(): string[] {
+    return this.shared.log;
+  }
+
+  constructor(cfg: MetroConfig, host: PickpocketHost, layout: StationLayout, mapWidth: number, note: (text: string) => void, station = 'metro') {
+    this.station = station;
+    let shared = SHARED.get(station);
+    if (!shared) SHARED.set(station, (shared = { cooldown: 0, log: [] }));
+    this.shared = shared;
     this.cfg = cfg;
     this.host = host;
     this.layout = layout;
@@ -84,12 +99,12 @@ export class Pickpocket {
       this.step(deltaMs);
       return;
     }
-    this.cooldown = Math.max(0, this.cooldown - deltaMs);
+    this.shared.cooldown = Math.max(0, this.shared.cooldown - deltaMs);
     this.rollTimer -= deltaMs;
     if (this.rollTimer > 0) return;
     this.rollTimer = 1_000;
     const pp = this.cfg.pickpocket;
-    if (this.cooldown > 0) return;
+    if (this.shared.cooldown > 0) return;
     // Sólo con el andén lleno: entre poca gente, ni se intenta.
     if (passengers.filter((p) => p.state === 'WAITING').length < pp.minWaiting) return;
     if (Math.random() < pp.perSecond[level]) this.start(passengers, guards, null);
@@ -98,12 +113,12 @@ export class Pickpocket {
   /** Empieza uno ya (depuración). Devuelve qué ha pasado o por qué no. */
   force(passengers: readonly PassengerAI[], guards: readonly SecurityAI[], opts: ForceOptions = {}): string {
     if (this.incident) return `ya hay uno en curso (${this.incident.phase})`;
-    this.cooldown = 0;
+    this.shared.cooldown = 0;
     return this.start(passengers, guards, opts);
   }
 
   resetCooldown(): void {
-    this.cooldown = 0;
+    this.shared.cooldown = 0;
   }
 
   status(): Record<string, unknown> {
@@ -118,7 +133,7 @@ export class Pickpocket {
       guard: i?.guard ? `${i.guard.walker.look.id} ${i.guard.state}` : null,
       taken: i?.taken ?? 0,
       resolution: i?.resolution || null,
-      cooldownS: Math.round(this.cooldown / 1000),
+      cooldownS: Math.round(this.shared.cooldown / 1000),
       log: [...this.log],
     };
   }
@@ -187,7 +202,8 @@ export class Pickpocket {
       i.phase = 'RESPONSE';
       i.guard = guard;
       const { path, back } = this.guardRoute(guard, this.beside(at, feet(guard), 12));
-      guard.respond(path, back, () => this.caught());
+      // El aviso es de ESTE robo: si al llegar ya es otro (este se cerró por tiempo), no resuelve aquel.
+      guard.respond(path, back, () => this.caught(i));
       i.offender.pause(9_000, 'disimula', () => {
         if (this.incident === i && i.phase === 'RESPONSE') {
           i.offender.escape(true, 'se escapa');
@@ -214,9 +230,9 @@ export class Pickpocket {
   }
 
   /** El vigilante llega a donde estaba el carterista. */
-  private caught(): void {
+  private caught(which: Incident): void {
     const i = this.incident;
-    if (!i || i.phase !== 'RESPONSE') return;
+    if (!i || i !== which || i.phase !== 'RESPONSE') return;
     i.offender.escape(false, 'sale acompañado');
     if (i.victim === 'player' && i.taken > 0) {
       this.host.returnCash(i.taken);
@@ -247,7 +263,79 @@ export class Pickpocket {
     this.log.unshift(`intento abandonado: ${why}`);
     this.log.length = Math.min(this.log.length, 5);
     this.incident = null;
-    this.cooldown = 30_000;
+    this.shared.cooldown = 30_000;
+  }
+
+  // ------------------------------------------- ciclo común (systems/WorldEvents)
+
+  /**
+   * APPROACH → SPAWNING, ATTEMPT → ACTIVE, RESPONSE → RESOLUTION (el vigilante
+   * acude), RESOLVED → CLEANUP (el carterista sale, el vigilante vuelve) y,
+   * cerrado, COOLDOWN hasta que puede volver a pasar en esta estación.
+   */
+  lifecycle(): EventInfo {
+    const i = this.incident;
+    const map: Record<CrimePhase, Lifecycle> = { APPROACH: 'SPAWNING', ATTEMPT: 'ACTIVE', RESPONSE: 'RESOLUTION', RESOLVED: 'CLEANUP' };
+    const cd = this.shared.cooldown;
+    const who = (p: PassengerAI | 'player'): string => (p === 'player' ? 'jugador' : p.walker.look.id);
+    return {
+      id: eventId('pickpocket', this.station),
+      type: 'pickpocket',
+      location: this.station,
+      anchor: null,
+      lifecycle: i ? map[i.phase] : cd > 0 ? 'COOLDOWN' : 'ELIGIBLE',
+      phase: i?.phase ?? 'NONE',
+      age: i ? Math.round(i.ms / 1000) : null,
+      maxLeft: i ? Math.max(0, Math.round((this.cfg.pickpocket.maxDurationMs - i.ms) / 1000)) : null,
+      unit: 's',
+      participants: i ? [{ id: who(i.offender), role: 'offender' }, { id: who(i.victim), role: 'victim' }] : [],
+      responders: i?.guard ? [`${i.guard.walker.look.id} (${i.guard.state})`] : [],
+      cooldownLeft: Math.round(cd / 1000),
+      forced: !!i?.forced,
+    };
+  }
+
+  /** Depuración: lo resuelve ya por el camino normal (el carterista se va; si acude un vigilante, lo acompaña). */
+  devResolve(): string {
+    const i = this.incident;
+    if (!i) return 'no hay robo en curso';
+    if (i.phase === 'RESOLVED') return 'ya está resuelto: recogiendo';
+    if (i.phase === 'RESPONSE') {
+      this.caught(i);
+      return 'el vigilante lo acompaña a la salida';
+    }
+    i.offender.escape(false, 'se va');
+    if (i.victim !== 'player') i.victim.release();
+    this.resolve('resuelto a mano');
+    return 'resuelto: el carterista se va';
+  }
+
+  /** Depuración: lo cancela (todos vuelven a lo suyo y el vigilante a su puesto), con el enfriamiento de un intento. */
+  devCancel(): string {
+    const i = this.incident;
+    if (!i) return 'no hay robo en curso';
+    if (i.guard?.state === 'RESPOND') i.guard.recover(2, false);
+    this.abort('cancelado a mano');
+    return 'cancelado';
+  }
+
+  /**
+   * Fin de escena (MetroSystem.shutdown): el robo en curso se cancela (sus
+   * pasajeros y vigilantes desaparecen con la escena) y el enfriamiento, que es
+   * de la estación, sigue contando a la vuelta.
+   */
+  shutdown(): void {
+    const i = this.incident;
+    if (!i) return;
+    this.log.unshift(`cancelado al salir de la estación (${i.phase})`);
+    this.log.length = Math.min(this.log.length, 5);
+    this.incident = null;
+    this.shared.cooldown = Math.max(this.shared.cooldown, this.cfg.pickpocket.cooldownMs);
+  }
+
+  /** ¿Hay un robo en curso? */
+  get active(): boolean {
+    return this.incident !== null;
   }
 
   /** Cuenta el tiempo y recoge: el incidente se cierra cuando el carterista ha salido y el vigilante está libre. */
@@ -268,7 +356,7 @@ export class Pickpocket {
       if (late && !gone && i.offender.state !== 'LEAVING_STATION') i.offender.escape(false, 'se va');
       if (late && i.victim !== 'player' && i.victim.activity === '¡eh!') i.victim.release();
       this.incident = null;
-      this.cooldown = pp.cooldownMs;
+      this.shared.cooldown = pp.cooldownMs;
     }
   }
 

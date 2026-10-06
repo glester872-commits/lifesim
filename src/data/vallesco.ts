@@ -15,18 +15,66 @@ import { dress } from '../systems/Dressing.ts';
  * van aparte: tapan su huella, generan su puerta y son sólidos.
  */
 const W = 110;
-const H = 56;
+
+/**
+ * La avenida se ensanchó a tres carriles por sentido con mediana: de la acera
+ * sur hacia abajo, todo el barrio baja AV_ROWS filas tal cual (nada cambia
+ * respecto a lo de al lado). Las coordenadas de este archivo son las de antes
+ * del ensanche y las pasa `sy` (widen, al final); las de la calzada nueva
+ * (AVENUE, sus carriles y sus semáforos) ya van en las de ahora.
+ */
+const AV_FROM = 35;
+const AV_ROWS = 5;
+const H = 56 + AV_ROWS;
+export const sy = (y: number): number => (y >= AV_FROM ? y + AV_ROWS : y);
 
 /** [carácter, x, y, ancho, alto]. Leyenda en data/locations.ts. */
 type Paint = readonly [string, number, number, number, number];
 
-function paint(fill: string, rects: readonly Paint[]): string[] {
+/** `shifted`: rectángulos de antes del ensanche; `fixed`, ya en coordenadas de ahora (van encima). */
+function paint(fill: string, shifted: readonly Paint[], fixed: readonly Paint[]): string[] {
   const grid = Array.from({ length: H }, () => Array<string>(W).fill(fill));
+  const rects = [...shifted.map(([ch, x, y, w, h]): Paint => [ch, x, sy(y), w, sy(y + h - 1) + 1 - sy(y)]), ...fixed];
   for (const [ch, x, y, w, h] of rects) {
     for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) grid[yy][xx] = ch;
   }
   return grid.map((row) => row.join(''));
 }
+
+/**
+ * Avenida de Vallesco, de norte a sur: acera (29–30), carril bici hacia el
+ * oeste (31), carril bus-taxi (32), dos carriles hacia el oeste (33–34),
+ * mediana ajardinada (35), dos hacia el este (36–37), bus-taxi (38), carril
+ * bici hacia el este (39) y acera sur (40–41). Se circula por la derecha.
+ * Los pasos de cebra cruzan la calzada entera; en la mediana, el refugio.
+ */
+const AVENUE: readonly Paint[] = [
+  ['b', 0, 31, W, 1],
+  ['u', 0, 32, W, 1],
+  ['l', 0, 33, W, 1],
+  ['.', 0, 34, W, 1],
+  ['V', 0, 35, W, 1],
+  ['l', 0, 36, W, 1],
+  ['.', 0, 37, W, 1],
+  ['u', 0, 38, W, 1],
+  ['b', 0, 39, W, 1],
+  // Refugio en la mediana: losa de acera a cada lado de las bandas, tan ancho como la gente que espera al semáforo (Signals.waitSpots).
+  [',', 22, 35, 7, 1],
+  [',', 50, 35, 7, 1],
+  ['z', 24, 31, 3, 9], // paso de cebra oeste
+  ['z', 52, 31, 3, 9], // paso de cebra este
+];
+
+/** Carril bus-taxi: autobuses y taxis; algún coche (el que va a girar, el que aparca) y poco más. `*`: lo que no se nombra. */
+const BUS_LANE = { '*': 0.07, bus: 1, interurban: 1, taxi: 1.6, 'taxi-wagon': 1.6, 'taxi-suv': 1.6, 'taxi-hybrid': 1.6, service: 0.6 };
+/** Carriles normales: de todo menos autobuses. */
+const CAR_LANE = { bus: 0, interurban: 0 };
+
+/** Mediana: farolas de doble brazo cada tanto y algún plátano; en los pasos, el refugio queda libre. */
+const MEDIAN: readonly PropPlacement[] = [
+  ...[6, 18, 32, 44, 62, 76, 90, 102].map((tx) => ({ kind: 'street-lamp' as const, tx, ty: 35 })),
+  ...[12, 68, 96].map((tx) => ({ kind: 'plane-tree' as const, tx, ty: 35 })),
+];
 
 const GROUND = paint('g', [
   ['~', 30, 6, 21, 10], // Plaza de la Fuente
@@ -36,13 +84,7 @@ const GROUND = paint('g', [
   ['c', 50, 19, 1, 10], // Callejón del Banco
   ['.', 2, 27, 10, 2], // carga y descarga del súper
   ['~', 51, 27, 23, 2], // explanada de las oficinas
-  [',', 0, 29, W, 2], // Avenida de Vallesco: acera norte
-  ['b', 0, 31, W, 1], // carril bici hacia el oeste, junto al bordillo norte
-  ['=', 0, 32, W, 1], // línea central: hacia el oeste arriba, hacia el este abajo
-  ['.', 0, 33, W, 1],
-  ['b', 0, 34, W, 1], // carril bici hacia el este, junto al bordillo sur
-  ['z', 24, 31, 3, 4], // paso de cebra oeste
-  ['z', 52, 31, 3, 4], // paso de cebra este
+  [',', 0, 29, W, 2], // Avenida de Vallesco: acera norte (la calzada es AVENUE)
   [',', 0, 35, W, 2], // acera sur
   ['P', 25, 37, 12, 9], // Plazuela del Metro: adoquín de granito (Visual V2)
   ['T', 29, 42, 3, 1], // franja podotáctil delante de la escalera del metro (la boca principal ocupa hasta la fila 41)
@@ -67,7 +109,7 @@ const GROUND = paint('g', [
   ['d', 74, 3, 12, 1],
   ['c', 74, 4, 2, 12],
   ['R', 0, 55, W, 1], // la vía: límite sur del barrio
-]);
+], AVENUE);
 
 const b = (
   id: string,
@@ -282,6 +324,13 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   // Donde espera el camarero de cada terraza: al lado de la puerta, no en ella.
   CAFE_TERRACE_WAITER: p(57, 16, 'work', 'down'), RESTAURANT_TERRACE_WAITER: p(28, 18, 'work', 'left'),
   BUS_STOP: p(39, 30, 'wait', 'up'),
+  // Sitios de quien vive en la calle (data/streetSurvival.ts): el soportal del banco, la marquesina, junto al metro,
+  // un escaparate de la Mayor, un rincón del Olmo, el pasaje y el solar. Nadie más va a ellos: no son de paso ni de terraza.
+  STREET_BUS_SHELTER: p(37, 30, 'wait', 'down'), STREET_METRO_PORTICO: p(33, 40, 'wait', 'down'),
+  STREET_BANK_DOORWAY: p(63, 16, 'wait', 'down'), STREET_MAYOR_ASK: p(10, 16, 'wait', 'down'),
+  STREET_PASAJE: p(57, 39, 'wait', 'left'), STREET_OLMO_CORNER: p(14, 46, 'wait', 'down'),
+  STREET_SOLAR: p(18, 26, 'wait', 'down'), STREET_PLAZA_SPOT: p(38, 14, 'wait', 'down'),
+  STREET_METRO_EXIT: p(32, 43, 'wait', 'left'),
   METRO_PLAZUELA_BENCH: p(33, 42, 'wait', 'down'),
   // Los dos bancos corridos de la plazuela, dos plazas cada uno.
   PLAZUELA_BENCH_01: p(25, 40, 'seat', 'down'), PLAZUELA_BENCH_02: p(26, 40, 'seat', 'down'),
@@ -425,6 +474,10 @@ const LINKS: readonly Link[] = [
   ['HAIR_WINDOW', 'mayor-14'], ['PHARMACY_WINDOW', 'mayor-19'], ['FRUIT_WINDOW', 'mayor-23'],
   ['LAUNDRY_WINDOW', 'mayor-56'], ['BANK_WINDOW', 'mayor-64'],
   ['METRO_MEET_01', 'plazuela-2'], ['METRO_MEET_02', 'METRO_PLAZUELA_BENCH'],
+  // Los sitios de quien vive en la calle, colgados del grafo: llegan por la acera y cruzan por los pasos, como todos.
+  ['STREET_BUS_SHELTER', 'BUS_STOP'], ['STREET_METRO_PORTICO', 'plazuela-4'], ['STREET_BANK_DOORWAY', 'mayor-64'],
+  ['STREET_MAYOR_ASK', 'mayor-06'], ['STREET_PASAJE', 'pasaje'], ['STREET_OLMO_CORNER', 'olmo-23'], ['STREET_SOLAR', 'tintoreros-n'],
+ ['STREET_PLAZA_SPOT', 'plaza-s'], ['STREET_METRO_EXIT', 'METRO_PLAZUELA_BENCH'],
 ];
 
 const BASE: LocationDef = {
@@ -474,14 +527,19 @@ const BASE: LocationDef = {
   // De madrugada, uno por carril (taxis y el camión de la basura); en hora punta, tres.
   // La avenida tiene parada: pasa algo más de autobús que en otra avenida.
   // Bicis: dos por carril en hora punta, alguna suelta de madrugada; los repartidores, a la hora de comer y de cenar.
+  // Tres carriles por sentido (filas de la avenida nueva, ver AVENUE): el de fuera, bus-taxi. Ahí van autobuses
+  // y taxis, y algún coche suelto; por los de dentro no va ningún autobús. Cada coche sale en un carril y no lo deja.
   traffic: {
-    lanes: [{ row: 32, dir: -1 }, { row: 33, dir: 1 }],
+    lanes: [
+      { row: 32, dir: -1, bias: BUS_LANE }, { row: 33, dir: -1, bias: CAR_LANE }, { row: 34, dir: -1, bias: CAR_LANE },
+      { row: 36, dir: 1, bias: CAR_LANE }, { row: 37, dir: 1, bias: CAR_LANE }, { row: 38, dir: 1, bias: BUS_LANE },
+    ],
     road: 'avenue',
     mix: { bus: 1.4 },
     perLane: 3,
     hourly: [[0, 1, 2], [1, 6.5, 1], [6.5, 7.5, 2], [7.5, 21, 3], [21, 24, 2]],
     bikes: {
-      lanes: [{ row: 31, dir: -1 }, { row: 34, dir: 1 }, { row: 47, dir: -1 }],
+      lanes: [{ row: 31, dir: -1 }, { row: 39, dir: 1 }, { row: 47, dir: -1 }],
       road: 'avenue',
       perLane: 2,
       hourly: [[0, 6.5, 1], [6.5, 22, 2], [22, 24, 1]],
@@ -491,8 +549,8 @@ const BASE: LocationDef = {
   },
   // Los dos pasos de cebra de la avenida, con semáforo; el segundo, desfasado: no cambian a la vez.
   signals: [
-    { id: 'avenida-oeste', tx: 24, ty: 31, w: 3, h: 4 },
-    { id: 'avenida-este', tx: 52, ty: 31, w: 3, h: 4, offset: 9_000 },
+    { id: 'avenida-oeste', tx: 24, ty: 31, w: 3, h: 9 },
+    { id: 'avenida-este', tx: 52, ty: 31, w: 3, h: 9, offset: 9_000 },
   ],
   // Cosas que se miran: responden con una línea, no abren nada.
   inspects: [
@@ -521,5 +579,36 @@ const BASE: LocationDef = {
   terminals: [{ tx: 29, ty: 16, name: 'Máquina expendedora', catalog: 'vending' }],
 };
 
+/**
+ * Baja AV_ROWS filas todo lo que hay de la acera sur hacia abajo (ver `sy`). La calzada de la avenida, sus
+ * carriles, el carril bici del Olmo y los semáforos ya van en coordenadas nuevas: sólo se baja lo demás.
+ */
+function widen(def: LocationDef): LocationDef {
+  const at = <T extends { ty: number }>(o: T): T => ({ ...o, ty: sy(o.ty) });
+  const rect = <T extends { ty: number; h: number }>(o: T): T => ({ ...o, ty: sy(o.ty), h: sy(o.ty + o.h - 1) + 1 - sy(o.ty) });
+  const map = <T>(r: Readonly<Record<string, T>> | undefined, f: (v: T) => T): Record<string, T> =>
+    Object.fromEntries(Object.entries(r ?? {}).map(([k, v]) => [k, f(v)]));
+  const bike = def.traffic?.bikes;
+  return {
+    ...def,
+    buildings: def.buildings?.map(at),
+    props: def.props.map(at),
+    npcs: def.npcs.map(at),
+    spawns: map(def.spawns, at),
+    points: map(def.points, at),
+    tables: def.tables?.map((t) => ({ ...t, service: at(t.service) })),
+    inspects: def.inspects?.map(at),
+    areas: def.areas?.map(at),
+    zones: def.zones?.map(rect),
+    showcase: def.showcase && rect(def.showcase),
+    garlands: def.garlands?.map((g) => ({ ...g, y0: g.y0 + (g.y0 >= AV_FROM * 16 ? AV_ROWS * 16 : 0), y1: g.y1 + (g.y1 >= AV_FROM * 16 ? AV_ROWS * 16 : 0) })),
+    // El carril bici del Olmo estaba en la 47: baja con su calle.
+    traffic: def.traffic && bike && { ...def.traffic, bikes: { ...bike, lanes: bike.lanes.map((l) => (l.row === 47 ? { ...l, row: sy(47) } : l)) } },
+  };
+}
+
+const WIDENED = widen(BASE);
+const WIDE: LocationDef = { ...WIDENED, props: [...WIDENED.props, ...MEDIAN] };
+
 // El micromobiliario (contenedores, coches aparcados, bolardos, buzón...) sale de reglas de contexto: systems/Dressing.ts.
-export const VALLESCO: LocationDef = { ...BASE, props: [...BASE.props, ...dress(BASE)] };
+export const VALLESCO: LocationDef = { ...WIDE, props: [...WIDE.props, ...dress(WIDE)] };

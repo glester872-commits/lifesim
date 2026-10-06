@@ -15,6 +15,8 @@ import { getStation, type Occupancy, type StationDef } from '../data/stations.ts
 import { TableService } from './TableService.ts';
 import { SeatRegistry } from './SeatRegistry.ts';
 import { IDENTITIES } from './People.ts';
+import { isWalkable } from './LocationSystem.ts';
+import { aheadBlocked, nearestReachable, offCamera, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
 
 /** Una reserva a la que no se llega en este tiempo (ms de reloj de la sala) se da por perdida. */
 const RESERVE_TTL_MS = 90_000;
@@ -68,7 +70,8 @@ export function targetAt(place: PlaceInfo, profile: PopulationProfile, clock: Cl
 
 export interface Agent {
   id: number;
-  kind: 'staff' | 'visitor';
+  /** `street`: quien vive en la calle (systems/StreetSurvival): no hace viajes ni cuenta para la gente que pasa. */
+  kind: 'staff' | 'visitor' | 'street';
   role: string;
   /** Personaje con nombre que ocupa el puesto (sólo personal). */
   npc?: string;
@@ -113,6 +116,8 @@ export interface Agent {
   talking?: boolean;
   /** Lo que lleva en las manos quien sirve: la bandeja con lo pedido o la vajilla sucia (systems/TableService). */
   carry?: 'tray' | 'dishes';
+  /** Lo que lleva consigo quien vive en la calle (mantas, bolsas, carro...): world/CrowdView lo pinta a su lado. */
+  belongings?: readonly import('../data/streetSurvival.ts').Belonging[];
   /** Lleva la ropa de entrenar (se la ha puesto en el vestuario). Su aspecto de calle no se toca: es `look`. */
   sport?: boolean;
   /** Se cambia en el paso que hace ahora (PlanStep.outfit): la ropa cambia a mitad, o al acabar el paso, siempre en su sitio. */
@@ -125,6 +130,8 @@ export interface Agent {
   rescued?: boolean;
   /** Veces seguidas que no encontró sitio para un paso que no se puede saltar (un cambio de ropa). */
   waits?: number;
+  /** Rodeo de recuperación (systems/Recovery, peldaño 2): al acabarlo, sigue hacia aquí. */
+  resume?: TilePoint;
 }
 
 export interface CrowdStats {
@@ -157,6 +164,11 @@ export class Crowd {
   private stats: CrowdStats = { open: false, level: null, target: 0, staff: 0, visitors: 0, entering: 0, leaving: 0 };
   /** Rutas que no se encontraron: debe quedarse en cero (lo comprueba la simulación). */
   pathFailures = 0;
+  /** Vigía de atascos (systems/Recovery): quien tiene camino y no avanza sube peldaños hasta salir. */
+  readonly watch = new StuckWatch();
+  /** Obstáculos temporales (un tile cortado): nadie entra en ellos y las rutas los rodean. */
+  readonly blocked = new Set<string>();
+  private player: TilePoint = { tx: -999, ty: -999 };
 
   constructor(loc: LocationDef, place: PlaceInfo, profile: PopulationProfile, rng: Rng = Math.random) {
     this.loc = loc;
@@ -303,7 +315,13 @@ export class Crowd {
       this.reconcile(clock, player);
     }
     this.service?.update(deltaMs, clock.hour + clock.minute / 60);
+    this.player = player;
     for (const agent of this.agents) this.advance(agent, deltaMs);
+    // Atascos: sólo cuenta quien tiene camino y no está hablando (sentado, en cola o sirviendo no tiene camino).
+    for (const a of [...this.agents]) {
+      const level = this.watch.check(a.id, a.x, a.y, a.path.length > 0 && !a.talking, deltaMs);
+      if (level) this.recover(a, level);
+    }
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
       // Sale por la puerta. Si no encontró camino (cuenta en pathFailures), se va igual: nadie se queda atascado.
@@ -377,6 +395,13 @@ export class Crowd {
       this.walk(a, deltaMs);
       return;
     }
+    // Acabó el rodeo de recuperación: sigue hacia donde iba.
+    if (a.resume) {
+      const to = a.resume;
+      a.resume = undefined;
+      a.path = this.route(a, to);
+      if (a.path.length > 0) return;
+    }
     a.moving = false;
     // Llegó a su asiento: de reservado a ocupado.
     if (a.point) this.seats.occupy(a.point, a.id);
@@ -431,6 +456,11 @@ export class Crowd {
 
   private walk(a: Agent, deltaMs: number): void {
     const target = a.path[0];
+    // Un obstáculo temporal en el siguiente tile: espera (y el vigía de atascos decide).
+    if (aheadBlocked(this.blocked, { tx: a.x, ty: a.y }, target)) {
+      a.moving = false;
+      return;
+    }
     const dx = target.tx - a.x;
     const dy = target.ty - a.y;
     const dist = Math.hypot(dx, dy);
@@ -746,7 +776,99 @@ export class Crowd {
 
   private remove(index: number): void {
     this.release(this.agents[index]);
+    this.watch.forget(this.agents[index].id);
     this.agents.splice(index, 1);
+  }
+
+  // ------------------------------------------------------- atascos (Recovery)
+
+  /** Tile donde se puede estar: pisable, sin obstáculo temporal y dentro del mapa (isWalkable ya mira los bordes). */
+  private standable(t: TilePoint): boolean {
+    return isWalkable(this.loc, t.tx, t.ty) && !this.blocked.has(tileKey(t));
+  }
+
+  /**
+   * Un peldaño de la escalera de systems/Recovery. 1: ruta nueva que rodea los
+   * obstáculos. 2: al tile alcanzable más cerca del destino, y de ahí sigue.
+   * 3: deja el paso en curso y vuelve a decidir con su plan (quien se iba,
+   * sigue yéndose). 4: fuera de cámara, reaparece en el tile válido más cercano
+   * que no se vea (o sale si ya se iba); a la vista, espera y lo reintenta.
+   */
+  private recover(a: Agent, level: RecoveryLevel): void {
+    const dest = a.resume ?? a.path[a.path.length - 1];
+    const here = { tx: Math.round(a.x), ty: Math.round(a.y) };
+    if (level === 1 && dest) {
+      const path = tilePath(this.loc, here, dest, this.blocked);
+      if (path && path.length > 1) a.path = path.slice(1);
+      return;
+    }
+    if (level === 2 && dest) {
+      const near = nearestReachable(here, (t) => this.standable(t), (t) => this.distance(t, dest), undefined, 12);
+      if (near && near.length > 0) {
+        a.path = near;
+        a.resume = dest;
+      }
+      return;
+    }
+    if (level === 3) {
+      a.resume = undefined;
+      if (a.leaving) {
+        // Quien ya se iba sólo puede irse: por la puerta, rodeando lo que haya. Sin rodeo conserva su camino
+        // (un camino vacío lo borraría aquí mismo, a la vista): el peldaño 4 lo saca fuera de cámara.
+        const out = tilePath(this.loc, here, this.door, this.blocked);
+        if (out && out.length > 1) a.path = out.slice(1);
+        return;
+      }
+      a.path = [];
+      a.moving = false;
+      this.release(a);
+      a.leader = undefined;
+      a.state = 'IDLE';
+      a.timer = 0;
+      return;
+    }
+    if (level !== 4) return;
+    const seen = !offCamera(here, this.player) && !this.watch.forced(a.id);
+    if (seen) return;
+    if (a.leaving) {
+      // Fuera de cámara y yéndose: sale ya.
+      a.path = [];
+      a.x = this.door.tx;
+      a.y = this.door.ty;
+      return;
+    }
+    const spot = nearestReachable(
+      here,
+      () => true,
+      (t) => this.distance(t, here),
+      (t) => this.standable(t) && (this.watch.forced(a.id) || offCamera(t, this.player)),
+      64,
+    );
+    const to = spot?.[spot.length - 1] ?? (offCamera(this.door, this.player) ? this.door : undefined);
+    if (!to) return;
+    this.release(a);
+    a.x = to.tx;
+    a.y = to.ty;
+    a.path = [];
+    a.resume = undefined;
+    a.state = 'IDLE';
+    a.timer = 0;
+  }
+
+  /** Depuración: corta el tile al que va el más cercano que esté andando y lo da por atascado. Devuelve su id. */
+  devForceStuck(near: TilePoint): number | null {
+    const walking = this.agents.filter((a) => a.path.length > 0 && !a.talking);
+    const a = walking.sort((p, q) => this.distance({ tx: p.x, ty: p.y }, near) - this.distance({ tx: q.x, ty: q.y }, near))[0];
+    if (!a) return null;
+    this.blocked.add(tileKey(a.path[0]));
+    this.watch.force(a.id, a.x, a.y);
+    return a.id;
+  }
+
+  /** Depuración: quita los obstáculos temporales y el estado de recuperación. */
+  devResetRecovery(): void {
+    this.blocked.clear();
+    this.watch.reset();
   }
 
   // --------------------------------------------------------- puntos y rutas
@@ -790,7 +912,8 @@ export class Crowd {
 
   private route(a: Agent, to: TilePoint): TilePoint[] {
     const from = { tx: Math.round(a.x), ty: Math.round(a.y) };
-    const path = tilePath(this.loc, from, to);
+    // Rodea los obstáculos temporales si puede; si no, la ruta de siempre (y el vigía de atascos se encarga).
+    const path = (this.blocked.size > 0 ? tilePath(this.loc, from, to, this.blocked) : null) ?? tilePath(this.loc, from, to);
     if (!path) {
       this.pathFailures++;
       return [];
