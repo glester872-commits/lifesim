@@ -764,4 +764,5 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
       },
     ],
   },
+  // Pizzería, hamburguesería y sushi (data/foodVenues.ts: FOOD_VENUE_PROFILES) entran aquí con su edificio en una calle.
 ];

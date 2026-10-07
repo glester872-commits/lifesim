@@ -88,6 +88,12 @@ const FOOD: Readonly<Record<Dish, readonly [string, string]>> = {
   'wine-white': ['#e8dc90', '#f4ecb8'],
   'wine-rose': ['#e88a90', '#f4b0b4'],
   bottle: ['#2a3a2a', '#7a1f2e'],
+  // Pizzería, hamburguesería y sushi (data/foodItems.ts).
+  pizza: ['#d9a24a', '#c0392b'],
+  burger: ['#8a5a2e', '#6aa84f'],
+  fries: ['#f0d070', '#e8b840'],
+  sushi: ['#f4f0e0', '#e8785a'],
+  nigiri: ['#f4f0e0', '#e8a090'],
 };
 const DRINKS: ReadonlySet<Dish> = new Set(['water', 'beer', 'wine', 'wine-white', 'wine-rose', 'bottle', 'soda', 'juice', 'coffee', 'tea', 'cocoa']);
 

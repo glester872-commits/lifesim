@@ -13,7 +13,7 @@ import { seatsFurniture } from './seating.ts';
  */
 
 /** Habitación cerrada: dos filas de muro arriba, una abajo y la puerta en la penúltima. */
-function room(w: number, h: number, doorX: number, floor: (x: number, y: number) => string): string[] {
+export function room(w: number, h: number, doorX: number, floor: (x: number, y: number) => string): string[] {
   const rows: string[] = [];
   for (let y = 0; y < h; y++) {
     let r = '';
@@ -35,12 +35,12 @@ function exitTo(building: string, doorX: number, h: number): Pick<LocationDef, '
   };
 }
 
-const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
-const many = (kind: PropKind, cells: readonly (readonly [number, number])[]): PropPlacement[] =>
+export const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
+export const many = (kind: PropKind, cells: readonly (readonly [number, number])[]): PropPlacement[] =>
   cells.map(([x, y]) => at(kind, x, y));
-const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
+export const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
 /** Número de dos cifras para ids de puntos en serie: 0 → '01'. */
-const TWO = (i: number): string => String(i + 1).padStart(2, '0');
+export const TWO = (i: number): string => String(i + 1).padStart(2, '0');
 
 // ------------------------------------------------------------- gimnasio
 

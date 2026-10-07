@@ -157,7 +157,7 @@ export function lineClear(loc: LocationDef, a: TilePoint, b: TilePoint): boolean
  * Comprueba que una localización es coherente. Un mapa mal escrito falla aquí,
  * en el arranque, y no como un hueco invisible en el suelo.
  */
-function validate(loc: LocationDef): void {
+export function validate(loc: LocationDef, opts: { portals?: boolean } = {}): void {
   const width = loc.ground[0]?.length ?? 0;
   if (width === 0 || loc.ground.length === 0) {
     throw new Error(`[${loc.id}] rejilla de terreno vacía`);
@@ -171,7 +171,8 @@ function validate(loc: LocationDef): void {
     }
   });
   validateBuildings(loc, width);
-  for (const portal of loc.portals) {
+  // `portals: false`: un interior que aún no tiene puerta en ninguna calle (data/foodInteriors.ts) se valida sin su salida.
+  for (const portal of opts.portals === false ? [] : loc.portals) {
     const target = BY_ID.get(portal.to.location);
     if (!target) throw new Error(`[${loc.id}] portal "${portal.id}" apunta a ${portal.to.location}`);
     if (!target.spawns[portal.to.spawn]) {
@@ -268,7 +269,7 @@ function validateMetro(loc: LocationDef, metro: MetroDef): void {
   }
 }
 
-EXPANDED.forEach(validate);
+EXPANDED.forEach((loc) => validate(loc));
 
 // Los puntos se piden por id desde cualquier sitio: no pueden repetirse entre localizaciones.
 {

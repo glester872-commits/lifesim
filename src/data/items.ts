@@ -3,6 +3,8 @@
  * devuelve energía; una tarjeta no se gasta: lleva saldo (GameState.cards).
  * Lo que cuesta cada cosa depende de dónde se compre: eso va en data/catalogs.ts.
  */
+import { takeawayItems } from './foodItems.ts';
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -34,6 +36,8 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'ice-cream', name: 'Helado de cucurucho', kind: 'food', energy: 7, use: 'Se derrite más rápido de lo que lo comes. Siempre.' },
   { id: 'ice-lolly', name: 'Polo de limón', kind: 'food', energy: 5, use: 'Ácido, frío, y los dedos pegajosos hasta mañana.' },
   { id: 'transport', name: 'Tarjeta de transporte', kind: 'card' },
+  // Para llevar de pizzerías, hamburgueserías y sushi (data/foodItems.ts).
+  ...takeawayItems,
 ];
 
 const BY_ID = new Map(ITEMS.map((i) => [i.id, i]));

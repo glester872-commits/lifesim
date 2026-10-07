@@ -525,6 +525,7 @@ export const LOCATIONS: readonly LocationDef[] = [
   RIBERA_SPORT,
   CAFE_RIO,
   CASA_MAR,
+  // Los locales de comida (data/foodInteriors.ts: FOOD_INTERIORS) entran aquí cuando tengan edificio en una calle.
 ];
 
 export const START_LOCATION = VALLESCO.id;

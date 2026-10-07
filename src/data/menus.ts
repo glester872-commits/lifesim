@@ -6,6 +6,7 @@
  * local nuevo es otra entrada aquí y `tableService.menu` en su perfil de
  * población (data/population.ts); el servicio no sabe de ningún local.
  */
+import { FOOD_VENUE_MENUS } from './foodVenues.ts';
 
 /** Qué clase de local es: decide la carta, las frases y qué se ofrece para seguir pidiendo. Nunca el nombre del local. */
 export type VenueType = 'restaurant' | 'cafe' | 'wine_bar';
@@ -13,7 +14,9 @@ export type VenueType = 'restaurant' | 'cafe' | 'wine_bar';
 /** Lo que se ve en la mesa (world/DiningArt.ts dibuja cada uno lleno y vacío). */
 export type Dish =
   | 'stew' | 'fish' | 'tortilla' | 'croquettes' | 'cake' | 'pastry' | 'toast' | 'sandwich' | 'cheese' | 'ham' | 'olives' | 'tapa'
-  | 'water' | 'beer' | 'wine' | 'wine-white' | 'wine-rose' | 'bottle' | 'soda' | 'juice' | 'coffee' | 'tea' | 'cocoa';
+  | 'water' | 'beer' | 'wine' | 'wine-white' | 'wine-rose' | 'bottle' | 'soda' | 'juice' | 'coffee' | 'tea' | 'cocoa'
+  // Pizzería, hamburguesería y sushi (data/foodItems.ts).
+  | 'pizza' | 'burger' | 'fries' | 'sushi' | 'nigiri';
 
 /** Un vino: lo que se lee en la carta. Cada vino sale dos veces en la carta, por copa y por botella. */
 export interface WineInfo {
@@ -289,7 +292,8 @@ const CASA_MAR: ServiceMenu = {
   more: [{ label: 'Pedir otra cosa' }, { label: 'Ver carta' }],
 };
 
-export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR];
+/** Las cartas de los locales de comida de la ciudad salen de sus arquetipos (data/foodVenues.ts), no se escriben a mano. */
+export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR, ...FOOD_VENUE_MENUS];
 
 export function getMenu(id: string): ServiceMenu {
   const menu = MENUS.find((m) => m.id === id);

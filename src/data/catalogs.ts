@@ -5,6 +5,8 @@
  * cual sea el sitio; un restaurante o una tienda nuevos son una entrada más.
  */
 
+import { FOOD_VENUE_CATALOGS } from './foodVenues.ts';
+
 /** Qué se lleva el jugador al pagar. */
 export type Effect =
   /** Unidades de un objeto de data/items.ts. */
@@ -75,6 +77,8 @@ export const CATALOGS: readonly Catalog[] = [
       { id: 'transport-20', label: 'Recargar €20', price: 20, effect: { card: 'transport', load: 20 } },
     ],
   },
+  // El mostrador de para llevar de cada pizzería, hamburguesería y sushi (data/foodVenues.ts).
+  ...FOOD_VENUE_CATALOGS,
 ];
 
 const BY_ID = new Map(CATALOGS.map((c) => [c.id, c]));
