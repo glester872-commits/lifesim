@@ -7,6 +7,8 @@ import type { TrainSystem } from '../systems/TrainSystem';
 import type { AmbientFx } from '../data/districts';
 import { isOpen, placeForInterior, placesOfType, type PlaceInfo } from '../systems/Places';
 import { profileAt } from '../systems/Districts';
+import { identityOf, zoneAt } from '../systems/Zones';
+import { LOCATION_DISTRICT } from '../data/districtIdentity';
 import { PROPS } from './tiles';
 import { LAYER, standing } from './Layers';
 import { gust } from './Motion';
@@ -132,7 +134,10 @@ export class Atmosphere {
   private collect(def: LocationDef): void {
     const outdoor = def.kind === 'exterior';
     const room = placeForInterior(def.id);
-    const zone = (tx: number, ty: number, fx: AmbientFx): number => profileAt(def, tx, ty)?.ambience?.[fx] ?? 1;
+    // Cuánto se nota cada efecto: el de la zona (perfil visual) por el carácter de su barrio (data/districtIdentity.ts).
+    const home = LOCATION_DISTRICT[def.id] ?? '';
+    const zone = (tx: number, ty: number, fx: AmbientFx): number =>
+      (profileAt(def, tx, ty)?.ambience?.[fx] ?? 1) * identityOf(zoneAt(def.id, tx, ty)?.districtId ?? home).ambience;
     const placeOf = new Map((['business', 'public'] as const).flatMap((t) => placesOfType(t)).flatMap((p) => (p.building ? [[p.building, p] as const] : [])));
     // El local de comida cuya puerta está a menos de 6 tiles: su terraza humea si está abierto.
     const food = (tx: number, ty: number): PlaceInfo | undefined => {

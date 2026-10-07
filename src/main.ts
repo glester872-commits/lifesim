@@ -193,9 +193,12 @@ function devEvents() {
   const deals = new Map(ALLEY_SPOTS.map((s) => [eventId('alley', s.id), new AlleyDeal(s, getLocation(s.location))]));
   const now = (): number => state.day * 1440 + services.clock.minuteOfDay;
   const metro = () => (game.scene.getScene('World') as WorldSceneType).metroSystem;
+  /** El carterista de la calle de aquí (systems/Pickpocket), si hay calle con gente. */
+  const street = () => (game.scene.getScene('World') as WorldSceneType).streetSystem?.pickpocket;
   const all = (): EventInfo[] => {
     const crime = metro()?.pickpocketLifecycle();
-    return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...(crime ? [crime] : [])];
+    const robbery = street()?.lifecycle();
+    return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...(crime ? [crime] : []), ...(robbery ? [robbery] : [])];
   };
   const inspect = (id: string): EventInfo => {
     const e = all().find((x) => x.id === id);
@@ -208,6 +211,14 @@ function devEvents() {
     if (f) return what === 'force' ? (f.devForce(t), 'forzada') : what === 'resolve' ? f.devResolve(t) : what === 'cancel' ? f.devCancel(t) : (f.devReset(), 'enfriamiento quitado');
     const d = deals.get(id);
     if (d) return what === 'force' ? (d.devForce(t), 'forzado') : what === 'resolve' ? d.devResolve(t) : what === 'cancel' ? d.devCancel(t) : (d.devReset(), 'enfriamiento quitado');
+    const sp = street();
+    if (sp && id === sp.lifecycle().id) {
+      const world = game.scene.getScene('World') as WorldSceneType;
+      if (what === 'force') return world.debugStreetPickpocket(false).reason;
+      if (what === 'resolve') return sp.resolve();
+      if (what === 'cancel') return sp.cancel();
+      return (sp.resetCooldown(), 'enfriamiento quitado');
+    }
     const m = metro();
     if (id.startsWith('pickpocket:') && m) {
       if (what === 'force') return m.debugPickpocket() ? 'en marcha' : 'nadie libre en el andén para robar';
@@ -550,6 +561,7 @@ social: {
         };
         put(humanKey('player', 'right', 0), undefined, HD_SCALE, 'peatón');
         put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'skate')!, color: 0, helmet: false, pack: false }), 0, 1, 'tabla');
+        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'scooter')!, color: 0, helmet: true, pack: false }), 0, 1, 'patinete');
         put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, 1, 'bici');
         put('veh-compact-0', undefined, 1, 'coche');
         put('veh-bus-0', undefined, 1, 'autobús');
@@ -603,14 +615,32 @@ social: {
       // Carteristas del metro (MetroSystem.startPickpocket: un pasajero roba a otro, seguridad persigue, retiene y
       // escolta), en un andén: lifesim.crime.forcePickpocket(), .status() (el ciclo común), .resolve(), .cancel().
       crime: {
+        // Metro o calle: en una estación, el robo de siempre; en la calle, el de la calle (sólo con mucha gente y en zonas que lo
+        // permitan: si no, lo rechaza y dice por qué). forceOnPlayer() va a por el jugador; stats() cuenta lo que ha pasado.
         forcePickpocket: () => {
-          const m = (game.scene.getScene('World') as WorldSceneType).metroSystem;
-          return m ? (m.debugPickpocket() ? 'en marcha' : 'nadie libre en el andén para robar') : 'no estás en una estación de metro';
+          const world = game.scene.getScene('World') as WorldSceneType;
+          const m = world.metroSystem;
+          if (m) return m.debugPickpocket() ? 'en marcha' : 'nadie libre en el andén para robar';
+          return world.debugStreetPickpocket(false).reason;
         },
-        status: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.pickpocketLifecycle() ?? 'no estás en una estación de metro',
-        resolve: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.resolvePickpocket() ?? 'no estás en una estación de metro',
-        cancel: () => (game.scene.getScene('World') as WorldSceneType).metroSystem?.cancelPickpocket() ?? 'no estás en una estación de metro',
+        forceOnPlayer: () => (game.scene.getScene('World') as WorldSceneType).debugStreetPickpocket(true).reason,
+        stats: () => ({ ...((game.scene.getScene('World') as WorldSceneType).streetSystem?.pickpocket.stats ?? {}) }),
+        status: () => {
+          const world = game.scene.getScene('World') as WorldSceneType;
+          return world.metroSystem?.pickpocketLifecycle() ?? world.streetSystem?.pickpocket.lifecycle() ?? 'aquí no hay robos posibles';
+        },
+        resolve: () => {
+          const world = game.scene.getScene('World') as WorldSceneType;
+          return world.metroSystem?.resolvePickpocket() ?? world.streetSystem?.pickpocket.resolve() ?? 'aquí no hay robos posibles';
+        },
+        cancel: () => {
+          const world = game.scene.getScene('World') as WorldSceneType;
+          return world.metroSystem?.cancelPickpocket() ?? world.streetSystem?.pickpocket.cancel() ?? 'aquí no hay robos posibles';
+        },
       },
+      // Patinetes eléctricos: lifesim.scooter() fuerza uno por el borde del carril bici del sitio, si el barrio lo permite
+      // (data/districtIdentity.ts scooters: en Vallesco, no; en la Ribera, sí) y dice cuántos hay.
+      scooter: () => (game.scene.getScene('World') as WorldSceneType).debugScooter(),
       // Bicis: lifesim.debugCyclists() pinta carril, posición simulada, recuadro pintado y velocidad; debugCyclists(false) lo quita.
       debugCyclists: (on = true) => { CyclistView.debug = on; },
       // Pelea callejera (data/streetEvents.ts): lifesim.fight.force(), .goto(), .pin(true|false), .despawn(),

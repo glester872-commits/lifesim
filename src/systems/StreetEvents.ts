@@ -7,6 +7,8 @@ import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { weekIndex } from './Calendar.ts';
 import { isWalkable } from './LocationSystem.ts';
 import { weatherAt } from './Weather.ts';
+import { LOCATION_DISTRICT } from '../data/districtIdentity.ts';
+import { identityOf, zonesIn } from './Zones.ts';
 import { eventId, type EventInfo, type Lifecycle } from './WorldEvents.ts';
 
 /**
@@ -158,7 +160,9 @@ export function planNight(def: StreetEventDef, loc: LocationDef, day: number, fo
   const winner: 0 | 1 = seededRng(hashSeed(def.id, day, start, 'result'))() < 0.5 + advantage ? 0 : 1;
   const base = { day, start, fightAt, rounds: bouts, end, raidAt: null, members: [], fighters, winner };
   if (!force && !def.days.includes(weekIndex(day))) return { ...base, happens: false, why: 'weekday' };
-  if (!force && roll >= def.chance) return { ...base, happens: false, why: 'chance' };
+  // El carácter del barrio donde pasa (data/districtIdentity.events): más sucesos donde la calle está más viva.
+  const home = zonesIn(def.location).find((z) => z.events?.[def.id])?.districtId ?? LOCATION_DISTRICT[def.location] ?? '';
+  if (!force && roll >= Math.min(1, def.chance * identityOf(home).events)) return { ...base, happens: false, why: 'chance' };
   const w = weatherAt(Math.floor(fightAt / 1440), (fightAt % 1440) / 60);
   if (!force && !def.covered && w.rain >= def.weather.cancelRain) return { ...base, happens: false, why: 'rain' };
 

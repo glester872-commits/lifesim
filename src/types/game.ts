@@ -365,7 +365,8 @@ export interface RackDef {
 export interface LaneFlow {
   /** `mix`: lo que ponen las zonas que cruza el carril, por franja (systems/Districts.ts lo rellena al entrar). */
   /** `bias`: preferencia fija del carril (id → factor; `*`, lo que no se nombra): el bus-taxi lleva autobuses y taxis, los demás ninguno. */
-  lanes: readonly { row: number; dir: 1 | -1; mix?: Readonly<Partial<Record<import('../data/vehicles.ts').TrafficBand, Readonly<Record<string, number>>>>>; bias?: Readonly<Record<string, number>> }[];
+  /** `density`: cuánto tráfico lleva el carril según los barrios que cruza (1 = el del flujo; data/districtIdentity.ts, data/zones.ts). */
+  lanes: readonly { row: number; dir: 1 | -1; mix?: Readonly<Partial<Record<import('../data/vehicles.ts').TrafficBand, Readonly<Record<string, number>>>>>; bias?: Readonly<Record<string, number>>; density?: number }[];
   road: import('../data/vehicles.ts').RoadKind;
   /** Multiplicadores del barrio sobre los pesos del catálogo (id → factor). */
   mix?: Readonly<Record<string, number>>;

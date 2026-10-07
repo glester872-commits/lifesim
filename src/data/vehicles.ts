@@ -32,6 +32,11 @@ export interface MoverType {
   colors: readonly string[];
   /** Peso base en el tráfico. */
   weight: number;
+  /**
+   * Sólo sale donde el barrio lo permite de forma explícita (el carril lo trae en `mix`: systems/Districts.withDistrictLanes,
+   * data/districtIdentity.ts). Sin eso, nunca: un tipo nuevo no aparece en ningún sitio por descuido.
+   */
+  gated?: boolean;
   /** Multiplicador por franja (1 si no se dice). */
   bands?: Partial<Record<TrafficBand, number>>;
   /** Multiplicador en fin de semana. */
@@ -42,6 +47,12 @@ export interface MoverType {
 
 export interface VehicleType extends MoverType {
   shape: VehicleShape;
+  /**
+   * Peso de cada color de `colors` (en el mismo orden): lo corriente de una calle de Madrid son blancos, negros y
+   * grises (hasta un 80 %), y azules, rojos y verdes sólo de vez en cuando. Sin él, todos los colores pesan igual.
+   * Cada color es una textura (veh-<id>-<índice>): añadir uno es pintar un coche más, no otra lógica.
+   */
+  colorWeight?: readonly number[];
   /** Alto del sprite en px, del techo a las ruedas. */
   height: number;
   /** Lo que lo distingue: la franja del taxi, la caja del camión, la rotativa del servicio. */
@@ -57,37 +68,45 @@ export const VEHICLES: readonly VehicleType[] = [
   // Turismos: muchos utilitarios y compactos, berlinas y familiares, SUV compactos; los grandes y los premium, pocos.
   {
     id: 'city', shape: 'city', length: 35, height: 19, pace: 0.95,
-    colors: ['#e6e2da', '#8a3f45', '#3f6f78', '#c9b25a', '#2b2d33', '#9ab0c4'],
+    // blanco, negro, plata, gris oscuro, gris claro · azul petróleo, granate, azul claro, mostaza
+    colors: ['#e6e2da', '#1f2126', '#9aa0a6', '#4a4f57', '#c9ccd0', '#3f6f78', '#8a3f45', '#9ab0c4', '#c9b25a'],
+    colorWeight: [18, 14, 16, 12, 10, 6, 5, 3, 2],
     weight: 14, bands: { morning: 1.1, evening: 1.1, night: 0.8, dawn: 0.5 }, weekend: 1.1, roads: { residential: 1.3 },
   },
   {
     id: 'compact', shape: 'hatch', length: 38, height: 19, pace: 1,
-    colors: ['#8a3f45', '#3f6f78', '#c49a3a', '#6d7078', '#e8e4dc', '#2a3550', '#1f2126'],
+    colors: ['#e8e4dc', '#1f2126', '#6d7078', '#9aa0a6', '#c9ccd0', '#2a3550', '#3f6f78', '#8a3f45', '#c49a3a'],
+    colorWeight: [18, 15, 13, 14, 9, 6, 5, 5, 2],
     weight: 22, bands: { morning: 1.2, evening: 1.2, night: 0.8, dawn: 0.5 }, weekend: 1.1,
   },
   {
     id: 'sedan', shape: 'sedan', length: 42, height: 19, pace: 1.05,
-    colors: ['#7a4a52', '#b8b2a6', '#2f3f5e', '#3d5a45', '#1f2126', '#e6e2d8'],
+    colors: ['#e6e2d8', '#1f2126', '#3a3f48', '#b8bcc2', '#b8b2a6', '#2f3f5e', '#7a4a52', '#3d5a45'],
+    colorWeight: [16, 18, 14, 14, 8, 7, 3, 3],
     weight: 14, bands: { morning: 1.2, evening: 1.2, night: 0.9, dawn: 0.5 }, weekend: 1.1,
   },
   {
     id: 'wagon', shape: 'wagon', length: 43, height: 20, pace: 1.05,
-    colors: ['#5a6470', '#2b2d33', '#b8b2a6', '#3a4f6e'],
+    colors: ['#5a6470', '#2b2d33', '#b8b2a6', '#e6e2d8', '#9aa0a6', '#3a4f6e'],
+    colorWeight: [12, 16, 10, 14, 12, 6],
     weight: 8, bands: { morning: 1.2, evening: 1.1, night: 0.7, dawn: 0.5 }, weekend: 1.2,
   },
   {
     id: 'suv-compact', shape: 'suv-compact', length: 40, height: 21, pace: 1,
-    colors: ['#9aa0a6', '#e6e2d8', '#7a2f30', '#2f3f5e', '#5a6048', '#c9c2b2'],
+    colors: ['#9aa0a6', '#e6e2d8', '#1f2126', '#4a4f57', '#c9c2b2', '#2f3f5e', '#7a2f30', '#5a6048'],
+    colorWeight: [14, 16, 14, 12, 8, 6, 4, 4],
     weight: 12, bands: { dawn: 0.5 }, weekend: 1.2,
   },
   {
     id: 'suv', shape: 'suv', length: 44, height: 23, pace: 1,
-    colors: ['#2b2d33', '#9aa0a6', '#5a6048'],
+    colors: ['#2b2d33', '#9aa0a6', '#e6e2d8', '#4a4f57', '#5a6048'],
+    colorWeight: [20, 16, 14, 14, 3],
     weight: 5, bands: { dawn: 0.4 }, weekend: 1.3,
   },
   {
     id: 'premium', shape: 'sedan', length: 45, height: 19, pace: 1.1,
-    colors: ['#14161a', '#3a3f48', '#e8e8ec'],
+    colors: ['#14161a', '#3a3f48', '#e8e8ec', '#b8bcc2'],
+    colorWeight: [4, 3, 3, 2],
     weight: 2.5, bands: { dawn: 0.5, night: 1.2 }, roads: { residential: 0.5 },
   },
   // Taxis de Madrid: blancos con la banda roja en diagonal y el piloto en el techo, sobre varias carrocerías.
@@ -97,7 +116,8 @@ export const VEHICLES: readonly VehicleType[] = [
   { ...TAXI, id: 'taxi-hybrid', shape: 'hatch', length: 38, height: 19, pace: 1.1, weight: 2 },
   {
     id: 'van', shape: 'van', length: 48, height: 25, pace: 0.95,
-    colors: ['#dcd8cf', '#d9b13b', '#7b5a3c', '#e8e6e0'], trim: { stripe: '#4c8a54' },
+    colors: ['#dcd8cf', '#e8e6e0', '#9aa0a6', '#d9b13b', '#7b5a3c'], trim: { stripe: '#4c8a54' },
+    colorWeight: [16, 14, 6, 3, 2],
     weight: 10, bands: { morning: 2.2, midday: 1.2, evening: 0.5, night: 0.1, dawn: 0.2 }, weekend: 0.4, roads: { residential: 1.2 },
   },
   // Autobús urbano azul, de piso bajo y tres puertas; un color por línea (el letrero lleva su número).

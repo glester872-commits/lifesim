@@ -231,6 +231,10 @@ export class WorldScene extends Phaser.Scene {
   get metroSystem(): MetroSystem | null {
     return this.metro;
   }
+  /** La gente de la calle de aquí, si la hay (desarrollo: sus carteristas). */
+  get streetSystem(): StreetLife | null {
+    return this.street;
+  }
   private ambience: Ambience | null = null;
   /** Coches, furgonetas y autobuses de la calle (TrafficDef), y quien los pinta. */
   private traffic: Traffic<VehicleType> | null = null;
@@ -478,6 +482,17 @@ export class WorldScene extends Phaser.Scene {
     this.crowd = place && profile ? new Crowd(def, place, profile) : null;
     const streetProfile = streetProfileFor(def.id);
     this.street = streetProfile ? new StreetLife(def, streetProfile) : null;
+    // Un carterista de la calle (systems/Pickpocket) va a por el jugador: se lleva efectivo, nunca más de lo que lleva.
+    if (this.street) {
+      this.street.pickpocket.onRobbed = ({ amount, noticed }): void => {
+        const state = this.services.state;
+        const took = Math.min(amount, Math.max(0, state.money));
+        if (took <= 0) return;
+        state.money = Math.round((state.money - took) * 100) / 100;
+        // Si lo nota, lo sabe en el momento; si no, lo verá en la cartera (el dinero del HUD baja igual).
+        if (noticed) this.services.dialogue.start('Tú', [`¡Eh! ¡Alguien te ha metido la mano en el bolsillo! Te faltan ${euros(took)}.`]);
+      };
+    }
     // Los personajes, primero: nadie de la gente anónima aparece sentado en su sitio.
     this.placeCharacters();
     this.crowd?.populate(this.clockNow(), this.playerTile());
@@ -1272,6 +1287,27 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Día y minuto con la fracción en curso: el semáforo cambia a su segundo, no a saltos de minuto. */
+  /**
+   * Desarrollo (lifesim.scooter): saca un patinete eléctrico por el borde de un carril bici de aquí. Sólo si el barrio lo
+   * permite (DistrictIdentity.scooters): en Vallesco, nunca; y dice cuántos hay ahora.
+   */
+  /**
+   * Desarrollo (lifesim.crime.forceStreet / forceOnPlayer): un robo de calle ya, con las reglas de siempre (densidad y zona).
+   * En un sitio sin calle de gente, o sin gente suficiente, lo rechaza y lo dice.
+   */
+  debugStreetPickpocket(onPlayer: boolean): { ok: boolean; reason: string } {
+    if (!this.street) return { ok: false, reason: 'aquí no hay calle con gente' };
+    const p = this.playerTile();
+    return onPlayer ? this.street.pickpocket.forceOnPlayer(p) : this.street.pickpocket.force(p);
+  }
+
+  debugScooter(): { spawned: boolean; message: string; now: number } {
+    const now = (): number => this.bikes?.vehicles.filter((v) => v.type.id === 'scooter').length ?? 0;
+    if (!this.bikes) return { spawned: false, message: 'aquí no hay carril bici', now: 0 };
+    const spawned = this.bikes.forceSpawn('scooter', this.trafficClock());
+    return { spawned, message: spawned ? 'sale un patinete eléctrico por el borde del carril bici' : 'este barrio no admite patinetes eléctricos (o no hay hueco en la entrada)', now: now() };
+  }
+
   private trafficClock(): { day: number; minuteOfDay: number } {
     return { day: this.services.state.day, minuteOfDay: this.services.clock.minuteOfDay };
   }

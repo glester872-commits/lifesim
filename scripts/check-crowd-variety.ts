@@ -88,10 +88,17 @@ function street(day: number, hour: number, weather: Parameters<typeof forceWeath
 
 // --------------------------------------------------- 3. la composición cambia con el contexto
 {
-  const rush = street(3, 8.5, null, 30, 5);
-  const late = street(7, 3, null, 30, 5);
-  const afternoon = street(7, 16.5, null, 30, 5);
-  const share = (r: ReturnType<typeof street>, ...roles: string[]): number => roles.reduce((s, k) => s + (r.roles.get(k) ?? 0), 0) / Math.max(1, r.people);
+  // Cuatro semillas cada una: una foto de unas diez personas no basta para comparar mezclas.
+  const many = (day: number, hour: number): ReturnType<typeof street> => {
+    const runs = [5, 6, 7, 8].map((seed) => street(day, hour, null, 30, seed));
+    const roles = new Map<string, number>();
+    for (const r of runs) for (const [k, v] of r.roles) roles.set(k, (roles.get(k) ?? 0) + v);
+    return { ...runs[0], roles, people: runs.reduce((n, r) => n + r.people, 0) / runs.length };
+  };
+  const rush = many(3, 8.5);
+  const late = many(7, 3);
+  const afternoon = many(7, 16.5);
+  const share = (r: ReturnType<typeof street>, ...roles: string[]): number => roles.reduce((s, k) => s + (r.roles.get(k) ?? 0), 0) / Math.max(1, [...r.roles.values()].reduce((a, b) => a + b, 0));
   const work = ['commuter', 'metro-arrival', 'office'];
   const club = ['club-queue', 'club-smoke', 'club-leaving'];
   const shops = ['carmen-browse', 'carmen-friends', 'window-shopper', 'carmen-hang'];

@@ -160,6 +160,8 @@ function safeCrowd(crowd: Crowd, loc = getLocation(placeInfo('cafe')!.interior!)
   assert.ok(id !== null);
   const who = street.agents.find((w) => w.id === id)!;
   const from = { tx: who.x, ty: who.y };
+  // Quien ya estaba dentro del tile cuando se cortó sigue su camino hacia fuera (el tile donde ya está nunca cuenta).
+  const already = new Set(street.agents.filter((w) => street.blocked.has(tileKey({ tx: w.x, ty: w.y }))).map((w) => w.id));
   let ok = false;
   for (let ms = 0; ms < 60_000 && !ok; ms += STEP) {
     street.update(STEP, (clock = tick(clock, STEP, acc)), FAR);
@@ -169,7 +171,7 @@ function safeCrowd(crowd: Crowd, loc = getLocation(placeInfo('cafe')!.interior!)
       const ch = loc.ground[Math.round(w.y)]?.[Math.round(w.x)] ?? '';
       assert.ok(!ROADWAY.has(ch) || ch === 'z', `#${w.id} de rodeo por la calzada en ${Math.round(w.x)},${Math.round(w.y)} («${ch}»)`);
     }
-    for (const w of street.agents) assert.ok(!street.blocked.has(tileKey({ tx: w.x, ty: w.y })) || Math.hypot(w.x - from.tx, w.y - from.ty) < 0.7, `#${w.id} dentro del obstáculo`);
+    for (const w of street.agents) assert.ok(!street.blocked.has(tileKey({ tx: w.x, ty: w.y })) || already.has(w.id) || Math.hypot(w.x - from.tx, w.y - from.ty) < 0.7, `#${w.id} dentro del obstáculo`);
     ok = !street.agents.includes(who) || Math.hypot(who.x - from.tx, who.y - from.ty) >= 2;
   }
   assert.ok(ok, `#${id} sigue atascado en la calle (peldaños ${street.watch.stats.attempts})`);

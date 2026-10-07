@@ -86,7 +86,8 @@ function streets(start: Clock, minutes: number, seeds: readonly number[]): Stats
   return { roles: merge((s) => s.roles), uses: merge((s) => s.uses), peak: Math.max(...runs.map((s) => s.peak)) };
 }
 const MORNING = streets(at(TUESDAY, '06:30'), 150, [11, 3]);
-const EVENING = streets(at(SATURDAY, '19:00'), 150, [11, 3]);
+// Seis semillas: las parejas dependen de quién tiene con quién ir y con dos salían o no por azar (una pareja cada dos o tres tardes).
+const EVENING = streets(at(SATURDAY, '19:00'), 150, [11, 3, 17, 23, 29, 31]);
 const AFTERNOON = streets(at(SATURDAY, '12:00'), 240, [5, 7]);
 const LATE = streets(at(SATURDAY, '16:30'), 180, [5, 7]);
 

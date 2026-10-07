@@ -13,9 +13,10 @@ import type { MoverType } from './vehicles.ts';
 
 /**
  * Cuadro: urbana de paseo (cesta, guardabarros), de carretera (fina, manillar bajo), de alquiler público o
- * monopatín (de pie sobre la tabla: no es una bici, pero va por su carril con las mismas reglas).
+ * monopatín (de pie sobre la tabla: no es una bici, pero va por su carril con las mismas reglas) o patinete eléctrico
+ * (de pie sobre una plataforma estrecha, con su columna y su manillar: tampoco es una bici, ni un monopatín, ni una moto).
  */
-export type BikeFrame = 'city' | 'road' | 'rental' | 'skate';
+export type BikeFrame = 'city' | 'road' | 'rental' | 'skate' | 'scooter';
 
 export interface BikeType extends MoverType {
   frame: BikeFrame;
@@ -51,6 +52,13 @@ export const BIKES: readonly BikeType[] = [
     id: 'skater', frame: 'skate', length: 20, pace: 0.5, colors: ['#c0493f', '#3f6f78', '#d8b04a', '#2b2d33'],
     helmet: 0, pack: 0, lean: false,
     weight: 1.5, bands: { midday: 1.4, evening: 2.2, dawn: 0.05, night: 0.5, morning: 0.3 }, weekend: 2.5,
+  },
+  {
+    // Patinete eléctrico: de pie, estrecho (14 px de largo, menos que una bici), a paso ligero. Ocasional y sólo donde el barrio
+    // lo permite (DistrictIdentity.scooters: Vallesco no, la Ribera sí); sin eso, nunca.
+    id: 'scooter', frame: 'scooter', length: 14, pace: 0.8, colors: ['#2b2d33', '#9aa0a6', '#e6e2d8', '#3f6f78', '#c0493f'],
+    helmet: 0.35, pack: 0.25, lean: false, gated: true,
+    weight: 2.6, bands: { evening: 1.8, midday: 1.2, morning: 0.4, dawn: 0.05, night: 0.8 }, weekend: 1.8,
   },
   {
     id: 'courier', frame: 'road', length: 20, pace: 0.95, colors: ['#2b2d33', '#4c4f57'],

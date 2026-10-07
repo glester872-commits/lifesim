@@ -164,9 +164,58 @@ function skateLeg(ctx: Ctx, color: string, shoe: string, hip: Pt, knee: Pt, foot
   px(ctx, shoe, foot[0] - 1, foot[1], 3, 1);
 }
 
+/**
+ * Patinete eléctrico: la misma persona de pie sobre una plataforma estrecha (10 × 2 px), con dos ruedas pequeñas, la
+ * columna delante y el manillar a la altura de las manos. Más corto que una bici (14 px) y más alto que una tabla: no se
+ * confunde con ninguno de los dos, ni con una moto (sin asiento, sin depósito, sin ruedas grandes). Sin luces.
+ */
+function drawScooter(ctx: Ctx, r: RiderLook, c: HumanColors, f: number): void {
+  const frameColor = r.bike.colors[r.color];
+  ctx.translate(0, 3);
+  px(ctx, 'rgba(0,0,0,0.3)', 4, 22, 13, 1);
+  // Plataforma (el color del patinete), columna y manillar.
+  px(ctx, PALETTE.outline, 5, 20, 10, 2);
+  px(ctx, frameColor, 6, 20, 8, 1);
+  px(ctx, PALETTE.outline, 14, 6, 3, 14);
+  px(ctx, frameColor, 15, 7, 1, 13);
+  px(ctx, PALETTE.outline, 12, 5, 6, 2);
+  px(ctx, PALETTE.ink, 13, 5, 4, 1);
+  // Ruedas: dos pequeñas, a ras de suelo (la misma línea que las de una bici).
+  px(ctx, PALETTE.ink, 5, 22, 3, 1);
+  px(ctx, PALETTE.ink, 13, 22, 3, 1);
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 24;
+  const bctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!bctx) return;
+  // Tronco y cabeza de la persona quieta; las piernas de andar se quitan y se pintan las de estar sobre la plataforma.
+  drawHuman(bctx, 'right', 0, c);
+  bctx.clearRect(0, 18, 16, 6);
+  ctx.drawImage(canvas, 2, -5);
+  const [back, front] = SCOOTER_STANCE[f === RIDER_STOPPED ? 0 : f];
+  skateLeg(ctx, shade(c.trousers, -0.18), shade(c.shoes, -0.1), [8, 13], back[0], back[1]);
+  skateLeg(ctx, c.trousers, c.shoes, [11, 13], front[0], front[1]);
+  // El brazo hasta el manillar: la piel de la mano sobre el puño.
+  px(ctx, PALETTE.outline, 12, 8, 4, 3);
+  px(ctx, c.skin, 13, 9, 3, 1);
+  px(ctx, c.skin, 15, 6, 1, 1);
+}
+
+/** [rodilla, pie] de atrás y de delante; los dos sobre la plataforma (pie en y=19) o, al empujar (como skateFrame), el de atrás al suelo. */
+const SCOOTER_STANCE: readonly (readonly [readonly [Pt, Pt], readonly [Pt, Pt]])[] = [
+  [[[8, 16], [7, 19]], [[11, 16], [11, 19]]],
+  [[[6, 18], [3, 21]], [[11, 16], [11, 19]]],
+  [[[5, 17], [2, 19]], [[11, 16], [11, 19]]],
+  [[[7, 16], [5, 19]], [[11, 16], [11, 19]]],
+];
+
 function drawRider(ctx: Ctx, r: RiderLook, c: HumanColors, body: HTMLCanvasElement, f: number): void {
   if (r.bike.frame === 'skate') {
     drawSkater(ctx, r, c, f);
+    return;
+  }
+  if (r.bike.frame === 'scooter') {
+    drawScooter(ctx, r, c, f);
     return;
   }
   const stopped = f === RIDER_STOPPED;

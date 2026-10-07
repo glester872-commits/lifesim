@@ -182,7 +182,7 @@ export const ZONES: readonly ZoneDef[] = [
     tags: ['outdoor', 'green'],
   },
   {
-    id: 'calle-carmen', name: 'Calle del Carmen', type: 'commercial', location: 'district', districtId: 'vallesco',
+    id: 'calle-carmen', name: 'Calle del Carmen', type: 'commercial', location: 'district', districtId: 'vintage',
     rects: [{ tx: 74, ty: 42, w: 36, h: 14 }],
     population: {
       label: 'tiendas vintage, cafés, parejas y grupos',

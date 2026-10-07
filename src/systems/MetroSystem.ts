@@ -42,6 +42,8 @@ import {
 } from './PassengerAI';
 import { SecurityAI } from './SecurityAI';
 import { absMinute, FRESH_MINUTES, handoffs } from './Handoff';
+import { identityOf } from './Zones';
+import { LOCATION_DISTRICT } from '../data/districtIdentity';
 import { weatherAt } from './Weather';
 import { dressedLook } from '../world/WeatherLooks';
 import { StuckWatch } from './Recovery';
@@ -327,6 +329,7 @@ export class MetroSystem {
       this.tag,
       this.level,
       def.guards.length,
+      identityOf(LOCATION_DISTRICT[stationId] ?? '').security,
     );
 
     /*

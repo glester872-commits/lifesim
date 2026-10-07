@@ -16,6 +16,7 @@ import { levelAt, profileFor, stride, type Agent, type Clock } from './Crowd.ts'
 import { DOG_LOOKS } from '../data/wildlife.ts';
 import { lookWeights, profileAt } from './Districts.ts';
 import { zoneAt, zonePull } from './Zones.ts';
+import { StreetPickpocket } from './Pickpocket.ts';
 import { activePopUp, popUpCrowd } from './PopUps.ts';
 import { bondMates, IDENTITIES, OUTFIT_CLASH, outfitOf, outfitsOf, paceOf, relationLine, roleAffinity } from './People.ts';
 import type { Bond, RelationType } from '../data/identity.ts';
@@ -164,6 +165,8 @@ export interface Walker extends Agent {
   heldMs?: number;
   /** Punto al que va cuando no se queda (una puerta o un borde): al cruzar una puerta con interior, entra (systems/Handoff). */
   dest?: string;
+  /** Hace de carterista o de víctima de un robo en curso (systems/Pickpocket): su viaje espera hasta que acabe. */
+  incident?: 'thief' | 'victim';
 }
 
 /**
@@ -239,7 +242,51 @@ export class StreetLife {
   /** Oleadas del metro: gente por salir, ms hasta la siguiente y el último tren que llegó. */
   private readonly waves: { pending: number; release: number; train: number }[];
 
+  /** Los robos de la calle (systems/Pickpocket): raros, sólo con mucha gente alrededor y en zonas que lo permiten. */
+  readonly pickpocket: StreetPickpocket;
+
   constructor(loc: LocationDef, profile: StreetProfile, rng: Rng = Math.random) {
+    this.loc = loc;
+    this.pickpocket = new StreetPickpocket({
+      location: loc.id,
+      people: () => this.agents,
+      zoneAt: (tx, ty) => zoneAt(loc.id, tx, ty),
+      approach: (thief, at) => {
+        const a = thief as Walker;
+        const side = this.sideTile(at) ?? at;
+        const path = this.detour({ tx: a.x, ty: a.y }, side);
+        if (!path) return false;
+        // Deja lo que hacía (un banco, una parada) y va hacia la víctima: su viaje espera (Walker.incident).
+        this.release(a);
+        a.staying = false;
+        a.settled = false;
+        a.timer = 0;
+        a.delay = 0;
+        a.state = 'WALK';
+        a.path = path;
+        return true;
+      },
+      leave: (thief, run) => {
+        const a = thief as Walker;
+        const edge = this.nearestEdge({ tx: a.x, ty: a.y });
+        const path = edge ? this.detour({ tx: a.x, ty: a.y }, this.pointAt(edge)) : null;
+        if (!path) return false;
+        this.release(a);
+        a.staying = false;
+        a.settled = false;
+        a.timer = 0;
+        a.delay = 0;
+        a.state = 'WALK';
+        a.vanish = true;
+        a.path = path;
+        // Lo han visto: corre. Si no, se aleja como cualquiera.
+        if (run) {
+          a.gait = 'jog';
+          a.speed = Math.max(a.speed, between(this.rng, ...JOG_SPEED));
+        }
+        return true;
+      },
+    });
     this.loc = loc;
     this.profile = profile;
     this.rng = rng;
@@ -394,6 +441,7 @@ export class StreetLife {
   // --------------------------------------------------------------- tiempo
 
   update(deltaMs: number, clock: Clock, player: TilePoint): void {
+    this.pickpocket.update(deltaMs, player);
     this.weather = weatherAt(clock.day, clock.hour + clock.minute / 60);
     this.tickSignals(clock, deltaMs);
     this.metroWaves(deltaMs, clock, player);
@@ -526,6 +574,8 @@ export class StreetLife {
     }
     a.moving = false;
     if (a.vanish) return;
+    // En un robo: llegar al final del camino no es irse (systems/Pickpocket decide cuándo).
+    if (a.incident) return;
     if (a.leader) {
       this.followLeader(a, clock);
       return;

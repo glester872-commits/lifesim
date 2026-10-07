@@ -820,6 +820,8 @@ export function securityFor(
   tag: HourTag,
   level: CrowdLevel,
   posts: number,
+  /** Presencia de vigilancia del barrio (data/districtIdentity.security): 1 = la de siempre. */
+  presence = 1,
 ): {
   count: number;
   patrols: boolean;
@@ -869,6 +871,13 @@ export function securityFor(
   ) {
     patrols = false;
   }
+
+  // El barrio manda sobre cómo se hace la guardia (nunca sobre si la hay): donde se vigila más, hay ronda también
+  // en las horas tranquilas; donde menos, se queda en su puesto aunque haya gente. Una tirada propia: el resto
+  // de lo que decide la semilla del día no cambia.
+  const style = seededRng(hashSeed('metro-security-district', daily.day, stationId, tag))();
+  if (presence >= 1.3 && !busy && style < Math.min(0.9, (presence - 1) * 1.5)) patrols = true;
+  if (presence <= 0.85 && busy === false && style < (1 - presence) * 2) patrols = false;
 
   return {
     count,

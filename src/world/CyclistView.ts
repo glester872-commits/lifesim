@@ -63,13 +63,13 @@ export class CyclistView {
       const left = Math.round(v.x - RIDER_W / 2);
       const top = bottom - RIDER_H;
       // El patinador no pedalea: rueda con los pies en la tabla y de vez en cuando empuja (skateFrame).
-      const frame = v.speed < 0.5 ? RIDER_STOPPED : v.type.frame === 'skate' ? skateFrame(v.x * v.dir, v.seed) : Math.floor(Math.abs(v.x) / STROKE_PX) % 4;
+      const frame = v.speed < 0.5 ? RIDER_STOPPED : v.type.frame === 'skate' || v.type.frame === 'scooter' ? skateFrame(v.x * v.dir, v.seed) : Math.floor(Math.abs(v.x) / STROKE_PX) % 4;
       // La bici va siempre a la misma altura: el cuerpo que sube y baja al pedalear está dibujado
       // en los propios fotogramas (world/CyclistArt). Mover el sprite entero hacía botar las ruedas.
       p.body.setFrame(frame).setPosition(left, top).setDepth(bottom).setVisible(true);
       const at = ([lx, ly]: readonly [number, number]): [number, number] => [left + (flip ? RIDER_W - 1 - lx : lx), top + ly];
       // El monopatín no lleva luces.
-      const lamps = v.type.frame !== 'skate';
+      const lamps = v.type.frame !== 'skate' && v.type.frame !== 'scooter';
       p.head.setPosition(...at(RIDER_LAMPS.head)).setVisible(lit && lamps);
       p.tail.setPosition(...at(RIDER_LAMPS.tail)).setVisible(lamps && (lit || v.braking)).setAlpha(v.braking ? 1 : 0.7);
     }
