@@ -5,7 +5,7 @@ import { LEVELS, POPULATION, type Level } from '../config/population.ts';
 import { POPULATION_PROFILES, type DrinkKind, type PlanStep, type PopulationProfile, type StaffRole, type VisitorRole } from '../data/population.ts';
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
-import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
+import { between, dayFactor, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { weekIndex } from './Calendar.ts';
 import { outdoorAppeal, weatherAt } from './Weather.ts';
 import { isOpen, openingDay, type PlaceInfo } from './Places.ts';
@@ -14,9 +14,10 @@ import { besideTile, identity, nextCustomer } from './Service.ts';
 import { getStation, type Occupancy, type StationDef } from '../data/stations.ts';
 import { TableService } from './TableService.ts';
 import { SeatRegistry } from './SeatRegistry.ts';
-import { IDENTITIES } from './People.ts';
+import { IDENTITIES, outfitOf, outfitsOf } from './People.ts';
 import { isWalkable } from './LocationSystem.ts';
 import { aheadBlocked, nearestReachable, offCamera, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
+import { absMinute, FRESH_MINUTES, handoffs, insideOf, markExited, type Handoff } from './Handoff.ts';
 
 /** Una reserva a la que no se llega en este tiempo (ms de reloj de la sala) se da por perdida. */
 const RESERVE_TTL_MS = 90_000;
@@ -63,7 +64,12 @@ export function targetAt(place: PlaceInfo, profile: PopulationProfile, clock: Cl
   const sheltered = place.tags.some((t) => t === 'food' || t === 'nightlife' || t === 'shop' || t === 'social');
   const shelter = sheltered ? 1 + Math.max(0, 1 - outdoorAppeal(weatherAt(clock.day, clock.hour + clock.minute / 60))) * 0.35 : 1;
   const wanted = Math.round((lo + Math.floor(rng() * (hi - lo + 1))) * shelter);
-  return Math.max(0, Math.min(wanted, profile.maxVisitors, place.capacity - staff));
+  // Dentro del rango del nivel ya hay un número distinto cada día. A la hora punta de un local pequeño el rango pasa
+  // del aforo y el tope lo llenaba todos los días igual: ahí cada sitio tiene su día (systems/MetroDaily.dayFactor) y un
+  // día flojo se queda hasta un 20 % por debajo del tope, nunca por encima. Un local abierto no se queda vacío.
+  const limit = Math.min(profile.maxVisitors, place.capacity - staff);
+  const day = Math.min(1, dayFactor(clock.day, `occupancy:${place.id}`, 0.2));
+  return Math.max(0, Math.min(wanted, Math.max(1, Math.round(limit * day))));
 }
 
 // ---------------------------------------------------------------- agentes
@@ -138,6 +144,10 @@ export interface Agent {
   round?: number;
   /** Veces seguidas que esperó a que Tere acabase con otro pedido (acotado: nunca se queda esperando). */
   orderWaits?: number;
+  /** Entró desde la calle delante del jugador (systems/Handoff): su ficha. Es la misma persona dentro y fuera. */
+  handoff?: string;
+  /** Semilla de la ropa del día, si no es su id (quien viene de la calle trae la suya: el mismo abrigo). */
+  dressSeed?: number;
 }
 
 export interface CrowdStats {
@@ -175,6 +185,8 @@ export class Crowd {
   /** Obstáculos temporales (un tile cortado): nadie entra en ellos y las rutas los rodean. */
   readonly blocked = new Set<string>();
   private player: TilePoint = { tx: -999, ty: -999 };
+  /** Minuto absoluto de juego (systems/Handoff.absMinute): la hora de las fichas de quien entró desde la calle. */
+  private now = 0;
 
   constructor(loc: LocationDef, place: PlaceInfo, profile: PopulationProfile, rng: Rng = Math.random) {
     this.loc = loc;
@@ -261,8 +273,11 @@ export class Crowd {
       const point = this.freePoint(role.points, far);
       if (point) this.addStaff(role, point);
     }
+    // Quien entró desde la calle delante del jugador, antes que nadie: así su cara no le toca a otro.
+    this.now = absMinute(clock.day, clock.hour, clock.minute);
+    if (level !== null) for (const h of insideOf(this.place.id, this.now)) this.admit(h, clock, player);
     const target = targetAt(this.place, this.profile, clock);
-    let placed = 0;
+    let placed = this.agents.filter((a) => a.handoff).length;
     for (let tries = 0; placed < target && tries < target * 2; tries++) {
       const role = this.pickRole(clock);
       if (!role) break;
@@ -315,6 +330,7 @@ export class Crowd {
   // --------------------------------------------------------------- tiempo
 
   update(deltaMs: number, clock: Clock, player: TilePoint): void {
+    this.now = absMinute(clock.day, clock.hour, clock.minute);
     this.elapsed += deltaMs;
     this.seats.tick(deltaMs);
     this.tick -= deltaMs;
@@ -359,6 +375,12 @@ export class Crowd {
         a.leaveSoon = true;
         a.timer = Math.min(a.timer, between(this.rng, ...POPULATION.reaction));
       }
+    }
+    // Quien vino de la calle se va a su hora (la de su ficha), aunque le quede plan.
+    for (const a of this.agents) {
+      if (!a.handoff || a.leaving || a.leaveSoon) continue;
+      const h = handoffs().find((o) => o.token === a.handoff);
+      if (!h || this.now >= h.leaveAt) a.leaveSoon = true;
     }
     const active = this.agents.filter((a) => a.kind === 'visitor' && !a.leaving && !a.leaveSoon);
     const diff = this.stats.target - active.length;
@@ -740,12 +762,24 @@ export class Crowd {
 
   // -------------------------------------------------------- altas y bajas
 
-  /** Una cara que no esté ya en la sala mientras haya: dos gemelos en el mismo local se notan. */
+  /**
+   * Una cara que no esté ya en la sala mientras haya, y a ser posible con otra ropa: dos gemelos en el mismo local
+   * se notan, y dos con el mismo jersey y pantalón también. Una sola tirada (la semilla manda), luego la primera
+   * que cumple las dos; si no hay, la primera con cara libre.
+   */
   private pickLook(): number {
     const used = new Set(this.agents.map((a) => a.look));
-    let look = Math.floor(this.rng() * PASSENGER_LOOKS.length);
-    for (let i = 0; i < PASSENGER_LOOKS.length && used.has(look); i++) look = (look + 1) % PASSENGER_LOOKS.length;
-    return look;
+    const worn = outfitsOf(used);
+    const n = PASSENGER_LOOKS.length;
+    const start = Math.floor(this.rng() * n);
+    let free = -1;
+    for (let i = 0; i < n; i++) {
+      const look = (start + i) % n;
+      if (used.has(look)) continue;
+      if (!worn.has(outfitOf(look))) return look;
+      if (free < 0) free = look;
+    }
+    return free >= 0 ? free : start;
   }
 
   private newAgent(kind: Agent['kind'], role: string, label: string, line: string, at: TilePoint, chosen?: number): Agent {
@@ -782,6 +816,41 @@ export class Crowd {
     agent.timer = between(this.rng, 8_000, 20_000);
   }
 
+  /**
+   * Alguien que entró desde la calle (systems/Handoff): la misma cara y la misma ropa del día. Si el jugador le
+   * ha seguido enseguida, acaba de cruzar la puerta; si ha tardado, ya está a mitad de lo suyo (según lo que
+   * lleva dentro), en un sitio libre de su plan y nunca encima de una máquina ocupada ni de una pared.
+   */
+  private admit(h: Handoff, clock: Clock, player: TilePoint): void {
+    if (this.agents.some((a) => a.handoff === h.token)) return;
+    const role = this.pickRole(clock);
+    if (!role) return;
+    const plan = this.buildPlan(role);
+    let agent: Agent | undefined;
+    if (this.now - h.enteredAt >= FRESH_MINUTES && plan.length > 0) {
+      const far = (id: string): boolean => this.distance(this.pointAt(id), player) >= POPULATION.spawnClearance && this.seatOk(id);
+      const progress = (this.now - h.enteredAt) / Math.max(1, h.leaveAt - h.enteredAt);
+      for (let k = Math.min(plan.length - 1, Math.floor(progress * plan.length)); k < plan.length && !agent; k++) {
+        const point = this.freePoint(this.expand(plan[k].points, h.look), far);
+        if (!point) continue;
+        agent = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(point), h.look);
+        agent.plan = plan.slice(k + 1);
+        agent.stepPoints = plan[k].points;
+        this.occupy(agent, point, plan[k].state);
+        this.dressFor(agent, plan, k);
+        agent.timer = this.duration(plan[k], point) * (0.3 + this.rng() * 0.7);
+        this.service?.adopt(point, agent);
+      }
+    }
+    if (!agent) {
+      agent = this.newAgent('visitor', role.role, role.label, role.line, this.door, h.look);
+      agent.plan = plan;
+      agent.timer = between(this.rng, ...POPULATION.reaction);
+    }
+    agent.handoff = h.token;
+    agent.dressSeed = h.dressSeed;
+  }
+
   /** Entra por la puerta; si viene en grupo, los demás cruzan detrás, de uno en uno. */
   private enterVisitor(role: VisitorRole, room: number): void {
     const agent = this.newAgent('visitor', role.role, role.label, role.line, this.door);
@@ -800,6 +869,9 @@ export class Crowd {
   }
 
   private remove(index: number): void {
+    // Sale por la puerta: a la calle (StreetLife lo saca por la misma puerta si el jugador sale a tiempo).
+    const token = this.agents[index].handoff;
+    if (token) markExited(token, this.now);
     this.release(this.agents[index]);
     this.watch.forget(this.agents[index].id);
     this.agents.splice(index, 1);

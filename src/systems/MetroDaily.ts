@@ -74,6 +74,19 @@ export function hashSeed(
   return h >>> 0;
 }
 
+/**
+ * La variación del día: un factor 1 ± `spread` que sale sólo del canal, del día de la partida y, si se pide, de
+ * un tramo del día (`block`: 0–5 para tramos de cuatro horas). El mismo día y tramo dan siempre lo mismo (recargar,
+ * salir y volver a entrar no lo re-tiran) y dos días distintos casi nunca. Ninguna tirada por frame, nada guardado:
+ * el día ya es lo que se guarda (systems/Calendar).
+ * Sólo para lo opcional (cuánta gente, cuántos coches, qué pasa de más); lo que es obligación (turnos, personal,
+ * horarios) no lo usa.
+ */
+export function dayFactor(day: number, channel: string, spread: number, block = -1): number {
+  const rng = seededRng(hashSeed('day-factor', channel, day, block));
+  return 1 + (rng() * 2 - 1) * spread;
+}
+
 /** Elección ponderada sobre pares [valor, peso]. */
 export function weighted<T>(
   rng: Rng,

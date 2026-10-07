@@ -2,7 +2,7 @@
 import { TILE } from '../config/constants.ts';
 import { bandAt, type MoverType } from '../data/vehicles.ts';
 import type { LaneFlow, SignalDef, Vec2 } from '../types/game.ts';
-import { between, type Rng } from './MetroDaily.ts';
+import { between, dayFactor, type Rng } from './MetroDaily.ts';
 import { weekIndex } from './Calendar.ts';
 import { signalAt } from './Signals.ts';
 import { weatherAt } from './Weather.ts';
@@ -98,15 +98,39 @@ export class Traffic<T extends MoverType = MoverType> {
     this.signals = signals;
     this.widthPx = widthPx;
     this.rng = rng;
+    this.peak = Math.max(def.perLane, ...(def.hourly ?? []).map((h) => h[2]));
+    this.channel = `traffic:${def.road}:${def.lanes.map((l) => l.row).join(',')}`;
     this.spawnIn = def.lanes.map(() => between(rng, ...SPAWN_EVERY));
   }
 
-  /** Cuántos por carril a esta hora (LaneFlow.hourly); sin franja, perLane. Con lluvia, menos si el flujo la nota. */
+  /**
+   * Cuántos por carril a esta hora (LaneFlow.hourly); sin franja, perLane. Con lluvia, menos si el flujo la nota. Con
+   * día, el tráfico de ese día: ±25 % según el día y ±15 % más según el tramo de cuatro horas (el mismo martes a la
+   * misma hora no es siempre igual); nunca sin coches si lo normal es que haya, ni por encima de la hora punta del flujo.
+   */
   target(hour: number, day?: number): number {
     const band = this.def.hourly?.find(([from, to]) => hour >= from && hour < to);
     const base = band ? band[2] : this.def.perLane;
-    if (!this.def.rainShy || day === undefined) return base;
-    return Math.round(base * (1 - this.def.rainShy * weatherAt(day, hour).rain));
+    if (day === undefined) return base;
+    const rain = this.def.rainShy ? 1 - this.def.rainShy * weatherAt(day, hour).rain : 1;
+    const varied = base * rain * this.dayMix(day, Math.floor(hour / 4));
+    return base > 0 ? Math.min(this.peak, Math.max(1, Math.round(varied))) : 0;
+  }
+
+  /** Lo más que lleva el flujo a su hora punta: nunca más coches de los que el carril aguanta. */
+  private readonly peak: number;
+  private readonly channel: string;
+  /** El factor del día y el tramo, calculado una vez (target() se llama cada frame). */
+  private readonly mixes = new Map<number, number>();
+  private dayMix(day: number, block: number): number {
+    const key = day * 8 + block;
+    let m = this.mixes.get(key);
+    if (m === undefined) {
+      m = dayFactor(day, this.channel, 0.25) * dayFactor(day, this.channel, 0.15, block);
+      if (this.mixes.size > 64) this.mixes.clear();
+      this.mixes.set(key, m);
+    }
+    return m;
   }
 
   /** Al entrar en el sitio, el tráfico ya está a mitad de camino: repartido por cada carril. */

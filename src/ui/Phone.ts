@@ -1,3 +1,4 @@
+import { formatDate, SEASON_LABEL, seasonOf } from '../systems/Calendar';
 import type { GameState } from '../state/GameState';
 import { getNpc } from '../data/npcs';
 import { NAMED_PEOPLE } from '../data/namedPeople';
@@ -395,7 +396,10 @@ export class PhoneScreen {
   private greeting(unread: number): string {
     const h = this.state.hour;
     const hi = h < 6 ? 'Buenas noches' : h < 14 ? 'Buenos días' : h < 21 ? 'Buenas tardes' : 'Buenas noches';
-    return unread ? `${hi}. Tienes ${unread} ${unread === 1 ? 'mensaje' : 'mensajes'} sin leer.` : `${hi}.`;
+    // La fecha entera, como la pantalla de bloqueo de un móvil: «Martes, 13 de abril de 2027 · primavera».
+    const date = formatDate(this.state.day);
+    const today = `${date[0].toUpperCase()}${date.slice(1)} · ${SEASON_LABEL[seasonOf(this.state.day)]}.`;
+    return unread ? `${hi}. ${today} Tienes ${unread} ${unread === 1 ? 'mensaje' : 'mensajes'} sin leer.` : `${hi}. ${today}`;
   }
 
   private showToast(npc: string, title: string, text: string): void {

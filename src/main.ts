@@ -11,6 +11,8 @@ import { DEBUG } from './config/debug';
 import { QUALITY, setQuality, type QualityLevel } from './config/quality';
 import { placeInfo, placesOfType } from './systems/Places';
 import { forceWeather, weatherAt } from './systems/Weather';
+import { dateOf, dayOfDate, formatDate, SEASON_LABEL } from './systems/Calendar';
+import { handoffs } from './systems/Handoff';
 import { MetroEventManager } from './systems/MetroEventManager';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
@@ -26,7 +28,8 @@ import { AlleyDealView } from './world/AlleyDealView';
 /** Lo que pone lifesim.scaleCompare() (sólo en desarrollo). */
 let scaleShown: Phaser.GameObjects.GameObject[] = [];
 
-import { PLAYER_COLORS, humanKey } from './world/TextureFactory';
+import { SCALE } from './config/scale';
+import { HD_PERSON, PLAYER_COLORS, humanKey, personFrame, personScale, personTexture } from './world/TextureFactory';
 
 import { withAppearance } from './systems/Appearance';
 import { STREET_EVENTS } from './data/streetEvents';
@@ -529,7 +532,7 @@ social: {
         ]);
       },
       // Escala (sólo en desarrollo): lifesim.scaleCompare() pone en fila, junto al jugador y en su misma línea de suelo,
-      // un peatón, un ciclista, un turismo y un autobús con las texturas del juego a 1:1. Otra llamada lo quita.
+      // un peatón, un patinador, un ciclista, un turismo y un autobús con las texturas del juego a 1:1. Otra llamada lo quita.
       scaleCompare: () => {
         const world = game.scene.getScene('World') as WorldSceneType;
         if (scaleShown.length) {
@@ -546,10 +549,56 @@ social: {
           x += img.displayWidth + 8;
         };
         put(humanKey('player', 'right', 0), undefined, HD_SCALE, 'peatón');
+        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'skate')!, color: 0, helmet: false, pack: false }), 0, 1, 'tabla');
         put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, 1, 'bici');
         put('veh-compact-0', undefined, 1, 'coche');
         put('veh-bus-0', undefined, 1, 'autobús');
-        return 'peatón < bici < coche < autobús';
+        // Mobiliario a la misma escala (config/scale.ts): banco, banco de plaza, farola, marquesina y árbol.
+        for (const [key, label] of [['prop-bench', 'banco'], ['prop-plaza-bench', 'banco plaza'], ['prop-street-lamp', 'farola'], ['prop-bus-stop', 'marquesina'], ['prop-tree-0', 'árbol']]) put(key, undefined, 1, label);
+        return `persona ${SCALE.personH} px; peatón / tabla / bici < coche < autobús; banco, farola, marquesina y árbol`;
+      },
+      // Auditoría visual (sólo en desarrollo): lifesim.lineup() pone en fila, junto al jugador y a 1:1, a quien sale en el juego
+      // con cada ruta de dibujo: jugador, anónimo de 16 × 24, anónimo de 28 × 42, con nombre, de servicio, seguridad y ciclista.
+      // Devuelve lo que mide cada uno en el mundo (píxeles opacos). Otra llamada lo quita.
+      lineup: () => {
+        const world = game.scene.getScene('World') as WorldSceneType;
+        if (scaleShown.length) {
+          scaleShown.forEach((o) => o.destroy());
+          scaleShown = [];
+          return 'quitado';
+        }
+        const base = state.position.y + 12;
+        let x = state.position.x + 14;
+        const sizes: string[] = [];
+        const measure = (key: string, frame: string | number | undefined, scale: number): string => {
+          const fr = world.textures.getFrame(key, frame);
+          const c = document.createElement('canvas');
+          c.width = fr.cutWidth;
+          c.height = fr.cutHeight;
+          const cx = c.getContext('2d')!;
+          cx.drawImage(fr.source.image as CanvasImageSource, fr.cutX, fr.cutY, fr.cutWidth, fr.cutHeight, 0, 0, c.width, c.height);
+          const d = cx.getImageData(0, 0, c.width, c.height).data;
+          let [x0, y0, x1, y1] = [1e9, 1e9, -1, -1];
+          for (let j = 0; j < c.height; j++) for (let i = 0; i < c.width; i++) if (d[(j * c.width + i) * 4 + 3] > 40) [x0, y0, x1, y1] = [Math.min(x0, i), Math.min(y0, j), Math.max(x1, i), Math.max(y1, j)];
+          return `${((x1 - x0 + 1) * scale).toFixed(1)}×${((y1 - y0 + 1) * scale).toFixed(1)} (celda ${c.width}×${c.height}, escala ${scale.toFixed(2)}, pies a ${((c.height - 1 - y1) * scale).toFixed(1)} px)`;
+        };
+        const put = (label: string, key: string, frame: string | number | undefined, scale: number): void => {
+          const img = world.add.image(x, base, key, frame).setOrigin(0, 1).setScale(scale).setDepth(base + 200);
+          const shadow = world.add.image(x + img.displayWidth / 2, base - 1, 'fx-shadow').setDepth(base + 199);
+          const t = world.add.text(x, base + 2 + (sizes.length % 2) * 7, label, { fontFamily: 'monospace', fontSize: '24px', color: '#fff', backgroundColor: '#000a' }).setScale(0.25).setDepth(base + 201);
+          scaleShown.push(img, shadow, t);
+          sizes.push(`${label}: ${measure(key, frame, scale)}`);
+          x += Math.max(img.displayWidth, 18) + 14;
+        };
+        const person = (label: string, id: string): void => put(label, personTexture(id), personFrame(id, 'down'), personScale(id));
+        put('jugador', humanKey('player', 'down', 0), undefined, HD_SCALE);
+        person('anónimo', PASSENGER_LOOKS[0].id);
+        person('anónimo HD', HD_PERSON ?? PASSENGER_LOOKS[0].id);
+        person('con nombre', 'sara');
+        person('servicio', 'uniforme-sala');
+        person('seguridad', 'marco');
+        put('ciclista', riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, 1);
+        return sizes.join(' | ');
       },
       // Carteristas del metro (MetroSystem.startPickpocket: un pasajero roba a otro, seguridad persigue, retiene y
       // escolta), en un andén: lifesim.crime.forcePickpocket(), .status() (el ciclo común), .resolve(), .cancel().
@@ -598,6 +647,46 @@ social: {
         now: () => weatherAt(state.day, state.hour + state.minute / 60),
         force: (w: Parameters<typeof forceWeather>[0]) => forceWeather(w),
       },
+      // Quien entró por una puerta delante del jugador (systems/Handoff): lifesim.handoff() saca la cola en una tabla
+      // (persona, de dónde, a dónde, cuándo entró, hasta cuándo se queda, si ya salió) y, si estás dentro de un local
+      // o en el metro, quién de esa cola está ahora mismo en la sala.
+      handoff: () => {
+        const hm = (abs: number | undefined): string => (abs === undefined ? '—' : `${String(Math.floor((abs % 1440) / 60)).padStart(2, '0')}:${String(Math.floor(abs % 60)).padStart(2, '0')}`);
+        console.table(handoffs().map((h) => ({
+          token: h.token, persona: PASSENGER_LOOKS[h.look]?.id, de: `${h.from} (${h.door})`, a: `${h.place} → ${h.interior}`,
+          entro: hm(h.enteredAt), seQueda: `${Math.round(h.leaveAt - h.enteredAt)} min`, sale: hm(h.leaveAt), salio: hm(h.exitedAt), metro: h.transit,
+        })));
+        return (game.scene.getScene('World') as WorldSceneType).handoffOccupancy();
+      },
+      // La fecha del mundo (systems/Calendar): lifesim.date.now(), .set(2028, 2, 28, 23, 50), .addDays(1), .addMonths(1).
+      // Sólo hacia delante y con el reloj de verdad (TimeSystem.advanceMinutes): cada medianoche se avisa y lo diario se
+      // reinicia como al jugar. Hacia atrás no: los cooldowns y los planes ya guardados quedarían en el futuro.
+      date: (() => {
+        const now = (): string => {
+          const d = dateOf(state.day);
+          return `${formatDate(state.day)} — ${String(state.hour).padStart(2, '0')}:${String(state.minute).padStart(2, '0')} · ${SEASON_LABEL[d.season]} (día ${state.day} de la partida)`;
+        };
+        const to = (day: number, hour = state.hour, minute = state.minute): string => {
+          const delta = (day - state.day) * 1440 + (hour - state.hour) * 60 + (minute - state.minute);
+          if (delta < 0) return `no se vuelve atrás: ${now()}`;
+          services.clock.advanceMinutes(delta);
+          return now();
+        };
+        return {
+          now,
+          set: (year: number, month: number, dom: number, hour?: number, minute?: number) => to(dayOfDate(year, month, dom), hour, minute),
+          addDays: (n = 1) => to(state.day + n),
+          addMonths: (n = 1) => {
+            const d = dateOf(state.day);
+            const m = d.month - 1 + n;
+            const year = d.year + Math.floor(m / 12);
+            const month = (m % 12) + 1;
+            // El 31 de enero + 1 mes es el último de febrero, no el 3 de marzo.
+            const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+            return to(dayOfDate(year, month, Math.min(d.dom, last)));
+          },
+        };
+      })(),
     },
   });
 }

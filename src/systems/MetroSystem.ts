@@ -41,6 +41,9 @@ import {
   type StationLayout,
 } from './PassengerAI';
 import { SecurityAI } from './SecurityAI';
+import { absMinute, FRESH_MINUTES, handoffs } from './Handoff';
+import { weatherAt } from './Weather';
+import { dressedLook } from '../world/WeatherLooks';
 import { StuckWatch } from './Recovery';
 import { eventId, type EventInfo, type Lifecycle } from './WorldEvents';
 import {
@@ -314,6 +317,7 @@ export class MetroSystem {
     );
 
     this.populate();
+    this.admitHandoffs();
 
     // ------------------------------------------------ seguridad
 
@@ -409,11 +413,13 @@ export class MetroSystem {
   update(
     deltaMs: number,
     timeMs: number,
+    player: { x: number; y: number } | null = null,
   ): void {
     const dt = Math.min(
       deltaMs,
       MAX_FRAME_MS,
     );
+    for (const w of this.walkers) w.avoid = player;
 
     this.train.update(dt);
 
@@ -656,6 +662,32 @@ export class MetroSystem {
     this.note(
       `afluencia → ${level}`,
     );
+  }
+
+  /**
+   * Quien bajó por la boca delante del jugador (systems/Handoff): la misma persona, con su ropa del día. Si el
+   * jugador baja detrás, entra por el vestíbulo y sigue el flujo de siempre (torniquete, andén, esperar el tren);
+   * si ha tardado, ya espera en el andén. Nunca en la vía: entrada y sitios de espera son los de la estación. Un
+   * pasajero que ya llevaba esa cara se cambia: no hay dos iguales.
+   */
+  private admitHandoffs(): void {
+    const now = absMinute(this.clock.day, this.clock.hour, this.clock.minute);
+    const mine = handoffs().filter((h) => h.transit && h.interior === this.stationId && !h.done && h.enteredAt <= now && now < h.leaveAt);
+    const w = weatherAt(this.clock.day, this.clock.hour + this.clock.minute / 60);
+    for (const h of mine) {
+      const p = this.passengers.find((q) => q.state === 'OFFSTAGE' && !q.walker.visible && !q.handoff);
+      if (!p) return;
+      const look = dressedLook(PASSENGER_LOOKS[h.look % PASSENGER_LOOKS.length], h.dressSeed, w);
+      for (const q of this.passengers) if (q.walker.visible && q.walker.look.id === look.id) q.walker.setLook(this.freshLook());
+      p.handoff = h.token;
+      if (now - h.enteredAt < FRESH_MINUTES) p.enter(false, look);
+      else p.startWaiting(look);
+    }
+  }
+
+  /** Depuración (lifesim.handoff): los pasajeros que bajaron desde la calle delante del jugador. */
+  handoffPassengers(): readonly PassengerAI[] {
+    return this.passengers.filter((p) => p.handoff);
   }
 
   /** Arranque inicial. */
@@ -969,10 +1001,20 @@ export class MetroSystem {
           ),
       );
 
+    // A ser posible, también con otra ropa que la del andén: la misma cara no se repite, ni el mismo jersey y pantalón.
+    const worn = new Set(
+      this.passengers
+        .filter((p) => p.walker.visible)
+        .map((p) => `${p.walker.look.cloth}|${p.walker.look.trousers ?? ''}`),
+    );
+    const fresh = unused.filter((l) => !worn.has(`${l.cloth}|${l.trousers ?? ''}`));
+
     return pick(
-      unused.length > 0
-        ? unused
-        : PASSENGER_LOOKS,
+      fresh.length > 0
+        ? fresh
+        : unused.length > 0
+          ? unused
+          : PASSENGER_LOOKS,
     );
   }
 

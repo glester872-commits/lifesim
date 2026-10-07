@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Facing, NpcDef } from '../types/game';
-import { PEOPLE, personFrame } from '../world/TextureFactory';
+import { personFrame, personScale, personTexture } from '../world/TextureFactory';
 
 export class NPC extends Phaser.Physics.Arcade.Sprite {
   readonly def: NpcDef;
@@ -9,11 +9,13 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
   private readonly post: Facing;
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: NpcDef, facing: Facing) {
-    super(scene, x, y, PEOPLE, personFrame(def.id, facing));
+    super(scene, x, y, personTexture(def.id), personFrame(def.id, facing));
     this.def = def;
 
     scene.add.existing(this);
     this.setOrigin(0.5, 1);
+    // Igual que Character y Walker: el aspecto de 28 × 42 mide en el mundo lo mismo que los de 16 × 24.
+    this.setScale(personScale(def.id));
     this.setDepth(y);
 
     scene.physics.add.existing(this, true);

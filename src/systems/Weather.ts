@@ -1,5 +1,6 @@
 // Sin Phaser: lo usan la calle (StreetLife), los locales (Crowd), las bicis (Traffic), la luz y la lluvia
 // (world/Lighting, world/WeatherView), la ropa de la gente (world/WeatherLooks) y scripts/check-weather.ts.
+import { dateOf, type Season } from './Calendar.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
 
 /**
@@ -8,7 +9,9 @@ import { hashSeed, seededRng } from './MetroDaily.ts';
  * si llueve y cuándo, qué temperatura de fondo), así que el mismo día llueve
  * siempre a la misma hora y recargar la partida no cambia el cielo. Los días
  * vienen en rachas (una ola de frío, una semana templada) y dentro del día la
- * temperatura sube y baja con el sol.
+ * temperatura sube y baja con el sol. La estación manda (systems/Calendar, la
+ * fecha del mundo): en Madrid, 6 °C de media en enero y 26 en julio, y el
+ * verano casi sin lluvia.
  *
  * Lo que devuelve se usa para que se VEA: la luz, el suelo mojado, la lluvia, la
  * ropa, los paraguas y cuánta gente va a la terraza o se mete en un bar. Todo
@@ -51,14 +54,22 @@ interface DayPlan {
 
 const plans = new Map<number, DayPlan>();
 
+/** Probabilidad de que un día traiga lluvia, por estación (Madrid: primavera y otoño, las húmedas; verano, seco). */
+const RAINY_BY_SEASON: Readonly<Record<Season, number>> = { winter: 0.28, spring: 0.32, summer: 0.1, autumn: 0.34 };
+
+/** Temperatura media del día según la fecha: mínimo a mediados de enero (6 °C), máximo a mediados de julio (26 °C). */
+export function seasonalCelsius(day: number): number {
+  return 16 - 10 * Math.cos(((dateOf(day).doy - 15) / 365.25) * Math.PI * 2);
+}
+
 /** El plan de un día: siempre el mismo para el mismo día. */
 function planFor(day: number): DayPlan {
   const hit = plans.get(day);
   if (hit) return hit;
   const rng = seededRng(hashSeed('tiempo', day));
-  // Rachas: una onda larga de temperatura (unas tres semanas) más el capricho de cada día.
-  const celsius = 15 + 8 * Math.sin((day / 23) * Math.PI * 2 + 1.3) + (rng() - 0.5) * 5;
-  const rainy = rng() < 0.3 + (celsius < COLD_BELOW ? 0.12 : 0) - (celsius > WARM_ABOVE ? 0.12 : 0);
+  // La estación, más rachas (una onda de unas tres semanas: una ola de frío, una semana templada) y el capricho del día.
+  const celsius = seasonalCelsius(day) + 3.5 * Math.sin((day / 23) * Math.PI * 2 + 1.3) + (rng() - 0.5) * 5;
+  const rainy = rng() < RAINY_BY_SEASON[dateOf(day).season] + (celsius < COLD_BELOW ? 0.06 : 0) - (celsius > WARM_ABOVE ? 0.06 : 0);
   const cloud = rainy ? 0.6 + rng() * 0.3 : rng() < 0.35 ? 0.35 + rng() * 0.4 : rng() * 0.2;
   const episodes: Episode[] = [];
   if (rainy) {
@@ -158,12 +169,17 @@ export function weatherAt(day: number, hour: number): Weather {
   return w;
 }
 
+/** Calor que aprieta (mediodía de julio) y helada: a partir de ahí la gente evita estar fuera. */
+export const SCORCHING_ABOVE = 33;
+export const FREEZING_BELOW = 3;
+
 /**
  * Cuánto quiere la gente estar fuera: 1 un día templado y seco; menos con
- * lluvia o frío; más con calor (terrazas, parque). Lo usan la calle y los locales.
+ * lluvia o frío; más con calor (terrazas, parque), salvo el que aprieta (33 °C o
+ * más: a la sombra o dentro) y con helada. Lo usan la calle y los locales.
  */
 export function outdoorAppeal(w: Weather): number {
   const rain = w.rain > HEAVY_RAIN ? 0.15 : w.rain > LIGHT_RAIN ? 0.45 : 1;
-  const temp = w.temp === 'cold' ? 0.6 : w.temp === 'warm' ? 1.4 : 1;
+  const temp = w.celsius < FREEZING_BELOW ? 0.4 : w.celsius >= SCORCHING_ABOVE ? 0.7 : w.temp === 'cold' ? 0.6 : w.temp === 'warm' ? 1.4 : 1;
   return rain * temp;
 }

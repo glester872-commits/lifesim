@@ -3,7 +3,7 @@ import type { Mood } from '../data/chat.ts';
 import { CHARACTERS } from '../data/characters.ts';
 import { NAMED_PEOPLE } from '../data/namedPeople.ts';
 import { PHONE_LINES, type PhoneTier } from '../data/phoneLines.ts';
-import { WEEK, WEEKDAY_LABEL, weekIndex } from './Calendar.ts';
+import { dateOf, MONTH_LABEL, WEEK, WEEKDAY_LABEL, weekIndex } from './Calendar.ts';
 import { whereabouts, type RoutinePicker } from './Characters.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
 import { isOpen, placeInfo, placeOfPoint } from './Places.ts';
@@ -203,19 +203,21 @@ export const planStart = (p: SocialPlan): number => (p.day - 1) * DAY + minuteOf
 const two = (n: number): string => String(n).padStart(2, '0');
 const hhmm = (m: number): string => `${two(Math.floor(m / 60) % 24)}:${two(Math.floor(m % 60))}`;
 
-/** «hoy», «mañana» o «el jueves». */
+/** «hoy», «mañana», «el jueves» o, a más de una semana, «el jueves 22». */
 export function whenLabel(day: number, today: number): string {
   if (day === today) return 'hoy';
   if (day === today + 1) return 'mañana';
-  return `el ${WEEKDAY_LABEL[WEEK[weekIndex(day)]]}`;
+  const weekday = WEEKDAY_LABEL[WEEK[weekIndex(day)]];
+  return day - today < 7 ? `el ${weekday}` : `el ${weekday} ${dateOf(day).dom}`;
 }
 
-/** Hora de un mensaje como la pone un móvil: «14:05», «ayer», «lunes». */
+/** Hora de un mensaje como la pone un móvil: «14:05», «ayer», «lunes» o, de hace más de una semana, «12 abr». */
 export function stampLabel(at: number, now: number): string {
   const d = dayOfAbs(at);
   const today = dayOfAbs(now);
   if (d === today) return hhmm(minuteOfAbs(at));
   if (d === today - 1) return 'ayer';
+  if (today - d >= 7) return `${dateOf(d).dom} ${MONTH_LABEL[dateOf(d).month - 1].slice(0, 3)}`;
   return WEEKDAY_LABEL[WEEK[weekIndex(d)]];
 }
 

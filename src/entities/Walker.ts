@@ -8,9 +8,18 @@ export type WalkerIcon = 'phone' | 'talk' | 'alert' | null;
  * NPC que camina en línea recta por una lista de puntos. No hay pathfinding:
  * las rutas vienen de los datos de la estación y ya están libres de props.
  *
- * El cuerpo es inamovible: empuja al jugador, pero nada puede bloquearlo, así
- * que un NPC nunca se queda atascado. No choca con el escenario: no lo necesita.
+ * El cuerpo es inamovible y no choca con el jugador ni con el escenario: nadie
+ * lo bloquea, así que nunca se queda atascado, y él nunca empuja ni arrastra al
+ * jugador. Si el jugador está en su camino, se para un momento (YIELD_MS) y
+ * luego pasa despacio rozándole: ni empujones ni atascos.
  */
+/** Delante y a los lados (px, pies con pies) en que el jugador le corta el paso. */
+const YIELD_AHEAD = 14;
+const YIELD_SIDE = 8;
+/** Cuánto espera parado antes de pasar despacio (por debajo de Recovery.stallMs). */
+const YIELD_MS = 1_200;
+const YIELD_CRAWL = 0.4;
+
 export class Walker extends Phaser.Physics.Arcade.Sprite {
   private currentLook: NpcLook;
   private readonly shadow: Phaser.GameObjects.Image;
@@ -26,6 +35,9 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   private resumeDir: Facing | null = null;
   /** Sentado en un banco del andén (data/seating.ts): la pose 4 hasta que vuelva a andar. */
   private seated = false;
+  /** Pies del jugador, si está en su misma escena (MetroSystem.update): a quien cede el paso. */
+  avoid: Vec2 | null = null;
+  private yielded = 0;
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
     super(scene, 0, 0, personTexture(look.id), personFrame(look.id, facing));
@@ -238,14 +250,27 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       return true;
     }
 
-    body.setVelocity((dx / distance) * this.speed, (dy / distance) * this.speed);
+    const pace = this.yieldPace(dx / distance, dy / distance, deltaMs);
+    body.setVelocity((dx / distance) * this.speed * pace, (dy / distance) * this.speed * pace);
     this.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
-    this.anims.play(`npc-${this.currentLook.id}-walk-${this.dir}`, true);
+    this.anims.play(`npc-${this.currentLook.id}-${pace > 0 ? 'walk' : 'idle'}-${this.dir}`, true);
     this.sync();
     return false;
   }
 
-  /** Profundidad por Y, igual que el jugador. */
+  /** 1 con el camino libre; 0 si el jugador le corta el paso (un momento) y luego despacio, para no atascarse. */
+  private yieldPace(ux: number, uy: number, deltaMs: number): number {
+    const px = this.avoid ? this.avoid.x - this.x : 0;
+    const py = this.avoid ? this.avoid.y - this.y : 0;
+    const ahead = px * ux + py * uy;
+    if (!this.avoid || ahead <= 0 || ahead > YIELD_AHEAD || Math.abs(px * uy - py * ux) > YIELD_SIDE) {
+      this.yielded = 0;
+      return 1;
+    }
+    this.yielded += deltaMs;
+    return this.yielded < YIELD_MS ? 0 : YIELD_CRAWL;
+  }
+
   /** Mantiene el bocadillo HTML encima del NPC mientras la cámara se mueve. */
   private syncSpeech(): void {
     if (this.speechEl.hidden || !this.visible) return;

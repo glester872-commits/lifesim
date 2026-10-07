@@ -27,6 +27,23 @@ export const IDENTITIES: readonly Identity[] = [
 
 if (IDENTITIES.length !== PASSENGER_LOOKS.length) throw new Error('Población: una identidad por aspecto');
 
+// -------------------------------------------------- anti-clones
+
+/**
+ * Lo que se ve de lejos de alguien: jersey y pantalón. Dos caras distintas con la misma ropa, una al lado de la
+ * otra, se leen como un clon (la cara es lo último que se distingue a esta escala).
+ */
+const OUTFIT_OF: readonly string[] = PASSENGER_LOOKS.map((l) => `${l.cloth}|${l.trousers ?? ''}`);
+export const outfitOf = (look: number): string => OUTFIT_OF[look % OUTFIT_OF.length];
+
+/** Peso de un aspecto frente a la gente que ya está a la vista: la misma ropa que alguien cerca pesa una séptima parte. */
+export const OUTFIT_CLASH = 0.15;
+export function outfitsOf(looks: Iterable<number>): Set<string> {
+  const out = new Set<string>();
+  for (const l of looks) out.add(outfitOf(l));
+  return out;
+}
+
 // --------------------------------------------------------- atracción
 
 /**

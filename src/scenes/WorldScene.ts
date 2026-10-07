@@ -19,6 +19,7 @@ import { Ambience } from '../world/Ambience';
 import { Traffic } from '../systems/Traffic';
 import { withDistrictLanes } from '../systems/Districts';
 import { TrafficView } from '../world/TrafficView';
+import { pruneRiderTextures } from '../world/CyclistArt';
 import { CyclistView } from '../world/CyclistView';
 import { VEHICLES, type VehicleType } from '../data/vehicles';
 import { BIKES, type BikeType } from '../data/bikes';
@@ -36,7 +37,7 @@ import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } f
 import { KIND_OF, afterLine, summary, train, type Intensity } from '../systems/Fitness';
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
-import { getNpc } from '../data/npcs';
+import { getNpc, PASSENGER_LOOKS } from '../data/npcs';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
 import { STORIES } from '../data/saraStory';
@@ -77,7 +78,7 @@ import { say, type MenuItem, type MoreOption } from '../data/menus';
 import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
 import { characterLook, umbrellaFor } from '../world/WeatherLooks';
-import { hashSeed, seededRng } from '../systems/MetroDaily';
+import { hashSeed, seededRng, type Rng } from '../systems/MetroDaily';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
 import { AlleyDealView } from '../world/AlleyDealView';
@@ -350,6 +351,7 @@ export class WorldScene extends Phaser.Scene {
   create(data: WorldSceneData): void {
     const { state, clock, dialogue } = this.services;
     const def = getLocation(data.locationId);
+    pruneRiderTextures(this);
     const built = buildLocation(this, def);
 
     this.leaving = false;
@@ -414,7 +416,8 @@ export class WorldScene extends Phaser.Scene {
         )
       : null;
     if (this.metro) {
-      this.physics.add.collider(this.player, [...this.metro.walkers]);
+      // Sin collider con pasajeros ni guardias: un cuerpo inamovible en marcha arrastraba al jugador.
+      // Ellos le ceden el paso (Walker.avoid); las paredes siguen chocando.
       for (const { sprite, def: npcDef } of this.metro.talkers) {
         this.interactables.push({ kind: 'npc', sprite, def: npcDef });
       }
@@ -512,10 +515,14 @@ export class WorldScene extends Phaser.Scene {
     // La hora con la fracción del minuto en curso: los semáforos cambian a su segundo, no a saltos de minuto.
     this.ambience = new Ambience(this, def, () => this.pedestrians);
     const hour = (): number => this.services.clock.minuteOfDay / 60;
-    this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx) : null;
+    // Con la semilla del lugar, el día y la media hora (como la gente de la calle y de los locales): salir y volver a
+    // entrar en el mismo rato enseña el mismo tráfico, y otro día, otro.
+    const slot = Math.floor(this.services.clock.minuteOfDay / 30);
+    const trafficRng = (flow: string): Rng => seededRng(hashSeed('traffic', def.id, flow, state.day, slot));
+    this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx, trafficRng('cars')) : null;
     this.traffic?.populate(this.trafficClock());
     this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour, () => weatherAt(state.day, hour()).wet) : null;
-    this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx) : null;
+    this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx, trafficRng('bikes')) : null;
     this.bikes?.populate(this.trafficClock());
     this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
@@ -709,7 +716,7 @@ export class WorldScene extends Phaser.Scene {
 
     clock.update(delta);
     this.phoneTick();
-    this.metro?.update(delta, time);
+    this.metro?.update(delta, time, this.player);
     this.placeCharacters(delta);
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
     this.street?.update(delta, this.clockNow(), this.playerTile());
@@ -2697,6 +2704,16 @@ export class WorldScene extends Phaser.Scene {
     }
     if (portal.minutes) this.services.clock.advanceMinutes(portal.minutes);
     this.go(portal.to.location, portal.to.spawn, false);
+  }
+
+  /**
+   * Desarrollo (lifesim.handoff): quién de la cola de traspasos (systems/Handoff) está ahora en esta sala o en el
+   * metro, con su id de aquí dentro, dónde está y qué hace.
+   */
+  handoffOccupancy(): readonly { persona: string; id: number | string; ficha: string; estado: string; tile: string }[] {
+    const crowd = this.crowd?.agents.filter((a) => a.handoff).map((a) => ({ persona: PASSENGER_LOOKS[a.look]?.id ?? '?', id: a.id, ficha: a.handoff!, estado: a.leaving ? 'saliendo' : a.state, tile: `${a.x.toFixed(1)},${a.y.toFixed(1)}` })) ?? [];
+    const metro = this.metro?.handoffPassengers().map((p) => ({ persona: p.walker.look.id, id: 'metro', ficha: p.handoff!, estado: p.state, tile: `${(p.walker.x / TILE).toFixed(1)},${(p.walker.y / TILE).toFixed(1)}` })) ?? [];
+    return [...crowd, ...metro];
   }
 
   /** Desarrollo: fuerza el microevento de carterista en la estación actual. */

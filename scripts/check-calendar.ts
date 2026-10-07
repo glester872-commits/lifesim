@@ -5,13 +5,16 @@
 // sobrevive a guardar y cargar. `node scripts/check-calendar.ts`.
 import assert from 'node:assert/strict';
 import { SAVE_KEY } from '../src/config/constants.ts';
-import { dateOf, formatClock, isWeekend, on, rhythmAt, weekIndex, weekdayOf, WEEKEND, type Midnight } from '../src/systems/Calendar.ts';
+import { dateOf, dayOfDate, EPOCH, formatClock, formatDate, isWeekend, seasonOf, on, rhythmAt, weekIndex, weekdayOf, WEEKEND, type Midnight } from '../src/systems/Calendar.ts';
 import { TimeSystem } from '../src/systems/TimeSystem.ts';
 import { SaveSystem } from '../src/systems/SaveSystem.ts';
 import { hoursLabel, hoursOn, isOpen, placeInfo } from '../src/systems/Places.ts';
 import { routineFor } from '../src/systems/Characters.ts';
 import { CHARACTERS, type CharacterDef } from '../src/data/characters.ts';
 import { PLACES } from '../src/data/places.ts';
+
+/** Día de la semana de Date.getUTCDay (0 = domingo). */
+const WEEK_JS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
 
 // ------------------------------------------------------------ el reloj
 
@@ -39,7 +42,7 @@ assert.equal(weekdayOf(7), 'sunday');
 assert.equal(weekdayOf(8), 'monday');
 assert.equal(weekIndex(0), 6, 'el día 0 (la víspera) es domingo');
 assert.deepEqual([isWeekend(5), isWeekend(6), isWeekend(7)], [false, true, true]);
-assert.deepEqual(dateOf(15), { day: 15, week: 3, weekIndex: 0, weekday: 'monday', weekend: false });
+assert.deepEqual(dateOf(15), { day: 15, week: 3, weekIndex: 0, weekday: 'monday', weekend: false, year: 2027, month: 4, dom: 26, doy: 116, season: 'spring' });
 
 // Lunes 23:59 → martes 00:00: un minuto, una medianoche.
 {
@@ -94,8 +97,8 @@ assert.deepEqual(dateOf(15), { day: 15, week: 3, weekIndex: 0, weekday: 'monday'
 
 // ------------------------------------------------------------ el HUD
 
-assert.equal(formatClock(8, 8, 42), 'Lun · Día 8 · 08:42');
-assert.equal(formatClock(6, 23, 5), 'Sáb · Día 6 · 23:05');
+assert.equal(formatClock(8, 8, 42), 'Lun 19 Abr · 08:42');
+assert.equal(formatClock(6, 23, 5), 'Sáb 17 Abr · 23:05');
 
 // ------------------------------------------------------ ritmo de la ciudad
 
@@ -168,6 +171,55 @@ assert.equal(rhythmAt(7, 12), 'sunday-day');
   assert.ok(store.has(SAVE_KEY));
   const loaded = save.load()!;
   assert.deepEqual([loaded.day, weekdayOf(loaded.day), loaded.hour], [14, 'sunday', 23]);
+  // Fecha y hora exactas: el 29 de febrero de 2028 a las 18:42 vuelve igual.
+  save.save({ ...state, day: dayOfDate(2028, 2, 29), hour: 18, minute: 42 });
+  const back = save.load()!;
+  assert.deepEqual([formatDate(back.day), back.hour, back.minute], ['martes, 29 de febrero de 2028', 18, 42]);
+  // Una partida de antes del calendario (sólo «día 24») carga en su fecha, el mismo día de la semana, sin volver al día 1.
+  const old = JSON.parse(store.get(SAVE_KEY)!);
+  store.set(SAVE_KEY, JSON.stringify({ ...old, state: { ...old.state, day: 24, hour: 9, minute: 5 } }));
+  const migrated = save.load()!;
+  assert.deepEqual([migrated.day, formatDate(migrated.day), weekdayOf(migrated.day), migrated.hour, migrated.minute], [24, 'miércoles, 5 de mayo de 2027', 'wednesday', 9, 5]);
+}
+
+// ------------------------------------------------------ calendario gregoriano
+
+{
+  const ymd = (day: number): string => { const d = dateOf(day); return `${d.year}-${d.month}-${d.dom}`; };
+  // El día 1 es el lunes 12 de abril de 2027, y el día de la semana del juego es el del calendario de verdad, siempre.
+  assert.deepEqual([EPOCH.year, EPOCH.month, EPOCH.dom, ymd(1)], [2027, 4, 12, '2027-4-12']);
+  assert.equal(formatDate(1), 'lunes, 12 de abril de 2027');
+  for (let day = -400; day <= 4000; day++) {
+    const d = dateOf(day);
+    assert.equal(WEEK_JS[new Date(Date.UTC(d.year, d.month - 1, d.dom)).getUTCDay()], weekdayOf(day), `día ${day}: ${ymd(day)}`);
+    assert.equal(dayOfDate(d.year, d.month, d.dom), day);
+  }
+  // Fin de mes, febrero con y sin bisiesto y fin de año.
+  const next = (y: number, m: number, dd: number): string => ymd(dayOfDate(y, m, dd) + 1);
+  assert.equal(next(2028, 1, 31), '2028-2-1', '31 ene → 1 feb');
+  assert.equal(next(2027, 2, 28), '2027-3-1', '2027 no es bisiesto');
+  assert.equal(next(2028, 2, 28), '2028-2-29', '2028 es bisiesto');
+  assert.equal(next(2028, 2, 29), '2028-3-1');
+  assert.equal(next(2027, 12, 31), '2028-1-1', 'año nuevo');
+  assert.equal(dateOf(dayOfDate(2028, 12, 31)).doy, 366);
+  assert.equal(next(2100, 2, 28), '2100-3-1', '2100 no es bisiesto');
+  // Estaciones (Madrid, hemisferio norte).
+  assert.deepEqual([1, 4, 7, 10].map((m) => seasonOf(dayOfDate(2028, m, 15))), ['winter', 'spring', 'summer', 'autumn']);
+  assert.deepEqual([[3, 19], [3, 20], [6, 21], [9, 23], [12, 21]].map(([m, dd]) => seasonOf(dayOfDate(2028, m, dd))), ['winter', 'spring', 'summer', 'autumn', 'winter']);
+  // El reloj cruza el 28 de febrero de 2028 de noche: medianoches del 29 y del 1 de marzo, en orden, con su día de la semana.
+  const feb28 = dayOfDate(2028, 2, 28);
+  const { time, state, midnights } = clockAt(feb28, 23, 30);
+  time.advanceMinutes(24 * 60 + 60);
+  assert.deepEqual(midnights.map((m) => [ymd(m.day), m.weekday]), [['2028-2-29', 'tuesday'], ['2028-3-1', 'wednesday']]);
+  assert.deepEqual([ymd(state.day), state.hour, state.minute], ['2028-3-1', 0, 30]);
+  // Lo que se resetea cada día (cooldowns diarios: «una vez por día» = mismo state.day) cambia al cruzar fin de mes y de año.
+  const dec31 = dayOfDate(2027, 12, 31);
+  const clock = clockAt(dec31, 23, 59);
+  const before = clock.state.day;
+  clock.time.advanceMinutes(1);
+  assert.deepEqual([clock.state.day - before, ymd(clock.state.day), clock.midnights.length], [1, '2028-1-1', 1]);
+  // Fin de semana por fecha: el sábado 1 de enero de 2028 lo es; el lunes 3, no.
+  assert.ok(isWeekend(dayOfDate(2028, 1, 1)) && !isWeekend(dayOfDate(2028, 1, 3)));
 }
 
 // Datos: un horario por días necesita el general (hours) para los demás; sin él, isOpen lo daría por siempre abierto.

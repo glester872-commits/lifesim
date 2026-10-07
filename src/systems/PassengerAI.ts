@@ -80,6 +80,8 @@ type Ambient = 'idle' | 'phone' | 'tracks' | 'look' | 'shift' | 'stroll' | 'sign
  */
 export class PassengerAI {
   state: PassengerState = 'OFFSTAGE';
+  /** Bajó desde la calle delante del jugador (systems/Handoff): su ficha. */
+  handoff?: string;
   /** Qué está haciendo dentro del estado; sólo para leerlo en el debug. */
   activity = '';
   archetype: Archetype = 'CALM';
@@ -126,9 +128,10 @@ export class PassengerAI {
 
   // ------------------------------------------------------------ arranques
 
-  /** Arranque de escena: ya estaba esperando en el andén. */
-  startWaiting(): void {
+  /** Arranque de escena: ya estaba esperando en el andén. Con `look`, es esa persona (entró desde la calle: systems/Handoff). */
+  startWaiting(look?: NpcLook): void {
     this.becomeNewcomer();
+    if (look) this.walker.setLook(look);
     this.gate = pick(this.world.layout.gates);
     this.spot = this.world.claimSpot(this.spotPreference());
     this.walker.place(this.world.layout.spots[this.spot].at, 'up');
@@ -140,6 +143,8 @@ export class PassengerAI {
 
   /** Delay Infinity: sólo vuelve bajando de un tren. */
   startOffstage(delay: number): void {
+    // Se fue en un tren o por la salida: quien vuelva a salir de este hueco será otra persona.
+    this.handoff = undefined;
     this.state = 'OFFSTAGE';
     this.activity = '';
     this.timer = delay;
@@ -150,9 +155,10 @@ export class PassengerAI {
     return this.state === 'OFFSTAGE' && this.timer === Infinity;
   }
 
-  /** Entra por el vestíbulo. `rush`: llega tarde y va a por el tren que hay. */
-  enter(rush = false): void {
+  /** Entra por el vestíbulo. `rush`: llega tarde y va a por el tren que hay. Con `look`, es esa persona (systems/Handoff). */
+  enter(rush = false, look?: NpcLook): void {
     this.becomeNewcomer(rush ? 'RUSHED' : undefined);
+    if (look) this.walker.setLook(look);
     const { layout } = this.world;
     this.gate = pick(layout.gates);
     this.forceRun = rush;

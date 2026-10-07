@@ -150,7 +150,9 @@ assert.ok((evening.roles.get('bar-smoke') ?? 0) + (night.roles.get('bar-smoke') 
 
 // ------------------------------------------------ moda: mezcla, no uniforme
 const fashions = new Map<string, number>();
-for (const r of [noon, evening, night, withMarket, party, gallery]) for (const [f, n] of r.fashions) fashions.set(f, (fashions.get(f) ?? 0) + n);
+// Dos tardes más a la muestra: skate es el estilo más raro (un 2 % de la calle) y con sólo seis tandas salía o no por azar.
+const more = [run(at(plainSaturday!, '15:00'), 120, 31), run(at(plainSaturday!, '20:00'), 120, 32)];
+for (const r of [noon, evening, night, withMarket, party, gallery, ...more]) for (const [f, n] of r.fashions) fashions.set(f, (fashions.get(f) ?? 0) + n);
 const total = [...fashions.values()].reduce((s, n) => s + n, 0);
 const ALT = ['vintage', 'alternative', 'punk', 'skate', 'experimental', 'streetwear', 'designer', 'nightlife'];
 const alt = sum(fashions, ALT) / total;

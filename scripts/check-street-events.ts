@@ -12,7 +12,8 @@ import { weatherAt } from '../src/systems/Weather.ts';
 import { weekIndex } from '../src/systems/MetroDaily.ts';
 import type { TilePoint } from '../src/types/game.ts';
 
-const DAYS = 140;
+// Un año entero: con la fecha de verdad (systems/Calendar) las noches frías y de lluvia están en invierno y otoño.
+const DAYS = 365;
 const key = (p: TilePoint): string => `${Math.round(p.tx)},${Math.round(p.ty)}`;
 
 for (const def of STREET_EVENTS) {

@@ -99,7 +99,10 @@ assert.ok(get(TUESDAY, '08:00').roles.get('commuter'), 'a las 08:00 nadie va al 
 assert.ok(get(SATURDAY, '02:00').target >= 10, 'la madrugada del sábado debería tener gente por la discoteca');
 assert.ok(get(SATURDAY, '02:00').peakNearClub >= 5, 'a las 02:00 del sábado debería haber corrillo en la discoteca');
 assert.equal(get(TUESDAY + 1, '02:00').peakNearClub, 0, 'el martes de madrugada la discoteca está cerrada');
-assert.ok((get(SATURDAY, '04:30').roles.get('club-leaving') ?? 0) > 0, 'a las 04:30 nadie sale de la discoteca');
+// Un sábado cualquiera a las 04:30 sale gente de la discoteca. Se miran cuatro: con la fecha de verdad (systems/Calendar)
+// una madrugada de abril puede ser fría y vaciar la calle esos 20 minutos; lo que no puede es no salir nadie ningún sábado.
+const leaving = [0, 1, 2, 3].map((k) => run(at(SATURDAY + 7 * k, '04:30'), 20, hashSeed('street', SATURDAY + 7 * k, '04:30')).roles.get('club-leaving') ?? 0);
+assert.ok(leaving.some((n) => n > 0), `a las 04:30 nadie sale de la discoteca ningún sábado (${leaving.join(', ')})`);
 
 // El camarero de la terraza trabaja mientras el café está abierto; de madrugada no hay nadie.
 {

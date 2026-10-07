@@ -49,9 +49,32 @@ export function riderKey(r: RiderLook): string {
   return `rider-${r.bike.id}-${r.color}-${r.look.id}-${r.helmet ? 'h' : ''}${r.pack ? 'p' : ''}`;
 }
 
+/**
+ * Las texturas de ciclista pintadas, de la usada hace más tiempo a la última. Cada combinación de cara, bici, color,
+ * casco y mochila es una textura (≈ 14 KB) y salen miles posibles: sin tope, crecían con cada escena y cada bici nueva.
+ */
+const BAKED: string[] = [];
+/** Las que se guardan al cambiar de escena: de sobra para la avenida en hora punta. */
+const KEEP_BAKED = 48;
+
+/**
+ * Al montar una escena (WorldScene.create, antes de las vistas), suelta las texturas de ciclista que pasen del tope:
+ * la escena anterior ya destruyó sus imágenes, así que ninguna se queda sin textura.
+ * ponytail: sólo poda al cambiar de escena; una sesión larga en la misma calle sigue sumando (unas 7 por minuto).
+ */
+export function pruneRiderTextures(scene: Phaser.Scene): void {
+  while (BAKED.length > KEEP_BAKED) {
+    const key = BAKED.shift()!;
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+  }
+}
+
 /** La textura del ciclista con sus cinco fotogramas (0–4); se pinta la primera vez que hace falta. */
 export function riderTexture(scene: Phaser.Scene, r: RiderLook): string {
   const key = riderKey(r);
+  const at = BAKED.indexOf(key);
+  if (at >= 0) BAKED.splice(at, 1);
+  BAKED.push(key);
   if (scene.textures.exists(key)) return key;
   const tex = scene.textures.createCanvas(key, RIDER_W * RIDER_FRAMES, RIDER_H);
   if (!tex) return key;
@@ -82,26 +105,20 @@ function seated(c: HumanColors): HTMLCanvasElement {
 }
 
 /**
- * Patinador: la misma persona de pie (cada fotograma, un paso o el cuerpo quieto), sobre una tabla con las
- * puntas levantadas, sus ejes y cuatro ruedas. Sin luces: no lleva.
+ * Patinador: la misma persona de pie (cada fotograma, un paso o el cuerpo quieto), sobre una tabla baja y corta
+ * (13 × 3 px: unos 0,8 m al lado de una persona de 23 px) con sus ruedas. Sin luces: no lleva.
+ * La tabla pesaba 19 × 6 px y el conjunto medía 30 de alto, más que una bici (25) y mucho más que una persona (23).
  */
 function drawSkater(ctx: Ctx, r: RiderLook, c: HumanColors, f: number): void {
   const deck = r.bike.colors[r.color];
-  px(ctx, 'rgba(0,0,0,0.3)', 3, 24, 18, 2);
-  // Tabla: la cara de arriba con la gráfica, el canto y las puntas levantadas.
-  px(ctx, PALETTE.outline, 2, 20, 18, 4);
-  px(ctx, deck, 4, 22, 14, 1);
-  px(ctx, shade(deck, 0.2), 4, 22, 14, 1);
-  px(ctx, shade(deck, -0.25), 4, 23, 14, 1);
-  px(ctx, deck, 3, 21, 1, 2);
-  px(ctx, deck, 18, 21, 1, 2);
-  px(ctx, PALETTE.white, 9, 22, 4, 1);
-  // Ejes y ruedas.
-  for (const x of [6, 14]) {
-    px(ctx, PALETTE.metal, x, 24, 2, 1);
-    px(ctx, PALETTE.ink, x - 1, 24, 4, 2);
-    px(ctx, shade(PALETTE.ink, 0.25), x - 1, 24, 1, 1);
-  }
+  // Las ruedas apoyan en la misma línea que las de una bici (fila 25 de la celda).
+  ctx.translate(0, 3);
+  px(ctx, 'rgba(0,0,0,0.3)', 4, 22, 15, 1);
+  // Tabla: la cara de arriba con la gráfica y debajo el canto, sobre dos ruedas.
+  px(ctx, PALETTE.outline, 5, 20, 13, 2);
+  px(ctx, deck, 6, 20, 11, 1);
+  px(ctx, PALETTE.white, 10, 20, 3, 1);
+  for (const x of [7, 15]) px(ctx, PALETTE.ink, x - 1, 22, 3, 1);
   const canvas = document.createElement('canvas');
   canvas.width = 16;
   canvas.height = 24;
@@ -127,11 +144,11 @@ export function skateFrame(travelled: number, seed: number): number {
   return u < 9 ? 1 : u < 14 ? 2 : u < 19 ? 3 : 0;
 }
 
-/** [rodilla, pie] de la pierna de atrás y de la de delante en cada fotograma; los pies sobre la tabla están en y=19, el suelo en 24. */
+/** [rodilla, pie] de la pierna de atrás y de la de delante en cada fotograma; los pies sobre la tabla están en y=19, el suelo en 22. */
 const SKATE_STANCE: readonly (readonly [readonly [Pt, Pt], readonly [Pt, Pt]])[] = [
   [[[8, 16], [7, 19]], [[13, 16], [15, 19]]],
-  [[[6, 18], [2, 24]], [[13, 16], [15, 19]]],
-  [[[5, 17], [1, 22]], [[13, 16], [15, 19]]],
+  [[[6, 18], [3, 21]], [[13, 16], [15, 19]]],
+  [[[5, 17], [2, 19]], [[13, 16], [15, 19]]],
   [[[7, 16], [5, 19]], [[13, 16], [15, 19]]],
 ];
 

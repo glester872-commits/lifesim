@@ -17,15 +17,16 @@ import { DOG_LOOKS } from '../data/wildlife.ts';
 import { lookWeights, profileAt } from './Districts.ts';
 import { zoneAt, zonePull } from './Zones.ts';
 import { activePopUp, popUpCrowd } from './PopUps.ts';
-import { bondMates, IDENTITIES, paceOf, relationLine, roleAffinity } from './People.ts';
+import { bondMates, IDENTITIES, OUTFIT_CLASH, outfitOf, outfitsOf, paceOf, relationLine, roleAffinity } from './People.ts';
 import type { Bond, RelationType } from '../data/identity.ts';
 import { crossingOf, signalAt, waitSpots } from './Signals.ts';
 import { SeatRegistry } from './SeatRegistry.ts';
 import { TableService } from './TableService.ts';
-import { HEAVY_RAIN, outdoorAppeal, weatherAt, type Weather } from './Weather.ts';
+import { FREEZING_BELOW, HEAVY_RAIN, outdoorAppeal, SCORCHING_ABOVE, weatherAt, type Weather } from './Weather.ts';
 import type { StreetSurvivor, SurvivalState } from '../data/streetSurvival.ts';
 import { planFor, survivorsOf, type SurvivalPlan } from './StreetSurvival.ts';
 import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
+import { absMinute, dueOut, enterPlace, insideLooks, type Handoff } from './Handoff.ts';
 
 /**
  * El tiempo en la calle: con lluvia o frío hay menos gente (quien puede, se
@@ -33,7 +34,9 @@ import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKe
  */
 export function streetWeatherScale(w: Weather): number {
   const rain = w.rain > HEAVY_RAIN ? 0.6 : w.rain > 0.08 ? 0.8 : 1;
-  return rain * (w.temp === 'cold' ? 0.85 : w.temp === 'warm' ? 1.1 : 1);
+  // Helada u ola de calor (mediodía de julio): menos aún; el frío y el calor normales, como siempre.
+  const temp = w.celsius < FREEZING_BELOW ? 0.7 : w.celsius >= SCORCHING_ABOVE ? 0.8 : w.temp === 'cold' ? 0.85 : w.temp === 'warm' ? 1.1 : 1;
+  return rain * temp;
 }
 
 /** Viaje de estar fuera: sentarse en una terraza o un banco, pasear, correr, mirar escaparates. */
@@ -159,6 +162,8 @@ export interface Walker extends Agent {
   goal?: SurvivalState;
   /** Ms que lleva esperando en un semáforo: pasado RECOVERY.holdMs, ya no es esperar (systems/Recovery). */
   heldMs?: number;
+  /** Punto al que va cuando no se queda (una puerta o un borde): al cruzar una puerta con interior, entra (systems/Handoff). */
+  dest?: string;
 }
 
 /**
@@ -168,6 +173,8 @@ export interface Walker extends Agent {
  */
 const FULL_SIM_RADIUS = 30;
 const FAR_STEP_MS = 150;
+/** Hasta dónde (tiles) el jugador ve a alguien entrar por una puerta: más o menos lo que cabe en pantalla. */
+const WITNESS_TILES = 14;
 
 export interface StreetStats {
   level: Level;
@@ -197,6 +204,8 @@ export class StreetLife {
   /** Obstáculos temporales (un tile cortado): nadie entra en ellos y los rodeos los esquivan. */
   readonly blocked = new Set<string>();
   private player: TilePoint = { tx: -999, ty: -999 };
+  /** Minuto absoluto de juego (systems/Handoff.absMinute). */
+  private now = 0;
   /** Calzada, carril bici y vías sin paso de cebra: ningún rodeo de recuperación pasa por ahí. */
   private roadTiles?: Set<string>;
   private readonly loc: LocationDef;
@@ -307,11 +316,37 @@ export class StreetLife {
     }
   }
 
-  /** Aspectos que no se pueden repetir: los de la calle y los de quien está en otro sitio de la escena. */
+  /** Aspectos que no se pueden repetir: los de la calle, los de quien está en otro sitio de la escena y los de quien está dentro de un local. */
   private usedLooks(): Set<number> {
     const used = new Set(this.agents.map((a) => a.look));
     for (const l of this.elsewhere) used.add(l);
+    for (const l of insideLooks(this.now)) used.add(l);
     return used;
+  }
+
+  /**
+   * Al cruzar una puerta con interior (un local con gente, el metro) delante del jugador, entra de verdad: deja su
+   * ficha (systems/Handoff) y, si el jugador entra detrás, está dentro. Quien entra lejos de la vista no la deja.
+   */
+  private handOff(a: Walker): void {
+    if (!a.dest || a.kind !== 'visitor' || this.loc.points?.[a.dest]?.kind !== 'entrance') return;
+    const door = this.pointAt(a.dest);
+    if (Math.hypot(a.x - door.tx, a.y - door.ty) > 1.5 || distance(door, this.player) > WITNESS_TILES) return;
+    enterPlace({
+      place: placeOfPoint(a.dest)?.id ?? '', from: this.loc.id, door: a.dest, look: a.look, dressSeed: a.dressSeed ?? a.id,
+      role: a.role, label: a.label, line: a.line, at: this.now, roll: this.rng(),
+    });
+  }
+
+  /** Sale del local por la puerta por la que entró y se va a casa o fuera del barrio. */
+  private emerge(h: Handoff, clock: Clock): void {
+    // Sólo choca con otro paseante con su cara: el personal va de uniforme y quien vive en la calle tiene la suya.
+    if (!this.graph.has(h.door) || this.agents.some((a) => a.kind === 'visitor' && a.look === h.look)) return;
+    const to = this.pickEnd({ types: ['residence'], edge: true }, clock, h.door, false);
+    const path = to ? route(h.door, to) : null;
+    if (!path) return;
+    const w = this.newWalker(undefined, this.pointAt(h.door), path.slice(1), h.look);
+    Object.assign(w, { role: h.role, label: h.label, line: h.line, dressSeed: h.dressSeed, vanish: true, dest: to });
   }
 
   /**
@@ -341,6 +376,7 @@ export class StreetLife {
 
   /** Al entrar el jugador: la gente ya está a mitad de camino o sentada. Mismo minuto, misma calle. */
   populate(clock: Clock, player: TilePoint): void {
+    this.now = absMinute(clock.day, clock.hour, clock.minute);
     this.weather = weatherAt(clock.day, clock.hour + clock.minute / 60);
     this.tickSignals(clock, 0);
     const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
@@ -348,6 +384,8 @@ export class StreetLife {
     const target = streetTargetAt(this.profile, clock);
     this.staffShift(clock);
     this.survivorShift(clock, true);
+    // Quien sale ahora mismo de un local por su puerta, antes que nadie: su cara no se la queda otro.
+    for (const h of dueOut(this.loc.id, this.now)) this.emerge(h, clock);
     for (let tries = 0; this.walkers().length < target && tries < target * 4; tries++) this.startTrip(clock, player, target, true);
     this.rng = this.baseRng;
     this.refresh(clock);
@@ -396,9 +434,13 @@ export class StreetLife {
         this.advance(a, deltaMs, clock);
       }
     }
+    // Quien sale ahora de un local por su puerta (systems/Handoff): la misma persona que entró.
+    this.now = absMinute(clock.day, clock.hour, clock.minute);
+    for (const h of dueOut(this.loc.id, this.now)) this.emerge(h, clock);
     for (let i = this.agents.length - 1; i >= 0; i--) {
       const a = this.agents[i];
       if (a.vanish && a.path.length === 0 && a.delay <= 0 && !a.talking) {
+        this.handOff(a);
         this.release(a);
         this.watch.forget(a.id);
         this.agents.splice(i, 1);
@@ -924,6 +966,7 @@ export class StreetLife {
     const company = bonds && bond ? this.company(leaderLook, [bond, ...bonds.filter((b) => b !== bond)], size - 1, used) : { bond: undefined, mates: [] };
     const leader = this.newWalker(rule, at, path, leaderLook);
     leader.bond = company.bond;
+    if (!stays) leader.dest = to;
     if (stays) {
       leader.stayPoint = to;
       this.seats.reserve(to, leader.id);
@@ -956,6 +999,7 @@ export class StreetLife {
         c.line = relationLine(mate.type, IDENTITIES[leaderLook], c.id);
       }
       c.leader = leader;
+      c.dest = leader.dest;
       c.speed = leader.speed;
       c.delay = seated ? 0 : i * between(this.rng, 350, 650);
       if (seated) {
@@ -1051,9 +1095,13 @@ export class StreetLife {
   private pickLook(rule: TripRule | undefined, dest: TilePoint, used: ReadonlySet<number>, bond?: Bond, size = 1): number {
     const profile = profileAt(this.loc, Math.round(dest.tx), Math.round(dest.ty));
     const style = lookWeights(PASSENGER_LOOKS, profile).map((w, i) => w * (profile?.fashion?.[IDENTITIES[i].fashion] ?? 1));
+    // Ni la misma cara ni la misma ropa que quien ya está en la calle (la cara de lejos es la ropa).
+    const worn = outfitsOf(used);
     const weights = style.map((w, i) => {
       if (used.has(i)) return 0;
       let k = w * (rule ? roleAffinity(IDENTITIES[i], rule.role) : 1);
+      // En un grupo manda con quién se tiene relación (los acompañantes salen de ella): ahí la ropa no se mira.
+      if (!(bond && size > 1) && worn.has(outfitOf(i))) k *= OUTFIT_CLASH;
       if (bond && size > 1 && bondMates(i, bond).every((m) => used.has(m.index))) k *= 0.05;
       return k;
     });

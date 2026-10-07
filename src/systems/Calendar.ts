@@ -3,15 +3,21 @@
 
 /**
  * El calendario del mundo. El reloj (GameState: día, hora, minuto; lo mueve
- * systems/TimeSystem) es la única fuente de verdad: de él sale el día de la
- * semana, nunca de la fecha del ordenador. El día 1 de la partida es lunes y
- * el día de la semana se deduce del número de día, así que se guarda y se
- * recupera con la partida sin guardar nada más.
+ * systems/TimeSystem) es la única fuente de verdad: de él sale la fecha, nunca
+ * de la del ordenador. El día 1 de la partida es el lunes 12 de abril de 2027
+ * (EPOCH) y cada día que pasa es un día del calendario gregoriano: mes, año,
+ * bisiestos y estación salen del número de día, así que se guarda y se
+ * recupera con la partida sin guardar nada más. Una partida de antes, que sólo
+ * tenía «día N», carga igual: su día N es la misma fecha (N − 1 días después
+ * del 12 de abril de 2027) y conserva el día de la semana que ya tenía.
  *
  * Quien quiera saber qué día es:
  *   weekdayOf(state.day)          → 'friday'
  *   isWeekend(state.day)          → false
- *   dateOf(state.day)             → { day, week, weekIndex, weekday, weekend }
+ *   dateOf(state.day)             → { day, week, weekIndex, weekday, weekend, year, month, dom, season, … }
+ *   seasonOf(state.day)           → 'spring'
+ *   formatDate(state.day)         → «lunes, 12 de abril de 2027»
+ *   dayOfDate(2028, 2, 29)        → el día de partida de esa fecha
  *   rhythmAt(state.day, hour)     → 'friday-evening', 'weekend-night', …
  * Quien quiera enterarse de que cambia el día: onNewDay(state, fn) (TimeSystem lo avisa).
  */
@@ -52,10 +58,26 @@ export function on(...days: Weekday[]): number[] {
 
 // ------------------------------------------------------ fecha del mundo
 
+/** El día 1 de la partida: lunes 12 de abril de 2027 (UTC, sin husos ni cambios de hora: sólo cuenta la fecha). */
+export const EPOCH = { year: 2027, month: 4, dom: 12 } as const;
+const EPOCH_MS = Date.UTC(EPOCH.year, EPOCH.month - 1, EPOCH.dom);
+const DAY_MS = 86_400_000;
+
+export type Season = 'winter' | 'spring' | 'summer' | 'autumn';
+export const SEASON_LABEL: Readonly<Record<Season, string>> = { winter: 'invierno', spring: 'primavera', summer: 'verano', autumn: 'otoño' };
+
+export const MONTH_LABEL: readonly string[] = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+export const MONTH_SHORT: readonly string[] = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/** Estación astronómica en Madrid (hemisferio norte): primavera 20 mar, verano 21 jun, otoño 23 sep, invierno 21 dic. */
+export function seasonAt(month: number, dom: number): Season {
+  const md = month * 100 + dom;
+  return md >= 1221 || md < 320 ? 'winter' : md < 621 ? 'spring' : md < 923 ? 'summer' : 'autumn';
+}
+
 /**
- * Fecha del mundo, ligera: el día de partida, la semana (la 1 es la de los
- * días 1–7) y el día de la semana. Mes, estación y año no existen todavía;
- * cuando hagan falta salen de aquí mismo, del número de día.
+ * Fecha del mundo: el día de partida, la semana (la 1 es la de los días 1–7), el día de la semana y la fecha
+ * del calendario (año, mes 1–12, día del mes, día del año 1–366) con su estación.
  */
 export interface WorldDate {
   day: number;
@@ -63,17 +85,44 @@ export interface WorldDate {
   weekIndex: number;
   weekday: Weekday;
   weekend: boolean;
+  year: number;
+  month: number;
+  dom: number;
+  doy: number;
+  season: Season;
 }
 
 export function dateOf(day: number): WorldDate {
-  return { day, week: Math.floor((day - 1) / DAYS_PER_WEEK) + 1, weekIndex: weekIndex(day), weekday: weekdayOf(day), weekend: isWeekend(day) };
+  const d = new Date(EPOCH_MS + (Math.floor(day) - 1) * DAY_MS);
+  const year = d.getUTCFullYear();
+  const month = d.getUTCMonth() + 1;
+  const dom = d.getUTCDate();
+  const doy = Math.round((d.getTime() - Date.UTC(year, 0, 1)) / DAY_MS) + 1;
+  return { day, week: Math.floor((day - 1) / DAYS_PER_WEEK) + 1, weekIndex: weekIndex(day), weekday: weekdayOf(day), weekend: isWeekend(day), year, month, dom, doy, season: seasonAt(month, dom) };
 }
 
-/** «Lun · Día 3 · 08:42»: lo que enseña el HUD y los mensajes de «pasa el tiempo». */
+/** El día de partida de una fecha (mes 1–12). Antes del 12 de abril de 2027 sale ≤ 0. */
+export const dayOfDate = (year: number, month: number, dom: number): number => Math.round((Date.UTC(year, month - 1, dom) - EPOCH_MS) / DAY_MS) + 1;
+
+export const seasonOf = (day: number): Season => dateOf(day).season;
+
+/** «Lun 12 Abr»: la fecha corta del HUD. */
+export function formatDateShort(day: number): string {
+  const d = dateOf(day);
+  return `${WEEKDAY_SHORT[d.weekday]} ${d.dom} ${MONTH_SHORT[d.month - 1]}`;
+}
+
+/** «lunes, 12 de abril de 2027»; sin año, «lunes, 12 de abril». */
+export function formatDate(day: number, withYear = true): string {
+  const d = dateOf(day);
+  return `${WEEKDAY_LABEL[d.weekday]}, ${d.dom} de ${MONTH_LABEL[d.month - 1]}${withYear ? ` de ${d.year}` : ''}`;
+}
+
+/** «Lun 12 Abr · 08:42»: lo que enseña el HUD y los mensajes de «pasa el tiempo». */
 export function formatClock(day: number, hour: number, minute: number): string {
   const hh = String(hour).padStart(2, '0');
   const mm = String(minute).padStart(2, '0');
-  return `${WEEKDAY_SHORT[weekdayOf(day)]} · Día ${day} · ${hh}:${mm}`;
+  return `${formatDateShort(day)} · ${hh}:${mm}`;
 }
 
 // ------------------------------------------------------- ritmo de la ciudad

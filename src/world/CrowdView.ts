@@ -96,7 +96,7 @@ export class CrowdView {
       // Se ha cambiado de ropa en el vestuario: el mismo sprite pasa a la ropa de entrenar, o vuelve a la de calle.
       if (!!a.sport !== this.sportOn.has(a.id)) {
         const base = PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
-        sprite.setLook((a.sport ? gymLook(base) : dressedLook(base, a.id, w)).id);
+        sprite.setLook((a.sport ? gymLook(base) : dressedLook(base, a.dressSeed ?? a.id, w)).id);
         if (a.sport) this.sportOn.add(a.id);
         else this.sportOn.delete(a.id);
       }
@@ -234,6 +234,7 @@ function defOf(a: Agent, w: Weather): NpcDef {
   if (a.npc) return getNpc(a.npc);
   const uniform = a.uniform ? UNIFORM_LOOKS.find((l) => l.id === a.uniform) : undefined;
   const base = PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
-  const look = uniform ?? (a.sport ? gymLook(base) : dressedLook(base, a.id, w));
+  // Quien viene de la calle (systems/Handoff) trae su semilla de ropa: el mismo abrigo dentro que fuera.
+  const look = uniform ?? (a.sport ? gymLook(base) : dressedLook(base, a.dressSeed ?? a.id, w));
   return { ...look, name: a.label, lines: [a.line] };
 }
