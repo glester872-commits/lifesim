@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
-import { FACINGS, type Facing } from '../types/game';
+import { FACINGS, type Facing, type NpcLook } from '../types/game';
 import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import { blob, drawWord, make, px, shade, sprinkle, type Ctx } from './paint';
 import { buildBuildingTextures } from './BuildingArt';
@@ -14,7 +14,7 @@ import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
 import { buildPopUpTextures } from './PopUpArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
-import { drawPersonHD, drawPlayerHD, hdReady, HD_H, HD_SCALE, HD_W } from './HumanArtHD';
+import { drawPlayerHD, HD_H, HD_SCALE, HD_W, setPremium } from './HumanArtHD';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
 import { WEATHER_LOOKS } from './WeatherLooks';
@@ -492,6 +492,8 @@ export const PLAYER_COLORS: HumanColors = {
   trousers: '#3c4152',
   shoes: '#23262f',
   hairStyle: 'short',
+  // Sudadera con capucha, vaquero recto y zapatillas (world/Garments); lo que compre cambia cada prenda.
+  outfit: { top: 'hoodie', bottom: 'jeans', shoes: 'sneaker' },
 };
 
 /** Clave de la textura de una pose del jugador. */
@@ -549,21 +551,28 @@ const ATLAS_MAX = 4096;
 export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
 
 /**
- * Prototipo a 28 × 42 (world/HumanArtHD) para la gente: un solo anónimo, el
- * primero de los que salen a la calle y al metro que el dibujo nuevo sabe
- * pintar entero. Sus poses van en una textura aparte, pequeña, con los mismos
- * nombres de fotograma; entities/Character y entities/Walker lo ponen a la
- * escala del mundo. El resto sigue en el atlas de siempre.
+ * Gente con ropa de verdad (la que lleva `outfit`: data/npcs.ts, con sus versiones de
+ * abrigo, verano, capucha y gimnasio): a 28 × 42 con world/Garments, como el
+ * jugador, en una textura aparte con los mismos nombres de fotograma.
+ * entities/Character y entities/Walker la ponen a la escala del mundo. El resto
+ * sigue en el atlas de siempre (16 × 24): hornear a toda la calle a 28 × 42
+ * pasaría de lo que aguanta una textura en el móvil.
  */
 export const PEOPLE_HD = 'people-hd';
-export const HD_PERSON = PASSENGER_LOOKS.find((l) => hdReady(colorsOf(l)))?.id;
-export const personTexture = (id: string): string => (id === HD_PERSON ? PEOPLE_HD : PEOPLE);
-export const personScale = (id: string): number => (id === HD_PERSON ? HD_SCALE : 1);
+const HD_LOOKS: readonly NpcLook[] = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].filter((l) => l.outfit);
+const HD_IDS: ReadonlySet<string> = new Set(HD_LOOKS.map((l) => l.id));
+/** El primero con ropa de verdad que sale a la calle (lo usa lifesim.scaleCompare). */
+export const HD_PERSON = HD_LOOKS.find((l) => PASSENGER_LOOKS.includes(l))?.id;
+export const personTexture = (id: string): string => (HD_IDS.has(id) ? PEOPLE_HD : PEOPLE);
+export const personScale = (id: string): number => (HD_IDS.has(id) ? HD_SCALE : 1);
 
-function buildPeopleHD(scene: Phaser.Scene): void {
-  const look = PASSENGER_LOOKS.find((l) => l.id === HD_PERSON);
-  if (!look || scene.textures.exists(PEOPLE_HD)) return;
-  const atlas = scene.textures.createCanvas(PEOPLE_HD, FACINGS.length * POSES.length * HD_W, HD_H);
+/** Pinta (o repinta) a la gente con ropa de verdad, una fila por aspecto y una celda por dirección y pose. */
+function paintPeopleHD(scene: Phaser.Scene): void {
+  const rowW = FACINGS.length * POSES.length * HD_W;
+  if (!HD_LOOKS.length) return;
+  let atlas = scene.textures.exists(PEOPLE_HD) ? (scene.textures.get(PEOPLE_HD) as Phaser.Textures.CanvasTexture) : null;
+  const fresh = !atlas;
+  atlas ??= scene.textures.createCanvas(PEOPLE_HD, rowW, HD_LOOKS.length * HD_H);
   if (!atlas) return;
   const ctx = atlas.getContext();
   const cell = document.createElement('canvas');
@@ -571,16 +580,29 @@ function buildPeopleHD(scene: Phaser.Scene): void {
   cell.height = HD_H;
   const c = cell.getContext('2d', { willReadFrequently: true });
   if (!c) return;
-  const colors = colorsOf(look);
-  FACINGS.forEach((facing, f) =>
-    POSES.forEach((pose, i) => {
-      drawPersonHD(c, facing, pose, colors);
-      const x = (f * POSES.length + i) * HD_W;
-      ctx.drawImage(cell, x, 0);
-      atlas.add(personFrame(look.id, facing, pose), 0, x, 0, HD_W, HD_H);
-    }),
-  );
+  HD_LOOKS.forEach((look, row) => {
+    const colors = colorsOf(look);
+    FACINGS.forEach((facing, f) =>
+      POSES.forEach((pose, i) => {
+        drawPlayerHD(c, facing, pose, colors);
+        const x = (f * POSES.length + i) * HD_W;
+        ctx.clearRect(x, row * HD_H, HD_W, HD_H);
+        ctx.drawImage(cell, x, row * HD_H);
+        if (fresh) atlas.add(personFrame(look.id, facing, pose), 0, x, row * HD_H, HD_W, HD_H);
+      }),
+    );
+  });
   atlas.refresh();
+}
+
+/**
+ * Desarrollo (lifesim.clothes()): ropa de verdad o la de siempre, en el jugador y
+ * en la gente que la lleva, para comparar en el mismo sitio con la misma luz.
+ */
+export function setPremiumClothes(scene: Phaser.Scene, on: boolean, player: Appearance): void {
+  setPremium(on);
+  repaintPerson(scene, 'player', player);
+  paintPeopleHD(scene);
 }
 
 function buildPeople(scene: Phaser.Scene): void {
@@ -708,7 +730,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'train-door-light', 6, 2, drawDoorLight);
 
   buildPeople(scene);
-  buildPeopleHD(scene);
+  paintPeopleHD(scene);
 
   // Charco de luz: anillos escalonados, sin degradado suave. Blanco: world/Lighting lo tiñe (farola cálida, tubo frío).
   make(scene, 'fx-light', 56, 56, (ctx) => {

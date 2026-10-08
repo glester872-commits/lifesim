@@ -29,7 +29,9 @@ import { AlleyDealView } from './world/AlleyDealView';
 let scaleShown: Phaser.GameObjects.GameObject[] = [];
 
 import { SCALE } from './config/scale';
-import { HD_PERSON, PLAYER_COLORS, humanKey, personFrame, personScale, personTexture } from './world/TextureFactory';
+import { HD_PERSON, PLAYER_COLORS, humanKey, personFrame, personScale, personTexture, setPremiumClothes } from './world/TextureFactory';
+import { colorsOf, type Pose } from './world/HumanArt';
+import type { Facing } from './types/game';
 
 import { withAppearance } from './systems/Appearance';
 import { STREET_EVENTS } from './data/streetEvents';
@@ -540,7 +542,18 @@ social: {
         const world = game.scene.getScene('World') as WorldSceneType;
         return hdCompare(world, { x: state.position.x, y: state.position.y + 26 }, [
           { label: 'jugador', colors: withAppearance(PLAYER_COLORS, state.appearanceOf('player')), live: (f, p) => ({ key: humanKey('player', f, p) }) },
+          // Banco de ropa: calle, diario, deporte y arreglado, con la textura que llevan en la calle.
+          ...(['pasajero-22', 'pasajero-14', 'pasajero-2', 'pasajero-1', 'pasajero-4', 'pasajero-7', 'pasajero-13'] as const).map((id) => {
+            const look = PASSENGER_LOOKS.find((l) => l.id === id) ?? PASSENGER_LOOKS[0];
+            return { label: `${id} · ${look.outfit?.top ?? '-'} / ${look.outfit?.bottom ?? '-'} / ${look.outfit?.shoes ?? '-'}`, colors: colorsOf(look), live: (f: Facing, p: Pose) => ({ key: personTexture(id), frame: personFrame(id, f, p) }) };
+          }),
         ]);
+      },
+      // Ropa de verdad (world/Garments) o la de siempre, en el jugador y en quien la lleva: lifesim.clothes(false) / (true).
+      clothes: (on = true) => {
+        const world = game.scene.getScene('World') as WorldSceneType;
+        setPremiumClothes(world, on, state.appearanceOf('player'));
+        return on ? 'ropa de verdad' : 'ropa de siempre';
       },
       // Escala (sólo en desarrollo): lifesim.scaleCompare() pone en fila, junto al jugador y en su misma línea de suelo,
       // un peatón, un patinador, un ciclista, un turismo y un autobús con las texturas del juego a 1:1. Otra llamada lo quita.

@@ -543,6 +543,8 @@ export interface NpcLook {
   brows?: 'thick' | 'fine';
   jaw?: 'square' | 'narrow';
   glasses?: 'clear' | 'dark';
+  /** Qué prenda es cada cosa (data/outfits.ts): quien lo lleva se pinta con ropa de verdad a 28 × 42. */
+  outfit?: import('../data/outfits.ts').Outfit;
   piercing?: 'nose' | 'brow';
   headphones?: string;
   /** Pañuelo a la cabeza: se pinta como la capucha, con la cara al aire. */

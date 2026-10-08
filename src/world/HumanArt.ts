@@ -52,6 +52,8 @@ export interface HumanColors {
   piercing?: NpcLook['piercing'];
   headphones?: string;
   cane?: boolean;
+  /** Qué prenda es cada cosa (data/outfits.ts): con él, world/Garments la pinta como ropa a 28 × 42. */
+  outfit?: import('../data/outfits').Outfit;
 }
 
 /**

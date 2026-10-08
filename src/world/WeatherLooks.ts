@@ -35,11 +35,11 @@ function variant(base: NpcLook, layer: Layer): NpcLook {
   const same: NpcLook = { ...base, id: `${base.id}~${layer}`, skin: c.skin, trousers: c.trousers, shoes: c.shoes, hairStyle: c.hairStyle };
   if (layer === 'coat') {
     const coat = COATS[h % COATS.length];
-    return { ...same, cloth: coat, clothDark: shade(coat, -0.1), sleeves: undefined, sleeveLen: undefined, scarf: (h >>> 5) & 1 ? SCARVES[(h >>> 3) % SCARVES.length] : undefined };
+    return { ...same, cloth: coat, clothDark: shade(coat, -0.1), sleeves: undefined, sleeveLen: undefined, outfit: same.outfit && { ...same.outfit, top: 'coat', topMat: undefined, inner: '#2b2d33' }, scarf: (h >>> 5) & 1 ? SCARVES[(h >>> 3) % SCARVES.length] : undefined };
   }
-  if (layer === 'light') return { ...same, cap: undefined, sleeves: undefined, sleeveLen: (h >>> 2) & 1 ? 2 : 0 };
+  if (layer === 'light') return { ...same, cap: undefined, sleeves: undefined, sleeveLen: (h >>> 2) & 1 ? 2 : 0, outfit: same.outfit && { ...same.outfit, top: 'tee', topMat: undefined } };
   const hoodie = COATS[(h >>> 7) % COATS.length];
-  return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, cap: undefined, hood: base.headscarf ?? shade(hoodie, 0.04), earrings: undefined };
+  return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, outfit: same.outfit && { ...same.outfit, top: 'hoodie', topMat: undefined }, cap: undefined, hood: base.headscarf ?? shade(hoodie, 0.04), earrings: undefined };
 }
 
 // Ropa de entrenar (vestuario del gimnasio): camisetas, tirantes, pantalón corto o largo y zapatillas, en varios
@@ -68,6 +68,7 @@ function gymVariant(base: NpcLook): NpcLook {
     trousers: GYM_BOTTOMS[(h >>> 8) % GYM_BOTTOMS.length],
     shoes: GYM_SHOES[(h >>> 13) % GYM_SHOES.length],
     cap: undefined, hood: undefined, scarf: undefined, bag: undefined, headscarf: undefined,
+    outfit: base.outfit && { top: 'sport', bottom: style === 0 ? 'shorts' : 'track', shoes: 'runner' },
   };
 }
 

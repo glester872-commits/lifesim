@@ -1,6 +1,7 @@
 // Sin Phaser: lo usan world/TextureFactory.ts, scenes/Menus.ts y scripts/check-economy.ts.
 import { getHair, type Appearance, type HairStyle } from '../data/appearance.ts';
 import { getGarment, type Sleeve } from '../data/retail.ts';
+import { wearOf } from '../data/outfits.ts';
 import { getDesign, getZone, type TattooZone } from '../data/tattoos.ts';
 import type { HumanColors } from '../world/HumanArt.ts';
 import { euros, type Wallet } from './Commerce.ts';
@@ -51,6 +52,14 @@ export function withAppearance(base: HumanColors, changes: Appearance | undefine
     out.spots = undefined;
   }
   if (changes.shoes) out.shoes = getGarment(changes.shoes).color;
+  // Quien viste prendas (el jugador): cada una cambia también el corte y el tejido que se pinta.
+  if (base.outfit) {
+    const worn = (['top', 'bottom', 'shoes'] as const).flatMap((slot) => {
+      const id = changes[slot];
+      return id ? [wearOf(id, getGarment(id).category)] : [];
+    });
+    out.outfit = Object.assign({ ...base.outfit }, ...worn);
+  }
   const ink = visibleTattoos(base, changes);
   if (ink.length > 0) out.ink = ink;
   return out;
