@@ -4,6 +4,7 @@
 // mesa o al camarero colgados, o si el camarero atraviesa algo.
 import assert from 'node:assert/strict';
 import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
+import type { LocationDef, TilePoint } from '../src/types/game.ts';
 import { placeInfo } from '../src/systems/Places.ts';
 import { Crowd, profileFor, type Clock } from '../src/systems/Crowd.ts';
 import { StreetLife, streetProfileFor, type Walker } from '../src/systems/StreetLife.ts';
@@ -12,11 +13,22 @@ import { seededRng } from '../src/systems/MetroDaily.ts';
 
 const STEP_MS = 100;
 const MS_PER_MIN = 500;
-const loc = getLocation('district');
-const profile = streetProfileFor('district')!;
 const SEAT_1 = 'RESTAURANT_TERRACE_01';
 const SEAT_2 = 'RESTAURANT_TERRACE_02';
 const PLAYER_TILE = { tx: 40, ty: 17 };
+
+/** Una terraza con servicio: dónde, de qué local, con qué carta, sus asientos, a qué horas hay camarero seguro y una en que está cerrado. */
+interface Terrace { location: string; place: string; menu: string; seats: readonly string[]; open: readonly string[]; closed: string; player: TilePoint }
+const CASA_TOMAS: Terrace = { location: 'district', place: 'restaurant', menu: 'casa-tomas', seats: [SEAT_1, SEAT_2], open: ['14:00', '21:00', '13:30', '20:30'], closed: '05:00', player: PLAYER_TILE };
+/** Todas las terrazas de comida y bebida que hay hoy: cada una con su servicio, su carta y su camarero. */
+const TERRACES: readonly Terrace[] = [
+  CASA_TOMAS,
+  { location: 'district', place: 'cafe', menu: 'pausa', seats: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], open: ['10:00', '17:00', '11:00'], closed: '05:00', player: { tx: 57, ty: 20 } },
+  { location: 'district', place: 'coffee-molinillo', menu: 'molinillo', seats: ['MOLINILLO_TERRACE_01', 'MOLINILLO_TERRACE_02'], open: ['10:00', '16:30', '12:00'], closed: '22:00', player: { tx: 92, ty: 53 } },
+  { location: 'ribera', place: 'bar-ribera', menu: 'bar-ribera', seats: ['RB_BAR_TERRACE_01', 'RB_BAR_TERRACE_02'], open: ['18:00', '15:00', '20:00'], closed: '06:00', player: { tx: 20, ty: 19 } },
+  { location: 'ribera', place: 'cafe-rio', menu: 'cafe-rio', seats: ['RB_CAFE_TERRACE_01', 'RB_CAFE_TERRACE_02'], open: ['10:00', '17:00', '12:00'], closed: '05:00', player: { tx: 20, ty: 19 } },
+  { location: 'ribera', place: 'casa-mar', menu: 'casa-mar', seats: ['RB_CASAMAR_TERRACE_01', 'RB_CASAMAR_TERRACE_02'], open: ['14:00', '21:00', '13:00', '12:30', '18:00'], closed: '05:00', player: { tx: 20, ty: 19 } },
+];
 
 const at = (day: number, hhmm: string): Clock => ({ day, hour: Number(hhmm.slice(0, 2)), minute: Number(hhmm.slice(3)) });
 const addMinutes = (c: Clock, m: number): Clock => {
@@ -29,11 +41,12 @@ const stepsFor = (ms: number): number => Math.ceil(ms / STEP_MS);
 {
   const interior = placeInfo('restaurant')!;
   const crowd = new Crowd(getLocation(interior.interior!), interior, profileFor('restaurant')!, seededRng(1));
-  const life = new StreetLife(loc, profile, seededRng(1));
-  assert.ok(crowd.service && life.service, 'falta el servicio en el comedor o en la terraza');
-  assert.equal(life.service!.menu, crowd.service!.menu, 'la terraza no sirve la misma carta');
-  assert.ok(life.service instanceof TableService && crowd.service instanceof TableService);
-  assert.deepEqual(life.service!.tables.map((t) => t.def.seats[0]), [SEAT_1, SEAT_2]);
+  const life = new StreetLife(getLocation('district'), streetProfileFor('district')!, seededRng(1));
+  const terrace = life.serviceAt(SEAT_1);
+  assert.ok(crowd.service && terrace, 'falta el servicio en el comedor o en la terraza');
+  assert.equal(terrace.menu, crowd.service!.menu, 'la terraza no sirve la misma carta');
+  assert.ok(terrace instanceof TableService && crowd.service instanceof TableService);
+  assert.deepEqual(terrace.tables.map((t) => t.def.seats[0]), [SEAT_1, SEAT_2]);
 }
 
 /** Una calle en marcha: avanza como el juego (un minuto de reloj cada 500 ms) y comprueba lo de siempre en cada paso. */
@@ -45,15 +58,22 @@ class Street {
   readonly waiterStates = new Set<string>();
   private elapsed = 0;
 
-  constructor(seed: number, hhmm: string) {
-    this.life = new StreetLife(loc, profile, seededRng(seed));
+  readonly place: string;
+  private readonly loc: LocationDef;
+  private readonly player: TilePoint;
+
+  constructor(seed: number, hhmm: string, where: Terrace = CASA_TOMAS) {
+    this.loc = getLocation(where.location);
+    this.player = where.player;
+    this.life = new StreetLife(this.loc, streetProfileFor(where.location)!, seededRng(seed));
     this.clock = at(6, hhmm);
-    this.life.populate(this.clock, PLAYER_TILE);
-    this.service = this.life.service!;
+    this.life.populate(this.clock, this.player);
+    this.service = this.life.serviceAt(where.seats[0])!;
+    this.place = where.place;
   }
 
   waiter(): Walker | undefined {
-    return this.life.agents.find((a) => a.kind === 'staff' && a.post?.place === 'restaurant' && !a.vanish);
+    return this.life.agents.find((a) => a.kind === 'staff' && a.post?.place === this.place && !a.vanish);
   }
 
   table(seat: string): Table {
@@ -61,7 +81,7 @@ class Street {
   }
 
   step(): void {
-    this.life.update(STEP_MS, this.clock, PLAYER_TILE);
+    this.life.update(STEP_MS, this.clock, this.player);
     this.elapsed += STEP_MS;
     if (this.elapsed >= MS_PER_MIN) {
       this.elapsed -= MS_PER_MIN;
@@ -72,13 +92,18 @@ class Street {
       const s = this.service.waiterState(w.id);
       if (s) this.waiterStates.add(s);
       // Nunca dentro de algo: el camarero va por el suelo, no por mesas, paredes ni sillas.
-      assert.ok(isStandable(loc, Math.round(w.x), Math.round(w.y)), `el camarero está dentro de algo en ${w.x.toFixed(1)},${w.y.toFixed(1)}`);
+      assert.ok(isStandable(this.loc, Math.round(w.x), Math.round(w.y)), `${this.place}: el camarero está dentro de algo en ${w.x.toFixed(1)},${w.y.toFixed(1)}`);
     }
     // Una mesa tiene un solo camarero (y sólo hay uno de turno), y un camarero una sola mesa.
     const held = this.service.tables.filter((t) => t.waiter !== null).map((t) => t.waiter);
     assert.equal(new Set(held).size, held.length, 'un camarero con dos mesas');
     for (const t of this.service.tables) assert.ok(t.waiter === null || t.waiter === w?.id, `la mesa ${t.def.id} tiene un camarero que no es el de turno`);
-    assert.equal(this.life.agents.filter((a) => a.kind === 'staff' && a.post?.place === 'restaurant' && !a.vanish).length <= 1, true, 'dos camareros en la terraza');
+    assert.equal(this.life.agents.filter((a) => a.kind === 'staff' && a.post?.place === this.place && !a.vanish).length <= 1, true, 'dos camareros en la terraza');
+    // Ningún otro servicio de la calle tiene una mesa con el camarero de esta terraza.
+    for (const other of this.life.services) {
+      if (other === this.service) continue;
+      for (const t of other.tables) assert.ok(t.waiter === null || t.waiter !== w?.id, `el camarero de ${this.place} atiende ${t.def.id}`);
+    }
   }
 
   /** El jugador hace lo mismo que la escena (WorldScene.tableCall): se sienta, y lo que le pregunten lo contesta `answer`. */
@@ -103,15 +128,15 @@ class Street {
   }
 }
 
-/** Una calle con el camarero de la terraza de servicio y las dos mesas libres (busca hora y semilla donde las haya). */
-function openTerrace(): Street {
-  for (const hhmm of ['14:00', '21:00', '13:30', '20:30']) {
+/** Una calle con el camarero de la terraza de servicio y las mesas libres (busca hora y semilla donde las haya). */
+function openTerrace(where: Terrace = CASA_TOMAS, free: readonly string[] = where.seats): Street {
+  for (const hhmm of where.open) {
     for (let seed = 1; seed <= 40; seed++) {
-      const street = new Street(seed, hhmm);
-      if (street.waiter() && street.service.tables.every((t) => t.party === null)) return street;
+      const street = new Street(seed, hhmm, where);
+      if (street.waiter() && free.every((seat) => street.table(seat).party === null)) return street;
     }
   }
-  throw new Error('no hay forma de abrir la terraza con las mesas libres');
+  throw new Error(`${where.place}: no hay forma de abrir la terraza con las mesas libres`);
 }
 
 const orderBoth = (street: Street) => (call: PlayerCall): void => {
@@ -212,7 +237,7 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
   let both = 0;
   let served = 0;
   let paid = 0;
-  for (const [hhmm, seed] of [['13:30', 3], ['21:00', 4], ['21:00', 5], ['13:30', 6], ['21:30', 7], ['14:00', 8]] as const) {
+  for (const [hhmm, seed] of [['13:30', 3], ['21:00', 4], ['21:00', 5], ['13:30', 6], ['21:30', 7], ['14:00', 8], ['21:00', 9], ['13:30', 10], ['21:00', 11], ['14:00', 12]] as const) {
     const street = new Street(seed, hhmm);
     // Hora y cuarto de reloj por tirada: lo que tarda una comida entera en terraza (sentarse, pedir, comer, pagar).
     for (let i = 0; i < stepsFor(75 * MS_PER_MIN); i++) {
@@ -257,6 +282,67 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
     if (mine.state === 'PAID' && otherUsed) done = true;
   }
   assert.ok(done, 'no se probó al jugador con la otra mesa ocupada por la calle');
+}
+
+// ------------------------------------------------ todas las terrazas: el ciclo entero del jugador, su carta y su camarero
+for (const where of TERRACES) {
+  const tag = `${where.place} (${where.location})`;
+  const street = openTerrace(where, [where.seats[0]]);
+  const svc = street.service;
+  assert.equal(svc.menu.id, where.menu, `${tag}: carta equivocada (${svc.menu.id})`);
+  assert.equal(street.life.placeOf(svc), where.place, `${tag}: el servicio es de otro local`);
+  // Cada asiento de esta terraza es de este servicio y de ningún otro.
+  for (const seat of where.seats) {
+    assert.ok(svc.tableOf(seat), `${tag}: ${seat} no es una mesa con servicio`);
+    assert.equal(street.life.services.filter((s) => s.tableOf(seat)).length, 1, `${tag}: ${seat} es de dos servicios`);
+  }
+  const seat = where.seats[0];
+  const t = street.table(seat);
+  const spot = t.def.service;
+  let reached = false;
+  let charged = 0;
+  street.sit(seat, (call) => {
+    if (call.kind === 'order') {
+      assert.equal(call.menu.id, where.menu, `${tag}: el camarero trae otra carta`);
+      const drink = call.items.find((i) => i.kind === 'drink');
+      const food = call.items.find((i) => i.kind === 'food');
+      assert.ok(drink, `${tag}: la carta no tiene bebida a esta hora`);
+      street.service.playerOrder(food ? [drink, food] : [drink]);
+    } else if (call.kind === 'bill') {
+      assert.equal(charged, 0, `${tag}: cobra dos veces`);
+      charged = street.service.playerPay();
+      assert.equal(street.service.playerPay(), 0, `${tag}: se puede pagar dos veces`);
+    }
+  });
+  assert.equal(t.party, -1, `${tag}: la mesa no es del jugador`);
+  const seen: string[] = [t.state];
+  for (let i = 0; i < stepsFor(400_000) && t.state !== 'PAID'; i++) {
+    street.step();
+    if (seen[seen.length - 1] !== t.state) seen.push(t.state);
+    const w = street.waiter();
+    // El camarero llega de verdad a su sitio junto a la mesa para tomar nota, servir y cobrar.
+    if (w && ['TAKING_ORDER', 'TAKING_PAYMENT', 'SERVING'].includes(street.service.waiterState(w.id) ?? '') && Math.hypot(w.x - spot.tx, w.y - spot.ty) < 0.6) reached = true;
+    if (t.state === 'ROUND_DONE') street.service.playerAsk('bill');
+  }
+  assert.deepEqual(seen, ['OCCUPIED', 'WAITING_TO_ORDER', 'ORDERED', 'SERVED', 'ROUND_DONE', 'WAITING_TO_PAY', 'PAID'], `${tag}: flujo de la mesa: ${seen.join(' → ')}`);
+  assert.ok(reached, `${tag}: el camarero nunca llegó junto a la mesa`);
+  assert.ok(charged > 0, `${tag}: no se cobró`);
+  assert.deepEqual(street.calls.map((c) => c.kind).filter((k, i, all) => k !== all[i - 1]), ['order', 'served', 'finished', 'bill'], `${tag}: lo que ve el jugador`);
+  for (const s of ['GOING_TO_TABLE', 'TAKING_ORDER', 'GOING_TO_KITCHEN', 'WAITING_FOR_ORDER', 'DELIVERING_ORDER', 'SERVING', 'TAKING_PAYMENT']) {
+    assert.ok(street.waiterStates.has(s), `${tag}: el camarero nunca estuvo en ${s}`);
+  }
+  // Se levanta: no debe nada, la mesa se recoge y queda libre, y el servicio ya no le tiene en ninguna mesa.
+  assert.equal(street.stand(), 0, `${tag}: cobra al levantarse tras pagar`);
+  street.runUntil(() => t.state === 'AVAILABLE', 90_000);
+  assert.equal(t.state, 'AVAILABLE', `${tag}: la mesa no se recoge`);
+  assert.equal(t.waiter, null);
+  assert.equal(street.service.playerTable, undefined, `${tag}: el jugador sigue en una mesa`);
+  assert.equal(street.life.pathFailures, 0, `${tag}: rutas no encontradas`);
+  // Cerrado: nadie atiende esa terraza.
+  const closed = new Street(1, where.closed, where);
+  closed.runUntil(() => false, 5_000);
+  assert.equal(closed.service.staffed, false, `${tag}: con el local cerrado hay camarero en la terraza`);
+  console.log(`  ${tag}: sentarse, su servicio, camarero junto a la mesa, carta ${where.menu}, entrega, cuenta ${charged.toFixed(2)} EUR una vez, mesa libre`);
 }
 
 console.log('terraza OK: mismo TableService y misma carta que el comedor · pedir, cocina, entrega, comer y cuenta en la terraza · levantarse antes de que llegue, a medias y sin pagar libera mesa y camarero · dos mesas con un solo camarero');

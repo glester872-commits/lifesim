@@ -134,6 +134,8 @@ const POINTS: Record<string, PointDef> = {
   RB_BAR_TERRACE_01: p(6, 10, 'seat', 'down'), RB_BAR_TERRACE_02: p(10, 10, 'seat', 'down'),
   RB_CAFE_TERRACE_01: p(3, 13, 'seat', 'up'), RB_CAFE_TERRACE_02: p(7, 13, 'seat', 'up'),
   RB_CASAMAR_TERRACE_01: p(11, 13, 'seat', 'up'), RB_CASAMAR_TERRACE_02: p(14, 13, 'seat', 'up'),
+  // Donde espera el camarero de cada terraza, junto a su puerta (y la barra a la que lleva las comandas).
+  RB_BAR_TERRACE_WAITER: p(9, 9, 'work', 'down'), RB_CAFE_TERRACE_WAITER: p(6, 14, 'work', 'up'), RB_CASAMAR_TERRACE_WAITER: p(13, 14, 'work', 'up'),
 
   // La plaza: delante del metro y del quiosco de helados.
   RB_METRO_FRONT: p(19, 18, 'wait', 'up'),
@@ -177,6 +179,7 @@ const LINKS: readonly Link[] = [
     'rb-s24', 'rb-s30', 'rb-s38', 'EDGE_RIBERA_SE'),
   ['RB_CAFE_TERRACE_01', 'rb-s03'], ['RB_CAFE_TERRACE_02', 'rb-s07'],
   ['RB_CASAMAR_TERRACE_01', 'rb-s11'], ['RB_CASAMAR_TERRACE_02', 'rb-s14'],
+  ['RB_BAR_TERRACE_WAITER', 'RB_BAR_ENTRANCE'], ['RB_CAFE_TERRACE_WAITER', 'RB_CAFE_ENTRANCE'], ['RB_CASAMAR_TERRACE_WAITER', 'RB_CASAMAR_ENTRANCE'],
   // La calle se cruza por dos sitios.
   ...chain('rb-n16', 'rb-m16', 'rb-s16'), ...chain('rb-n30', 'rb-m30', 'rb-s30'),
 
@@ -218,6 +221,16 @@ export const RIBERA: LocationDef = {
     'metro-door': { tx: 19, ty: 18, facing: 'down' },
   },
   points: POINTS,
+  // Terrazas con servicio de verdad (systems/TableService): cada mesa es del local cuyo camarero atiende sus asientos
+  // (data/streets.ts). Quien atiende se pone en la acera, al lado de quien se sienta.
+  tables: [
+    { id: 'RB_BAR_TERRAZA_01', seats: ['RB_BAR_TERRACE_01'], service: { tx: 7, ty: 10 } },
+    { id: 'RB_BAR_TERRAZA_02', seats: ['RB_BAR_TERRACE_02'], service: { tx: 11, ty: 10 } },
+    { id: 'RB_CAFE_TERRAZA_01', seats: ['RB_CAFE_TERRACE_01'], service: { tx: 4, ty: 13 } },
+    { id: 'RB_CAFE_TERRAZA_02', seats: ['RB_CAFE_TERRACE_02'], service: { tx: 8, ty: 13 } },
+    { id: 'RB_CASAMAR_TERRAZA_01', seats: ['RB_CASAMAR_TERRACE_01'], service: { tx: 10, ty: 13 } },
+    { id: 'RB_CASAMAR_TERRAZA_02', seats: ['RB_CASAMAR_TERRACE_02'], service: { tx: 15, ty: 13 } },
+  ],
   links: LINKS,
   // Identidad visual (data/districts.ts): ribera para todo el mapa, y el metro con su acero y su granito.
   district: 'riverside',

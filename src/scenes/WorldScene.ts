@@ -14,7 +14,7 @@ import {
 } from '../config/constants';
 import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
-import { doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
+import { allLocations, doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
 import { Ambience } from '../world/Ambience';
 import { Traffic } from '../systems/Traffic';
 import { withDistrictLanes } from '../systems/Districts';
@@ -308,7 +308,7 @@ export class WorldScene extends Phaser.Scene {
   private inspector: PopulationInspector | null = null;
   private crowdViews: CrowdView[] = [];
   /** Lo que hay en las mesas, el pase y la cocina de un local con servicio de mesa. */
-  private serviceView: ServiceView | null = null;
+  private serviceViews: ServiceView[] = [];
   /** Sentado a una mesa con servicio y ya apuntado en ella: el camarero sabe que está. */
   private dining = false;
   /** Lo que pidió el jugador desde la mesa (otra bebida, otra tapa...): por dónde se abre la carta cuando llega el camarero. */
@@ -500,9 +500,9 @@ export class WorldScene extends Phaser.Scene {
     this.dining = false;
     this.chatLog.forgetCrowd();
     // Dentro, el servicio del comedor; fuera, el de la terraza (la calle lleva el suyo): el mismo TableService y el mismo flujo.
-    const service = this.tableService;
-    this.serviceView = service ? new ServiceView(this, service, def, profile?.tableService ?? null) : null;
-    if (service) service.onPlayer = (call) => this.tableCall(call);
+    const services = this.crowd?.service ? [this.crowd.service] : (this.street?.services ?? []);
+    this.serviceViews = services.map((s) => new ServiceView(this, s, def, this.crowd?.service ? (profile?.tableService ?? null) : null));
+    for (const s of services) s.onPlayer = (call) => this.tableCall(call);
     this.street?.populate(this.clockNow(), this.playerTile());
     const weather = (): ReturnType<typeof weatherAt> => weatherAt(this.services.state.day, this.services.state.hour + this.services.state.minute / 60);
     const hourNow = (): number => this.services.state.hour + this.services.state.minute / 60;
@@ -736,7 +736,7 @@ export class WorldScene extends Phaser.Scene {
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
     this.street?.update(delta, this.clockNow(), this.playerTile());
     for (const view of this.crowdViews) view.sync(time);
-    this.serviceView?.sync(time);
+    for (const view of this.serviceViews) view.sync(time);
     // Se acaba el turno (cierra el local, se va el camarero) con el jugador esperando a la mesa: nadie vendrá.
     // Se mira cada frame, también con el menú de la mesa abierto (es «en vivo»: el mundo sigue): se cierra ese
     // menú, se cierra su cuenta como al levantarse (lo comido se paga) y sigue sentado, sin servicio. Comiendo, acaba su plato.
@@ -1301,7 +1301,36 @@ export class WorldScene extends Phaser.Scene {
     return onPlayer ? this.street.pickpocket.forceOnPlayer(p) : this.street.pickpocket.force(p);
   }
 
-  debugScooter(): { spawned: boolean; message: string; now: number } {
+  /**
+   * Los servicios de mesa de aquí (lifesim.terrace.status()): de qué local es cada uno, su carta, si hay quien atienda,
+   * cada mesa con su estado, quién la tiene, qué pide y el camarero que lo lleva; y la mesa del jugador.
+   */
+  debugTerrace(): object {
+    const services = this.crowd?.service ? [this.crowd.service] : (this.street?.services ?? []);
+    const agents = this.street?.agents ?? [];
+    return {
+      dining: this.dining,
+      playerTable: this.tableService?.playerTable?.def.id ?? null,
+      services: services.map((s) => ({
+        place: this.street?.placeOf(s) ?? 'interior',
+        menu: s.menu.id,
+        staffed: s.staffed,
+        waiters: agents.filter((a) => a.kind === 'staff' && a.post?.place === this.street?.placeOf(s)).map((a) => ({ id: a.id, state: s.waiterState(a.id) ?? 'IDLE', at: `${a.x.toFixed(1)},${a.y.toFixed(1)}` })),
+        tables: s.tables.map((t) => ({ id: t.def.id, state: t.state, party: t.party === -1 ? 'jugador' : t.party, job: t.job, waiter: t.waiter, plates: t.plates.map((p) => p.item.id) })),
+      })),
+    };
+  }
+
+  /** Lleva al jugador al sitio del camarero junto a la mesa de ese asiento de terraza, en el sitio que la tenga. */
+  debugTerraceGoto(seat: string): string {
+    const loc = allLocations().find((l) => l.tables?.some((t) => t.seats.includes(seat)));
+    const table = loc?.tables?.find((t) => t.seats.includes(seat));
+    if (!loc || !table) return `ninguna mesa con el asiento ${seat}`;
+    this.teleport(loc.id, table.service, 'up');
+    return `${loc.id}: junto a ${table.id}`;
+  }
+
+  debugScooter():{ spawned: boolean; message: string; now: number } {
     const now = (): number => this.bikes?.vehicles.filter((v) => v.type.id === 'scooter').length ?? 0;
     if (!this.bikes) return { spawned: false, message: 'aquí no hay carril bici', now: 0 };
     const spawned = this.bikes.forceSpawn('scooter', this.trafficClock());
@@ -1459,9 +1488,14 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  /** El servicio de mesa de donde está el jugador: el del comedor si está dentro, el de la terraza si está en la calle. */
+  /** El servicio de mesa de donde está sentado el jugador: el del comedor si está dentro, el de su terraza si está en la calle. */
   private get tableService(): TableService | null {
-    return this.crowd?.service ?? this.street?.service ?? null;
+    return this.serviceFor(this.seatedOn?.seat.id);
+  }
+
+  /** El servicio al que pertenece ese asiento: dentro, el del comedor; fuera, el de la terraza de ese local (cada una el suyo). */
+  private serviceFor(seat: string | undefined): TableService | null {
+    return this.crowd?.service ?? this.street?.serviceAt(seat) ?? null;
   }
 
   /** Si alguien tiene ese puesto: quien lo usa, quien va de camino, un personaje con nombre o el propio jugador. */
@@ -1696,7 +1730,7 @@ export class WorldScene extends Phaser.Scene {
   private seatTaken(seat: Seat): boolean {
     if (seat.id.startsWith('metro:')) return this.metro?.isSeatTaken(Number(seat.id.slice(6))) ?? true;
     // Una mesa con servicio es de un grupo hasta que se va y la recogen.
-    const table = this.tableService?.tableOf(seat.id);
+    const table = this.serviceFor(seat.id)?.tableOf(seat.id);
     if (table && (table.party !== null || table.state !== 'AVAILABLE')) return true;
     return this.charactersOn.has(seat.id) || (this.crowd !== null && this.crowd.occupancy(seat.id) !== 'FREE') || (this.street?.isTaken(seat.id) ?? false);
   }
@@ -1706,7 +1740,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.seatTaken(seat)) return;
     // Una mesa con servicio se reserva al echar a andar hacia ella, no al acabar de sentarse: si no, un
     // grupo que entra en ese momento se la queda y el jugador acaba sentado sin camarero.
-    const service = this.tableService;
+    const service = this.serviceFor(seat.id);
     // Sólo se es comensal si hay quien atienda ahora; si no, es una silla más (y se puede volver cuando abran).
     if (service?.tableOf(seat.id) && service.staffed) {
       service.seatPlayer(seat.id);

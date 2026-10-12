@@ -220,8 +220,13 @@ export class StreetLife {
   private readonly baseRng: Rng;
   /** Quién tiene cada asiento o sitio para estar (reservado de camino u ocupado): uno, nunca dos. */
   readonly seats = new SeatRegistry();
-  /** Servicio de mesa de la terraza (el mismo que dentro): mesas, comandas, cuenta y su camarero. Null si la calle no tiene. */
-  readonly service: TableService | null;
+  /**
+   * Servicio de mesa de cada terraza (el mismo que dentro): mesas, comandas, cuenta y su camarero. Uno por local:
+   * cada uno con su carta, sus mesas (las que atiende su puesto, StreetPost.serves) y su camarero.
+   */
+  readonly services: readonly TableService[];
+  /** De qué local es cada servicio (el camarero de ese puesto es el suyo). */
+  private readonly serviceOwner = new Map<TableService, string>();
   private claimed: ReadonlySet<string> = new Set();
   /** Personas (índice de aspecto = identidad) que ahora mismo están en otro sitio de la escena: el corro de una pelea, un trapicheo. */
   private elsewhere: ReadonlySet<number> = new Set();
@@ -296,22 +301,27 @@ export class StreetLife {
     this.waves = (profile.bursts ?? []).map(() => ({ pending: 0, release: 0, train: -1 }));
     this.edges = [...this.graph].filter((id) => loc.points?.[id]?.kind === 'edge');
     this.places = PLACES.map((p) => placeInfo(p.id)!).filter((p) => p.locationId === loc.id);
-    const terrace = profile.tableService;
-    this.service = terrace && loc.tables
-      ? new TableService(loc, terrace, {
-          agents: this.agents,
-          walk: (a, to, face) => {
-            const w = a as Walker;
-            w.path = this.gridPath(w, to);
-            w.face = face;
-            if (w.path.length === 0 && face) w.dir = facingTo({ tx: Math.round(w.x), ty: Math.round(w.y) }, face);
-          },
-          pointAt: (id) => this.pointAt(id),
-          isWaiter: (a) => (a as Walker).post?.place === terrace.place,
-          // Quien viene a sentarse ya tiene su mesa desde que sale, no sólo al llegar.
-          seatOf: (a) => (a as Walker).stayPoint,
-        }, () => this.rng())
-      : null;
+    this.services = (profile.tableService ?? []).map((terrace) => {
+      const post = profile.staff?.find((p) => p.place === terrace.place && p.service === 'waiter');
+      if (!post) throw new Error(`[${loc.id}] la terraza de ${terrace.place} no tiene camarero (StreetProfile.staff)`);
+      const tables = (loc.tables ?? []).filter((t) => t.seats.some((s) => post.serves.some((p) => s.startsWith(p))));
+      if (tables.length === 0) throw new Error(`[${loc.id}] la terraza de ${terrace.place} no tiene mesas (LocationDef.tables)`);
+      const service = new TableService({ ...loc, tables }, terrace, {
+        agents: this.agents,
+        walk: (a, to, face) => {
+          const w = a as Walker;
+          w.path = this.gridPath(w, to);
+          w.face = face;
+          if (w.path.length === 0 && face) w.dir = facingTo({ tx: Math.round(w.x), ty: Math.round(w.y) }, face);
+        },
+        pointAt: (id) => this.pointAt(id),
+        isWaiter: (a) => (a as Walker).post?.place === terrace.place,
+        // Quien viene a sentarse ya tiene su mesa desde que sale, no sólo al llegar.
+        seatOf: (a) => (a as Walker).stayPoint,
+      }, () => this.rng());
+      this.serviceOwner.set(service, terrace.place);
+      return service;
+    });
     for (const trip of profile.trips) {
       for (const ends of [trip.from, trip.to, trip.then]) {
         for (const prefix of ends?.points ?? []) {
@@ -323,6 +333,22 @@ export class StreetLife {
 
   get summary(): StreetStats {
     return this.stats;
+  }
+
+  /** El servicio de la terraza a la que pertenece ese asiento (ninguno si no es de una mesa con servicio). */
+  serviceAt(seat: string | undefined): TableService | undefined {
+    return seat ? this.services.find((s) => s.tableOf(seat)) : undefined;
+  }
+
+  /** De qué local es ese servicio. */
+  placeOf(service: TableService): string | undefined {
+    return this.serviceOwner.get(service);
+  }
+
+  /** El servicio que lleva ese camarero (el de su local), si es camarero de una terraza con servicio. */
+  private serviceOf(a: Walker): TableService | undefined {
+    const place = a.post?.place;
+    return place ? this.services.find((s) => this.serviceOwner.get(s) === place) : undefined;
   }
 
   /** Puntos donde está un personaje con nombre: nadie los coge, y quien estaba ahí se va. */
@@ -447,7 +473,7 @@ export class StreetLife {
     this.metroWaves(deltaMs, clock, player);
     this.elapsed += deltaMs;
     this.seats.tick(deltaMs);
-    this.service?.update(deltaMs, hourOf(clock));
+    for (const s of this.services) s.update(deltaMs, hourOf(clock));
     this.tick -= deltaMs;
     if (this.tick <= 0) {
       this.tick = between(this.rng, ...TICK);
@@ -587,7 +613,8 @@ export class StreetLife {
     // Nadie del grupo se queda atrás: la parada empieza a contar cuando han llegado todos.
     if (this.companions(a).some((c) => !c.settled)) return;
     // Comiendo en una mesa con servicio: no se va por su reloj, sino al pagar (si hay quien atienda).
-    if (this.service?.holds(a) && this.agents.some((w) => w.kind === 'staff' && !w.vanish && this.service!.drives(w))) return;
+    const service = this.serviceAt(a.stayPoint);
+    if (service?.holds(a) && this.agents.some((w) => w.kind === 'staff' && !w.vanish && service.drives(w))) return;
     a.timer -= deltaMs;
     if (a.timer <= 0) this.moveOn(a, clock);
   }
@@ -782,7 +809,7 @@ export class StreetLife {
       if (!onDuty && here) {
         // Se va con la mesa a medias: la suelta (otro camarero no hay) y quien comía se levanta por su reloj.
         here.leaveSoon = true;
-        this.service?.drives(here);
+        this.serviceOf(here)?.drives(here);
         here.state = 'WALK';
         here.vanish = true;
         here.path = this.gridPath(here, this.pointAt(post.base));
@@ -805,9 +832,10 @@ export class StreetLife {
     }
     a.moving = false;
     if (a.vanish) return;
-    // El camarero de las mesas con servicio (Casa Tomás) las atiende como el de dentro: comanda, cocina, mesa, cuenta.
-    if (this.service?.drives(a)) {
-      this.service.stepWaiter(a, deltaMs);
+    // El camarero de una terraza con servicio la atiende como el de dentro: comanda, barra, mesa, cuenta.
+    const service = this.serviceOf(a);
+    if (service?.drives(a)) {
+      service.stepWaiter(a, deltaMs);
       return;
     }
     a.timer -= deltaMs;
@@ -1021,7 +1049,7 @@ export class StreetLife {
       leader.stayPoint = to;
       this.seats.reserve(to, leader.id);
       // Se sienta a una mesa con servicio: es suya desde que sale (al llegar, el camarero vendrá).
-      if (!seated) this.service?.reserve(to, leader);
+      if (!seated) this.serviceAt(to)?.reserve(to, leader);
     }
     if (rule.pace === 'jog') {
       leader.speed = between(this.rng, ...JOG_SPEED);
@@ -1035,7 +1063,7 @@ export class StreetLife {
     }
     if (seated) {
       this.arrive(leader);
-      this.service?.adopt(to, leader);
+      this.serviceAt(to)?.adopt(to, leader);
       leader.timer *= 0.2 + this.rng() * 0.8;
     }
 
@@ -1128,7 +1156,7 @@ export class StreetLife {
       const stay = p.kind !== 'entrance' && p.kind !== 'edge';
       if (!stay) return true;
       // Una mesa con servicio sólo se elige si está libre: es de un grupo hasta que se va y la recogen.
-      const table = this.service?.tableOf(c.id);
+      const table = this.serviceAt(c.id)?.tableOf(c.id);
       if (table && (table.party !== null || table.state !== 'AVAILABLE')) return false;
       return !this.seats.has(c.id) && !this.claimed.has(c.id) && !busy.has(`${p.tx},${p.ty}`);
     });
@@ -1331,6 +1359,12 @@ export class StreetLife {
       const p = this.loc.points?.[id];
       if (p) taken.add(`${p.tx},${p.ty}`);
     }
+    // Donde se pone el camarero de cada terraza (junto a cada mesa y en su puerta) no es sitio para quedarse de pie.
+    for (const t of this.profile.tableService ?? []) {
+      const p = this.pointAt(t.pass);
+      taken.add(`${p.tx},${p.ty}`);
+    }
+    for (const s of this.services) for (const t of s.tables) taken.add(`${t.def.service.tx},${t.def.service.ty}`);
     const around: readonly (readonly [number, number])[] = [[-1, 0], [1, 0], [0, 1], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]];
     for (const [dx, dy] of around) {
       const tile = { tx: at.tx + dx, ty: at.ty + dy };

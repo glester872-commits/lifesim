@@ -9,7 +9,7 @@
 import { FOOD_VENUE_MENUS } from './foodVenues.ts';
 
 /** Qué clase de local es: decide la carta, las frases y qué se ofrece para seguir pidiendo. Nunca el nombre del local. */
-export type VenueType = 'restaurant' | 'cafe' | 'wine_bar';
+export type VenueType = 'restaurant' | 'cafe' | 'wine_bar' | 'bar';
 
 /** Lo que se ve en la mesa (world/DiningArt.ts dibuja cada uno lleno y vacío). */
 export type Dish =
@@ -292,8 +292,104 @@ const CASA_MAR: ServiceMenu = {
   more: [{ label: 'Pedir otra cosa' }, { label: 'Ver carta' }],
 };
 
+// ------------------------------------------------------ cartas de terraza
+
+/** Café Molinillo: fuera sólo café y bollos. */
+const MOLINILLO: ServiceMenu = {
+  id: 'molinillo',
+  title: 'Café Molinillo',
+  venue: 'cafe',
+  categories: [
+    { id: 'cafes', title: 'Cafés' },
+    { id: 'dulce', title: 'Algo dulce' },
+  ],
+  items: [
+    { id: 'espresso', name: 'Espresso de especialidad', price: 1.8, kind: 'drink', category: 'cafes', prep: 2, duration: 5, energy: 5, dish: 'coffee' },
+    { id: 'cortado', name: 'Cortado', price: 1.9, kind: 'drink', category: 'cafes', prep: 2, duration: 7, energy: 5, dish: 'coffee' },
+    { id: 'flat-white', name: 'Flat white', price: 2.8, kind: 'drink', category: 'cafes', prep: 3, duration: 12, energy: 5, dish: 'coffee' },
+    { id: 'filtro', name: 'Café de filtro', price: 2.5, kind: 'drink', category: 'cafes', prep: 4, duration: 14, energy: 5, dish: 'coffee' },
+    { id: 'te', name: 'Té', price: 2.2, kind: 'drink', category: 'cafes', prep: 3, duration: 14, energy: 3, dish: 'tea' },
+    { id: 'croissant', name: 'Croissant de mantequilla', price: 2.2, kind: 'food', category: 'dulce', prep: 2, duration: 8, energy: 7, dish: 'pastry' },
+    { id: 'cardamomo', name: 'Bollo de cardamomo', price: 2.8, kind: 'food', category: 'dulce', prep: 2, duration: 9, energy: 8, dish: 'pastry' },
+    { id: 'bizcocho', name: 'Bizcocho de limón', price: 3, kind: 'food', category: 'dulce', prep: 2, duration: 10, energy: 9, dish: 'cake' },
+  ],
+  lines: {
+    greet: ['Hola, ¿qué te pongo? Fuera sólo café y bollos.', '¿Qué vas a tomar?', 'Buenas. ¿Un café?'],
+    again: ['¿Otro café?', '¿Algo dulce para acompañar?', '¿Algo más?'],
+    confirm: ['Ahora te lo saco.', 'Marchando.', 'Enseguida.'],
+    serve: ['Aquí tienes.', 'Recién molido. Que aproveche.'],
+    bill: ['Te dejo la cuenta.', 'Aquí tienes, cuando quieras.'],
+    thanks: ['¡Gracias! Hasta otra.', 'Gracias, que vaya bien.'],
+    later: ['Vale, me avisas.', 'Sin prisa, vuelvo luego.'],
+  },
+  more: [{ label: 'Pedir otro café', category: 'cafes' }, { label: 'Pedir algo dulce', category: 'dulce' }, { label: 'Ver carta' }],
+};
+
+/** Café del Río: café por la mañana, vermú de grifo por la tarde. */
+const CAFE_RIO: ServiceMenu = {
+  id: 'cafe-rio',
+  title: 'Café del Río',
+  venue: 'cafe',
+  categories: [
+    { id: 'cafes', title: 'Cafés' },
+    { id: 'bebidas', title: 'Otras bebidas' },
+    { id: 'comer', title: 'Para picar' },
+  ],
+  items: [
+    { id: 'cafe-solo', name: 'Café solo', price: 1.4, kind: 'drink', category: 'cafes', prep: 2, duration: 6, energy: 5, dish: 'coffee' },
+    { id: 'cortado', name: 'Cortado', price: 1.5, kind: 'drink', category: 'cafes', prep: 2, duration: 7, energy: 5, dish: 'coffee' },
+    { id: 'cafe-leche', name: 'Café con leche', price: 1.8, kind: 'drink', category: 'cafes', prep: 2, duration: 10, energy: 5, dish: 'coffee' },
+    { id: 'zumo', name: 'Zumo de naranja', price: 2.8, kind: 'drink', category: 'bebidas', prep: 3, duration: 8, energy: 5, dish: 'juice' },
+    { id: 'vermu', name: 'Vermú de grifo', price: 2.8, kind: 'drink', category: 'bebidas', prep: 1, duration: 15, energy: 1, dish: 'wine', hours: [12, 22] },
+    { id: 'agua', name: 'Agua', price: 1.2, kind: 'drink', category: 'bebidas', prep: 1, duration: 8, energy: 2, dish: 'water' },
+    { id: 'tostada', name: 'Tostada con tomate', price: 2.5, kind: 'food', category: 'comer', prep: 4, duration: 10, energy: 9, dish: 'toast', hours: [8, 13] },
+    { id: 'croissant', name: 'Croissant', price: 1.8, kind: 'food', category: 'comer', prep: 2, duration: 8, energy: 7, dish: 'pastry' },
+    { id: 'aceitunas', name: 'Aceitunas', price: 2, kind: 'food', category: 'comer', prep: 1, duration: 10, energy: 3, dish: 'olives', hours: [12, 22] },
+  ],
+  lines: {
+    greet: ['Buenas, ¿qué te pongo?', '¿Qué vas a tomar? Hoy da el sol de lleno.', '¿Quieres tomar algo?'],
+    again: ['¿Otro?', '¿Algo más?', '¿Te pongo algo para picar?'],
+    confirm: ['Marchando.', 'Ahora mismo.', 'Enseguida te lo saco.'],
+    serve: ['Aquí tienes.', 'Que aproveche.'],
+    bill: ['La cuenta, cuando quieras.', 'Te la dejo aquí.'],
+    thanks: ['Gracias, hasta luego.', '¡Gracias! Vuelve cuando quieras.'],
+    later: ['Sin prisa, vuelvo en un rato.', 'Vale, luego paso.'],
+  },
+  more: [{ label: 'Pedir otra bebida', category: 'cafes' }, { label: 'Pedir algo de picar', category: 'comer' }, { label: 'Ver carta' }],
+};
+
+/** Bar Ribera: cañas, vino y algo de picar (los precios de bebida, los de la barra: data/activities.ts). */
+const BAR_RIBERA: ServiceMenu = {
+  id: 'bar-ribera',
+  title: 'Bar Ribera',
+  venue: 'bar',
+  categories: [
+    { id: 'bebidas', title: 'Bebidas' },
+    { id: 'picar', title: 'Para picar' },
+  ],
+  items: [
+    { id: 'cana', name: 'Caña', price: 2.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 15, energy: 1, dish: 'beer' },
+    { id: 'tinto', name: 'Copa de tinto', price: 3, kind: 'drink', category: 'bebidas', prep: 1, duration: 20, energy: 1, dish: 'wine' },
+    { id: 'refresco', name: 'Refresco con hielo', price: 2, kind: 'drink', category: 'bebidas', prep: 1, duration: 10, energy: 3, dish: 'soda' },
+    { id: 'agua', name: 'Agua', price: 1.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 10, energy: 2, dish: 'water' },
+    { id: 'aceitunas', name: 'Aceitunas', price: 2, kind: 'food', category: 'picar', prep: 1, duration: 10, energy: 3, dish: 'olives' },
+    { id: 'bravas', name: 'Patatas bravas', price: 4.5, kind: 'food', category: 'picar', prep: 7, duration: 15, energy: 12, dish: 'tapa' },
+    { id: 'tortilla', name: 'Pincho de tortilla', price: 3, kind: 'food', category: 'picar', prep: 3, duration: 10, energy: 11, dish: 'tortilla' },
+  ],
+  lines: {
+    greet: ['¿Qué os pongo?', 'Buenas, ¿una caña?', '¿Qué va a ser?'],
+    again: ['¿Otra ronda?', '¿Lo mismo?', '¿Algo de picar?'],
+    confirm: ['Marchando.', 'Ahora mismo.', 'Va.'],
+    serve: ['Aquí tienes.', 'Bien fresquita.'],
+    bill: ['La cuenta, cuando quieras.', 'Te la dejo aquí.'],
+    thanks: ['¡Gracias! Hasta la próxima.', 'Gracias, buenas noches.'],
+    later: ['Sin prisa.', 'Vale, luego vuelvo.'],
+  },
+  more: [{ label: 'Otra ronda', category: 'bebidas' }, { label: 'Pedir algo de picar', category: 'picar' }, { label: 'Ver carta' }],
+};
+
 /** Las cartas de los locales de comida de la ciudad salen de sus arquetipos (data/foodVenues.ts), no se escriben a mano. */
-export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR, ...FOOD_VENUE_MENUS];
+export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR, MOLINILLO, CAFE_RIO, BAR_RIBERA, ...FOOD_VENUE_MENUS];
 
 export function getMenu(id: string): ServiceMenu {
   const menu = MENUS.find((m) => m.id === id);

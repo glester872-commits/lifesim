@@ -89,10 +89,11 @@ export interface StreetProfile {
   /** Personal que trabaja fuera: el camarero de la terraza. */
   staff?: readonly StreetPost[];
   /**
-   * Servicio de mesa en la calle (systems/TableService, el mismo de los interiores): las mesas de LocationDef.tables
-   * las atiende el camarero del puesto de `place`, y la barra a la que lleva y trae es su sitio junto a la puerta (`pass`).
+   * Servicio de mesa de cada terraza (systems/TableService, el mismo de los interiores), uno por local: sus mesas son
+   * las de LocationDef.tables cuyos asientos atiende el puesto de camarero de `place` (StreetPost.serves), la carta es
+   * la del local y la barra a la que lleva y trae es su sitio junto a la puerta (`pass`).
    */
-  tableService?: { place: string; menu: string; pass: string };
+  tableService?: readonly { place: string; menu: string; pass: string }[];
   /**
    * Salidas en oleada: cada vez que llega un tren sale gente por esa boca, de una
    * en una. [desde, hasta, minutos entre trenes] por hora; fuera de las franjas, nada.
@@ -142,7 +143,11 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     // El metro: en hora punta un tren cada pocos minutos de juego, y de cada uno salen unos cuantos.
     bursts: [{ point: 'METRO_ENTRANCE', every: [[6.5, 7, 16], [7, 10, 6], [10, 17, 14], [17, 20.5, 6], [20.5, 24, 16], [0, 1.5, 24]], size: [1, 3] }],
     draws: [{ place: 'nightclub', perLevel: 2 }],
-    tableService: { place: 'restaurant', menu: 'casa-tomas', pass: 'RESTAURANT_TERRACE_WAITER' },
+    tableService: [
+      { place: 'restaurant', menu: 'casa-tomas', pass: 'RESTAURANT_TERRACE_WAITER' },
+      { place: 'cafe', menu: 'pausa', pass: 'CAFE_TERRACE_WAITER' },
+      { place: 'coffee-molinillo', menu: 'molinillo', pass: 'MOLINILLO_TERRACE_WAITER' },
+    ],
     staff: [
       { service: 'waiter', place: 'cafe', base: 'CAFE_TERRACE_WAITER', serves: ['CAFE_TERRACE_'], label: 'Camarero de la terraza' },
       { service: 'waiter', place: 'coffee-molinillo', base: 'MOLINILLO_TERRACE_WAITER', serves: ['MOLINILLO_TERRACE_'], label: 'Camarera del Molinillo', line: 'Fuera sólo café y bollos, ¿eh?' },
@@ -267,6 +272,17 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     // El metro: un tren cada pocos minutos en hora punta, y de cada uno salen unos cuantos.
     bursts: [{ point: 'RB_METRO_FRONT', every: [[6.5, 10, 10], [17, 21, 8], [21, 24, 16]], size: [1, 2] }],
     draws: [{ place: 'arcade', perLevel: 1.5 }],
+    // Las tres terrazas, cada una con su camarero y su carta (systems/TableService).
+    tableService: [
+      { place: 'bar-ribera', menu: 'bar-ribera', pass: 'RB_BAR_TERRACE_WAITER' },
+      { place: 'cafe-rio', menu: 'cafe-rio', pass: 'RB_CAFE_TERRACE_WAITER' },
+      { place: 'casa-mar', menu: 'casa-mar', pass: 'RB_CASAMAR_TERRACE_WAITER' },
+    ],
+    staff: [
+      { service: 'waiter', place: 'bar-ribera', base: 'RB_BAR_TERRACE_WAITER', serves: ['RB_BAR_TERRACE_'], label: 'Camarero del Bar Ribera', line: 'Fuera, cañas y algo de picar. Lo fuerte, dentro.' },
+      { service: 'waiter', place: 'cafe-rio', base: 'RB_CAFE_TERRACE_WAITER', serves: ['RB_CAFE_TERRACE_'], label: 'Camarera del Café del Río', line: '¿Un cortado al sol?' },
+      { service: 'waiter', place: 'casa-mar', base: 'RB_CASAMAR_TERRACE_WAITER', serves: ['RB_CASAMAR_TERRACE_'], label: 'Camarero de Casa Mar', line: 'El arroz, mejor dentro de veinte minutos. Merece la pena.' },
+    ],
     trips: [
       // Entre semana: de casa al metro y de vuelta.
       { role: 'commuter', label: 'Alguien con prisa', line: 'Llego tarde. Como todos los días.', weight: 4, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },

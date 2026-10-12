@@ -730,6 +730,13 @@ social: {
           },
         };
       })(),
+      // Terrazas con servicio (systems/TableService): lifesim.terrace.status() da cada servicio de aquí (local, carta, si hay
+      // camarero, su estado y cada mesa con su estado y su encargo) y la mesa del jugador; .goto('CAFE_TERRACE_01') lleva
+      // junto a esa mesa, en el barrio que la tenga.
+      terrace: {
+        status: () => (game.scene.getScene('World') as WorldSceneType).debugTerrace(),
+        goto: (seat: string) => (game.scene.getScene('World') as WorldSceneType).debugTerraceGoto(seat),
+      },
     },
   });
 }

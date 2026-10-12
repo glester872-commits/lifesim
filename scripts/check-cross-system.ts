@@ -91,12 +91,13 @@ for (const placeId of ['restaurant', 'cafe']) {
   const acc = { ms: 0 };
   night.populate(clock, P);
   for (let ms = 0; ms < 10 * MS_PER_MIN; ms += STEP) night.update(STEP, (clock = tick(clock, acc)), P);
-  assert.equal(night.service?.staffed, false, 'terraza de madrugada con camarero de turno');
+  assert.equal(night.services.length, 3, 'la calle no lleva sus tres terrazas');
+  for (const s of night.services) assert.equal(s.staffed, false, `terraza de ${night.placeOf(s)} de madrugada con camarero de turno`);
   const noon = new StreetLife(getLocation('district'), streetProfileFor('district')!, seededRng(4));
   clock = { day: 3, hour: 13, minute: 0 };
   noon.populate(clock, P);
   for (let ms = 0; ms < 10 * MS_PER_MIN; ms += STEP) noon.update(STEP, (clock = tick(clock, acc)), P);
-  assert.equal(noon.service?.staffed, true, 'terraza a mediodía sin camarero de turno');
+  assert.equal(noon.serviceAt('RESTAURANT_TERRACE_01')?.staffed, true, 'terraza a mediodía sin camarero de turno');
   console.log('terraza: sin camarero de madrugada, con camarero a mediodía');
 }
 

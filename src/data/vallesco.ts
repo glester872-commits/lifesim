@@ -495,10 +495,15 @@ const BASE: LocationDef = {
     start: { tx: 41, ty: 46, facing: 'down' },
   },
   points: POINTS,
-  // Terraza de Casa Tomás: mesas con servicio de verdad (systems/TableService), las mismas reglas que dentro. Quien atiende se pone al norte de la mesa.
+  // Terrazas con servicio de verdad (systems/TableService), las mismas reglas que dentro; cada mesa es del local cuyo
+  // camarero atiende sus asientos (data/streets.ts). Quien atiende se pone en la acera, junto a la mesa.
   tables: [
     { id: 'TERRAZA_01', seats: ['RESTAURANT_TERRACE_01'], service: { tx: 26, ty: 17 } },
     { id: 'TERRAZA_02', seats: ['RESTAURANT_TERRACE_02'], service: { tx: 32, ty: 17 } },
+    { id: 'PAUSA_TERRAZA_01', seats: ['CAFE_TERRACE_01'], service: { tx: 53, ty: 17 } },
+    { id: 'PAUSA_TERRAZA_02', seats: ['CAFE_TERRACE_02'], service: { tx: 60, ty: 17 } },
+    // El Molinillo: una mesa, dos sillas enfrentadas.
+    { id: 'MOLINILLO_TERRAZA', seats: ['MOLINILLO_TERRACE_01', 'MOLINILLO_TERRACE_02'], service: { tx: 96, ty: 45 } },
   ],
   links: LINKS,
   // Identidad visual por zona (data/districts.ts, design/DISTRICTS.md): vecinos por defecto; la última zona manda.
