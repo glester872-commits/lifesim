@@ -7,6 +7,7 @@ import {
 } from '../data/identity.ts';
 import { FIGHTER_PROFILES } from '../data/streetEvents.ts';
 import type { HairStyle } from '../data/appearance.ts';
+import { FASHION_OUTFITS, outfitFor } from '../data/outfits.ts';
 import type { NpcLook } from '../types/game.ts';
 import { hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 
@@ -49,6 +50,16 @@ export interface Identity {
 export const POPULATION_SEED = 'vallesco-2026';
 /** Gente nueva, además de las caras de siempre (data/npcs.ts). Cada una, cuatro filas del atlas (con sus capas de tiempo). */
 export const GENERATED_COUNT = 36;
+
+/**
+ * La gente nueva que ya va vestida con ropa de verdad (data/outfits.FASHION_OUTFITS): doce que entre todos
+ * cubren las siete complexiones, las tres alturas, nueve peinados y los complementos (gafas, bolso, gorra,
+ * bastón, pañuelo, auriculares, barba). ponytail: limitado por el atlas people-hd (world/TextureFactory, una
+ * página son 97 aspectos con sus capas); para vestir a todos, más páginas o hornear bajo demanda.
+ */
+export const DRESSED: ReadonlySet<string> = new Set([
+  'vecino-2', 'vecino-6', 'vecino-7', 'vecino-8', 'vecino-9', 'vecino-10', 'vecino-11', 'vecino-14', 'vecino-17', 'vecino-19', 'vecino-23', 'vecino-24',
+]);
 
 type W<T extends string> = Readonly<Partial<Record<T, number>>>;
 
@@ -247,6 +258,43 @@ function quotas(n: number): string[] {
   return out.flatMap(([k, c]) => Array.from({ length: c }, () => k));
 }
 
+/** Lo que se ve de lejos de alguien (la misma firma que systems/People.outfitOf, el anti-clones de la calle). */
+export const outfitSignature = (l: NpcLook): string => `${l.outfit?.top ?? ''}:${l.cloth}|${l.outfit?.bottom ?? ''}:${l.trousers ?? ''}`;
+
+/**
+ * Nadie nuevo sale con la ropa exacta de otro (dos desconocidos iguales en la misma plaza se leen como un
+ * clon): si su firma ya está, prueba los otros colores y conjuntos de su moda, en orden fijo y sin tiradas
+ * (el resto de la gente no cambia). Si su moda no da para más, se queda con lo suyo: siempre termina.
+ */
+function unclone(look: NpcLook, fashion: Fashion, worn: Set<string>): void {
+  const pairs = FASHION_CLOTHES[fashion];
+  const sets = look.outfit ? FASHION_OUTFITS[fashion] : [undefined];
+  const p0 = Math.max(0, pairs.findIndex(([c, t]) => c === look.cloth && t === look.trousers));
+  const s0 = Math.max(0, sets.findIndex((s) => s?.top === look.outfit?.top && s?.bottom === look.outfit?.bottom));
+  const original = { cloth: look.cloth, clothDark: look.clothDark, trousers: look.trousers, outfit: look.outfit };
+  for (let k = 0; k < pairs.length * sets.length; k++) {
+    const [cloth, trousers] = pairs[(p0 + Math.floor(k / sets.length)) % pairs.length];
+    const set = sets[(s0 + k) % sets.length];
+    Object.assign(look, { cloth, clothDark: darker(cloth), trousers, outfit: set && { ...set } });
+    if (!worn.has(outfitSignature(look))) {
+      worn.add(outfitSignature(look));
+      return;
+    }
+  }
+  // Sin más colores en su moda: su ropa de siempre con otro pantalón neutro (los de world/HumanArt).
+  Object.assign(look, original);
+  for (const trousers of NEUTRAL_TROUSERS) {
+    look.trousers = trousers;
+    if (!worn.has(outfitSignature(look))) {
+      worn.add(outfitSignature(look));
+      return;
+    }
+  }
+  Object.assign(look, original);
+}
+
+const NEUTRAL_TROUSERS = ['#33374a', '#2f4563', '#5b4b3a', '#232329', '#6a6d75', '#3f4b3a'] as const;
+
 export interface Generated {
   look: NpcLook;
   person: Omit<Identity, 'index'>;
@@ -262,6 +310,7 @@ function generate(): { people: Generated[]; family: [number, number, 'siblings' 
   const people: Generated[] = [];
   const family: [number, number, 'siblings' | 'relatives'][] = [];
   const used = new Set<string>();
+  const worn = new Set<string>();
   for (let i = 0; i < GENERATED_COUNT; i++) {
     const r = seededRng(hashSeed(POPULATION_SEED, 'vecino', i));
     // Familia: a veces la persona anterior pasa a ser hermano o pariente, con su paleta y una edad acorde.
@@ -283,7 +332,11 @@ function generate(): { people: Generated[]; family: [number, number, 'siblings' 
     let name = oneOf(r, names);
     for (let k = 0; used.has(name) && k < 10; k++) name = oneOf(r, names);
     used.add(name);
-    people.push({ look: lookOf(r, id, person, body, palette), person: { ...person, ...body, id, name } });
+    const look = lookOf(r, id, person, body, palette);
+    // Ropa de verdad (28 × 42, como el jugador) con su propia semilla: no gasta tiradas de `r`, así el resto de la gente no cambia.
+    if (DRESSED.has(id)) look.outfit = outfitFor(person.fashion, hashSeed(POPULATION_SEED, 'ropa', id));
+    unclone(look, person.fashion, worn);
+    people.push({ look, person: { ...person, ...body, id, name } });
     if (kin >= 0 && fixed.age !== undefined) family.push([kin, i, kinType]);
   }
   return { people, family };

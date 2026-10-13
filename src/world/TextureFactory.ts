@@ -563,38 +563,47 @@ const HD_LOOKS: readonly NpcLook[] = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFOR
 const HD_IDS: ReadonlySet<string> = new Set(HD_LOOKS.map((l) => l.id));
 /** El primero con ropa de verdad que sale a la calle (lo usa lifesim.scaleCompare). */
 export const HD_PERSON = HD_LOOKS.find((l) => PASSENGER_LOOKS.includes(l))?.id;
-export const personTexture = (id: string): string => (HD_IDS.has(id) ? PEOPLE_HD : PEOPLE);
+/** Aspectos por página: una página es una textura de como mucho ATLAS_MAX px de alto (la primera conserva la clave people-hd). */
+const HD_PER_PAGE = Math.floor(ATLAS_MAX / HD_H);
+const hdPage = (row: number): string => (row < HD_PER_PAGE ? PEOPLE_HD : `${PEOPLE_HD}-${Math.floor(row / HD_PER_PAGE)}`);
+const HD_TEXTURE: ReadonlyMap<string, string> = new Map(HD_LOOKS.map((l, row) => [l.id, hdPage(row)]));
+export const personTexture = (id: string): string => HD_TEXTURE.get(id) ?? PEOPLE;
 export const personScale = (id: string): number => (HD_IDS.has(id) ? HD_SCALE : 1);
 
-/** Pinta (o repinta) a la gente con ropa de verdad, una fila por aspecto y una celda por dirección y pose. */
+/**
+ * Pinta (o repinta) a la gente con ropa de verdad, una fila por aspecto y una celda por dirección y pose,
+ * repartida en páginas del alto justo. Se hornea una vez al arrancar: nada de esto pasa por frame.
+ */
 function paintPeopleHD(scene: Phaser.Scene): void {
   const rowW = FACINGS.length * POSES.length * HD_W;
   if (!HD_LOOKS.length) return;
-  // ponytail: una sola textura de 4096 px de alto (~97 aspectos); para toda la calle a 28 × 42, repartir en columnas o texturas.
-  if (HD_LOOKS.length * HD_H > ATLAS_MAX) throw new Error(`people-hd: ${HD_LOOKS.length} aspectos no caben en ${ATLAS_MAX} px`);
-  let atlas = scene.textures.exists(PEOPLE_HD) ? (scene.textures.get(PEOPLE_HD) as Phaser.Textures.CanvasTexture) : null;
-  const fresh = !atlas;
-  atlas ??= scene.textures.createCanvas(PEOPLE_HD, rowW, HD_LOOKS.length * HD_H);
-  if (!atlas) return;
-  const ctx = atlas.getContext();
   const cell = document.createElement('canvas');
   cell.width = HD_W;
   cell.height = HD_H;
   const c = cell.getContext('2d', { willReadFrequently: true });
   if (!c) return;
-  HD_LOOKS.forEach((look, row) => {
-    const colors = colorsOf(look);
-    FACINGS.forEach((facing, f) =>
-      POSES.forEach((pose, i) => {
-        drawPlayerHD(c, facing, pose, colors);
-        const x = (f * POSES.length + i) * HD_W;
-        ctx.clearRect(x, row * HD_H, HD_W, HD_H);
-        ctx.drawImage(cell, x, row * HD_H);
-        if (fresh) atlas.add(personFrame(look.id, facing, pose), 0, x, row * HD_H, HD_W, HD_H);
-      }),
-    );
-  });
-  atlas.refresh();
+  for (let first = 0; first < HD_LOOKS.length; first += HD_PER_PAGE) {
+    const looks = HD_LOOKS.slice(first, first + HD_PER_PAGE);
+    const key = hdPage(first);
+    let atlas = scene.textures.exists(key) ? (scene.textures.get(key) as Phaser.Textures.CanvasTexture) : null;
+    const fresh = !atlas;
+    atlas ??= scene.textures.createCanvas(key, rowW, looks.length * HD_H);
+    if (!atlas) return;
+    const ctx = atlas.getContext();
+    looks.forEach((look, row) => {
+      const colors = colorsOf(look);
+      FACINGS.forEach((facing, f) =>
+        POSES.forEach((pose, i) => {
+          drawPlayerHD(c, facing, pose, colors);
+          const x = (f * POSES.length + i) * HD_W;
+          ctx.clearRect(x, row * HD_H, HD_W, HD_H);
+          ctx.drawImage(cell, x, row * HD_H);
+          if (fresh) atlas.add(personFrame(look.id, facing, pose), 0, x, row * HD_H, HD_W, HD_H);
+        }),
+      );
+    });
+    atlas.refresh();
+  }
 }
 
 /**

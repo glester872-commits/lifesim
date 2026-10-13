@@ -240,8 +240,9 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
   let paid = 0;
   for (const [hhmm, seed] of [['13:30', 3], ['21:00', 4], ['21:00', 5], ['13:30', 6], ['21:30', 7], ['14:00', 8], ['21:00', 9], ['13:30', 10], ['21:00', 11], ['14:00', 12]] as const) {
     const street = new Street(seed, hhmm);
-    // Hora y cuarto de reloj por tirada: lo que tarda una comida entera en terraza (sentarse, pedir, comer, pagar).
-    for (let i = 0; i < stepsFor(75 * MS_PER_MIN); i++) {
+    // Hora y tres cuartos por tirada: una comida entera en terraza (sentarse, pedir, comer, pagar) dura hora y cuarto y puede
+    // empezar a media tirada; con justo hora y cuarto, el pago caía fuera según quién saliera a la calle ese día.
+    for (let i = 0; i < stepsFor(105 * MS_PER_MIN); i++) {
       street.step();
       for (const t of street.service.tables) {
         // Quien come ahí es de verdad quien está sentado en esa silla; nadie más.

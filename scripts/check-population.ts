@@ -103,32 +103,37 @@ const sameGender = couples.filter((r) => IDENTITIES[r.a].gender === IDENTITIES[r
 
 // ------------------------------------------------ grupos en la calle
 const loc = getLocation('district');
-const street = new StreetLife(loc, streetProfileFor('district')!, seededRng(7));
 const player = { tx: 72, ty: 58 };
-let clock = { day: 6, hour: 11, minute: 0 };
-street.populate(clock, player);
 // Quien acompaña y a quién acompañaba al verlo (si luego se despide y sigue solo, deja de tener grupo).
-const seen = new Map<number, { c: Walker; lead: number }>();
+// Cuatro sábados con semillas fijas: una sola tirada es demasiado poca muestra para una proporción.
+const seen = new Map<string, { c: Walker; lead: number }>();
 let gaps = 0;
 let gapSum = 0;
-for (let ms = 0; ms < 14 * 60 * 500; ms += 100) {
-  street.update(100, clock, player);
-  if (ms % 500 === 0) {
-    const t = clock.hour * 60 + clock.minute + 1;
-    clock = { day: clock.day + Math.floor(t / 1440), hour: Math.floor((t % 1440) / 60), minute: t % 60 };
-  }
-  for (const a of street.agents) {
-    if (a.leader && !seen.has(a.id)) seen.set(a.id, { c: a, lead: a.leader.look });
-    // Juntos por el camino: quien acompaña no se aleja de quien lleva el grupo.
-    if (a.leader && a.moving && a.leader.moving && a.delay <= 0 && !a.vanish && street.agents.includes(a.leader)) {
-      gaps++;
-      gapSum += Math.hypot(a.x - a.leader.x, a.y - a.leader.y);
+let pathFailures = 0;
+for (const seed of [1, 2, 3, 4]) {
+  const street = new StreetLife(loc, streetProfileFor('district')!, seededRng(seed));
+  let clock = { day: 6, hour: 11, minute: 0 };
+  street.populate(clock, player);
+  for (let ms = 0; ms < 14 * 60 * 500; ms += 100) {
+    street.update(100, clock, player);
+    if (ms % 500 === 0) {
+      const t = clock.hour * 60 + clock.minute + 1;
+      clock = { day: clock.day + Math.floor(t / 1440), hour: Math.floor((t % 1440) / 60), minute: t % 60 };
+    }
+    for (const a of street.agents) {
+      if (a.leader && !seen.has(`${seed}:${a.id}`)) seen.set(`${seed}:${a.id}`, { c: a, lead: a.leader.look });
+      // Juntos por el camino: quien acompaña no se aleja de quien lleva el grupo.
+      if (a.leader && a.moving && a.leader.moving && a.delay <= 0 && !a.vanish && street.agents.includes(a.leader)) {
+        gaps++;
+        gapSum += Math.hypot(a.x - a.leader.x, a.y - a.leader.y);
+      }
     }
   }
+  pathFailures += street.pathFailures;
 }
 const companions = [...seen.values()];
 const tied = companions.filter(({ c }) => c.tie);
-assert.ok(companions.length >= 20, `pocos grupos en un sábado entero: ${companions.length}`);
+assert.ok(companions.length >= 80, `pocos grupos en cuatro sábados: ${companions.length}`);
 assert.ok(tied.length / companions.length > 0.6, `sólo ${tied.length}/${companions.length} acompañantes se conocen`);
 for (const { c, lead } of tied) {
   assert.equal(relation(c.look, lead), c.tie, 'quien acompaña no es lo que dice ser');
@@ -138,7 +143,7 @@ const bonds = new Set(tied.map(({ c }) => c.bond));
 for (const b of ['couple', 'friends']) assert.ok(bonds.has(b as never), `ningún grupo de ${b}`);
 const gap = gapSum / gaps;
 assert.ok(gap < 3, `los grupos se separan al andar: ${gap.toFixed(2)} tiles de media`);
-assert.equal(street.pathFailures, 0);
+assert.equal(pathFailures, 0);
 
 // ------------------------------------------------ personajes con nombre, intactos
 for (const c of CHARACTERS) {
@@ -150,7 +155,7 @@ assert.equal(PASSENGER_LOOKS.slice(0, AUTHORED_PASSENGERS.length).map((l) => l.i
 console.log(
   `población OK: ${IDENTITIES.length} personas · ${tones.size} tonos de piel nuevos · ${hair.size} peinados · ${RELATIONSHIPS.length} relaciones ` +
   `(${count('friends') + count('best-friends')} amistades, ${romantic} parejas, ${sameGender} del mismo género) · ` +
-  `${companions.length} acompañantes en un sábado, ${tied.length} con relación · grupos: ${[...bonds].join(', ')} · separación media ${gap.toFixed(2)} tiles`,
+  `${companions.length} acompañantes en cuatro sábados, ${tied.length} con relación · grupos: ${[...bonds].join(', ')} · separación media ${gap.toFixed(2)} tiles`,
 );
 
 // ------------------------------------------------ personajes con nombre: identidad y relaciones escritas

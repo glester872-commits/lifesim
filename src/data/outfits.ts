@@ -82,3 +82,51 @@ const BY_CATEGORY: Readonly<Record<string, Partial<Outfit>>> = {
 export function wearOf(garmentId: string, category: string): Partial<Outfit> {
   return RETAIL_WEAR[garmentId] ?? BY_CATEGORY[category] ?? {};
 }
+
+/**
+ * Conjuntos coherentes para la gente anónima, por su moda (data/identity.Fashion): lo que se pone un día
+ * normal. El tiempo y la actividad no van aquí: los pone world/WeatherLooks encima (abrigo, manga corta,
+ * capucha, ropa de gimnasio), así que un conjunto nunca choca con la lluvia ni con el gimnasio. La moda sale
+ * de los gustos, la edad y el trabajo (systems/Population), nunca del origen, el género o el cuerpo.
+ */
+const SETS = {
+  basic: { top: 'tee', bottom: 'jeans', shoes: 'sneaker' },
+  knit: { top: 'sweatshirt', bottom: 'jeans', shoes: 'sneaker' },
+  office: { top: 'shirt', bottom: 'trousers', shoes: 'shoe' },
+  suit: { top: 'blazer', bottom: 'trousers', shoes: 'shoe', inner: '#e6e0d4' },
+  sport: { top: 'sport', bottom: 'track', shoes: 'runner', accent: '#e6e0d4' },
+  street: { top: 'zip-hoodie', bottom: 'wide', shoes: 'chunky' },
+  skate: { top: 'hoodie', bottom: 'cargo', shoes: 'chunky' },
+  rock: { top: 'jacket', topMat: 'leather', bottom: 'jeans', shoes: 'boot', inner: '#232329' },
+  night: { top: 'bomber', bottom: 'jeans', shoes: 'chunky' },
+  tourist: { top: 'tee', bottom: 'shorts', shoes: 'sneaker' },
+  vintage: { top: 'denim-jacket', bottom: 'jeans', shoes: 'boot', inner: '#e6e0d4' },
+  work: { top: 'jacket', bottom: 'cargo', shoes: 'boot' },
+  smart: { top: 'coat', bottom: 'trousers', shoes: 'shoe', inner: '#2b2d33' },
+  loose: { top: 'tee-oversized', bottom: 'wide', shoes: 'chunky' },
+} as const satisfies Record<string, Outfit>;
+
+export const FASHION_OUTFITS: Readonly<Record<import('./identity.ts').Fashion, readonly Outfit[]>> = {
+  casual: [SETS.basic, SETS.knit],
+  sportswear: [SETS.sport],
+  athletic: [SETS.sport, SETS.basic],
+  streetwear: [SETS.street, SETS.skate],
+  skate: [SETS.skate, SETS.loose],
+  vintage: [SETS.vintage, SETS.knit],
+  alternative: [SETS.rock, SETS.loose],
+  punk: [SETS.rock],
+  nightlife: [SETS.night, SETS.rock],
+  office: [SETS.office, SETS.suit],
+  formal: [SETS.suit],
+  luxury: [SETS.smart, SETS.suit],
+  designer: [SETS.smart, SETS.loose],
+  experimental: [SETS.loose, SETS.vintage],
+  workwear: [SETS.work],
+  tourist: [SETS.tourist, SETS.basic],
+};
+
+/** El conjunto de alguien: de su moda, elegido con su semilla (el mismo siempre). */
+export const outfitFor = (fashion: import('./identity.ts').Fashion, seed: number): Outfit => {
+  const sets = FASHION_OUTFITS[fashion];
+  return { ...sets[seed % sets.length] };
+};
