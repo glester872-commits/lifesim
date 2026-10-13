@@ -39,7 +39,7 @@ assert.ok((DISTRICTS.vintage.vehicles?.all?.skater ?? 1) > 3 && !DISTRICTS.comme
 const WEEKS = 52;
 const events = upcoming('district', 1, WEEKS * 7);
 assert.equal(JSON.stringify(upcoming('district', 1, WEEKS * 7)), JSON.stringify(events), 'el calendario cambia entre llamadas');
-for (const p of POPUPS) {
+for (const p of POPUPS.filter((q) => q.location === 'district')) {
   const mine = events.filter((e) => e.id === p.id);
   assert.ok(mine.length >= 2, `${p.name}: sólo ${mine.length} veces en un año`);
   assert.ok(mine.length <= WEEKS * (p.span ?? 1), `${p.name}: demasiado frecuente (${mine.length})`);

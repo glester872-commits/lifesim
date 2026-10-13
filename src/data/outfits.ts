@@ -70,6 +70,16 @@ const RETAIL_WEAR: Readonly<Record<string, Partial<Outfit>>> = {
   'zapatilla-retro': { shoes: 'runner', accent: '#8a8e96' },
   'zapatilla-edicion': { shoes: 'chunky' },
   'bota-cuero': { shoes: 'boot' },
+  // Velaria.
+  'abrigo-camel': { top: 'coat' },
+  'americana-sastre': { top: 'blazer', inner: '#f2f0ea' },
+  'camisa-popelin': { top: 'shirt' },
+  'jersey-cachemir': { top: 'sweatshirt', topMat: 'knit' },
+  'pantalon-sastre': { bottom: 'trousers' },
+  'mocasin-piel': { shoes: 'shoe' },
+  'botin-chelsea': { shoes: 'boot' },
+  'zapatilla-piel-lujo': { shoes: 'sneaker' },
+  'cazadora-napa': { top: 'jacket', topMat: 'leather', inner: '#232329' },
 };
 
 /** Por categoría de tienda, lo que se pone si la prenda no está arriba. */

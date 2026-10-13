@@ -64,7 +64,7 @@ import { pickTarget, wallBetween, type Candidate as PickCandidate } from '../sys
 import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Clock } from '../systems/Crowd';
-import { StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
+import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
 import { hoursLabel, isOpen, placeForInterior, placeOfPoint } from '../systems/Places';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
@@ -316,6 +316,8 @@ export class WorldScene extends Phaser.Scene {
   /** Inspector de gente (world/PopulationInspector): también sólo con el modo depuración. */
   private inspector: PopulationInspector | null = null;
   private crowdViews: CrowdView[] = [];
+  /** Duración media del frame (ms), suavizada: decide el presupuesto de gente de la calle (StreetLife.budget). */
+  private frameMs = 1000 / 60;
   private litterView: LitterView | null = null;
   /** Lo que hay en las mesas, el pase y la cocina de un local con servicio de mesa. */
   private serviceViews: ServiceView[] = [];
@@ -750,6 +752,9 @@ export class WorldScene extends Phaser.Scene {
     this.metro?.update(delta, time, this.player);
     this.placeCharacters(delta);
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
+    // LOD de gente: si los frames se alargan, sale menos gente de paso; si sobra, vuelve (systems/StreetLife.crowdBudget).
+    this.frameMs += (Math.min(delta, 100) - this.frameMs) * 0.02;
+    if (this.street) this.street.budget = crowdBudget(this.street.budget, this.frameMs);
     this.street?.update(delta, this.clockNow(), this.playerTile());
     for (const view of this.crowdViews) view.sync(time);
     this.litterView?.sync();

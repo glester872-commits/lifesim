@@ -18,7 +18,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone' | 'gem' | 'star' | 'frame' | 'lotus';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -43,6 +43,8 @@ interface Look {
 const RUST = '#c0493f';
 const NEON_PINK = '#ff6ab8';
 const NEON_CYAN = '#8ff0ff';
+/** Latón de Velaria: rótulos, tiradores y marcos. */
+const BRASS = '#c9a45a';
 
 const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   // Tu portal: el único bloque con puerta verde, todo encendido y plantas en cada balcón.
@@ -102,6 +104,27 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   grocer: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#5f8a6e', shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: [PALETTE.leaf, PALETTE.white], sign: 'basket' },
   // Cuatro Ríos: móviles y reparaciones. Rótulo de luz fría, persiana a medio subir y el teléfono de rótulo.
   phone: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#2f3e52', shop: 'display', upper: 'windows', lit: NEON_CYAN, door: 'glass', sign: 'phone', wallArt: 'posters' },
+  // Velaria: piedra clara, cristal limpio y latón; luz cálida detrás de cada escaparate. Se lee como «caro» sin un rótulo.
+  // Maison Ferrant: piedra caliza, escaparate corrido, toldo negro con filo de latón y la percha.
+  boutique: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#e2d9c6', shop: 'display', upper: 'balcony', lit: '#ffd9a0', door: 'glass', awning: ['#1c1a20', BRASS], sign: 'hanger' },
+  // Joyería: piedra oscura pulida, vitrina estrecha con luz blanca y la gema.
+  jewel: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#3a3633', shop: 'display', upper: 'windows', lit: '#fff4dc', door: 'glass', sign: 'gem' },
+  // Gran Hotel: piedra de sillería, cristal en planta baja, balcones, marquesina verde y latón y la estrella.
+  hotel: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#d8cdb6', shop: 'glass', upper: 'balcony', lit: '#ffd08a', door: 'glass', awning: ['#2f4a3a', BRASS], sign: 'star' },
+  // Galería: muro blanco, un solo cristal grande y el marco.
+  gallery: { roof: PALETTE.stoneLit, roofLit: shade(PALETTE.stoneLit, 0.04), wall: '#efece6', shop: 'glass', upper: 'band', lit: '#fff6e6', door: 'glass', sign: 'frame' },
+  // Mercado gourmet: piedra, toldo verde botella y crema, cajas de producto a la vista y la cesta.
+  gourmet: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#cfc3a8', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#2f4a3a', '#efe2c4'], sign: 'basket' },
+  // Cocina de autor (y el sushi de Kaizen): piedra negra, carpintería de madera, luz baja y el plato.
+  fine: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#2b2a2e', shop: 'windows', upper: 'windows', lit: '#ffc070', door: 'wood', awning: ['#1c1a20', BRASS], sign: 'plate' },
+  // Clínica estética: blanco roto, cristal esmerilado y la flor de loto.
+  clinic: { roof: PALETTE.stoneLit, roofLit: shade(PALETTE.stoneLit, 0.04), wall: '#ece8e2', shop: 'glass', upper: 'windows', lit: '#f6fbff', door: 'glass', sign: 'lotus' },
+  // Peluquería de autor: revoco rosa empolvado, toldo crema y las tijeras.
+  salon: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#d9b8ae', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#efe2c4', BRASS], sign: 'scissors' },
+  // Portal noble de la Calle Marqués: sillería clara, balcones de forja y portal de madera.
+  'res-noble': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#dccfb4', shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood' },
+  // Puerta Central. Recuerdos: revoco amarillo de toda la vida, toldo rojo y gualda, el escaparate lleno y la banderita.
+  souvenir: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#d9b25c', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#b8433a', '#e8c25a'], sign: 'flag' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
 };
 
@@ -685,6 +708,7 @@ function drawAwningStyle(ctx: Ctx, look: Look, k: number): void {
 type Goods = 'rack' | 'mannequins' | 'sale' | 'crates' | 'machines' | 'chair' | 'shelves' | 'plants' | 'sneakers' | 'decks' | 'jewelry' | 'bottles' | 'bread';
 const GOODS_BY_STYLE: Partial<Record<BuildingStyle, readonly Goods[]>> = {
   fashion: ['mannequins', 'rack', 'sale', 'mannequins'],
+  souvenir: ['shelves', 'rack', 'shelves', 'sale'],
   vintage: ['rack', 'mannequins', 'plants', 'rack'],
   thrift: ['rack', 'sale', 'shelves', 'rack'],
   hair: ['chair', 'plants', 'chair', 'shelves'],
@@ -921,6 +945,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
     sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e', bread: PALETTE.amber, phone: NEON_CYAN,
+    gem: BRASS, star: BRASS, frame: BRASS, lotus: BRASS,
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -931,6 +956,14 @@ function drawSign(ctx: Ctx, sign: Sign): void {
   switch (sign) {
     case 'house': p(7, 3, 2, 1); p(5, 4, 6, 1); p(4, 5, 8, 1); p(5, 6, 6, 6); px(ctx, PALETTE.amber, 7, 9, 2, 3); break;
     case 'dumbbell': p(4, 7, 8, 2); p(4, 5, 2, 6); p(10, 5, 2, 6); break;
+    // Velaria. Gema tallada: corona, pabellón y su brillo.
+    case 'gem': p(5, 4, 6, 2); p(4, 6, 8, 1); p(5, 7, 6, 2); p(6, 9, 4, 1); p(7, 10, 2, 2); px(ctx, '#bfe6ff', 6, 6, 2, 1); break;
+    // Estrella de cinco puntas del hotel.
+    case 'star': p(7, 3, 2, 3); p(3, 6, 10, 2); p(5, 8, 6, 2); p(4, 10, 2, 2); p(10, 10, 2, 2); break;
+    // Marco dorado con un cuadro dentro.
+    case 'frame': px(ctx, BRASS, 3, 4, 10, 8); px(ctx, '#6f9aa8', 5, 6, 6, 4); px(ctx, PALETTE.amber, 8, 7, 2, 2); break;
+    // Flor de loto: tres pétalos y la base.
+    case 'lotus': p(7, 4, 2, 6); p(4, 7, 3, 3); p(9, 7, 3, 3); p(4, 10, 8, 1); px(ctx, '#f2c4c8', 7, 5, 2, 3); break;
     case 'phone': p(5, 3, 6, 10); px(ctx, NEON_CYAN, 6, 4, 4, 7); p(7, 11, 2, 1); break;
     case 'cup': p(4, 6, 6, 5); p(10, 7, 2, 2); p(5, 4, 1, 1); p(7, 3, 1, 2); px(ctx, PALETTE.amber, 5, 7, 4, 1); break;
     case 'hanger': p(7, 4, 2, 1); p(8, 5, 1, 2); p(5, 7, 6, 1); p(4, 8, 2, 1); p(10, 8, 2, 1); p(3, 9, 10, 1); break;

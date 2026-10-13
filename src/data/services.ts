@@ -41,6 +41,13 @@ export const SERVICE_OFFERS = {
   'haircut-rio': { kind: 'appearance', slot: 'hair', title: 'Barbería del Cruce · corte', greeting: 'Pasa, siéntate. ¿Como la última vez?', minutes: 30 },
   'shop-hilvana': { kind: 'retail', store: 'hilvana', minutes: 10 },
   'shop-ambar': { kind: 'retail', store: 'ambar', minutes: 10 },
+  // Velaria.
+  'haircut-lis': { kind: 'appearance', slot: 'hair', title: 'Salón Lis · corte y peinado', greeting: 'Bienvenida, bienvenido. Primero lavamos y luego me cuentas qué te apetece.', minutes: 45 },
+  'shop-ferrant': { kind: 'retail', store: 'ferrant', minutes: 20 },
+  'shop-brisa': { kind: 'retail', store: 'brisa', minutes: 15 },
+  // Puerta Central.
+  'shop-recuerdos': { kind: 'retail', store: 'recuerdos', minutes: 8 },
+  'shop-central': { kind: 'retail', store: 'central', minutes: 12 },
   'club-bar': { kind: 'activities', title: 'Barra · Sala Órbita', activities: ['club-drink', 'club-water'] },
   'wine-bar': { kind: 'activities', title: 'Barra · La Cepa', activities: ['wine-glass', 'wine-board'] },
   'bar-ribera': { kind: 'activities', title: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },

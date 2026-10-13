@@ -16,7 +16,7 @@ import type { TrafficBand } from './vehicles.ts';
  *   facades            → scripts/check-districts (qué edificios caben en la zona)
  */
 
-export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit' | 'riverside' | 'dense';
+export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit' | 'riverside' | 'dense' | 'premium' | 'centre';
 
 /** Estilo de ropa de la gente anónima (NpcLook.style). Sin estilo, 'everyday'. */
 export type LookStyle = 'everyday' | 'smart' | 'street' | 'sport';
@@ -144,6 +144,41 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     vehicles: { all: { van: 1.6, 'small-truck': 1.5, 'delivery-truck': 1.4, premium: 0.4, courier: 1.6 }, morning: { bus: 1.4 }, evening: { bus: 1.3 } },
     facades: ['res-*', 'super', 'fruit', 'bakery', 'restaurant', 'hair', 'phone', 'gym', 'pharmacy', 'grocer', 'fashion', 'streetwear', 'arcade', 'laundry', 'cafe', 'backdrop'],
     ambience: { leaf: 0.5, paper: 1.6, steam: 1.3 },
+  },
+  // Velaria: piedra clara y limpia, luz cálida de escaparate y de farola de forja, jardineras y bolardos en vez de cajas y
+  // carteles. Más ropa de oficina, sastrería y lujo que en ningún sitio, sin que deje de verse de todo; más berlinas,
+  // taxis y VTC, pocas furgonetas (los repartos, de madrugada y a primera hora).
+  premium: {
+    wash: ['#c8bca4', 0.04],
+    grade: { morning: '#fff6ea', day: '#fffdf8', sunset: '#ffecd6', night: '#f4ecf6' },
+    lamp: ['#ffcc88', 1.15],
+    kit: { props: ['planter-box', 'bollard', 'planter-box'], on: 'facade', every: 9, max: 10 },
+    crowd: { smart: 3.2, everyday: 2.4, street: 0.8, sport: 0.8 },
+    fashion: { luxury: 2.6, office: 2, formal: 1.8, designer: 1.8, tourist: 1.3 },
+    vehicles: {
+      all: { premium: 2.4, vtc: 3, suv: 1.3, taxi: 1.4, 'taxi-hybrid': 1.4, van: 0.6, 'small-truck': 0.5, 'delivery-truck': 0.5, city: 0.8 },
+      morning: { van: 1.6, 'small-truck': 1.5 },
+      night: { vtc: 1.5, taxi: 1.3 },
+    },
+    facades: ['res-*', 'boutique', 'jewel', 'hotel', 'gallery', 'gourmet', 'fine', 'clinic', 'salon', 'cafe', 'gym', 'wine', 'metro', 'backdrop'],
+    ambience: { leaf: 0.8, paper: 0.3, steam: 0.6 },
+  },
+  // Puerta Central: el granito gastado del centro, luz de escaparate fuerte, papeleras, paneles y bicis contra las
+  // fachadas. De todo y de todas partes: más turista y más ropa de calle que en ningún sitio, con oficina y diario de
+  // sobra. Autobuses, taxis y repartos; algún coche bueno, no muchos.
+  centre: {
+    wash: ['#b0a48e', 0.05],
+    grade: { morning: '#fff4e8', day: '#fffcf6', sunset: '#ffe8d0', night: '#f2eaf2' },
+    lamp: ['#ffc684', 1.15],
+    kit: { props: ['bin', 'ad-panel', 'bike-rack', 'bollard'], on: 'facade', every: 7, max: 12 },
+    crowd: { everyday: 3.2, smart: 2, street: 1.8, sport: 0.9 },
+    fashion: { tourist: 2.6, streetwear: 1.2, office: 1.1 },
+    vehicles: {
+      all: { bus: 1.6, taxi: 1.5, 'taxi-hybrid': 1.4, van: 1.3, 'delivery-truck': 1.2, courier: 1.4, premium: 0.8 },
+      night: { taxi: 1.8, vtc: 1.4 },
+    },
+    facades: ['res-*', 'souvenir', 'fashion', 'restaurant', 'cafe', 'metro', 'backdrop'],
+    ambience: { leaf: 0.6, paper: 1.6, steam: 1.2 },
   },
   // Boca de metro: acero y granito, luz más neutra; la gente de paso de cualquier sitio.
   transit: {

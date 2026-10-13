@@ -63,7 +63,9 @@ for (const place of PLACES) {
 
   const who = `[${place.id}]`;
   assert.ok(interior, `${who} tiene "why" pero no se puede entrar`);
-  assert.ok(terminals.length + spots.length + offers.length > 0, `${who} no hay nada que comprar ni que hacer dentro`);
+  // Sentarse a una mesa con servicio (systems/TableService) también es algo que hacer: se pide, se come y se paga.
+  const served = profile?.tableService && (interior.tables?.length ?? 0) > 0 ? 1 : 0;
+  assert.ok(terminals.length + spots.length + offers.length + served > 0, `${who} no hay nada que comprar ni que hacer dentro`);
   const walk = reachable(interior);
   for (const t of terminals) {
     assert.ok(getCatalog(t.catalog).products.length > 0, `${who} ${t.name}: catálogo vacío`);

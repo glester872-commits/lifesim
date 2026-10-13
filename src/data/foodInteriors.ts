@@ -80,7 +80,7 @@ export function interiorOf(v: FoodVenue): LocationDef {
       ...seats,
       ...bar,
       [`${P}_QUEUE_01`]: p(x0, 6, 'wait', 'up'),
-      [`${P}_QUEUE_02`]: p(x0 + 1, 6, 'wait', 'up'),
+      [`${P}_QUEUE_02`]: p(x0, 7, 'wait', 'up'),
       [`${P}_WAIT_01`]: p(L.doorX - 1, doorY, 'wait', 'up'),
       [`${P}_WAIT_02`]: p(L.doorX + 1, doorY, 'wait', 'up'),
       // Donde espera el repartidor a que le den el pedido, junto a la puerta.

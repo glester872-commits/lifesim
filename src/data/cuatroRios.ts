@@ -105,49 +105,59 @@ const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, t
 const many = (kind: PropKind, cells: readonly (readonly [number, number])[]): PropPlacement[] => cells.map(([x, y]) => at(kind, x, y));
 
 const PROPS: readonly PropPlacement[] = [
-  // Farolas en el bordillo de la avenida (fuera del paso de la gente).
-  ...many('street-lamp-art', [[4, 9], [12, 9], [37, 9], [42, 9], [2, 16], [14, 16], [35, 16], [41, 16]]),
+  // Farolas contra las fachadas de la avenida, entre puerta y puerta (la gente pasa por el bordillo).
+  ...many('street-lamp-art', [[4, 8], [12, 8], [33, 8], [2, 17], [17, 17], [35, 17], [41, 17]]),
   // La parada del autobús, en la acera norte: los autobuses van por el carril bus-taxi hacia el oeste.
-  at('bus-stop', 30, 9),
+  at('bus-stop', 40, 8),
   // La zona de carga y descarga del súper, en la Calle del Cruce: cajas apiladas contra la fachada.
   ...many('crates', [[25, 2], [25, 3], [25, 5]]),
-  // La plaza del metro: dos bancos, el plano del barrio, un plátano y el aparcabicis.
-  ...many('bench', [[10, 18], [11, 18]]),
+  // La plaza del metro: el aparcabicis junto a la acera, dos bancos detrás, el plano del barrio y un plátano.
+  at('bike-rack', 10, 18),
+  ...many('bench', [[10, 20], [11, 20]]),
   at('metro-totem', 4, 19),
   at('plane-tree', 2, 19),
-  at('bike-rack', 10, 19),
+  // Armarios de la luz contra las fachadas.
+  at('utility-box', 37, 8),
+  at('utility-box', 36, 17),
 ];
 
 // ---------------------------------------------------------------- puntos
 
 const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
 
+/** Columnas de las puertas de cada acera de la avenida: su nodo en el bordillo, justo delante. */
+const NORTH_DOORS = [2, 6, 10, 14, 19, 29, 35, 39, 44] as const;
+const SOUTH_DOORS = [15, 19, 28, 33, 38, 44] as const;
+const pad = (x: number): string => String(x).padStart(2, '0');
+
 const POINTS: Record<string, PointDef> = {
   // Los bordes: el resto de la ciudad, por la avenida, por las dos aceras del Afluente.
-  EDGE_CR_NW: p(0, 8, 'edge'), EDGE_CR_NE: p(W - 1, 8, 'edge'),
-  EDGE_CR_SW: p(0, 17, 'edge'), EDGE_CR_SE: p(W - 1, 17, 'edge'),
+  EDGE_CR_NW: p(0, 9, 'edge'), EDGE_CR_NE: p(W - 1, 9, 'edge'),
+  EDGE_CR_SW: p(0, 16, 'edge'), EDGE_CR_SE: p(W - 1, 16, 'edge'),
   EDGE_CR_BW: p(0, 23, 'edge'), EDGE_CR_BE: p(W - 1, 23, 'edge'),
   EDGE_CR_RW: p(0, 26, 'edge'), EDGE_CR_RE: p(W - 1, 26, 'edge'),
 
-  // Escaparates: se para a mirar la fruta, los móviles y la ropa.
+  // Escaparates: se para a mirar la fruta, los móviles y la ropa, pegado al cristal.
   CR_FRUIT_WINDOW: p(8, 8, 'meet', 'up'),
   CR_PHONE_WINDOW: p(16, 8, 'meet', 'up'),
-  CR_HILVANA_WINDOW: p(41, 8, 'meet', 'up'),
+  CR_HILVANA_WINDOW: p(38, 8, 'meet', 'up'),
   CR_AMBAR_WINDOW: p(46, 17, 'meet', 'down'),
-  // La parada del autobús.
-  CR_BUS_STOP: p(33, 9, 'wait', 'down'),
-  // Quedar después del trabajo: delante de la pizzería y a la puerta de los recreativos.
-  CR_MEET_01: p(45, 9, 'meet', 'right'), CR_MEET_02: p(46, 9, 'meet', 'left'),
-  CR_ARCADE_HANG_01: p(30, 16, 'meet', 'right'), CR_ARCADE_HANG_02: p(31, 16, 'meet', 'left'),
+  // La parada del autobús, junto a la marquesina.
+  CR_BUS_STOP: p(41, 9, 'wait', 'down'),
+  // Quedar después del trabajo: a los lados de la puerta de la pizzería y a la de los recreativos.
+  CR_MEET_01: p(43, 8, 'meet', 'right'), CR_MEET_02: p(45, 8, 'meet', 'left'),
+  CR_ARCADE_HANG_01: p(30, 17, 'meet', 'right'), CR_ARCADE_HANG_02: p(31, 17, 'meet', 'left'),
   // La plaza del metro: quien espera a alguien que sale del tren, y los dos bancos.
   CR_METRO_MEET_01: p(4, 21, 'wait', 'right'), CR_METRO_MEET_02: p(10, 21, 'wait', 'left'), CR_METRO_MEET_03: p(11, 21, 'wait', 'left'),
-  CR_PLAZA_BENCH_01: p(10, 18, 'seat', 'down'), CR_PLAZA_BENCH_02: p(11, 18, 'seat', 'down'),
+  CR_PLAZA_BENCH_01: p(10, 20, 'seat', 'down'), CR_PLAZA_BENCH_02: p(11, 20, 'seat', 'down'),
 
-  // Nodos de paso.
-  'cr-n22': p(22, 8, 'path'), 'cr-n25': p(25, 8, 'path'),
+  // Nodos de paso: el bordillo de cada acera de la avenida (uno delante de cada puerta) y los pasos.
+  ...Object.fromEntries(NORTH_DOORS.map((x) => [`cr-n${pad(x)}`, p(x, 9, 'path')])),
+  ...Object.fromEntries(SOUTH_DOORS.map((x) => [`cr-s${pad(x)}`, p(x, 16, 'path')])),
+  'cr-n22': p(22, 9, 'path'), 'cr-n25': p(25, 9, 'path'),
   'cr-xw-n': p(20, 9, 'path'), 'cr-xw-s': p(20, 16, 'path'),
   'cr-xe-n': p(27, 9, 'path'), 'cr-xe-s': p(27, 16, 'path'),
-  'cr-s03': p(3, 17, 'path'), 'cr-s12': p(12, 17, 'path'), 'cr-s22': p(22, 17, 'path'), 'cr-s25': p(25, 17, 'path'),
+  'cr-s03': p(3, 16, 'path'), 'cr-s12': p(12, 16, 'path'), 'cr-s22': p(22, 16, 'path'), 'cr-s25': p(25, 16, 'path'),
   'cr-pl-w': p(3, 22, 'path'), 'cr-pl-e': p(12, 22, 'path'),
   'cr-b03': p(3, 23, 'path'), 'cr-b12': p(12, 23, 'path'), 'cr-b22': p(22, 23, 'path'), 'cr-b25': p(25, 23, 'path'), 'cr-b37': p(37, 23, 'path'),
   'cr-r12': p(12, 26, 'path'), 'cr-r22': p(22, 26, 'path'), 'cr-r25': p(25, 26, 'path'), 'cr-r37': p(37, 26, 'path'),
@@ -157,22 +167,26 @@ type Link = readonly [string, string];
 const chain = (...ids: string[]): Link[] => ids.slice(1).map((id, i) => [ids[i], id] as const);
 
 const LINKS: readonly Link[] = [
-  // Acera norte de la avenida, cruzando la Calle del Cruce por su paso.
-  ...chain('EDGE_CR_NW', 'CR_RES_1_ENTRANCE', 'CR_FRUIT_ENTRANCE', 'CR_FRUIT_WINDOW', 'CR_BAKERY_ENTRANCE', 'CR_PHONE_ENTRANCE', 'CR_PHONE_WINDOW',
-    'CR_PHARMACY_ENTRANCE', 'cr-n22', 'cr-n25', 'CR_SUPER_ENTRANCE', 'CR_RES_2_ENTRANCE', 'CR_HILVANA_ENTRANCE', 'CR_HILVANA_WINDOW', 'CR_PIZZA_ENTRANCE', 'EDGE_CR_NE'),
-  ['CR_BUS_STOP', 'CR_RES_2_ENTRANCE'],
-  ['CR_MEET_01', 'CR_PIZZA_ENTRANCE'], ['CR_MEET_02', 'CR_MEET_01'],
+  // Acera norte de la avenida, por el bordillo (la fila de fachada queda para el comercio), cruzando el Cruce por su paso.
+  ...chain('EDGE_CR_NW', 'cr-n02', 'cr-n06', 'cr-n10', 'cr-n14', 'cr-n19', 'cr-xw-n', 'cr-n22', 'cr-n25', 'cr-xe-n', 'cr-n29', 'cr-n35', 'cr-n39',
+    'CR_BUS_STOP', 'cr-n44', 'EDGE_CR_NE'),
+  ['CR_RES_1_ENTRANCE', 'cr-n02'], ['CR_FRUIT_ENTRANCE', 'cr-n06'], ['CR_BAKERY_ENTRANCE', 'cr-n10'], ['CR_PHONE_ENTRANCE', 'cr-n14'],
+  ['CR_PHARMACY_ENTRANCE', 'cr-n19'], ['CR_SUPER_ENTRANCE', 'cr-n29'], ['CR_RES_2_ENTRANCE', 'cr-n35'], ['CR_HILVANA_ENTRANCE', 'cr-n39'],
+  ['CR_PIZZA_ENTRANCE', 'cr-n44'],
+  ['CR_FRUIT_WINDOW', 'cr-n06'], ['CR_PHONE_WINDOW', 'cr-n14'], ['CR_HILVANA_WINDOW', 'cr-n39'],
+  ['CR_MEET_01', 'CR_PIZZA_ENTRANCE'], ['CR_MEET_02', 'CR_PIZZA_ENTRANCE'],
   // Los dos pasos de la avenida, con semáforo.
-  ['CR_PHARMACY_ENTRANCE', 'cr-xw-n'], ['cr-xw-n', 'cr-xw-s'], ['cr-xw-s', 'CR_BARBER_ENTRANCE'],
-  ['cr-n25', 'cr-xe-n'], ['cr-xe-n', 'cr-xe-s'], ['cr-xe-s', 'cr-s25'],
-  // Acera sur de la avenida.
-  ...chain('EDGE_CR_SW', 'cr-s03', 'cr-s12', 'CR_GYM_ENTRANCE', 'CR_BARBER_ENTRANCE', 'cr-s22', 'cr-s25', 'CR_ARCADE_ENTRANCE', 'CR_ABIERTO_ENTRANCE',
-    'CR_BURGER_ENTRANCE', 'CR_AMBAR_ENTRANCE', 'CR_AMBAR_WINDOW', 'EDGE_CR_SE'),
+  ['cr-xw-n', 'cr-xw-s'], ['cr-xe-n', 'cr-xe-s'],
+  // Acera sur de la avenida, también por el bordillo.
+  ...chain('EDGE_CR_SW', 'cr-s03', 'cr-s12', 'cr-s15', 'cr-s19', 'cr-xw-s', 'cr-s22', 'cr-s25', 'cr-xe-s', 'cr-s28', 'cr-s33', 'cr-s38', 'cr-s44', 'EDGE_CR_SE'),
+  ['CR_GYM_ENTRANCE', 'cr-s15'], ['CR_BARBER_ENTRANCE', 'cr-s19'], ['CR_ARCADE_ENTRANCE', 'cr-s28'], ['CR_ABIERTO_ENTRANCE', 'cr-s33'],
+  ['CR_BURGER_ENTRANCE', 'cr-s38'], ['CR_AMBAR_ENTRANCE', 'cr-s44'],
+  ['CR_AMBAR_WINDOW', 'cr-s44'],
   ['CR_ARCADE_HANG_01', 'CR_ARCADE_ENTRANCE'], ['CR_ARCADE_HANG_02', 'CR_ARCADE_HANG_01'],
   // La plaza del metro: se baja por los dos lados de la boca.
   ['cr-s03', 'cr-pl-w'], ...chain('cr-pl-w', 'CR_METRO_ENTRANCE', 'cr-pl-e'), ['cr-pl-e', 'cr-s12'],
   ['CR_METRO_MEET_01', 'cr-pl-w'], ['CR_METRO_MEET_02', 'cr-pl-e'], ['CR_METRO_MEET_03', 'cr-pl-e'],
-  ['CR_PLAZA_BENCH_02', 'cr-s12'], ['CR_PLAZA_BENCH_01', 'CR_PLAZA_BENCH_02'],
+  ['CR_PLAZA_BENCH_02', 'cr-pl-e'], ['CR_PLAZA_BENCH_01', 'CR_PLAZA_BENCH_02'],
   // De la avenida a la Calle del Afluente: por la plaza y por las aceras del Cruce.
   ['cr-pl-w', 'cr-b03'], ['cr-pl-e', 'cr-b12'], ['cr-s22', 'cr-b22'], ['cr-s25', 'cr-b25'],
   // Calle del Afluente: acera norte, acera sur (con cada portal) y sus dos pasos de cebra.
@@ -228,7 +242,7 @@ const BASE: LocationDef = {
     { id: 'cruce-este', tx: 26, ty: 10, w: 3, h: 6, offset: 9_000 },
   ],
   inspects: [
-    { tx: 31, ty: 9, name: 'Marquesina', lines: ['Líneas 14 y 27. La pantalla dice «3 min». Por una vez, parece verdad.'] },
+    { tx: 41, ty: 8, name: 'Marquesina', lines: ['Líneas 14 y 27. La pantalla dice «3 min». Por una vez, parece verdad.'] },
     { tx: 25, ty: 4, name: 'Carga y descarga', lines: ['Placa azul: «Carga y descarga, laborables de 8 a 11». A las diez y media caben tres furgonetas y media.'] },
     { tx: 4, ty: 19, name: 'Plano del barrio', lines: ['Cuatro Ríos: la avenida, el Cruce y el Afluente. Alguien ha marcado con boli la mejor panadería. Hay tres círculos.'] },
   ],

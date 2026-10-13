@@ -109,6 +109,13 @@ export const VEHICLES: readonly VehicleType[] = [
     colorWeight: [4, 3, 3, 2],
     weight: 2.5, bands: { dawn: 0.5, night: 1.2 }, roads: { residential: 0.5 },
   },
+  // VTC: berlina oscura de alquiler con conductor. Sólo donde el barrio la pide (Velaria): gated.
+  {
+    id: 'vtc', shape: 'sedan', length: 44, height: 19, pace: 1.05,
+    colors: ['#14161a', '#22252b', '#3a3f48', '#4a4f57', '#b8bcc2'],
+    colorWeight: [6, 3, 2, 1, 1],
+    weight: 2, gated: true, bands: { dawn: 1.4, night: 1.6, evening: 1.2 }, roads: { residential: 0.7 },
+  },
   // Taxis de Madrid: blancos con la banda roja en diagonal y el piloto en el techo, sobre varias carrocerías.
   { ...TAXI, id: 'taxi', shape: 'sedan', length: 42, height: 19, pace: 1.1, weight: 4 },
   { ...TAXI, id: 'taxi-wagon', shape: 'wagon', length: 43, height: 20, pace: 1.1, weight: 2 },

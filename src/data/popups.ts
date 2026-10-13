@@ -18,7 +18,9 @@ export type PopUpPiece =
   | 'booth'
   | 'easel'
   | 'sign-sneaker'
-  | 'boxes';
+  | 'boxes'
+  // Velaria: alfombra con postes de latón y cordón, para lanzamientos y galas.
+  | 'carpet';
 
 export interface PopUpProp {
   piece: PopUpPiece;
@@ -87,6 +89,38 @@ export const POPUPS: readonly PopUpDef[] = [
       { piece: 'tent', tx: 95, ty: 53, solid: 3 },
       { piece: 'stall-fashion', tx: 85, ty: 53, solid: 2 },
     ],
+  },
+  // ------------------------------------------------------------------ Velaria
+  // Pocos y raros: el barrio presume de tranquilo. Ninguno choca con otro el mismo día (systems/PopUps.weekPlan).
+  // Inauguración en la Galería Aurelia: jueves o viernes por la noche; dos caballetes en la acera y copas en la mano.
+  {
+    id: 'vl-gallery-opening', name: 'Inauguración en la galería', location: 'velaria',
+    days: [3, 4], hours: [19, 23], chance: 0.14, extra: 8, outdoor: true, setup: 1, glow: 'gallery',
+    props: [
+      { piece: 'easel', tx: 12, ty: 17, solid: 1 },
+      { piece: 'easel', tx: 17, ty: 17, solid: 1 },
+    ],
+  },
+  // Pop-up de moda en la Plaza Aurelia: viernes y sábado, una carpa blanca y un puesto al fondo de la plaza.
+  {
+    id: 'vl-fashion-popup', name: 'Pop-up de moda en la plaza', location: 'velaria',
+    days: [4], span: 2, hours: [12, 20], chance: 0.1, extra: 7, outdoor: true, setup: 2,
+    props: [
+      { piece: 'tent', tx: 29, ty: 25, solid: 3 },
+      { piece: 'stall-fashion', tx: 33, ty: 25, solid: 2 },
+    ],
+  },
+  // Lanzamiento en Maison Ferrant: un miércoles por la tarde, alfombra hasta la puerta y cola en el bordillo.
+  {
+    id: 'vl-boutique-launch', name: 'Lanzamiento en Maison Ferrant', location: 'velaria',
+    days: [2], hours: [18, 22], chance: 0.1, extra: 8, outdoor: true, setup: 1,
+    props: [{ piece: 'carpet', tx: 12, ty: 9 }],
+  },
+  // Gala en el Gran Hotel: viernes o sábado por la noche, alfombra hasta la marquesina e invitados que bajan del taxi.
+  {
+    id: 'vl-hotel-event', name: 'Gala en el Gran Hotel Velaria', location: 'velaria',
+    days: [4, 5], hours: [19.5, 23.5], chance: 0.12, extra: 8, outdoor: true, setup: 1.5, glow: 'gallery',
+    props: [{ piece: 'carpet', tx: 20, ty: 9 }],
   },
   // DJ pequeño: sábados por la noche, cabina junto a la tienda de segunda mano y gente bailando en la acera.
   {

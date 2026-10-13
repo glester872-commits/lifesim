@@ -1,6 +1,8 @@
 import type { Level } from '../config/population.ts';
 import type { OfferId, ServiceId } from './services.ts';
 import { CR_PROFILES } from './cuatroRiosVenues.ts';
+import { VL_PROFILES } from './velariaVenues.ts';
+import { PC_PROFILES } from './puertaCentralVenues.ts';
 
 /**
  * Quién hay dentro de cada local y qué hace. Todo es dato: cambiar el horario
@@ -604,6 +606,8 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   // Cuatro Ríos (data/cuatroRiosVenues.ts): el mismo salón con otro mostrador, y sus tiendas, gimnasio y restaurantes.
   arcadeProfile('cr-arcade', 'CR_ARCADE_', 'Delta'),
   ...CR_PROFILES,
+  ...VL_PROFILES,
+  ...PC_PROFILES,
   {
     place: 'tattoo-studio',
     // Con cita: el primer turno a mediodía y el grueso por la tarde.

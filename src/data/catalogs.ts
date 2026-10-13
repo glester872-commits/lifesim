@@ -86,6 +86,24 @@ export const CATALOGS: readonly Catalog[] = [
     ],
   },
   {
+    // Mercado Dorado (Velaria): la compra de siempre, en versión gourmet. Más cara, la misma bolsa.
+    id: 'gourmet-till',
+    greeting: 'Buenos días. Hoy tenemos tomate de temporada y pan de masa madre recién llegado.',
+    products: [
+      item('groceries', 'Cesta gourmet para cocinar', 16),
+      item('fruit', 'Fruta de temporada seleccionada', 4.5),
+      item('bread', 'Hogaza de masa madre', 4.2),
+      item('water', 'Agua mineral de manantial', 1.8),
+      item('chocolate', 'Tableta de chocolate 70 %', 4),
+    ],
+  },
+  {
+    // Bar del lobby del Gran Hotel Velaria: cualquiera puede sentarse; un café cuesta lo que cuesta el sillón.
+    id: 'hotel-lobby-bar',
+    greeting: 'Buenas tardes. ¿Le sirvo algo mientras espera?',
+    products: [item('coffee', 'Café con leche', 4.5), item('croissant', 'Croissant de mantequilla', 3.5), item('sandwich', 'Club sándwich', 14), item('water', 'Agua mineral', 3)],
+  },
+  {
     // La misma máquina en todas las estaciones.
     id: 'transport-machine',
     greeting: 'Metro · Línea 2. Tarjetas y recargas. El viaje se descuenta al subir al tren.',

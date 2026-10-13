@@ -82,6 +82,8 @@ interface Waiter {
   job: Job | null;
   timer: number;
   home: TilePoint;
+  /** Tiene el pase (está en él o va hacia él): es un tile, y dos camareros no caben. */
+  atPass: boolean;
 }
 
 /** Lo que el servicio necesita de quien mueve a la gente (systems/Crowd). */
@@ -432,7 +434,7 @@ export class TableService {
   stepWaiter(a: Agent, deltaMs: number): void {
     let w = this.waiters.get(a.id);
     if (!w) {
-      w = { id: a.id, state: 'IDLE', table: null, job: null, timer: between(this.rng, ...MS.checkEvery), home: { tx: Math.round(a.x), ty: Math.round(a.y) } };
+      w = { id: a.id, state: 'IDLE', table: null, job: null, timer: between(this.rng, ...MS.checkEvery), home: { tx: Math.round(a.x), ty: Math.round(a.y) }, atPass: false };
       this.waiters.set(a.id, w);
       a.speed = Math.max(a.speed, WAITER_SPEED);
     }
@@ -445,7 +447,7 @@ export class TableService {
         if (this.takeJob(w, a)) return;
         if (w.state === 'IDLE' && w.timer <= 0) {
           // Sin nada pendiente, una vuelta por la sala: echar un ojo a alguna mesa ocupada.
-          const busy = this.tables.filter((x) => x.party !== null);
+          const busy = this.tables.filter((x) => x.party !== null && !this.manned(x.def.service, w));
           const look = busy[Math.floor(this.rng() * busy.length)];
           w.timer = between(this.rng, ...MS.checkEvery);
           if (look) this.go(w, a, 'CHECKING_TABLES', look.def.service, this.face(look));
@@ -453,6 +455,8 @@ export class TableService {
         return;
       case 'GOING_TO_TABLE': {
         if (!t || !this.stillNeeds(t, w.job)) return this.finish(w, a);
+        // Le cortaron el paso y se quedó a medio camino: vuelve a ir, no atiende la mesa desde otro sitio.
+        if (Math.round(a.x) !== t.def.service.tx || Math.round(a.y) !== t.def.service.ty) return this.go(w, a, 'GOING_TO_TABLE', t.def.service, this.face(t));
         const player = t.party === PLAYER;
         if (w.job === 'order') this.wait(w, a, 'TAKING_ORDER', player ? MS.playerWait : between(this.rng, ...MS.takeOrder));
         else if (w.job === 'bill') this.wait(w, a, 'TAKING_PAYMENT', player ? MS.playerWait : between(this.rng, ...MS.pay));
@@ -478,6 +482,11 @@ export class TableService {
         this.placed(t);
         return this.toKitchen(w, a);
       case 'GOING_TO_KITCHEN':
+        // Esperaba en su sitio a que otro camarero dejase el pase: vuelve a probar.
+        if (!w.atPass) {
+          if (w.timer <= 0) this.toPass(w, a);
+          return;
+        }
         a.carry = undefined;
         if (w.job === 'deliver' && t) return this.wait(w, a, 'WAITING_FOR_ORDER', between(this.rng, ...MS.pickUp));
         // Ha entregado la comanda o dejado la vajilla en el pase: a otra cosa.
@@ -486,6 +495,7 @@ export class TableService {
         if (!t || !this.stillNeeds(t, 'deliver')) return this.finish(w, a);
         if (!t.ready || w.timer > 0) return;
         a.carry = 'tray';
+        w.atPass = false;
         this.go(w, a, 'DELIVERING_ORDER', t.def.service, this.face(t));
         return;
       case 'DELIVERING_ORDER':
@@ -528,7 +538,7 @@ export class TableService {
         a.carry = 'dishes';
         w.job = 'clear';
         w.table = null;
-        this.go(w, a, 'GOING_TO_KITCHEN', this.pass);
+        this.toPass(w, a);
         return;
     }
   }
@@ -629,7 +639,7 @@ export class TableService {
   private takeJob(w: Waiter, a: Agent): boolean {
     let best: Table | undefined;
     for (const job of PRIORITY) {
-      best = this.tables.filter((t) => t.job === job && t.waiter === null && t.jobAt <= this.now).sort((x, y) => x.jobAt - y.jobAt)[0];
+      best = this.tables.filter((t) => t.job === job && t.waiter === null && t.jobAt <= this.now && !this.manned(t.def.service, w)).sort((x, y) => x.jobAt - y.jobAt)[0];
       if (best) break;
     }
     if (!best) return false;
@@ -637,16 +647,32 @@ export class TableService {
     w.table = best;
     w.job = best.job;
     // Lo que ya está hecho se recoge primero en el pase; lo demás, en la mesa.
-    if (w.job === 'deliver') this.go(w, a, 'GOING_TO_KITCHEN', this.pass);
+    if (w.job === 'deliver') this.toPass(w, a);
     else this.go(w, a, 'GOING_TO_TABLE', best.def.service, this.face(best));
     return true;
+  }
+
+  /** Otro camarero está en ese tile o va hacia él: dos no caben (esa mesa, en un momento). */
+  private manned(at: TilePoint, w: Waiter): boolean {
+    return this.host.agents.some((o) => {
+      if (o.id === w.id || !this.waiters.has(o.id)) return false;
+      const end = o.path[o.path.length - 1] ?? { tx: Math.round(o.x), ty: Math.round(o.y) };
+      return end.tx === at.tx && end.ty === at.ty;
+    });
   }
 
   private toKitchen(w: Waiter, a: Agent): void {
     if (w.table && w.table.waiter === w.id) w.table.waiter = null;
     w.job = null;
     w.table = null;
-    this.go(w, a, 'GOING_TO_KITCHEN', this.pass);
+    this.toPass(w, a);
+  }
+
+  /** Al pase; si ya lo tiene otro camarero, espera donde está y lo vuelve a intentar en un momento. */
+  private toPass(w: Waiter, a: Agent): void {
+    w.atPass = ![...this.waiters.values()].some((o) => o !== w && o.atPass);
+    if (!w.atPass) w.timer = 600;
+    this.go(w, a, 'GOING_TO_KITCHEN', w.atPass ? this.pass : { tx: Math.round(a.x), ty: Math.round(a.y) });
   }
 
   /** Acabó lo que tenía: otra cosa si hay, o de vuelta a su sitio. */
@@ -654,6 +680,7 @@ export class TableService {
     if (w.table && w.table.waiter === w.id) w.table.waiter = null;
     w.table = null;
     w.job = null;
+    w.atPass = false;
     a.carry = undefined;
     if (!this.takeJob(w, a)) this.go(w, a, 'RETURNING', w.home);
   }

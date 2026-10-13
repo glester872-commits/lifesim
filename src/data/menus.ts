@@ -388,8 +388,85 @@ const BAR_RIBERA: ServiceMenu = {
   more: [{ label: 'Otra ronda', category: 'bebidas' }, { label: 'Pedir algo de picar', category: 'picar' }, { label: 'Ver carta' }],
 };
 
+// ------------------------------------------------------------ Velaria
+
+/** Alma: cocina de autor. Pocos platos, largos de hacer y de comer; menú degustación por la noche y vino por copa. */
+const ALMA: ServiceMenu = {
+  id: 'alma',
+  title: 'Alma · cocina de autor',
+  venue: 'restaurant',
+  categories: [
+    { id: 'entrantes', title: 'Para empezar' },
+    { id: 'principales', title: 'Principales' },
+    { id: 'degustacion', title: 'Menú degustación' },
+    { id: 'postres', title: 'Postres' },
+    { id: 'bebidas', title: 'Bodega y bebidas' },
+  ],
+  items: [
+    { id: 'tartar', name: 'Tartar de atún rojo con ajoblanco', price: 19, kind: 'food', category: 'entrantes', prep: 10, duration: 18, energy: 12, dish: 'fish' },
+    { id: 'croqueta-carabinero', name: 'Croquetas de carabinero (2)', price: 9, kind: 'food', category: 'entrantes', prep: 8, duration: 12, energy: 9, dish: 'croquettes' },
+    { id: 'iberico', name: 'Jamón ibérico de bellota, cortado a cuchillo', price: 26, kind: 'food', category: 'entrantes', prep: 5, duration: 20, energy: 12, dish: 'ham' },
+    { id: 'lubina', name: 'Lubina salvaje, beurre blanc y espárrago', price: 32, kind: 'food', category: 'principales', prep: 18, duration: 30, energy: 26, dish: 'fish', hours: [13, 24] },
+    { id: 'pichon', name: 'Pichón en dos cocciones', price: 36, kind: 'food', category: 'principales', prep: 22, duration: 32, energy: 28, dish: 'stew', hours: [13, 24] },
+    { id: 'degustacion', name: 'Menú degustación (ocho pases)', price: 95, kind: 'food', category: 'degustacion', prep: 25, duration: 110, energy: 45, dish: 'fish', hours: [20, 24] },
+    { id: 'torrija', name: 'Torrija caramelizada con helado de leche', price: 11, kind: 'food', category: 'postres', prep: 6, duration: 14, energy: 12, dish: 'cake' },
+    { id: 'quesos', name: 'Selección de quesos afinados', price: 16, kind: 'food', category: 'postres', prep: 4, duration: 18, energy: 12, dish: 'cheese' },
+    { id: 'agua', name: 'Agua mineral', price: 3.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 12, energy: 2, dish: 'water' },
+    { id: 'ribera-copa', name: 'Copa de Ribera del Duero', price: 7.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 22, energy: 1, dish: 'wine' },
+    { id: 'albarino-copa', name: 'Copa de Albariño', price: 7, kind: 'drink', category: 'bebidas', prep: 1, duration: 22, energy: 1, dish: 'wine-white' },
+    { id: 'champagne', name: 'Botella de champagne', price: 85, kind: 'drink', category: 'bebidas', prep: 2, duration: 88, energy: 3, dish: 'bottle' },
+    { id: 'cafe', name: 'Café', price: 3, kind: 'drink', category: 'bebidas', prep: 2, duration: 6, energy: 4, dish: 'coffee' },
+  ],
+  lines: {
+    greet: ['Buenas noches, bienvenidos a Alma.', 'Bienvenido. ¿Le explico la carta o prefiere el menú degustación?', 'Hoy el pichón está especialmente bien.'],
+    again: ['¿Desea algo más?', '¿Le sirvo otra copa?', '¿Algo dulce para terminar?'],
+    confirm: ['Perfecto.', 'Excelente elección.', 'Se lo paso a cocina.'],
+    serve: ['Que lo disfrute.', 'Buen provecho.', 'Con su salsa aparte, como lo pidió.'],
+    bill: ['Cuando quiera, la cuenta.', 'Le dejo la cuenta. Sin ninguna prisa.'],
+    thanks: ['Ha sido un placer. Buenas noches.', 'Gracias por venir. Esperamos verle pronto.'],
+    later: ['Por supuesto, vuelvo en un momento.', 'Tómese su tiempo.'],
+  },
+  more: [{ label: 'Pedir otra copa', category: 'bebidas' }, { label: 'Pedir postre', category: 'postres' }, { label: 'Ver carta' }],
+};
+
+/** Café Aurelia: el café de la plaza, con su terraza junto a la fuente. Más caro que en el barrio, mejor servido. */
+const AURELIA: ServiceMenu = {
+  ...CAFE_RIO,
+  id: 'cafe-aurelia',
+  title: 'Café Aurelia',
+  items: [
+    { id: 'espresso', name: 'Espresso', price: 2.4, kind: 'drink', category: 'cafes', prep: 2, duration: 6, energy: 5, dish: 'coffee' },
+    { id: 'flat-white', name: 'Flat white', price: 3.8, kind: 'drink', category: 'cafes', prep: 3, duration: 12, energy: 5, dish: 'coffee' },
+    { id: 'cafe-leche', name: 'Café con leche', price: 2.9, kind: 'drink', category: 'cafes', prep: 2, duration: 10, energy: 5, dish: 'coffee' },
+    { id: 'te', name: 'Té de hebra', price: 3.5, kind: 'drink', category: 'bebidas', prep: 3, duration: 14, energy: 3, dish: 'tea' },
+    { id: 'zumo', name: 'Zumo de naranja natural', price: 4.5, kind: 'drink', category: 'bebidas', prep: 3, duration: 8, energy: 5, dish: 'juice' },
+    { id: 'cava', name: 'Copa de cava', price: 6, kind: 'drink', category: 'bebidas', prep: 1, duration: 18, energy: 1, dish: 'wine-white', hours: [12, 23] },
+    { id: 'agua', name: 'Agua mineral', price: 2.5, kind: 'drink', category: 'bebidas', prep: 1, duration: 8, energy: 2, dish: 'water' },
+    { id: 'croissant', name: 'Croissant de mantequilla', price: 3.2, kind: 'food', category: 'comer', prep: 2, duration: 8, energy: 7, dish: 'pastry' },
+    { id: 'tostada', name: 'Tostada de aguacate', price: 7.5, kind: 'food', category: 'comer', prep: 5, duration: 12, energy: 11, dish: 'toast', hours: [8, 13] },
+    { id: 'tarta', name: 'Tarta de queso de la casa', price: 6.5, kind: 'food', category: 'comer', prep: 2, duration: 12, energy: 10, dish: 'cake' },
+  ],
+  lines: {
+    greet: ['Buenos días, ¿qué le apetece?', '¿Le tomo nota?', 'Hoy la fuente salpica poco: buen día para la terraza.'],
+    again: ['¿Algo más?', '¿Otro café?', '¿Le traigo algo dulce?'],
+    confirm: ['Ahora mismo.', 'Enseguida.', 'Perfecto.'],
+    serve: ['Aquí tiene.', 'Que aproveche.'],
+    bill: ['La cuenta, cuando quiera.', 'Se la dejo aquí.'],
+    thanks: ['Muchas gracias, que tenga buen día.', 'Gracias, hasta pronto.'],
+    later: ['Sin prisa, vuelvo luego.', 'Cuando quiera me avisa.'],
+  },
+};
+
+/** Vinoteca Marqués: la bodega de la Calle Marqués. Los vinos y tapas de La Cepa, con precio de barrio caro. */
+const MARQUES: ServiceMenu = {
+  ...LA_CEPA,
+  id: 'vinoteca-marques',
+  title: 'Vinoteca Marqués',
+  items: LA_CEPA.items.map((i) => ({ ...i, price: Math.round(i.price * 1.4 * 10) / 10 })),
+};
+
 /** Las cartas de los locales de comida de la ciudad salen de sus arquetipos (data/foodVenues.ts), no se escriben a mano. */
-export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR, MOLINILLO, CAFE_RIO, BAR_RIBERA, ...FOOD_VENUE_MENUS];
+export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR, MOLINILLO, CAFE_RIO, BAR_RIBERA, ALMA, AURELIA, MARQUES, ...FOOD_VENUE_MENUS];
 
 export function getMenu(id: string): ServiceMenu {
   const menu = MENUS.find((m) => m.id === id);

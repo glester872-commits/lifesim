@@ -6,14 +6,21 @@ import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import type { NpcDef } from '../types/game';
 import type { Weather } from '../systems/Weather';
 import { dressedLook, gymLook, umbrellaFor } from './WeatherLooks';
-import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
+import { AmbientDirector, ambientFrame, ambientSituation, facingTowards, gestureSet } from '../systems/AmbientActions';
 import { placeOfPoint } from '../systems/Places';
 import type { AmbientPlacement } from '../entities/Character';
 import type { Belonging } from '../data/streetSurvival';
 import { belongingKey, blanketOf, buildSurvivalTextures, sleeperTexture } from './SurvivalArt';
+import { actKey, buildActTextures } from './StreetActArt';
 
 /** Margen en px alrededor de la cámara dentro del cual la gente ya tiene sprite. */
 const MARGIN = 96;
+
+/** Cada cuánto se rehace la lista de quién tiene gesto (systems/AmbientActions.gestureSet). */
+const GESTURE_EVERY_MS = 500;
+/** La estatua viviente, pintada de bronce, y lo que sube sobre su peana. */
+const STATUE_TINT = 0xc8a46a;
+const PEDESTAL_LIFT = 7;
 
 /**
  * Pinta la gente de un local (systems/Crowd.ts) o de la calle
@@ -43,6 +50,9 @@ export class CrowdView {
   /** Las cosas de quien vive en la calle (y su figura dormida), por agente; y a quién se le han pintado este frame. */
   private readonly kits = new Map<number, Map<string, Phaser.GameObjects.Image>>();
   private readonly kitShown = new Set<number>();
+  /** Quién tiene derecho a gesto ahora (GESTURE_BUDGET); null si cabe todo el mundo. */
+  private gestures: ReadonlySet<number> | null = null;
+  private gesturesAt = -Infinity;
 
   constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean, hour?: () => number) {
     this.scene = scene;
@@ -73,6 +83,10 @@ export class CrowdView {
     const here = new Set<number>();
     const w = this.weather();
     const view = this.scene.cameras.main.worldView;
+    if (time - this.gesturesAt >= GESTURE_EVERY_MS) {
+      this.gesturesAt = time;
+      this.gestures = gestureSet(this.crowd.agents, view.centerX, view.centerY);
+    }
     for (const a of this.crowd.agents) {
       const px = a.x * 16 + 8;
       const py = a.y * 16 + 16;
@@ -82,6 +96,7 @@ export class CrowdView {
       // Quien vive en la calle y duerme: tumbado bajo su manta (world/SurvivalArt), no de pie. No se le despierta.
       const asleep = a.kind === 'street' && a.state === 'SLEEP' && !a.moving && a.path.length === 0;
       if (a.belongings) this.kitOf(a, px, py, asleep, time);
+      if (a.act) this.actKitOf(a, px, py, time);
       if (asleep) continue;
       here.add(a.id);
       let sprite = this.sprites.get(a.id);
@@ -115,8 +130,16 @@ export class CrowdView {
             : 'idle';
       // El paraguas se abre al empezar a llover y se cierra al parar; la capucha no lleva paraguas.
       sprite.umbrella = this.outdoor && !a.staffRole ? umbrellaFor(a.id, w, sprite.def.id.endsWith('~hood')) : null;
-      const ambient = this.ambientOf(a, activity, time);
-      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift: settled ? seatAt(a.point)?.lift : 0, carry: a.carry, drink: a.drink, ambient }, time);
+      // Lejos del centro de la cámara en una plaza llena: sin gesto (y al volver, elige otro a mitad).
+      const gesture = !this.gestures || this.gestures.has(a.id);
+      if (!gesture) this.ambient?.forget(a.id);
+      const ambient = gesture ? this.ambientOf(a, activity, time) : undefined;
+      // La estatua viviente: de bronce y subida a su peana mientras actúa.
+      const statue = a.act?.kind === 'statue' && settled && a.state === 'PERFORM';
+      if (statue) sprite.setTint(STATUE_TINT);
+      else if (sprite.isTinted) sprite.clearTint();
+      const lift = settled ? (seatAt(a.point)?.lift ?? (a.act?.kit.includes('pedestal') ? PEDESTAL_LIFT : 0)) : 0;
+      sprite.place({ tx: a.x, ty: a.y, dir: a.dir, moving: a.moving, activity, lift, carry: a.carry, drink: a.drink, ambient }, time);
     }
     // Las cosas de quien ya no está a la vista (o se ha ido del barrio), fuera.
     for (const [id, kit] of this.kits) {
@@ -143,6 +166,8 @@ export class CrowdView {
    */
   private ambientOf(a: Agent, activity: string, time: number): AmbientPlacement | undefined {
     if (!this.ambient || a.kind === 'staff' || a.staffRole || a.carry || a.talking) return undefined;
+    // Quien actúa no fuma ni mira el móvil a mitad de la canción (ni la estatua, claro).
+    if (a.act && a.state === 'PERFORM') return undefined;
     const situation = ambientSituation(activity, a.state, a.moving);
     if (!situation) return undefined;
     const context = `${situation.posture}|${situation.context}|${a.point ?? ''}`;
@@ -205,6 +230,45 @@ export class CrowdView {
     show('broom', belongingKey('broom'), has('broom') && sweeping, px + (a.dir === 'left' ? -9 : 9) + swing, py + 1, py + 1, a.dir === 'left');
   }
 
+  /**
+   * Lo que lleva quien vende o actúa (data/streetActs.ts): la manta delante (con el género vendiendo; vacía montando y
+   * recogiendo) y, de camino, hecha un hatillo a la espalda; la bandeja al pecho; la guitarra en las manos tocando y a
+   * la espalda andando, con la funda abierta delante; el altavoz al lado; la peana bajo los pies de la estatua.
+   */
+  private actKitOf(a: Agent, px: number, py: number, time: number): void {
+    buildActTextures(this.scene);
+    this.kitShown.add(a.id);
+    const kit = this.kits.get(a.id) ?? new Map<string, Phaser.GameObjects.Image>();
+    this.kits.set(a.id, kit);
+    const show = (key: string, texture: string, on: boolean, x: number, y: number, depth: number, flip = false): void => {
+      let img = kit.get(key);
+      if (!on) {
+        img?.setVisible(false);
+        return;
+      }
+      if (!img || img.texture.key !== texture) {
+        img?.destroy();
+        img = this.scene.add.image(0, 0, texture).setOrigin(0.5, 1);
+        kit.set(key, img);
+      }
+      img.setPosition(Math.round(x), Math.round(y)).setDepth(depth).setFlipX(flip).setVisible(true);
+    };
+    const has = (k: string): boolean => !!a.act?.kit.includes(k as never);
+    const settled = !a.moving && a.path.length === 0;
+    const working = a.state === 'SELL' || a.state === 'PERFORM';
+    // De espaldas (hacia arriba), lo que va a la espalda queda delante.
+    const back = a.dir === 'up' ? py + 0.5 : py - 0.5;
+    const blanket = a.act?.kit.find((k) => k.startsWith('blanket-'));
+    show('blanket', blanket && working ? actKey(blanket as never) : actKey('cloth'), !!blanket && settled, px, py + 15, py + 1);
+    show('bundle', actKey('bundle'), !!blanket && !settled, px + (a.dir === 'left' ? 4 : -4), py - 7, back);
+    show('tray', actKey('tray'), has('tray'), px, py - 6, a.dir === 'up' ? py - 1 : py + 1);
+    const bob = working ? Math.round(Math.sin(time / 260 + a.id)) : 0;
+    show('guitar', actKey('guitar'), has('guitar') && (!settled || working), settled ? px + 1 : px - 3, (settled ? py - 4 : py - 7) + bob, settled ? py + 1 : back, !settled);
+    show('case', actKey('case'), has('case') && settled, px + 2, py + 12, py + 2);
+    show('speaker', actKey('speaker'), has('speaker') && settled, px - 12, py, py);
+    show('pedestal', actKey('pedestal'), has('pedestal') && settled, px, py + 3, py - 0.5);
+  }
+
   /** Hacia dónde queda quien viene con él (su grupo), si está parado a su lado. */
   private companionOf(a: Agent): ReturnType<typeof facingTowards> | undefined {
     let best: Agent | undefined;
@@ -228,6 +292,11 @@ export class CrowdView {
  * sentado en su cartón o su manta, o de pie si está recogiendo o sin nada.
  */
 function streetActivity(a: Agent): ReturnType<typeof activityAt> {
+  // Quien vende en la manta, sentado junto a ella (también montando y recogiendo); quien baila, baila; los demás, de pie.
+  if (a.act) {
+    if (a.act.kind === 'dance' && a.state === 'PERFORM') return 'dance';
+    return a.act.kit.some((k) => k.startsWith('blanket-')) ? 'sit' : 'idle';
+  }
   if (seatAt(a.point)) return activityAt(a.point, a.state === 'ASK' ? undefined : a.state, a.id);
   const seated = a.state === 'SIT' || a.state === 'REST' || a.state === 'ASK' || (a.state === 'SHELTER' && !!a.belongings?.some((b) => b === 'cardboard' || b === 'blanket'));
   return seated ? 'sit' : 'idle';

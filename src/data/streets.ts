@@ -87,6 +87,11 @@ export interface TripRule {
   rainproof?: boolean;
   /** Sólo mientras está en marcha ese evento (data/popups.ts, systems/PopUps): el mercadillo, la cola, el DJ. */
   popup?: string;
+  /**
+   * Sólo mientras ese puesto (id en data/streetActs.ts) está montado y vendiendo o actuando: quien mira la manta o se
+   * para a ver la actuación. Si recoge, quien estaba acaba enseguida.
+   */
+  act?: string;
 }
 
 export interface StreetProfile {
@@ -423,6 +428,159 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       // De paso, a cualquier hora, y quien vuelve tarde.
       { role: 'passer', label: 'Alguien de paso', line: 'Perdona, voy con prisa.', weight: 3, from: CITY, to: CITY },
       { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'El último metro. Por los pelos.', weight: 1.5, hours: [22, 6], from: { types: ['transit'], edge: true }, to: HOMES },
+    ],
+  },
+  // ------------------------------------------------------ Velaria
+  // Lujo, moda y negocios (data/velaria.ts). Por la mañana, oficina: se cruza la avenida hacia el trabajo y abren las
+  // tiendas; a mediodía, comida de negocios; por la tarde, compras, galería, terraza y huéspedes del hotel; por la noche,
+  // cena y vino, y a las doce la calle es de los porteros y de quien vuelve. Gente de todas partes: la que compra y la
+  // que atiende, limpia, reparte o abre la puerta.
+  {
+    location: 'velaria',
+    bands: [
+      [6, 7.5, 'LOW'], [7.5, 10, 'MEDIUM'], [10, 13, 'MEDIUM'], [13, 15, 'HIGH'], [15, 18, 'MEDIUM'],
+      [18, 21, 'HIGH'], [21, 23, 'MEDIUM'], [23, 24, 'LOW'], [0, 1, 'LOW'],
+    ],
+    // El sábado, más compras; el domingo, las tiendas cerradas.
+    weekday: [0, 0, 0, 0, 0, 1, -1],
+    scale: 1.2,
+    maxWalkers: 46,
+    bursts: [{ point: 'VL_METRO_ENTRANCE', every: [[6.5, 10, 4], [10, 18, 8], [18, 21, 5], [21, 24, 12], [0, 1.5, 20]], size: [1, 3] }],
+    draws: [{ place: 'vl-hotel', perLevel: 1 }],
+    tableService: [{ place: 'vl-cafe', menu: 'cafe-aurelia', pass: 'VL_CAFE_TERRACE_WAITER' }],
+    staff: [
+      { service: 'waiter', place: 'vl-cafe', base: 'VL_CAFE_TERRACE_WAITER', serves: ['VL_CAFE_TERRACE_'], label: 'Camarero del Café Aurelia', line: '¿Les traigo algo más a la terraza?' },
+    ],
+    trips: [
+      // Mañana: a la oficina (fuera del mapa), a abrir las tiendas y a por el café.
+      { role: 'office', label: 'Alguien camino de la oficina', line: 'Reunión a las nueve y cuarto. Llego a las nueve y cuarto.', weight: 7, hours: [7.5, 9.75], days: 'weekday', from: TRANSIT, to: CITY },
+      { role: 'office', label: 'Alguien con traje y prisa', line: 'Sí, sí, te lo mando antes de comer. Antes de comer de mañana.', weight: 4, hours: [7.5, 10], days: 'weekday', from: HOMES, to: { types: ['transit'], edge: true } },
+      { role: 'coffee', label: 'Alguien a por el café de la mañana', line: 'Un flat white y a la reunión. Sin el café no hablo.', weight: 3, hours: [8, 10.5], from: HOMES_OR_CITY, to: { points: ['VL_CAFE_ENTRANCE'] } },
+      { role: 'shift-shop', label: 'Dependienta que llega a abrir', line: 'Abrimos a las diez y media. A las diez y veinte ya hay alguien mirando.', weight: 4, hours: [9.5, 10.75], from: TRANSIT, to: { tags: ['shop'] } },
+      { role: 'shift-kitchen', label: 'Cocinero que entra a trabajar', line: 'Mise en place a las once. El chef llega a las once y cinco y lo revisa todo.', weight: 2, hours: [11, 12.5], from: TRANSIT, to: { points: ['VL_ALMA_ENTRANCE', 'VL_KAIZEN_ENTRANCE', 'VL_HOTEL_ENTRANCE', 'VL_CAFE_ENTRANCE'] } },
+      { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Entreno antes de la primera llamada. Luego es imposible.', weight: 2, hours: [6.5, 9.5], from: HOMES, to: { points: ['VL_GYM_ENTRANCE'] } },
+      // Los porteros: en su portal casi todo el día. Y los del hotel, a los lados de la puerta.
+      { role: 'doorman', label: 'Portero de la finca', line: 'Buenos días. ¿A quién busca?', weight: 4, hours: [8, 21], from: HOMES, to: { points: ['VL_DOORMAN_'] }, stay: [90, 180], stayState: 'WAIT', then: HOMES, uniform: 'uniforme-portero', max: 5 },
+      { role: 'doorman', label: 'Portero del hotel', line: 'Bienvenidos al Gran Hotel Velaria. ¿Les ayudo con las maletas?', weight: 5, hours: [7, 24], from: { points: ['VL_HOTEL_ENTRANCE'] }, to: { points: ['VL_HOTEL_DOOR_'] }, stay: [120, 240], stayState: 'WAIT', then: { points: ['VL_HOTEL_ENTRANCE'] }, uniform: 'uniforme-hotel', max: 2 },
+      // El hotel: quien llega en taxi con la maleta y quien se va a la parada.
+      { role: 'hotel-guest', label: 'Huésped que llega con su maleta', line: 'El taxista me ha dado una vuelta por toda la ciudad. Gratis no ha sido.', weight: 3, hours: [11, 23], from: { points: ['VL_TAXI_'], types: ['transit'], edge: true }, to: { points: ['VL_HOTEL_ENTRANCE'] }, group: [1, 2], bond: ['couple', 'tourists', 'coworkers'] },
+      { role: 'hotel-checkout', label: 'Huésped esperando el taxi', line: 'Dijeron cinco minutos. Aquí los cinco minutos son cinco minutos.', weight: 3, hours: [7.5, 13], from: { points: ['VL_HOTEL_ENTRANCE'] }, to: { points: ['VL_TAXI_'] }, stay: [2, 6], stayState: 'WAIT', then: CITY, max: 2 },
+      // Compras: llegar a las casas de lujo y salir de ellas con bolsas.
+      { role: 'shopper', label: 'Alguien de compras', line: 'Sólo vengo a mirar. Eso dije la última vez.', weight: 6, hours: [10.5, 20.5], from: { types: ['residence', 'transit'], points: ['VL_HOTEL_ENTRANCE'], edge: true }, to: { tags: ['luxury'] }, group: [1, 2], bond: ['friends', 'couple', 'family'] },
+      { role: 'shopper', label: 'Alguien con bolsas', line: 'Me lo he llevado puesto. Lo de antes, en la bolsa.', weight: 5, hours: [11, 21], from: { tags: ['luxury', 'shop'] }, to: { types: ['transit', 'residence'], points: ['VL_HOTEL_ENTRANCE', 'VL_TAXI_'], edge: true } },
+      { role: 'window-shopper', label: 'Alguien mirando escaparates', line: 'Ese abrigo cuesta lo que mi coche. Pero el abrigo es más bonito.', weight: 3, hours: [10, 21], from: HOMES_OR_CITY, to: { points: ['VL_ORIOL_WINDOW', 'VL_BRISA_WINDOW', 'VL_FERRANT_WINDOW_', 'VL_GOURMET_WINDOW', 'VL_GALERIA_WINDOW'] }, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['luxury', 'shop'], types: ['transit'], edge: true }, max: 5 },
+      { role: 'errands', label: 'Vecina de recados', line: 'El pan, la farmacia y la peluquería. La peluquería, primero.', weight: 3, hours: [10, 20], from: HOMES, to: { points: ['VL_GOURMET_ENTRANCE', 'VL_LIS_ENTRANCE', 'VL_CLINICA_ENTRANCE'] } },
+      // Turismo y cultura: la plaza, la fuente, los escaparates y la galería.
+      { role: 'tourist', label: 'Turistas paseando', line: '¿Esta es la plaza de la guía? Hay una fuente, así que sí.', weight: 4, hours: [10, 20.5], from: { points: ['VL_HOTEL_ENTRANCE'], types: ['transit'], edge: true }, to: { points: ['VL_PLAZA_MEET_', 'VL_GALERIA_WINDOW', 'VL_FERRANT_WINDOW_'] }, stay: [3, 8], stayState: 'TALK', then: { tags: ['luxury', 'food'], edge: true }, group: [2, 3], bond: ['tourists', 'couple', 'family'], max: 4 },
+      { role: 'gallery', label: 'Alguien que va a la galería', line: 'Dicen que la pintora es de mi pueblo. Vengo a comprobarlo.', weight: 2, hours: [11, 20.5], from: HOMES_OR_CITY, to: { points: ['VL_GALERIA_ENTRANCE'] }, group: [1, 2], bond: ['friends', 'couple'] },
+      // Comer, la terraza y la plaza.
+      { role: 'diner', label: 'Comida de negocios', line: 'Hablamos del contrato en el postre. Antes, del tiempo.', weight: 3, hours: [13.5, 15.5], days: 'weekday', from: { tags: ['work'], edge: true }, to: { points: ['VL_ALMA_ENTRANCE', 'VL_CAFE_ENTRANCE'] }, group: [2, 3], bond: ['coworkers'] },
+      { role: 'terrace', label: 'Alguien en la terraza', line: 'Un café al sol junto a la fuente. Esto es lo que se paga.', weight: 3, hours: [9, 21.5], from: HOMES_OR_CITY, to: { points: ['VL_CAFE_TERRACE_'] }, stay: [20, 45], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple', 'coworkers'] },
+      { role: 'plaza-elders', label: 'Vecinos de toda la vida', line: 'Cuando yo era joven, aquí había un cine. Y antes, un convento.', weight: 2, hours: [10, 13.5], from: HOMES, to: { points: ['VL_PLAZA_BENCH_'] }, stay: [15, 35], stayState: 'TALK', group: [1, 2], bond: ['friends', 'couple'] },
+      { role: 'plaza-family', label: 'Una familia en la plaza', line: 'Una moneda a la fuente y nos vamos. Una.', weight: 1.5, hours: [17, 20.5], from: HOMES, to: { points: ['VL_PLAZA_BENCH_', 'VL_PLAZA_MEET_'] }, stay: [8, 18], stayState: 'TALK', group: [2, 4], bond: ['family'] },
+      { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Qué limpia está esta estación. Casi da pena pisarla.', weight: 3, hours: [7, 1], from: TRANSIT, to: { tags: ['luxury', 'food', 'shop'], types: ['residence'], edge: true } },
+      { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Le dije en la boca de metro. Hay dos bocas. Hay un problema.', weight: 2, hours: [9, 23], from: HOMES_OR_CITY, to: { points: ['VL_METRO_MEET_'] }, stay: [4, 12], stayState: 'PHONE', then: { tags: ['food', 'luxury'], edge: true }, max: 2 },
+      // Tarde y noche: gimnasio, volver a casa, cenar y el vino de después.
+      { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Del despacho al gimnasio. Si paso por casa, no salgo.', weight: 2, hours: [18, 21.5], from: { types: ['transit', 'residence'] }, to: { points: ['VL_GYM_ENTRANCE'] } },
+      { role: 'returning', label: 'Alguien volviendo a casa', line: 'Doce horas. Y el portero me pregunta qué tal el día.', weight: 4, hours: [18, 21.5], from: { types: ['transit'], edge: true }, to: HOMES },
+      { role: 'diner', label: 'Alguien que va a cenar', line: 'Tenemos mesa a las nueve. Son las nueve y diez. Corre.', weight: 3, hours: [20.5, 23], from: HOMES_OR_CITY, to: { points: ['VL_ALMA_ENTRANCE', 'VL_KAIZEN_ENTRANCE'] }, group: [2, 4], bond: ['couple', 'friends', 'coworkers'] },
+      { role: 'after-work', label: 'Compañeros a por una copa', line: 'Una copa de vino y a casa. Bueno, una botella entre cuatro.', weight: 2, hours: [19, 23], days: 'weekday', from: { tags: ['work'], edge: true }, to: { points: ['VL_VINOTECA_ENTRANCE'] }, group: [2, 4], bond: ['coworkers', 'friends'] },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'Vuelta a la plaza y a casa. Él lo sabe; yo, más o menos.', weight: 2, hours: [7, 9.5], from: HOMES, to: HOMES, via: ['vl-pl-n', 'vl-pl-s'], pace: 'stroll', dog: true, pause: 0.6 },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última del día. Sin correr.', weight: 2, hours: [20.5, 23.5], from: HOMES, to: HOMES, via: ['vl-m24', 'vl-pl-c'], pace: 'stroll', dog: true, pause: 0.6 },
+      // Trabajo en la calle: limpieza a primera hora, repartos del gourmet y de Kaizen.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Aquí la acera se friega. Con agua y todo.', weight: 6, hours: [6, 8], from: CITY, to: CITY, via: ['vl-pl-n', 'vl-pl-s', 'vl-n29'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Una cesta gourmet al ático. El ascensor es de los que tienen asiento.', weight: 4, hours: [10, 13], from: { points: ['VL_GOURMET_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Omakase para dos a domicilio. Ni lo he mirado, lo juro.', weight: 4, hours: [20, 23.5], from: { points: ['VL_KAIZEN_ENTRANCE', 'VL_GOURMET_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
+      // De paso y de vuelta.
+      { role: 'passer', label: 'Alguien de paso', line: 'Perdone, ¿la calle del Marqués? Ah, es esta.', weight: 3, from: CITY, to: CITY },
+      { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'Buenas noches, Julián. Sí, de la cena. No, no he bebido. Poco.', weight: 1, hours: [23, 3], from: { types: ['transit'], edge: true }, to: HOMES },
+      // Eventos (data/popups.ts): sólo mientras está en marcha cada uno.
+      { role: 'gallery-opening', label: 'Invitado a la inauguración', line: 'El vino es mejor que los cuadros. No se lo digas a nadie.', weight: 28, popup: 'vl-gallery-opening', hours: [19, 23], from: HOMES_OR_CITY, to: { points: ['VL_OPENING_'] }, stay: [10, 25], stayState: 'DRINK', then: { points: ['VL_GALERIA_ENTRANCE'], edge: true }, group: [1, 3], bond: ['friends', 'couple'] },
+      { role: 'popup-market', label: 'Alguien en el pop-up de moda', line: 'Colección cápsula, dicen. Cápsula de precio no es.', weight: 24, popup: 'vl-fashion-popup', hours: [12, 20], from: HOMES_OR_CITY, to: { points: ['VL_POPUP_'] }, stay: [3, 9], stayState: 'BROWSE', then: { tags: ['luxury'], edge: true }, group: [1, 3], bond: ['friends', 'couple'] },
+      { role: 'popup-queue', label: 'Alguien en la cola del lanzamiento', line: 'Dicen que sólo hay veinte bolsos. Y yo llevo el doce.', weight: 30, popup: 'vl-boutique-launch', hours: [18, 22], from: HOMES_OR_CITY, to: { points: ['VL_LAUNCH_'] }, stay: [15, 35], stayState: 'QUEUE', then: { points: ['VL_FERRANT_ENTRANCE'] }, group: [1, 2], bond: ['friends'] },
+      { role: 'hotel-event', label: 'Invitado a la gala del hotel', line: 'Me dijeron etiqueta. Pensé que era una broma.', weight: 28, popup: 'vl-hotel-event', hours: [19.5, 23.5], from: { points: ['VL_TAXI_'], edge: true }, to: { points: ['VL_HOTEL_EVENT_'] }, stay: [8, 20], stayState: 'DRINK', then: { points: ['VL_HOTEL_ENTRANCE'] }, group: [2, 3], bond: ['couple', 'friends', 'coworkers'] },
+    ],
+  },
+  // ------------------------------------------------------ Puerta Central
+  // El centro (data/puertaCentral.ts): la calle más llena del juego. Por la mañana, el metro manda: oleadas por las dos
+  // bocas, gente a la oficina y al café. Por la tarde, compras y turismo: grupos con mapa que se paran en seco, fotos al
+  // monumento, mantas y actuaciones con su corro (data/streetActs.ts). Por la noche, cenas y grupos de amigos; de
+  // madrugada, menos turista y la gente que sale. Turistas hay muchos, pero son una parte: la mayoría vive, trabaja o pasa.
+  {
+    location: 'puerta-central',
+    bands: [
+      [6, 7, 'MEDIUM'], [7, 10, 'VERY_HIGH'], [10, 13, 'HIGH'], [13, 16, 'VERY_HIGH'], [16, 22, 'VERY_HIGH'],
+      [22, 24, 'HIGH'], [0, 3, 'MEDIUM'], [3, 6, 'LOW'],
+    ],
+    // El fin de semana, más; el domingo por la mañana, menos metro pero igual de turismo.
+    weekday: [0, 0, 0, 0, 1, 1, 0],
+    scale: 3.5,
+    maxWalkers: 80,
+    // Las dos bocas: en hora punta, un tren cada dos minutos de juego y de cada uno sale un grupo.
+    bursts: [
+      { point: 'PC_METRO_ENTRANCE', every: [[6.5, 7, 6], [7, 10, 2], [10, 17, 4], [17, 20.5, 2], [20.5, 24, 5], [0, 1.5, 10]], size: [2, 4] },
+      { point: 'PC_METRO_W_ENTRANCE', every: [[6.5, 7, 8], [7, 10, 3], [10, 17, 5], [17, 20.5, 3], [20.5, 24, 6], [0, 1.5, 12]], size: [1, 3] },
+    ],
+    draws: [{ place: 'pc-burger', perLevel: 1 }, { place: 'pc-recuerdos', perLevel: 1 }],
+    tableService: [{ place: 'pc-cafe', menu: 'pausa', pass: 'PC_CAFE_TERRACE_WAITER' }],
+    staff: [
+      { service: 'waiter', place: 'pc-cafe', base: 'PC_CAFE_TERRACE_WAITER', serves: ['PC_CAFE_TERRACE_'], label: 'Camarera del Café Central', line: 'Terraza, sí. Carta en cuatro idiomas, ¿cuál le traigo?' },
+    ],
+    trips: [
+      // Mañana: el metro. Quien vive aquí baja; quien llega sale hacia la oficina o cruza la plaza hacia otro sitio.
+      { role: 'commuter', label: 'Alguien con prisa', line: 'Si pierdo este, pierdo el siguiente. Así funciona.', weight: 7, hours: [7, 10], days: 'weekday', from: HOMES, to: TRANSIT },
+      { role: 'commuter', label: 'Alguien que va al metro', line: 'Perdón, perdón, perdón. Gracias.', weight: 4, hours: [7, 9.75], days: 'weekday', from: CITY, to: TRANSIT, pause: 0 },
+      { role: 'office', label: 'Alguien camino de la oficina', line: 'Dos transbordos y aún llego antes que en coche.', weight: 6, hours: [7.25, 10], days: 'weekday', from: TRANSIT, to: CITY },
+      { role: 'coffee', label: 'Alguien a por el café', line: 'Uno para llevar. Grande. Muy grande.', weight: 3, hours: [7.5, 11], from: { types: ['transit', 'residence'], edge: true }, to: { points: ['PC_CAFE_ENTRANCE'] } },
+      { role: 'shift-shop', label: 'Dependiente que llega a abrir', line: 'Abrimos a las diez. A las diez menos cinco ya hay cola de turistas.', weight: 3, hours: [9.3, 10.5], from: TRANSIT, to: { tags: ['shop'] } },
+      { role: 'shift-kitchen', label: 'Cocinera que entra a trabajar', line: 'Hoy tenemos dos grupos de cuarenta. Me lo han dicho en la puerta.', weight: 2, hours: [10.5, 12], from: TRANSIT, to: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE', 'PC_CAFE_ENTRANCE'] } },
+      { role: 'metro-arrival', label: 'Alguien que sale del metro', line: '¿Por qué boca he salido? Ah, por la de siempre.', weight: 4, hours: [7, 1], from: TRANSIT, to: { tags: ['shop', 'food'], types: ['residence'], edge: true } },
+      // Compras: entrar y salir con bolsas; escaparates; el quiosco.
+      { role: 'shopper', label: 'Alguien de compras', line: 'Sólo una cosa. Bueno, dos.', weight: 6, hours: [10, 21.5], from: { types: ['residence', 'transit'], edge: true }, to: { tags: ['shop'] }, group: [1, 3], bond: ['friends', 'couple', 'family'] },
+      { role: 'shopper', label: 'Alguien con bolsas', line: 'Venía a por unos vaqueros. Llevo tres bolsas y ningún vaquero.', weight: 5, hours: [10.5, 22], from: { tags: ['shop'] }, to: { types: ['transit', 'residence'], edge: true } },
+      { role: 'window-shopper', label: 'Alguien mirando escaparates', line: 'Rebajas en octubre. Las rebajas ya no tienen mes.', weight: 3, hours: [10, 22], from: HOMES_OR_CITY, to: { points: ['PC_RECUERDOS_WINDOW', 'PC_MODA_WINDOW_', 'PC_PIZZA_WINDOW'] }, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['shop', 'food'], types: ['transit'], edge: true }, max: 4 },
+      { role: 'kiosk', label: 'Alguien en el quiosco', line: 'Un periódico y un mapa. Sí, de papel.', weight: 1.5, hours: [8, 21], from: HOMES_OR_CITY, to: { points: ['PC_KIOSK_WINDOW'] }, stay: [1, 3], stayState: 'BROWSE', max: 1 },
+      { role: 'ice-cream', label: 'Alguien a por un helado', line: 'De turrón. En octubre también.', weight: 1.5, hours: [12, 21.5], from: HOMES_OR_CITY, to: { points: ['PC_ICE_CREAM'] }, stay: [2, 4], stayState: 'WAIT', max: 1 },
+      // Turismo: el monumento (foto y mapa), el paseo en grupo, la tienda de recuerdos y la vuelta al hostal.
+      { role: 'tourist', label: 'Turista con su cámara', line: '¿Nos haces una foto? Con la Rosa detrás, que se vea entera.', weight: 6, hours: [9.5, 21.5], from: { types: ['transit'], points: ['PC_HOSTAL_ENTRANCE'], edge: true }, to: { points: ['PC_MONUMENT_VIEW_'] }, stay: [2, 6], stayState: 'BROWSE', then: { tags: ['shop', 'food'], edge: true }, group: [1, 2], bond: ['couple', 'tourists'], pause: 0.6, max: 5 },
+      { role: 'tourist-group', label: 'Grupo de turistas', line: 'El guía dijo «la plaza del monumento». Hay un monumento. Esperamos aquí.', weight: 5, hours: [10, 21], from: { types: ['transit'], points: ['PC_HOSTAL_ENTRANCE'], edge: true }, to: { points: ['PC_MONUMENT_VIEW_', 'PC_MEET_'] }, stay: [3, 8], stayState: 'TALK', then: { tags: ['shop', 'food'], edge: true }, group: [3, 4], bond: ['tourists', 'family'], pause: 0.7, max: 2 },
+      { role: 'tourist-walk', label: 'Turistas con el mapa abierto', line: 'Según esto estamos aquí. O aquí. El mapa es muy grande.', weight: 4, hours: [10, 22], from: { types: ['transit'], points: ['PC_HOSTAL_ENTRANCE'], edge: true }, to: CITY, via: ['pc-c14', 'pc-c40'], pace: 'stroll', group: [2, 4], bond: ['tourists', 'family', 'couple'], pause: 0.8 },
+      { role: 'tourist-shop', label: 'Turista buscando recuerdos', line: 'Un imán para la nevera y una camiseta para mi sobrino. Es la tradición.', weight: 3, hours: [10, 21.5], from: { types: ['transit'], points: ['PC_HOSTAL_ENTRANCE'], edge: true }, to: { points: ['PC_RECUERDOS_ENTRANCE'] }, group: [1, 3], bond: ['tourists', 'family'] },
+      { role: 'tourist-return', label: 'Turistas volviendo al hostal', line: 'Veinte mil pasos. Mañana, más.', weight: 3, hours: [21, 1], from: { types: ['transit'], edge: true }, to: { points: ['PC_HOSTAL_ENTRANCE'] }, group: [1, 3], bond: ['tourists', 'couple'] },
+      // Las mantas (data/streetActs.ts): sólo con su puesto montado. Se mira, se toca, a veces se compra.
+      { role: 'stall-browse', label: 'Alguien mirando la manta', line: '¿Cuánto esta? ¿Y si me llevo dos?', weight: 4, act: 'pc-manta-bisuteria', from: HOMES_OR_CITY, to: { points: ['PC_STALL_A_SEE_'] }, stay: [2, 5], stayState: 'BROWSE', then: { tags: ['shop', 'food'], types: ['transit'], edge: true }, group: [1, 2], bond: ['friends', 'couple', 'tourists'], max: 2 },
+      { role: 'stall-browse', label: 'Alguien mirando camisetas en la manta', line: 'Ésta pone «Puerta Central» con dos erres. Me la llevo por eso.', weight: 4, act: 'pc-manta-ropa', from: HOMES_OR_CITY, to: { points: ['PC_STALL_B_SEE_'] }, stay: [2, 5], stayState: 'BROWSE', then: { tags: ['shop', 'food'], types: ['transit'], edge: true }, group: [1, 2], bond: ['friends', 'couple', 'tourists'], max: 2 },
+      { role: 'stall-browse', label: 'Alguien mirando recuerdos', line: 'Un abanico. Para el calor de octubre.', weight: 4, act: 'pc-manta-recuerdos', from: HOMES_OR_CITY, to: { points: ['PC_STALL_C_SEE_'] }, stay: [2, 5], stayState: 'BROWSE', then: { tags: ['shop', 'food'], types: ['transit'], edge: true }, group: [1, 2], bond: ['tourists', 'family', 'couple'], max: 2 },
+      { role: 'stall-browse', label: 'Alguien probándose unas gafas', line: '¿Me quedan bien? Sé sincera. No, mejor no.', weight: 3, act: 'pc-bandeja', from: HOMES_OR_CITY, to: { points: ['PC_STALL_D_SEE_'] }, stay: [1, 3], stayState: 'BROWSE', then: { tags: ['shop', 'food'], types: ['transit'], edge: true }, max: 2 },
+      { role: 'stall-browse', label: 'Alguien mirando pulseras', line: '¿Las haces tú? Se nota. Para bien.', weight: 4, act: 'pc-manta-finde', from: HOMES_OR_CITY, to: { points: ['PC_STALL_E_SEE_'] }, stay: [2, 5], stayState: 'BROWSE', then: { tags: ['shop', 'food'], types: ['transit'], edge: true }, group: [1, 2], bond: ['friends', 'couple'], max: 2 },
+      // Las actuaciones: un corro pequeño mientras dura cada una.
+      { role: 'show-watch', label: 'Alguien escuchando la guitarra', line: 'Ésta la tocaba mi padre. Peor, pero la tocaba.', weight: 5, act: 'pc-guitarra', from: HOMES_OR_CITY, to: { points: ['PC_GUITAR_SEE_'] }, stay: [3, 8], stayState: 'BROWSE', then: { tags: ['food', 'shop'], types: ['transit'], edge: true }, group: [1, 2], bond: ['couple', 'friends', 'tourists'], max: 4 },
+      { role: 'show-watch', label: 'Alguien viendo el baile', line: '¡Otra! ¡Otra! ¿Cómo hace eso con la espalda?', weight: 7, act: 'pc-baile', from: HOMES_OR_CITY, to: { points: ['PC_DANCE_SEE_'] }, stay: [4, 9], stayState: 'CHEER', then: { tags: ['food', 'shop'], types: ['transit'], edge: true }, group: [1, 3], bond: ['friends', 'family', 'tourists'], max: 6 },
+      { role: 'show-watch', label: 'Alguien mirando la estatua', line: 'Te juro que ha parpadeado. Te lo juro.', weight: 4, act: 'pc-estatua', from: HOMES_OR_CITY, to: { points: ['PC_STATUE_SEE_'] }, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['food', 'shop'], types: ['transit'], edge: true }, group: [1, 2], bond: ['family', 'tourists', 'couple'], max: 3 },
+      { role: 'show-watch', label: 'Alguien escuchando al dúo', line: 'La segunda voz es la buena. No se lo digas a la primera.', weight: 5, act: 'pc-duo', from: HOMES_OR_CITY, to: { points: ['PC_DUO_SEE_'] }, stay: [3, 8], stayState: 'BROWSE', then: { tags: ['food', 'shop'], types: ['transit'], edge: true }, group: [1, 2], bond: ['couple', 'friends'], max: 4 },
+      // Quedar en la plaza: «en la Rosa», en la boca del metro, en el banco; parejas y familias.
+      { role: 'friends-meet', label: 'Amigos que han quedado en la Rosa', line: 'Falta Marta. Siempre falta Marta.', weight: 4, hours: [11, 23.5], from: { types: ['transit', 'residence'], edge: true }, to: { points: ['PC_MEET_'] }, stay: [4, 12], stayState: 'TALK', then: { tags: ['food', 'shop'], edge: true }, group: [2, 4], bond: ['friends'] },
+      { role: 'metro-meet', label: 'Alguien esperando en la boca de metro', line: 'Te dije la boca de la Rosa. Hay dos bocas de la Rosa.', weight: 2, hours: [9, 23.5], from: HOMES_OR_CITY, to: { points: ['PC_METRO_MEET_'] }, stay: [3, 10], stayState: 'PHONE', then: { tags: ['food', 'shop'], edge: true }, max: 3 },
+      { role: 'plaza-family', label: 'Una familia en la plaza', line: 'No, el helado después de comer. Después.', weight: 2, hours: [11, 20.5], from: { types: ['transit', 'residence'], edge: true }, to: { points: ['PC_BENCH_'] }, stay: [8, 20], stayState: 'TALK', group: [1, 3], bond: ['family'] },
+      { role: 'couple-walk', label: 'Una pareja paseando', line: 'Damos una vuelta a la plaza y cenamos. O cenamos y damos la vuelta.', weight: 3, hours: [17, 23.5], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['pc-c19', 'pc-c36'], pace: 'stroll', group: [2, 2], bond: ['couple'], pause: 0.4 },
+      { role: 'terrace', label: 'Alguien en la terraza', line: 'Un café y ver pasar a medio mundo. Aquí pasa el mundo entero.', weight: 3, hours: [8, 22], from: HOMES_OR_CITY, to: { points: ['PC_CAFE_TERRACE_'] }, stay: [15, 40], stayState: 'DRINK' },
+      { role: 'passer', label: 'Alguien de paso', line: 'Por la plaza se ataja. Si no hay turistas.', weight: 5, from: CITY, to: CITY },
+      // Comer y cenar: pizza y hamburguesa a mediodía y por la noche; los grupos de amigos después.
+      { role: 'diner', label: 'Alguien que va a comer', line: 'Menú de mediodía y al trabajo. En treinta minutos, con el café.', weight: 4, hours: [13, 16], from: { types: ['transit'], edge: true }, to: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE'] }, group: [1, 3], bond: ['coworkers', 'friends'] },
+      { role: 'diner', label: 'Alguien que va a cenar', line: 'Una pizza para cuatro. Bueno, dos.', weight: 5, hours: [20, 23.5], from: { types: ['transit', 'residence'], edge: true }, to: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE'] }, group: [2, 4], bond: ['friends', 'family', 'couple'] },
+      { role: 'friends-out', label: 'Un grupo de amigos', line: 'Primero cenamos, luego ya vemos. Siempre «luego ya vemos».', weight: 4, hours: [19, 24], from: { types: ['transit'], edge: true }, to: CITY, via: ['pc-c25'], group: [2, 4], bond: ['friends'] },
+      { role: 'returning', label: 'Alguien volviendo a casa', line: 'Nueve horas y una plaza llena de gente. Quiero mi sofá.', weight: 4, hours: [17.5, 21.5], from: { types: ['transit'], edge: true }, to: HOMES },
+      // Madrugada: menos turista y la gente que sale; la hamburguesería, hasta las dos.
+      { role: 'night-crowd', label: 'Gente que sale de fiesta', line: '¡Que el último metro es a la una y media! ¡Corre!', weight: 5, hours: [23, 3.5], from: { types: ['transit'], edge: true }, to: CITY, via: ['pc-c25'], group: [2, 4], bond: ['friends'] },
+      { role: 'night-crowd', label: 'Gente de vuelta de la fiesta', line: 'Una hamburguesa y a casa. Una. Y a casa.', weight: 4, hours: [23, 2], from: CITY, to: { points: ['PC_BURGER_ENTRANCE'] }, group: [2, 3], bond: ['friends'] },
+      { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'El último metro. Por los pelos.', weight: 2, hours: [23, 3], from: { types: ['transit'], edge: true }, to: HOMES },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'A esta hora la plaza es nuestra. Luego, de los turistas.', weight: 2, hours: [7, 9.5], from: HOMES, to: HOMES, via: ['pc-c19', 'pc-c36'], pace: 'stroll', dog: true, pause: 0.6 },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última vuelta, que mañana madrugo.', weight: 1.5, hours: [21.5, 23.5], from: HOMES, to: HOMES, via: ['pc-c25'], pace: 'stroll', dog: true, pause: 0.6 },
+      // Trabajo en la calle: limpieza al amanecer y repartos de la pizzería y la hamburguesería.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Aquí se barre tres veces al día. Y no da.', weight: 6, hours: [6, 9], from: CITY, to: CITY, via: ['pc-c14', 'pc-c40', 'pc-r28'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 2 },
+      { role: 'street-cleaner', ambient: true, label: 'Operaria de limpieza', line: 'Lo de la noche, a primera hora. Lo de la tarde, ahora.', weight: 3, hours: [15, 17], from: CITY, to: CITY, via: ['pc-c25', 'pc-r28'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cuatro pizzas al cuarto sin ascensor. Siempre es el cuarto.', weight: 4, hours: [13, 16], from: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE'] }, to: HOMES_OR_CITY, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
+      { role: 'courier', ambient: true, label: 'Repartidora', line: 'Hamburguesa doble con extra de todo. Dirección: «la plaza». Ya.', weight: 5, hours: [20, 1.5], from: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE'] }, to: HOMES_OR_CITY, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
     ],
   },
 ];

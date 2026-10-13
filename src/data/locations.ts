@@ -4,6 +4,10 @@ import { VALLESCO } from './vallesco.ts';
 import { RIBERA } from './ribera.ts';
 import { CUATRO_RIOS } from './cuatroRios.ts';
 import { CR_INTERIORS } from './cuatroRiosVenues.ts';
+import { VELARIA } from './velaria.ts';
+import { VL_INTERIORS } from './velariaVenues.ts';
+import { PUERTA_CENTRAL } from './puertaCentral.ts';
+import { PC_INTERIORS } from './puertaCentralVenues.ts';
 import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
 /**
@@ -424,6 +428,26 @@ const CUATRO_RIOS_STATION = platform(
   [VESTIBULE_GUARD],
 );
 
+// Velaria: la cabecera de la línea, la misma estación. Sin habituales con nombre todavía.
+const VELARIA_STATION = platform(
+  'velaria-station',
+  'Metro · Velaria',
+  { location: 'velaria', spawn: 'vl-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
+// Puerta Central: la estación de más gente de la línea (data/transit.ts: hub). Dos bocas en la plaza; se sale por la este.
+const PUERTA_CENTRAL_STATION = platform(
+  'puerta-central-station',
+  'Metro · Puerta Central',
+  { location: 'puerta-central', spawn: 'pc-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
 /** Tres taburetes a la barra, delante del mostrador (fila 6), mirando hacia él. */
 const BAR_STOOLS: Record<string, PointDef> = Object.fromEntries([2, 3, 4].map((x, i) => [`BAR_STOOL_0${i + 1}`, { tx: x, ty: 6, kind: 'seat', facing: 'up' } as PointDef]));
 
@@ -541,6 +565,14 @@ export const LOCATIONS: readonly LocationDef[] = [
   CUATRO_RIOS,
   CUATRO_RIOS_STATION,
   ...CR_INTERIORS,
+  // Velaria (data/velaria.ts): la Avenida Dorada, la Plaza Aurelia y la Calle Marqués, su estación y sus locales.
+  VELARIA,
+  VELARIA_STATION,
+  ...VL_INTERIORS,
+  // Puerta Central (data/puertaCentral.ts): la Calle de la Puerta y la plaza, su estación y sus locales.
+  PUERTA_CENTRAL,
+  PUERTA_CENTRAL_STATION,
+  ...PC_INTERIORS,
 ];
 
 export const START_LOCATION = VALLESCO.id;

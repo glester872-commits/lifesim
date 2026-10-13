@@ -230,6 +230,11 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Sobre un mostrador: comparten tile con él.
   espresso: { key: 'prop-espresso', tilesHigh: 1 },
   'pastry-case': { key: 'prop-pastry-case', tilesHigh: 1 },
+  // Velaria: vitrina de joyería (cristal sobre peana, colisiona) y el carro de equipaje del hotel.
+  vitrine: { key: 'prop-vitrine', tilesHigh: 1 },
+  'luggage-cart': { key: 'prop-luggage-cart', tilesHigh: 2, shadow: [12, 3] },
+  // La Rosa de los Vientos (Puerta Central): pedestal de granito de tres tiles y la esfera armilar encima; sólo la base es sólida.
+  monument: { key: 'prop-monument', tilesHigh: 4, tilesWide: 3, shadow: [44, 8], cast: 30 },
   // Del techo.
   pendant: { key: 'prop-pendant', tilesHigh: 2, overhead: true, light: { dy: 14 } },
   'tube-light': { key: 'prop-tube-light', tilesHigh: 2, tilesWide: 2, overhead: true, light: { dy: 14, cool: true } },

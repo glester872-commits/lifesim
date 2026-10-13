@@ -5,6 +5,13 @@ import {
   type AmbientActionDef, type AmbientContext, type AmbientPosture, type AmbientStep, type AmbientTrait, type DayPart,
 } from '../data/ambientActions.ts';
 import type { Facing } from '../types/game.ts';
+
+/** Lo que hace falta de alguien para repartir los gestos: quién es y dónde está (en tiles). */
+export interface GestureAgent {
+  id: number;
+  x: number;
+  y: number;
+}
 import { hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 
 /**
@@ -218,3 +225,23 @@ export function facingTowards(from: { x: number; y: number }, to: { x: number; y
   const dy = to.y - from.y;
   return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
 }
+
+// --------------------------------------------------------------- LOD
+
+/**
+ * LOD de animación: gestos de ambiente (fumar, el móvil, la foto, el mapa) como mucho para tanta gente a la vez, la
+ * más cercana al centro de la cámara. En una plaza llena, el resto anda, espera o mira sin gesto propio; quien se
+ * acerca al centro lo recupera. world/CrowdView rehace la lista cada medio segundo, no cada frame.
+ */
+export const GESTURE_BUDGET = 28;
+
+/**
+ * Los GESTURE_BUDGET más cerca del centro de la cámara, o null si no hay más gente que eso. Una ordenación cada medio
+ * segundo sobre unas decenas de personas: nada.
+ */
+export function gestureSet(agents: readonly GestureAgent[], cx: number, cy: number): ReadonlySet<number> | null {
+  if (agents.length <= GESTURE_BUDGET) return null;
+  const d = (a: Pick<GestureAgent, 'x' | 'y'>): number => (a.x * 16 + 8 - cx) ** 2 + (a.y * 16 + 16 - cy) ** 2;
+  return new Set([...agents].sort((p, q) => d(p) - d(q)).slice(0, GESTURE_BUDGET).map((a) => a.id));
+}
+

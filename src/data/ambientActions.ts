@@ -28,7 +28,7 @@ export type DayPart = 'morning' | 'afternoon' | 'evening' | 'night';
 export type AmbientTrait = 'smoker' | 'photographer';
 
 /** Lo que se lleva en la mano; cada uno tiene su dibujo (world/AmbientArt.ts o el de siempre). */
-export type AmbientProp = 'cigarette' | 'cup' | 'mug' | 'plate' | 'book' | 'bags' | 'glow';
+export type AmbientProp = 'cigarette' | 'cup' | 'mug' | 'plate' | 'book' | 'bags' | 'glow' | 'suitcase' | 'map';
 
 /** Dónde va lo que lleva: en la mano, en la boca, en la mesa de delante o en el regazo. */
 export type PropAnchor = 'hand' | 'mouth' | 'table' | 'lap';
@@ -89,7 +89,14 @@ export interface AmbientActionDef {
 export const TRAIT_SHARE: Readonly<Record<AmbientTrait, { base: number; roles?: Readonly<Record<string, number>> }>> = {
   // Una de cada cinco personas fuma; quien sale de la discoteca "a tomar el aire", casi siempre.
   smoker: { base: 0.2, roles: { 'club-smoke': 0.75, 'bar-smoke': 0.8, 'rincon-smoke': 0.8, 'club-queue': 0.3, 'night-walker': 0.3, 'carmen-hang': 0.35, 'carmen-prenight': 0.35 } },
-  photographer: { base: 0.1, roles: { stroller: 0.3, 'park-stroll': 0.25, 'carmen-browse': 0.25, 'carmen-couple': 0.3, 'carmen-outfit': 0.75, 'popup-market': 0.3, 'popup-art': 0.35 } },
+  photographer: {
+    base: 0.1,
+    roles: {
+      stroller: 0.3, 'park-stroll': 0.25, 'carmen-browse': 0.25, 'carmen-couple': 0.3, 'carmen-outfit': 0.75, 'popup-market': 0.3, 'popup-art': 0.35,
+      // Puerta Central: el monumento y las actuaciones se fotografían; la manta, menos.
+      tourist: 0.8, 'tourist-group': 0.6, 'tourist-walk': 0.5, 'show-watch': 0.5, 'stall-browse': 0.15,
+    },
+  },
 };
 
 const hold = (ms: readonly [number, number]): AmbientStep => ({ name: 'quieto', ms });
@@ -267,6 +274,21 @@ export const AMBIENT_ACTIONS: AmbientActionDef[] = [
     weight: 1, total: [60_000, 90_000], dayparts: { morning: 0.5, afternoon: 1.4, evening: 1, night: 0 },
     roles: { shopper: 6, bakery: 1.5, errands: 1.2, 'carmen-browse': 1.5, 'window-shopper': 1, 'popup-market': 4, 'sneaker-heads': 3 }, otherRoles: 0,
     loop: [{ name: 'con las bolsas', ms: [60_000, 90_000], prop: 'bags', at: 'hand' }],
+  },
+  {
+    // Quien llega o se va del hotel arrastra la maleta, andando y mientras espera el taxi o en recepción.
+    id: 'luggage', label: 'Con la maleta', postures: ['walk', 'stand'], contexts: ['walk', 'wait', 'idle'],
+    weight: 1, total: [90_000, 150_000],
+    roles: { 'hotel-guest': 30, 'hotel-checkout': 30 }, otherRoles: 0,
+    loop: [{ name: 'con la maleta', ms: [90_000, 150_000], prop: 'suitcase', at: 'hand' }],
+  },
+  {
+    // Turistas: el plano de papel abierto delante, andando o parados en seco en mitad de la plaza; lo giran, miran
+    // alrededor y vuelven a mirarlo.
+    id: 'map', label: 'Mirando el mapa', postures: ['walk', 'stand'], contexts: ['walk', 'idle', 'wait', 'browse', 'talk'],
+    weight: 1, total: [8_000, 16_000],
+    roles: { 'tourist-walk': 8, tourist: 3, 'tourist-group': 3, 'tourist-shop': 2, 'tourist-return': 1 }, otherRoles: 0,
+    loop: [{ name: 'leyendo el mapa', ms: [2_500, 4_500], prop: 'map', at: 'hand' }, { name: 'mirar alrededor', ms: [900, 1_600], prop: 'map', at: 'hand', look: 'aside' }],
   },
 ];
 

@@ -171,6 +171,11 @@ export type PropKind =
   | 'bed-tree'
   | 'flower-bed'
   | 'parking-meter'
+  // Velaria: la vitrina de la joyería y el carro de equipaje del hotel.
+  | 'vitrine'
+  | 'luggage-cart'
+  // Puerta Central: el monumento de la plaza.
+  | 'monument'
   // Ribera Norte (world/RiverArt): zona deportiva, quiosco de helados y salón recreativo.
   | 'pullup-bar'
   | 'skate-ramp'
@@ -282,6 +287,19 @@ export type BuildingStyle =
   | 'grocer'
   // Cuatro Ríos: móviles y reparaciones.
   | 'phone'
+  // Velaria: piedra, cristal y latón. Moda, piel, joyería, hotel, galería, gourmet, cocina de autor, clínica,
+  // peluquería y los portales nobles de la Calle Marqués.
+  | 'boutique'
+  | 'jewel'
+  | 'hotel'
+  | 'gallery'
+  | 'gourmet'
+  | 'fine'
+  | 'clinic'
+  | 'salon'
+  | 'res-noble'
+  // Puerta Central: la tienda de recuerdos.
+  | 'souvenir'
   | 'backdrop';
 
 /**

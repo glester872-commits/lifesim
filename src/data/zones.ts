@@ -298,4 +298,60 @@ export const ZONES: readonly ZoneDef[] = [
     ambience: 'transit',
     tags: ['outdoor', 'metro'],
   },
+  // Velaria (data/velaria.ts): la avenida de las casas de lujo y el hotel, la plaza con su fuente, terraza y metro, y la
+  // calle de portales tranquila. Mañana de oficina, tarde de compras, noche de cena; poca vida de madrugada.
+  {
+    id: 'vl-dorada', name: 'Avenida Dorada', type: 'commercial', location: 'velaria', districtId: 'velaria',
+    rects: [{ tx: 0, ty: 0, w: 48, h: 18 }],
+    population: {
+      label: 'compras, oficinas, huéspedes del hotel, turistas, dependientas y repartos',
+      roles: { shopper: 1.4, 'window-shopper': 1.3, office: 1.3, 'hotel-guest': 1.3, 'hotel-checkout': 1.3, tourist: 1.2, 'shift-shop': 1.2, doorman: 1.2 },
+    },
+    activity: { bands: [[8, 10, 1.2], [10, 13, 1], [13, 15, 1.2], [15, 17, 0.9], [17, 21, 1.3], [21, 23, 0.8]], rest: 0.25, weekend: 1, outdoor: 0.7, variation: 0.1 },
+    traffic: { vehicles: 0.9, bikes: 0.8, deliveries: 0.9 },
+    ambience: 'premium',
+    tags: ['outdoor', 'shops', 'traffic'],
+  },
+  {
+    id: 'vl-aurelia', name: 'Plaza Aurelia', type: 'plaza', location: 'velaria', districtId: 'velaria',
+    rects: [{ tx: 0, ty: 18, w: 48, h: 8 }],
+    population: { label: 'terraza, bancos de la fuente, turistas, quien sale del metro y quien va a la galería', roles: { terrace: 1.5, tourist: 1.3, 'plaza-elders': 1.2, 'metro-arrival': 1.2, gallery: 1.3 } },
+    activity: { bands: [[8, 10, 1], [10, 14, 1.2], [14, 17, 1], [17, 21, 1.3], [21, 23, 0.7]], rest: 0.2, weekend: 1.2, outdoor: 0.5, variation: 0.12 },
+    ambience: 'premium',
+    tags: ['outdoor', 'social', 'metro'],
+  },
+  {
+    id: 'vl-marques', name: 'Calle Marqués', type: 'residential', location: 'velaria', districtId: 'velaria',
+    rects: [{ tx: 0, ty: 26, w: 48, h: 12 }],
+    population: { label: 'vecinos, porteros, perros, la vinoteca y algún repartidor', roles: { returning: 1.2, doorman: 1.3, 'dog-walker': 1.2, courier: 1.1, 'after-work': 1.1 } },
+    activity: { bands: [[8, 10, 1], [10, 17, 0.7], [17, 21, 1], [21, 24, 0.8]], rest: 0.2, weekend: 0.9, outdoor: 0.6, variation: 0.15 },
+    traffic: { vehicles: 0.5, bikes: 0.6, deliveries: 0.8 },
+    ambience: 'premium',
+    tags: ['outdoor', 'residential'],
+  },
+  // Puerta Central (data/puertaCentral.ts): la calle del autobús y las tiendas, y la plaza más llena de la ciudad. Metro
+  // por la mañana, compras y turismo por la tarde, cenas y grupos por la noche; de madrugada, quien sale.
+  {
+    id: 'pc-puerta', name: 'Calle de la Puerta', type: 'commercial', location: 'puerta-central', districtId: 'puerta-central',
+    rects: [{ tx: 0, ty: 0, w: 56, h: 16 }],
+    population: {
+      label: 'gente que va al metro, compras, turistas con mapa, repartidores y quien sale del hostal',
+      roles: { commuter: 1.3, office: 1.2, shopper: 1.3, 'window-shopper': 1.3, tourist: 1.2, courier: 1.2, 'shift-shop': 1.2 },
+    },
+    activity: { bands: [[7, 10, 1.3], [10, 14, 1.2], [14, 17, 1.1], [17, 21, 1.4], [21, 24, 1], [0, 3, 0.6]], rest: 0.35, weekend: 1.2, outdoor: 0.6, variation: 0.1 },
+    traffic: { vehicles: 1.3, bikes: 1, deliveries: 1.4 },
+    ambience: 'centre',
+    tags: ['outdoor', 'shops', 'traffic'],
+  },
+  {
+    id: 'pc-plaza', name: 'Plaza de la Puerta', type: 'plaza', location: 'puerta-central', districtId: 'puerta-central',
+    rects: [{ tx: 0, ty: 16, w: 56, h: 24 }],
+    population: {
+      label: 'turistas, grupos de amigos, parejas, quien sale del metro, las mantas, la música y el baile',
+      roles: { tourist: 1.4, 'tourist-group': 1.4, 'friends-meet': 1.3, 'stall-browse': 1.3, 'show-watch': 1.4, 'metro-arrival': 1.2, terrace: 1.2 },
+    },
+    activity: { bands: [[7, 10, 1.1], [10, 14, 1.3], [14, 17, 1.2], [17, 22, 1.5], [22, 24, 1], [0, 3, 0.6]], rest: 0.3, weekend: 1.3, outdoor: 0.5, variation: 0.1 },
+    ambience: 'centre',
+    tags: ['outdoor', 'social', 'metro'],
+  },
 ];

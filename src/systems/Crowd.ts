@@ -124,6 +124,8 @@ export interface Agent {
   carry?: 'tray' | 'dishes';
   /** Lo que lleva consigo quien vive en la calle (mantas, bolsas, carro...): world/CrowdView lo pinta a su lado. */
   belongings?: readonly import('../data/streetSurvival.ts').Belonging[];
+  /** Vende o actúa en la calle (data/streetActs.ts): qué hace y lo que lleva. world/CrowdView lo pinta. */
+  act?: { kind: import('../data/streetActs.ts').ActKind; kit: readonly import('../data/streetActs.ts').ActProp[] };
   /** Lleva la ropa de entrenar (se la ha puesto en el vestuario). Su aspecto de calle no se toca: es `look`. */
   sport?: boolean;
   /** Se cambia en el paso que hace ahora (PlanStep.outfit): la ropa cambia a mitad, o al acabar el paso, siempre en su sitio. */

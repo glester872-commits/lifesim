@@ -174,8 +174,8 @@ export const ARCHETYPES: readonly FoodArchetype[] = [
     lines: LINES_CASUAL,
     layout: {
       w: 17, h: 12, doorX: 8,
-      // Como la pizzería: con la mesa en x 15 su segunda silla caía dentro de la pared.
-      tables: [[8, 4], [11, 4], [14, 4], [9, 7], [12, 7]],
+      // Cuatro mesas y la barra: una quinta en x 15 ponía su segunda silla dentro de la pared.
+      tables: [[9, 4], [12, 4], [9, 7], [12, 7]],
       bar: [[3, 5], [4, 5], [5, 5]],
       counter: [2, 6], stoveX: 4,
     },
@@ -241,13 +241,18 @@ export interface FoodVenue {
  * perfil se registran desde data/cuatroRiosVenues.ts. Para poner otro: un `b(...)` con `enter: into(id)` y
  * `door.building` como id en la calle, su lugar en data/places.ts, y su interior (FOOD_INTERIORS) y su perfil
  * (FOOD_VENUE_PROFILES) donde se registran. Carta y caja ya están (data/menus.ts, data/catalogs.ts).
- * El premium es del barrio de Velaria, que aún no tiene mapa.
+ * El premium, Kaizen, tiene su puerta en la Avenida Dorada de Velaria (data/velaria.ts) y se registra desde
+ * data/velariaVenues.ts.
  */
 export const FOOD_VENUES: readonly FoodVenue[] = [
   { id: 'pizzeria-roma', archetype: 'pizza-casual', name: 'Pizzería Roma', prefix: 'PIZZA', door: { location: 'cuatro-rios', building: 'cr-pizzeria' } },
   { id: 'burger-norte', archetype: 'burger-fast', name: 'Burger Norte', prefix: 'BURGER', door: { location: 'cuatro-rios', building: 'cr-burger' } },
   { id: 'sushi-nori', archetype: 'sushi-casual', name: 'Sushi Nori', prefix: 'NORI', door: { location: 'cuatro-rios', building: 'cr-sushi' } },
   { id: 'kaizen', archetype: 'sushi-premium', name: 'Kaizen', prefix: 'KAIZEN', door: { location: 'velaria', building: 'kaizen-door' } },
+  // Puerta Central (data/puertaCentral.ts): la pizzería de la calle y la hamburguesería de la plaza; se registran desde
+  // data/puertaCentralVenues.ts.
+  { id: 'pc-pizza', archetype: 'pizza-casual', name: 'Pizzería Vesubio', prefix: 'PCPIZZA', door: { location: 'puerta-central', building: 'pc-pizza' } },
+  { id: 'pc-burger', archetype: 'burger-fast', name: 'Burger Plaza', prefix: 'PCBURGER', door: { location: 'puerta-central', building: 'pc-burger' } },
 ];
 
 // ------------------------------------------------------------------ derivados

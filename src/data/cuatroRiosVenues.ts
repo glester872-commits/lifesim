@@ -19,11 +19,13 @@ const STREET = 'cuatro-rios';
 
 const use = (tx: number, ty: number, station: StationId, facing: PointDef['facing']): PointDef => ({ tx, ty, kind: 'interact', facing, use: station });
 
-interface Shop {
+export interface Shop {
   id: string;
   name: string;
   /** Edificio de la calle: su spawn es la vuelta. */
   building: string;
+  /** Calle a la que sale (por defecto, Cuatro Ríos). */
+  street?: string;
   /** Prefijo de los puntos. */
   pre: string;
   ambient: string;
@@ -36,16 +38,17 @@ interface Shop {
 }
 
 /** Tienda pequeña: mostrador (10–11, 7) con la caja, quien cobra detrás, la cola al lado y la puerta abajo. */
-function shopRoom(s: Shop): LocationDef {
+export function shopRoom(s: Shop): LocationDef {
   const P = s.pre;
   return {
     id: s.id,
     name: s.name,
     kind: 'interior',
     ground: room(14, 11, 7, () => 't'),
-    props: [...s.props, ...many('counter', [[10, 7], [11, 7]]), at('register', 11, 7)],
+    // La luz colgada sobre la caja: siempre encendida, como en cualquier tienda.
+    props: [...s.props, ...many('counter', [[10, 7], [11, 7]]), at('register', 11, 7), at('pendant', 10, 6)],
     ambient: s.ambient,
-    portals: [{ id: 'exit', tx: 7, ty: 9, label: 'Salir a la calle', to: { location: STREET, spawn: s.building } }],
+    portals: [{ id: 'exit', tx: 7, ty: 9, label: 'Salir a la calle', to: { location: s.street ?? STREET, spawn: s.building } }],
     spawns: { entry: { tx: 7, ty: 8, facing: 'up' } },
     npcs: [],
     terminals: s.catalog ? [{ tx: 10, ty: 7, name: `Caja · ${s.name}`, catalog: s.catalog }] : undefined,
@@ -181,7 +184,7 @@ function gymGround(): string[] {
   return rows.map((r) => r.join(''));
 }
 
-const GYM: LocationDef = {
+export const GYM: LocationDef = {
   id: 'cr-gym',
   name: 'Gimnasio Barrio Fit',
   kind: 'interior',
@@ -244,7 +247,7 @@ export const CR_INTERIORS: readonly LocationDef[] = [
 // ------------------------------------------------------------------ gente
 
 /** Mirar, hacer cola y pagar: el cliente de cualquier tienda pequeña de aquí. */
-const customer = (pre: string, line: string, weight = 1, extra: Partial<VisitorRole> = {}): VisitorRole => ({
+export const customer = (pre: string, line: string, weight = 1, extra: Partial<VisitorRole> = {}): VisitorRole => ({
   role: 'customer', label: 'Cliente', line, weight,
   plan: [
     { state: 'BROWSE', points: [`${pre}_BROWSE_`], minutes: [1, 4], repeat: [1, 2] },
@@ -254,7 +257,7 @@ const customer = (pre: string, line: string, weight = 1, extra: Partial<VisitorR
   ...extra,
 });
 
-const cashier = (pre: string, label: string, line: string, look = 'uniforme-tienda', offers?: StaffRole['offers']): StaffRole =>
+export const cashier = (pre: string, label: string, line: string, look = 'uniforme-tienda', offers?: StaffRole['offers']): StaffRole =>
   ({ service: 'cashier', label, line, look, points: [`${pre}_STAFF`], offers });
 
 const CHECK_IN: PlanStep = { state: 'CHECK_IN', points: ['CRGYM_RECEPTION'], minutes: [1, 2] };

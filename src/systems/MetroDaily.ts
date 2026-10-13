@@ -581,10 +581,12 @@ export function hourTag(
   ).tag;
 }
 
+/** hub: niveles de más en una estación de centro (data/transit.ts, TransitStop.hub); 0 en las de barrio. */
 export function crowdAt(
   daily: MetroDailyState,
   hour: number,
   minute: number,
+  hub = 0,
 ): CrowdLevel {
   const band =
     bandAt(
@@ -606,7 +608,8 @@ export function crowdAt(
 
         2 +
           daily.crowdShift +
-          offset,
+          offset +
+          hub,
       ),
     );
 

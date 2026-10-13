@@ -45,12 +45,14 @@ export interface DistrictIdentity {
 /** De qué tipo es cada viaje de la gente (TripRule.role en data/streets.ts): por prefijo o nombre, el primero que cuadra. */
 export const ROLE_GROUPS: readonly (readonly [RegExp, RoleGroup])[] = [
   [/^(club|bar-night|bar-smoke|rincon-night|rincon-smoke|rincon-vermut|night|carmen-prenight|gamer|popup-dj)/, 'nightlife'],
-  [/^(carmen-(browse|outfit|hang|wait)|window-shopper|shopper|late-shop|sneaker|tattoo|piercing|popup-(market|art|queue)|kiosk|errands|bakery)/, 'retail'],
+  [/^(carmen-(browse|outfit|hang|wait)|window-shopper|shopper|late-shop|sneaker|tattoo|piercing|popup-(market|art|queue)|kiosk|errands|bakery|stall-)/, 'retail'],
   [/^(hoops|calisthenics|cali-|court-|gym|jogger|skate)/, 'sport'],
   [/^(commuter|metro-arrival|office|bus|returning|passer)/, 'commute'],
   [/^(terrace|brunch|coffee|diner|bar-terrace|rincon-breakfast|ice-cream)/, 'food'],
-  [/^(tourist)/, 'tourism'],
-  [/^(street-cleaner|maintenance|courier|work-break|ride-wait)/, 'work'],
+  [/^(tourist|hotel-)/, 'tourism'],
+  [/^(after-work|friends-)/, 'social'],
+  [/^(street-cleaner|maintenance|courier|work-break|ride-wait|doorman|shift-)/, 'work'],
+  [/^(gallery|show-)/, 'leisure'],
   [/^(plaza-(family|elders|couple|rest)|park-elders|park-gathering)/, 'family'],
   [/^(river|riverside|couple-walk|park|plaza|stroller|dog-walker|reader|carmen-(couple|friends|bench)|metro-meet)/, 'leisure'],
 ];
@@ -95,15 +97,17 @@ export const DISTRICT_IDENTITIES: Readonly<Record<string, DistrictIdentity>> = {
   velaria: {
     name: 'Velaria', tagline: 'premium, tranquilo y de negocios',
     density: { bands: [[7, 10, 1.2], [10, 18, 1], [18, 22, 0.8], [22, 24, 0.4]], rest: 0.3, weekend: 0.7 },
-    groups: { commute: 1.4, food: 1.2, retail: 1.2, nightlife: 0.5, family: 0.8, sport: 1.1 },
+    groups: { commute: 1.4, food: 1.2, retail: 1.3, tourism: 1.3, nightlife: 0.5, family: 0.8, sport: 1.1 },
     traffic: { vehicles: 0.9, bikes: 0.8, deliveries: 1.2 },
     scooters: 0.4,
     security: 1.5, events: 0.5, ambience: 0.6,
   },
+  // Puerta Central (data/puertaCentral.ts): la zona más llena del juego. Por la mañana, metro; por la tarde, compras y
+  // turismo; por la noche, cenas y grupos; de madrugada, menos turista y la gente que sale.
   'puerta-central': {
     name: 'Puerta Central', tagline: 'mucha gente: turismo, compras y transporte',
     density: { bands: [[7, 10, 1.4], [10, 21, 1.6], [21, 24, 1.2]], rest: 0.7, weekend: 1.3 },
-    groups: { tourism: 1.8, retail: 1.5, commute: 1.5, food: 1.3, nightlife: 1.1, family: 0.9 },
+    groups: { tourism: 1.8, retail: 1.5, commute: 1.5, food: 1.3, nightlife: 1.1, family: 0.9, leisure: 1.3, social: 1.3 },
     traffic: { vehicles: 1.3, bikes: 1, deliveries: 1.5 },
     scooters: 1.5,
     security: 1.4, events: 1.2, ambience: 1.4,
@@ -143,4 +147,8 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'ribera-station': 'ribera',
   'cuatro-rios': 'cuatro-rios',
   'cuatro-rios-station': 'cuatro-rios',
+  velaria: 'velaria',
+  'velaria-station': 'velaria',
+  'puerta-central': 'puerta-central',
+  'puerta-central-station': 'puerta-central',
 };

@@ -23,6 +23,7 @@ export const PIECE_SIZE: Readonly<Record<PopUpPiece, readonly [number, number]>>
   easel: [16, 30],
   'sign-sneaker': [16, 28],
   boxes: [16, 22],
+  carpet: [48, 20],
 };
 
 function awning(ctx: Ctx, w: number, a: string, b: string): void {
@@ -211,6 +212,22 @@ function drawBoxes(ctx: Ctx): void {
   });
 }
 
+/** Alfombra granate con filo dorado y dos postes de latón con su cordón: la entrada de una gala o de un lanzamiento. */
+function drawCarpet(ctx: Ctx): void {
+  const brass = '#c9a45a';
+  px(ctx, '#6a1f2a', 8, 12, 32, 8);
+  px(ctx, shade('#6a1f2a', 0.18), 8, 12, 32, 1);
+  px(ctx, brass, 8, 13, 32, 1);
+  px(ctx, brass, 8, 18, 32, 1);
+  for (const x of [2, 44]) {
+    px(ctx, brass, x, 4, 2, 15);
+    px(ctx, shade(brass, 0.3), x - 1, 3, 4, 2);
+    px(ctx, shade(brass, -0.3), x - 1, 18, 4, 2);
+  }
+  // El cordón: cuelga entre los postes por detrás de la alfombra.
+  for (let x = 4; x < 44; x++) px(ctx, '#8c2f3f', x, 6 + Math.round(Math.sin(((x - 4) / 40) * Math.PI) * 3), 1, 1);
+}
+
 export function buildPopUpTextures(scene: Phaser.Scene): void {
   const [sw, sh] = PIECE_SIZE['stall-vintage'];
   make(scene, pieceKey('stall-vintage'), sw, sh, (ctx) => drawStall(ctx, true));
@@ -221,4 +238,5 @@ export function buildPopUpTextures(scene: Phaser.Scene): void {
   make(scene, pieceKey('easel'), PIECE_SIZE.easel[0], PIECE_SIZE.easel[1], drawEasel);
   make(scene, pieceKey('sign-sneaker'), PIECE_SIZE['sign-sneaker'][0], PIECE_SIZE['sign-sneaker'][1], drawSneakerSign);
   make(scene, pieceKey('boxes'), PIECE_SIZE.boxes[0], PIECE_SIZE.boxes[1], drawBoxes);
+  make(scene, pieceKey('carpet'), PIECE_SIZE.carpet[0], PIECE_SIZE.carpet[1], drawCarpet);
 }

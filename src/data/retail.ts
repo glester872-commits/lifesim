@@ -94,6 +94,20 @@ const SEEDS: readonly GarmentSeed[] = [
   { id: 'zapatilla-retro', name: 'Zapatillas retro de running', category: 'zapatillas', description: 'Nailon y ante en gris y naranja, como en el 84.', color: '#c97a3a' },
   { id: 'zapatilla-edicion', name: 'Zapatillas edición limitada', category: 'zapatillas', description: 'Tirada de cien pares, numeradas. No se reservan.', color: '#d84a5a', unique: true },
   { id: 'bota-cuero', name: 'Botas de cuero', category: 'zapatos', description: 'Cuero engrasado, suela de goma. Duran más que tú.', color: '#4a2f1f' },
+  // Velaria. Maison Ferrant: sastrería y prendas de temporada de las que se notan a dos metros.
+  { id: 'abrigo-camel', name: 'Abrigo de pelo de camello', category: 'chaqueta', description: 'Cruzado, largo hasta la rodilla. Se nota a dos metros que no es de mezcla.', color: '#b88a5a', dark: '#94693f' },
+  { id: 'americana-sastre', name: 'Americana de sastrería', category: 'chaqueta', description: 'Lana fría gris marengo, hombro natural, hecha a medida en serie.', color: '#4a4f57', dark: '#373b42' },
+  { id: 'camisa-popelin', name: 'Camisa de popelín', category: 'camisa', description: 'Algodón egipcio, cuello italiano, botones de nácar.', color: '#f2f0ea', dark: '#d6d2c8' },
+  { id: 'jersey-cachemir', name: 'Jersey de cachemir', category: 'sudadera', description: 'Cuello redondo, galga fina. Pesa menos que la etiqueta.', color: '#c9b89a', dark: '#a8987c' },
+  { id: 'pantalon-sastre', name: 'Pantalón de sastre', category: 'pantalon', description: 'Raya marcada, bajo vuelto, caída perfecta.', color: '#3a3f48' },
+  // Atelier Brisa: piel y calzado, cosido a mano.
+  { id: 'mocasin-piel', name: 'Mocasines de piel', category: 'zapatos', description: 'Piel de becerro color tabaco, cosidos a mano en Menorca.', color: '#5a3a28' },
+  { id: 'botin-chelsea', name: 'Botines Chelsea', category: 'zapatos', description: 'Ante negro, elástico lateral y suela de cuero.', color: '#2b2d33' },
+  { id: 'zapatilla-piel-lujo', name: 'Zapatillas de piel italiana', category: 'zapatillas', description: 'Napa blanca, suela cosida y el talón de otro color.', color: '#f2efe8' },
+  { id: 'cazadora-napa', name: 'Cazadora de napa', category: 'chaqueta', description: 'Napa de cordero, forro de seda. Se ablanda con los años.', color: '#1c1a20', dark: '#121016' },
+  // Puerta Central. Recuerdos de la Puerta: lo de la plaza, para llevárselo puesto.
+  { id: 'camiseta-rosa', name: 'Camiseta de la Rosa de los Vientos', category: 'camiseta', description: 'Blanca, con la esfera del monumento en rojo y «Puerta Central» debajo. Se reconoce desde lejos.', color: '#f2efe8', dark: '#d2cec4', sleeve: 'short' },
+  { id: 'sudadera-puerta', name: 'Sudadera «Puerta Central»', category: 'sudadera', description: 'Azul marino, capucha y el nombre de la plaza en letras de colegio americano.', color: '#2a3550', dark: '#1d2539' },
 ];
 
 export const GARMENTS: readonly GarmentDef[] = SEEDS.map((g) => {
@@ -174,6 +188,33 @@ export const STORES: readonly RetailStoreDef[] = [
     stock: [
       { garment: 'chandal-gris', price: 30 }, { garment: 'camiseta-grafica', price: 18 }, { garment: 'cargo-negro', price: 44 },
       { garment: 'zapatilla-blanca', price: 69 }, { garment: 'camiseta-tirantes', price: 14 },
+    ],
+  },
+  // Velaria: dos casas de lujo. Lo mismo que cualquier tienda (percheros, probador, caja), con otros precios.
+  {
+    id: 'ferrant', name: 'Maison Ferrant', greeting: 'Bienvenido. Tómese su tiempo; si quiere probarse algo, le preparo el probador.', thanks: 'Se lo llevo a la caja. Le queda impecable.',
+    stock: [
+      { garment: 'abrigo-camel', price: 690 }, { garment: 'americana-sastre', price: 520 }, { garment: 'camisa-popelin', price: 160 },
+      { garment: 'jersey-cachemir', price: 340 }, { garment: 'pantalon-sastre', price: 240 }, { garment: 'blazer-entallado', price: 380 },
+    ],
+  },
+  {
+    id: 'brisa', name: 'Atelier Brisa · piel y calzado', greeting: 'Todo cosido a mano. Si quiere, le tomo la medida del pie.', thanks: 'Con un poco de crema cada mes, le duran toda la vida.',
+    stock: [
+      { garment: 'mocasin-piel', price: 320 }, { garment: 'botin-chelsea', price: 380 }, { garment: 'zapatilla-piel-lujo', price: 410 },
+      { garment: 'cazadora-napa', price: 890 }, { garment: 'bota-cuero', price: 260 },
+    ],
+  },
+  // Puerta Central: la tienda de recuerdos y la cadena de moda de la calle.
+  {
+    id: 'recuerdos', name: 'Recuerdos de la Puerta', greeting: 'Hello, hola, bonjour. Las camisetas, tres por veinticinco.', thanks: 'Que la disfrutes. Si te pierdes, vuelve a la Rosa.',
+    stock: [{ garment: 'camiseta-rosa', price: 12 }, { garment: 'sudadera-puerta', price: 29 }, { garment: 'camiseta-grafica', price: 15 }],
+  },
+  {
+    id: 'central', name: 'Moda Central', greeting: 'Hola. Probadores al fondo; máximo cuatro prendas.', thanks: 'Si no te vale, tienes treinta días con el tique.',
+    stock: [
+      { garment: 'camiseta-basica', price: 8 }, { garment: 'vaquero-recto', price: 30 }, { garment: 'camisa-lino', price: 26 },
+      { garment: 'rebeca-punto', price: 23 }, { garment: 'vestido-lunares', price: 30 }, { garment: 'pantalon-pinzas', price: 28 },
     ],
   },
 ];

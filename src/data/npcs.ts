@@ -335,6 +335,11 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'uniforme-limpieza', cloth: '#7be22b', clothDark: '#58b81c', hair: '#2a2430', trousers: '#2b3a34', sleeves: '#7be22b', cap: '#7be22b', reflective: '#e9ecd2', stripe: '#e9ecd2' },
   { id: 'uniforme-mantenimiento', cloth: '#3d6f9a', clothDark: '#2c5273', hair: '#33291f', trousers: '#3d6f9a', cap: '#e0a21e' },
   { id: 'uniforme-reparto', cloth: '#1f9a8a', clothDark: '#157064', hair: '#1f1a15', trousers: '#232329', bag: '#1f9a8a', cap: '#232329' },
+  // Velaria: chaqueta granate del hotel, levita verde con gorra del portero, negro de las casas de moda y blanco de la clínica.
+  { id: 'uniforme-hotel', cloth: '#5a2a32', clothDark: '#42202a', hair: '#2a2430', trousers: '#1c1a20' },
+  { id: 'uniforme-portero', cloth: '#2f4a3a', clothDark: '#22362a', hair: '#33291f', trousers: '#1c1a20', cap: '#2f4a3a' },
+  { id: 'uniforme-boutique', cloth: '#1c1a20', clothDark: '#121016', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20' },
+  { id: 'uniforme-clinica', cloth: '#f2f4f6', clothDark: '#d4d9de', hair: '#4a3b2f', trousers: '#f2f4f6' },
 ];
 
 /**

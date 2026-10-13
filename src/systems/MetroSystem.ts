@@ -44,6 +44,7 @@ import { SecurityAI } from './SecurityAI';
 import { absMinute, FRESH_MINUTES, handoffs } from './Handoff';
 import { identityOf } from './Zones';
 import { LOCATION_DISTRICT } from '../data/districtIdentity';
+import { STOPS } from '../data/transit';
 import { weatherAt } from './Weather';
 import { dressedLook } from '../world/WeatherLooks';
 import { StuckWatch } from './Recovery';
@@ -95,6 +96,9 @@ export interface MetroClock {
   readonly hour: number;
   readonly minute: number;
 }
+
+/** Niveles de gente de más en el andén de esa estación (data/transit.ts: hub). */
+const hubOf = (stationId: string): number => STOPS.find((s) => s.station === stationId)?.hub ?? 0;
 
 /**
  * Estación viva: tren, pasajeros y vigilancia.
@@ -196,6 +200,7 @@ export class MetroSystem {
       this.daily,
       clock.hour,
       clock.minute,
+      hubOf(stationId),
     );
 
     this.tag = hourTag(
@@ -649,6 +654,7 @@ export class MetroSystem {
       this.daily,
       hour,
       minute,
+      hubOf(this.stationId),
     );
 
     if (level === this.level) {

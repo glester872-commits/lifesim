@@ -664,6 +664,77 @@ function drawPastryCase(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 1, 9, 14, 1);
 }
 
+/** Vitrina de joyería: peana de madera oscura, cristal con su reflejo y relojes y anillos sobre terciopelo. */
+function drawVitrine(ctx: Ctx): void {
+  px(ctx, PALETTE.woodDark, 1, 9, 14, 6);
+  px(ctx, shade(PALETTE.woodDark, 0.12), 1, 9, 14, 1);
+  px(ctx, '#3a2a40', 2, 4, 12, 5);
+  px(ctx, shade(PALETTE.glass, 0.35), 1, 2, 14, 2);
+  px(ctx, '#e8f4fa', 2, 2, 5, 1);
+  for (let x = 3; x < 13; x += 3) {
+    px(ctx, '#e6d29a', x, 5, 2, 2);
+    px(ctx, '#f4f4f8', x + 1, 7, 1, 1);
+  }
+  px(ctx, '#c9a45a', 1, 8, 14, 1);
+}
+
+/** Carro de equipaje del hotel: barra de latón en arco, dos maletas y una bolsa de viaje sobre la plataforma. */
+function drawLuggageCart(ctx: Ctx): void {
+  const brass = '#c9a45a';
+  px(ctx, brass, 2, 2, 12, 1);
+  px(ctx, brass, 2, 2, 1, 24);
+  px(ctx, brass, 13, 2, 1, 24);
+  px(ctx, '#6a2f3a', 3, 10, 5, 13);
+  px(ctx, shade('#6a2f3a', 0.15), 3, 10, 5, 1);
+  px(ctx, '#2b2d33', 8, 14, 5, 9);
+  px(ctx, shade('#2b2d33', 0.2), 8, 14, 5, 1);
+  px(ctx, '#9a7a4a', 4, 7, 8, 3);
+  px(ctx, PALETTE.ink, 5, 6, 6, 1);
+  px(ctx, shade(brass, -0.25), 2, 23, 12, 2);
+  px(ctx, PALETTE.ink, 3, 25, 2, 2);
+  px(ctx, PALETTE.ink, 11, 25, 2, 2);
+}
+
+/**
+ * La Rosa de los Vientos: zócalo y pedestal de granito con la placa de latón, y encima la esfera armilar de bronce (el
+ * aro, el ecuador, la eclíptica inclinada y el eje con su remate). La luz, arriba a la izquierda.
+ */
+function drawMonument(ctx: Ctx): void {
+  const bronze = '#8a6a3a';
+  const lit = '#c9a45a';
+  const dark = shade(bronze, -0.3);
+  // Zócalo de dos escalones y pedestal.
+  px(ctx, shade(PALETTE.stone, -0.12), 1, 56, 46, 8);
+  px(ctx, PALETTE.stoneLit, 1, 56, 46, 2);
+  px(ctx, PALETTE.stone, 5, 50, 38, 7);
+  px(ctx, PALETTE.stoneLit, 5, 50, 38, 1);
+  px(ctx, PALETTE.stone, 14, 30, 20, 21);
+  px(ctx, PALETTE.stoneLit, 14, 30, 3, 21);
+  px(ctx, shade(PALETTE.stone, -0.15), 31, 30, 3, 21);
+  px(ctx, PALETTE.stoneLit, 12, 27, 24, 3);
+  // La placa.
+  px(ctx, dark, 18, 37, 12, 7);
+  px(ctx, lit, 19, 38, 10, 5);
+  px(ctx, dark, 21, 40, 6, 1);
+  // La esfera: aro exterior, ecuador, eclíptica y el eje con el remate.
+  const cx = 24;
+  const cy = 14;
+  for (let a = 0; a < 64; a++) {
+    const t = (a / 64) * Math.PI * 2;
+    const x = Math.round(cx + Math.cos(t) * 11);
+    const y = Math.round(cy + Math.sin(t) * 11);
+    px(ctx, Math.sin(t) < 0 && Math.cos(t) < 0.3 ? lit : bronze, x, y, 2, 2);
+    px(ctx, bronze, Math.round(cx + Math.cos(t) * 11), Math.round(cy + Math.sin(t) * 3), 1, 1);
+    px(ctx, dark, Math.round(cx + Math.cos(t) * 10), Math.round(cy + Math.cos(t) * 5 + Math.sin(t) * 2), 1, 1);
+  }
+  px(ctx, dark, cx, 1, 1, 26);
+  px(ctx, lit, cx - 1, 0, 3, 2);
+  px(ctx, lit, cx - 1, 13, 3, 3);
+  // El pie que une la esfera al pedestal.
+  px(ctx, bronze, 21, 25, 7, 2);
+  px(ctx, lit, 21, 25, 3, 1);
+}
+
 /** Lámpara colgante: cable y pantalla una baldosa por encima de su base. */
 function drawPendant(ctx: Ctx): void {
   px(ctx, PALETTE.ink, 7, 0, 1, 10);
@@ -779,6 +850,9 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-wall-shelf', TILE * 2, TILE, drawWallShelf);
   make(scene, 'prop-espresso', TILE, TILE, drawEspresso);
   make(scene, 'prop-pastry-case', TILE, TILE, drawPastryCase);
+  make(scene, 'prop-vitrine', TILE, TILE, drawVitrine);
+  make(scene, 'prop-luggage-cart', TILE, TILE * 2, drawLuggageCart);
+  make(scene, 'prop-monument', TILE * 3, TILE * 4, drawMonument);
   make(scene, 'prop-pendant', TILE, TILE * 2, drawPendant);
   make(scene, 'prop-tube-light', TILE * 2, TILE * 2, drawTubeLight);
 

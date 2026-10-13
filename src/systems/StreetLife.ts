@@ -26,6 +26,8 @@ import { TableService } from './TableService.ts';
 import { FREEZING_BELOW, HEAVY_RAIN, outdoorAppeal, SCORCHING_ABOVE, weatherAt, type Weather } from './Weather.ts';
 import type { StreetSurvivor, SurvivalState } from '../data/streetSurvival.ts';
 import { planFor, survivorsOf, type SurvivalPlan } from './StreetSurvival.ts';
+import type { StreetAct } from '../data/streetActs.ts';
+import { actOn, actsOf, PACK_MS, SETUP_MS, workState, working } from './StreetActs.ts';
 import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
 import { Litter } from './Litter.ts';
 import { absMinute, dueOut, enterPlace, insideLooks, type Handoff } from './Handoff.ts';
@@ -67,6 +69,19 @@ export function weatherBias(rule: TripRule, w: Weather): number {
 }
 
 const MS_PER_GAME_MINUTE = 1000 / GAME_MINUTES_PER_REAL_SECOND;
+
+/** El presupuesto de gente (StreetLife.budget) no baja de aquí: una calle llena a medias sigue llena. */
+export const MIN_BUDGET = 0.55;
+
+/**
+ * El presupuesto de gente del siguiente frame (LOD): si el frame medio pasa de 22 ms (menos de ~45 fps sostenidos),
+ * baja poco a poco; por debajo de 18 ms vuelve a subir. Del 100 % al mínimo tarda unos quince segundos a 60 fps: un
+ * tirón suelto no vacía la calle y, si el equipo no puede, la gente que pasa se va sin que nadie desaparezca de golpe.
+ */
+export function crowdBudget(budget: number, frameMs: number): number {
+  const step = frameMs > 22 ? -0.0005 : frameMs < 18 ? 0.0003 : 0;
+  return Math.min(1, Math.max(MIN_BUDGET, budget + step));
+}
 /** Nadie se queda parado en la calzada, aunque se pueda pisar. */
 /** Rol ambiente (TripRule.ambient): como mucho tanta gente a la vez en toda la calle, y la probabilidad de que cada decisión de la calle saque uno. */
 export const AMBIENT_CAP = 8;
@@ -170,6 +185,8 @@ export interface Walker extends Agent {
   tie?: RelationType;
   /** Quien vive en la calle: quién es (data/streetSurvival.ts) y qué va a hacer al llegar a su sitio. */
   survivor?: StreetSurvivor;
+  /** Quien vende o actúa en la calle (data/streetActs.ts): su puesto y cuál de ellos es (índice en `pitch`). */
+  gig?: { def: StreetAct; member: number };
   goal?: SurvivalState;
   /** Ms que lleva esperando en un semáforo: pasado RECOVERY.holdMs, ya no es esperar (systems/Recovery). */
   heldMs?: number;
@@ -257,6 +274,13 @@ export class StreetLife {
   private signalBase = -1;
   /** Oleadas del metro: gente por salir, ms hasta la siguiente y el último tren que llegó. */
   private readonly waves: { pending: number; release: number; train: number }[];
+
+  /**
+   * Presupuesto de gente (LOD), de MIN_BUDGET a 1: la parte de la gente que pide la hora que sale de verdad.
+   * WorldScene lo baja si los frames se alargan (crowdBudget) y lo sube cuando sobra. Sólo recorta a quien pasa:
+   * el personal, quien vive en la calle, quien vende o actúa y la gente de los eventos no dependen de él.
+   */
+  budget = 1;
 
   /** Los robos de la calle (systems/Pickpocket): raros, sólo con mucha gente alrededor y en zonas que lo permiten. */
   readonly pickpocket: StreetPickpocket;
@@ -468,9 +492,10 @@ export class StreetLife {
     this.tickSignals(clock, 0);
     const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
     this.rng = seededRng(hashSeed('street-populate', this.loc.id, clock.day, slot));
-    const target = streetTargetAt(this.profile, clock);
+    const target = Math.round(streetTargetAt(this.profile, clock) * this.budget);
     this.staffShift(clock);
     this.survivorShift(clock, true);
+    this.actShift(clock, true);
     // Quien sale ahora mismo de un local por su puerta, antes que nadie: su cara no se la queda otro.
     for (const h of dueOut(this.loc.id, this.now)) this.emerge(h, clock);
     for (let tries = 0; this.walkers().length < target && tries < target * 4; tries++) this.startTrip(clock, player, target, true);
@@ -511,7 +536,10 @@ export class StreetLife {
       // Hablando con el jugador: quieto donde está; su plan sigue al despedirse.
       if (a.talking) a.moving = false;
       else if (a.kind === 'staff') this.advanceStaff(a, deltaMs);
-      else if (a.kind === 'street') this.advanceSurvivor(a, deltaMs);
+      else if (a.kind === 'street') {
+        if (a.gig) this.advanceAct(a, deltaMs);
+        else this.advanceSurvivor(a, deltaMs);
+      }
       else if (Math.abs(a.x - player.tx) > FULL_SIM_RADIUS || Math.abs(a.y - player.ty) > FULL_SIM_RADIUS) {
         // Lejos del jugador (y fuera de cámara): el mismo viaje, a pasos gruesos. Nadie lo ve dar saltos.
         a.farMs = (a.farMs ?? 0) + deltaMs;
@@ -544,7 +572,8 @@ export class StreetLife {
     this.refresh(clock);
     this.staffShift(clock);
     this.survivorShift(clock, false);
-    const { target } = this.stats;
+    this.actShift(clock, false);
+    const target = Math.round(this.stats.target * this.budget);
     const walking = this.walkers().length;
     if (walking < target) this.startTrip(clock, player, target, false);
     else if (walking > target + 2) {
@@ -577,7 +606,8 @@ export class StreetLife {
       if (w.pending <= 0 || w.release > 0) return;
       w.pending--;
       w.release = between(this.rng, 700, 1_600);
-      if (this.walkers().length < this.profile.maxWalkers) this.startTrip(clock, player, this.profile.maxWalkers, false, b.point);
+      const cap = Math.round(this.profile.maxWalkers * this.budget);
+      if (this.walkers().length < cap) this.startTrip(clock, player, cap, false, b.point);
     });
   }
 
@@ -1022,6 +1052,97 @@ export class StreetLife {
     else a.state = a.goal ?? a.state;
   }
 
+  // ---------------------------------------------- venta ambulante y artistas
+
+  /**
+   * Quien vende o actúa en la calle (data/streetActs.ts): como quien vive en ella, tiene su sitio y no hace viajes ni
+   * cuenta para la gente que pasa. Llega por el borde más cercano con todo a cuestas, monta (SETUP), vende (SELL) o
+   * actúa (PERFORM) y, cuando acaba su tramo o se pone a llover, recoge (PACK) y se va por un borde. Si el jugador llega
+   * a mitad de su tramo, ya está montado. Su cara es la de cualquiera que pase por esa zona (pickLook, con el peso de
+   * ropa de la zona y sin repetir a nadie), distinta cada día: ningún puesto tiene una cara fija.
+   */
+  private actShift(clock: Clock, instant: boolean): void {
+    for (const def of actsOf(this.loc.id)) {
+      const on = actOn(def, clock, this.weather);
+      def.pitch.forEach((spot, member) => {
+        const a = this.agents.find((w) => w.gig?.def === def && w.gig.member === member && !w.vanish);
+        if (on && !a) this.addAct(def, member, spot, clock, instant);
+        else if (!on && a && !a.talking) this.packUp(a);
+      });
+    }
+  }
+
+  private addAct(def: StreetAct, member: number, spot: string, clock: Clock, instant: boolean): void {
+    if (this.agents.some((o) => !o.vanish && (o.point === spot || o.stayPoint === spot))) return;
+    const at = this.pointAt(spot);
+    const edge = this.nearestEdge(at);
+    // Con su propio azar (de ese puesto y ese día): que venga o no venga no cambia a nadie más de la calle.
+    const shared = this.rng;
+    this.rng = seededRng(hashSeed('street-act-walk', def.id, member, clock.day));
+    const look = this.pickLook(undefined, at, this.usedLooks());
+    const a = this.newWalker(undefined, instant || !edge ? at : this.pointAt(edge), [], look);
+    this.rng = shared;
+    Object.assign(a, { kind: 'street', role: `act-${def.kind}`, label: def.label, line: def.line, gig: { def, member }, act: { kind: def.kind, kit: def.kit[member] ?? [] } });
+    // Cargado con la manta, el altavoz o la guitarra: un poco más despacio.
+    a.speed *= 0.85;
+    this.claimSpot(a, spot);
+    if (instant || !edge) {
+      this.settleAct(a, true);
+      return;
+    }
+    const path = routeThrough([edge, spot]);
+    a.path = path ? path.slice(1) : this.gridPath(a, at);
+    a.state = 'MOVE';
+  }
+
+  /** En su sitio: monta (o, si el jugador llega con todo ya montado, a trabajar). */
+  private settleAct(a: Walker, ready: boolean): void {
+    a.moving = false;
+    a.staying = true;
+    if (a.point) {
+      this.seats.occupy(a.point, a.id);
+      a.dir = this.loc.points?.[a.point]?.facing ?? a.dir;
+    }
+    a.state = ready ? workState(a.gig!.def) : 'SETUP';
+    a.timer = ready ? 0 : between(this.rng, ...SETUP_MS) * (this.weather.rain > 0.08 ? 0.5 : 1);
+  }
+
+  /**
+   * Se acabó su tramo (o llueve): si ya estaba montado, recoge en su sitio y luego se va; si aún venía, se da la vuelta.
+   * Quien estaba mirando o comprando en su puesto acaba enseguida.
+   */
+  private packUp(a: Walker): void {
+    if (!a.staying) {
+      this.survivorLeaves(a);
+      return;
+    }
+    if (a.state === 'PACK') return;
+    a.state = 'PACK';
+    a.timer = between(this.rng, ...PACK_MS) * (this.weather.rain > 0.08 ? 0.5 : 1);
+    for (const w of this.agents) if (w.rule?.act === a.gig!.def.id && w.staying) w.timer = Math.min(w.timer, 1_500);
+  }
+
+  private advanceAct(a: Walker, deltaMs: number): void {
+    if (a.path.length > 0) {
+      this.walk(a, deltaMs);
+      // Tras cruzar con el verde, el semáforo lo deja en WALK: llegando o yéndose, es MOVE.
+      if (a.state === 'WALK') a.state = 'MOVE';
+      if (a.path.length > 0 || a.vanish) return;
+    }
+    if (a.vanish) return;
+    if (!a.staying) return this.settleAct(a, false);
+    if (a.state !== 'SETUP' && a.state !== 'PACK') return;
+    a.timer -= deltaMs;
+    if (a.timer > 0) return;
+    if (a.state === 'SETUP') a.state = workState(a.gig!.def);
+    else this.survivorLeaves(a);
+  }
+
+  /** Ese puesto está montado y trabajando ahora mismo: sólo entonces se para alguien a comprar o a mirar. */
+  private actWorking(id: string): boolean {
+    return this.agents.some((a) => a.gig?.def.id === id && a.staying && !a.vanish && working(a.state));
+  }
+
   /** El borde del barrio más cerca de ese tile. */
   private nearestEdge(at: TilePoint): string | undefined {
     let best: string | undefined;
@@ -1214,6 +1335,7 @@ export class StreetLife {
     const popup = activePopUp(this.loc.id, clock)?.id;
     for (const rule of this.profile.trips) {
       if (rule.popup && rule.popup !== popup) continue;
+      if (rule.act && !this.actWorking(rule.act)) continue;
       if (!!rule.ambient !== ambient) continue;
       if (!inHours(rule.hours, t)) continue;
       if (rule.days === 'weekday' && weekend) continue;

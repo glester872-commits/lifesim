@@ -86,7 +86,7 @@ export interface AmbientPlacement {
 
 /** El dibujo de cada cosa que se lleva en un gesto (world/AmbientArt y los de siempre). */
 const PROP_TEXTURE: Readonly<Record<AmbientProp, string>> = {
-  cigarette: 'fx-cigarette', cup: 'fx-cup', mug: 'fx-mug', plate: 'fx-plate', book: 'fx-book', bags: 'fx-bags', glow: 'fx-phone',
+  cigarette: 'fx-cigarette', cup: 'fx-cup', mug: 'fx-mug', plate: 'fx-plate', book: 'fx-book', bags: 'fx-bags', glow: 'fx-phone', suitcase: 'fx-suitcase', map: 'fx-map',
 };
 
 /** Hacia dónde mira en un tramo: a un lado (cada uno el suyo), al otro, o hacia quien le acompaña. */
@@ -602,7 +602,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     // De espaldas, lo que va en la boca queda tras la cabeza; lo de la mano, no: la mano asoma por fuera del tronco.
     const front = y + 1;
     let at: { x: number; y: number; depth: number } | null = null;
-    if (step.at === 'hand') at = { ...hand, y: hand.y + (step.prop === 'bags' ? 6 : 0), depth: front };
+    if (step.at === 'hand') at = { ...hand, y: hand.y + (step.prop === 'bags' ? 6 : step.prop === 'suitcase' ? 7 : 0), depth: front };
     else if (step.at === 'mouth') at = { ...mouth, depth: dir === 'up' ? y - 0.5 : front };
     else if (step.at === 'table') {
       const [ox, oy] = TABLE_OFFSET[where.dir];
