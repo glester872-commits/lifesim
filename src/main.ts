@@ -19,7 +19,8 @@ import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { CyclistView } from './world/CyclistView';
 import { HD_SCALE, hdCompare } from './world/HumanArtHD';
-import { riderTexture } from './world/CyclistArt';
+import { RIDER_SCALE, riderTexture } from './world/CyclistArt';
+import { sleeperTexture } from './world/SurvivalArt';
 import { BIKES } from './data/bikes';
 import { PASSENGER_LOOKS } from './data/npcs';
 import { ALLEY_SPOTS } from './data/alleyDeals';
@@ -590,9 +591,9 @@ social: {
           x += img.displayWidth + 8;
         };
         put(humanKey('player', 'right', 0), undefined, HD_SCALE, 'peatón');
-        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'skate')!, color: 0, helmet: false, pack: false }), 0, 1, 'tabla');
-        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'scooter')!, color: 0, helmet: true, pack: false }), 0, 1, 'patinete');
-        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, 1, 'bici');
+        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'skate')!, color: 0, helmet: false, pack: false }), 0, RIDER_SCALE, 'tabla');
+        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'scooter')!, color: 0, helmet: true, pack: false }), 0, RIDER_SCALE, 'patinete');
+        put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, RIDER_SCALE, 'bici');
         put('veh-compact-0', undefined, 1, 'coche');
         put('veh-bus-0', undefined, 1, 'autobús');
         // Mobiliario a la misma escala (config/scale.ts): banco, banco de plaza, farola, marquesina y árbol.
@@ -642,7 +643,15 @@ social: {
         person('con nombre', 'sara');
         person('servicio', 'uniforme-sala');
         person('seguridad', 'marco');
-        put('ciclista', riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, 1);
+        // Una de cada categoría que sale en el juego (sin ropa nueva, gimnasio, limpieza, reparto, vehículos y la calle).
+        person('sin outfit', 'pasajero-5');
+        person('gimnasio', 'uniforme-gym');
+        person('limpieza', 'uniforme-limpieza');
+        person('reparto', 'uniforme-reparto');
+        put('ciclista', riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, RIDER_SCALE);
+        put('patín', riderTexture(world, { look: PASSENGER_LOOKS[2], bike: BIKES.find((b) => b.frame === 'skate')!, color: 0, helmet: false, pack: false }), 0, RIDER_SCALE);
+        put('patinete', riderTexture(world, { look: PASSENGER_LOOKS[8], bike: BIKES.find((b) => b.frame === 'scooter')!, color: 0, helmet: true, pack: false }), 0, RIDER_SCALE);
+        put('duerme', sleeperTexture(world, 3, 1), undefined, 1);
         return sizes.join(' | ');
       },
       // Carteristas del metro (MetroSystem.startPickpocket: un pasajero roba a otro, seguridad persigue, retiene y

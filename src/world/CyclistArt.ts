@@ -2,7 +2,8 @@ import type Phaser from 'phaser';
 import { PALETTE } from '../config/constants';
 import type { BikeType } from '../data/bikes';
 import type { NpcLook } from '../types/game';
-import { colorsOf, drawHuman, type HumanColors } from './HumanArt';
+import { colorsOf, type HumanColors, type Pose } from './HumanArt';
+import { drawPlayerHD, HD_H, HD_W } from './HumanArtHD';
 import { px, shade, type Ctx } from './paint';
 
 /**
@@ -13,6 +14,12 @@ import { px, shade, type Ctx } from './paint';
  */
 
 export const RIDER_W = 22;
+/**
+ * La textura va al doble (RIDER_SCALE la deja a su tamaño en el mundo): la bici, las piernas y lo que se lleva salen
+ * idénticos (cada píxel, 2 × 2) y la persona, con el acabado del jugador (world/HumanArtHD), como cuando va a pie.
+ */
+const RES = 2;
+export const RIDER_SCALE = 1 / RES;
 /** Alto de la celda: TOP_PAD px más que la bici para que la cabeza (que se pinta desde y=-5) no se recorte. */
 export const RIDER_H = 31;
 /** Cuánto se baja todo el dibujo dentro de la celda. */
@@ -76,7 +83,7 @@ export function riderTexture(scene: Phaser.Scene, r: RiderLook): string {
   if (at >= 0) BAKED.splice(at, 1);
   BAKED.push(key);
   if (scene.textures.exists(key)) return key;
-  const tex = scene.textures.createCanvas(key, RIDER_W * RIDER_FRAMES, RIDER_H);
+  const tex = scene.textures.createCanvas(key, RIDER_W * RIDER_FRAMES * RES, RIDER_H * RES);
   if (!tex) return key;
   const ctx = tex.getContext();
   ctx.imageSmoothingEnabled = false;
@@ -85,24 +92,38 @@ export function riderTexture(scene: Phaser.Scene, r: RiderLook): string {
   const body = seated(colors);
   for (let f = 0; f < RIDER_FRAMES; f++) {
     ctx.save();
+    ctx.scale(RES, RES);
     ctx.translate(f * RIDER_W, TOP_PAD);
     drawRider(ctx, r, colors, body, f);
     ctx.restore();
-    tex.add(f, 0, f * RIDER_W, 0, RIDER_W, RIDER_H);
+    tex.add(f, 0, f * RIDER_W * RES, 0, RIDER_W * RES, RIDER_H * RES);
   }
   tex.refresh();
   return key;
 }
 
-/** La persona sentada de perfil, con su contorno, en un lienzo suelto: de ahí se recortan cabeza y tronco. */
-function seated(c: HumanColors): HTMLCanvasElement {
+/**
+ * La persona de perfil con el acabado del jugador (28 × 42, world/HumanArtHD) llevada a la resolución de la textura
+ * (16 × 24 por RES): un lienzo suelto del que se recortan cabeza y tronco, en las mismas filas que el dibujo de siempre.
+ */
+function person(c: HumanColors, pose: Pose): HTMLCanvasElement {
+  const hd = document.createElement('canvas');
+  hd.width = HD_W;
+  hd.height = HD_H;
+  const hctx = hd.getContext('2d', { willReadFrequently: true });
   const canvas = document.createElement('canvas');
-  canvas.width = 16;
-  canvas.height = 24;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (ctx) drawHuman(ctx, 'right', 4, c);
+  canvas.width = 16 * RES;
+  canvas.height = 24 * RES;
+  const ctx = canvas.getContext('2d');
+  if (!hctx || !ctx) return canvas;
+  drawPlayerHD(hctx, 'right', pose, c);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(hd, 0, 0, canvas.width, canvas.height);
   return canvas;
 }
+
+/** Sentada, para la bici. */
+const seated = (c: HumanColors): HTMLCanvasElement => person(c, 4);
 
 /**
  * Patinador: la misma persona de pie (cada fotograma, un paso o el cuerpo quieto), sobre una tabla baja y corta
@@ -119,16 +140,11 @@ function drawSkater(ctx: Ctx, r: RiderLook, c: HumanColors, f: number): void {
   px(ctx, deck, 6, 20, 11, 1);
   px(ctx, PALETTE.white, 10, 20, 3, 1);
   for (const x of [7, 15]) px(ctx, PALETTE.ink, x - 1, 22, 3, 1);
-  const canvas = document.createElement('canvas');
-  canvas.width = 16;
-  canvas.height = 24;
-  const bctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!bctx) return;
   // Tronco y cabeza de la persona quieta; las piernas de andar se quitan (de la fila 18 abajo) y se
   // pintan las de patinar: así los pies nunca dan pasos sobre la tabla.
-  drawHuman(bctx, 'right', 0, c);
-  bctx.clearRect(0, 18, 16, 6);
-  ctx.drawImage(canvas, 3, -5);
+  const canvas = person(c, 0);
+  canvas.getContext('2d')?.clearRect(0, 18 * RES, 16 * RES, 6 * RES);
+  ctx.drawImage(canvas, 3, -5, 16, 24);
   const [back, front] = SKATE_STANCE[f === RIDER_STOPPED ? 0 : f];
   skateLeg(ctx, shade(c.trousers, -0.18), shade(c.shoes, -0.1), [9, 13], back[0], back[1]);
   skateLeg(ctx, c.trousers, c.shoes, [12, 13], front[0], front[1]);
@@ -183,15 +199,10 @@ function drawScooter(ctx: Ctx, r: RiderLook, c: HumanColors, f: number): void {
   // Ruedas: dos pequeñas, a ras de suelo (la misma línea que las de una bici).
   px(ctx, PALETTE.ink, 5, 22, 3, 1);
   px(ctx, PALETTE.ink, 13, 22, 3, 1);
-  const canvas = document.createElement('canvas');
-  canvas.width = 16;
-  canvas.height = 24;
-  const bctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!bctx) return;
   // Tronco y cabeza de la persona quieta; las piernas de andar se quitan y se pintan las de estar sobre la plataforma.
-  drawHuman(bctx, 'right', 0, c);
-  bctx.clearRect(0, 18, 16, 6);
-  ctx.drawImage(canvas, 2, -5);
+  const canvas = person(c, 0);
+  canvas.getContext('2d')?.clearRect(0, 18 * RES, 16 * RES, 6 * RES);
+  ctx.drawImage(canvas, 2, -5, 16, 24);
   const [back, front] = SCOOTER_STANCE[f === RIDER_STOPPED ? 0 : f];
   skateLeg(ctx, shade(c.trousers, -0.18), shade(c.shoes, -0.1), [8, 13], back[0], back[1]);
   skateLeg(ctx, c.trousers, c.shoes, [11, 13], front[0], front[1]);
@@ -234,8 +245,8 @@ function drawRider(ctx: Ctx, r: RiderLook, c: HumanColors, body: HTMLCanvasEleme
   // Ruedas, cuadro, manillar, pedales y sombra no se mueven en ningún fotograma: la bici no despega del carril.
   const b = !stopped && f % 2 === 1 ? 1 : 0;
   // Tronco y cabeza, de la persona sentada; quien va con prisa, con la cabeza un poco adelantada.
-  ctx.drawImage(body, 0, 12, 16, 5, 1, 9 + b, 16, 5);
-  ctx.drawImage(body, 0, 0, 16, 12, 1 + lean, -3 + b, 16, 12);
+  ctx.drawImage(body, 0, 12 * RES, 16 * RES, 5 * RES, 1, 9 + b, 16, 5);
+  ctx.drawImage(body, 0, 0, 16 * RES, 12 * RES, 1 + lean, -3 + b, 16, 12);
   if (r.helmet) {
     const hx = 6 + lean;
     const color = HELMETS[(r.look.id.length + r.color) % HELMETS.length];

@@ -557,16 +557,19 @@ const ATLAS_MAX = 4096;
 export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
 
 /**
- * Gente con ropa de verdad (la que lleva `outfit`: los 36 vecinos de systems/Population y algunas caras de
- * data/npcs.ts, con sus versiones de abrigo, verano, capucha y gimnasio): a 28 × 42 con world/Garments, como el
- * jugador, una textura por aspecto con los mismos nombres de fotograma que el atlas de siempre. No se hornea al
+ * Toda la gente que no es el jugador (anónimos, personajes con nombre, uniformes y sus versiones de abrigo, verano,
+ * capucha y gimnasio) con el acabado del jugador: a 28 × 42 con world/HumanArtHD, su mismo dibujo de 16 × 24 llevado
+ * píxel a píxel (cara, pelo, ropa y silueta idénticas) con luz y contorno; y quien lleva `outfit` (los 36 vecinos de
+ * systems/Population y algunas caras de data/npcs.ts), además, con ropa de verdad (world/Garments). Sin `outfit`
+ * nadie cambia de ropa: Sara, los uniformes y quien patrulla se reconocen igual. Una textura por aspecto con los
+ * mismos nombres de fotograma que el atlas de siempre. No se hornea al
  * arrancar: world/HdCache la hace cuando alguien va a salir en escena (entities/Character, Walker y NPC la
  * retienen con showPerson mientras se ven) y la guarda con un límite de memoria. Mientras se hornea, esa persona
  * se ve con su dibujo de 16 × 24 del atlas de siempre; personTexture y personScale dicen cuál toca ahora, y sus
  * animaciones se rehacen al pasar de una a otra.
  */
 const HD_LOOKS: ReadonlyMap<string, NpcLook> = new Map(
-  [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].filter((l) => l.outfit).map((l) => [l.id, l]),
+  [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].map((l) => [l.id, l]),
 );
 /** El primero con ropa de verdad que sale a la calle (lo usa lifesim.scaleCompare). */
 export const HD_PERSON = PASSENGER_LOOKS.find((l) => l.outfit)?.id;

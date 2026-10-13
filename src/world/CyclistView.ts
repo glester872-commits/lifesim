@@ -5,7 +5,7 @@ import { PASSENGER_LOOKS } from '../data/npcs';
 import type { Traffic, Vehicle } from '../systems/Traffic';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { DEBUG } from '../config/debug';
-import { RIDER_H, RIDER_LAMPS, RIDER_STOPPED, RIDER_W, riderTexture, skateFrame, type RiderLook } from './CyclistArt';
+import { RIDER_H, RIDER_LAMPS, RIDER_SCALE, RIDER_STOPPED, RIDER_W, riderTexture, skateFrame, type RiderLook } from './CyclistArt';
 
 /** Px recorridos por cada cuarto de vuelta de pedal. */
 const STROKE_PX = 3;
@@ -109,7 +109,7 @@ export class CyclistView {
     const s = this.scene;
     const key = riderTexture(s, riderOf(v));
     const p = this.pool.pop() ?? {
-      body: s.add.image(0, 0, key, 0).setOrigin(0, 0),
+      body: s.add.image(0, 0, key, 0).setOrigin(0, 0).setScale(RIDER_SCALE),
       head: s.add.image(0, 0, 'veh-head').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
       tail: s.add.image(0, 0, 'veh-tail').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
     };

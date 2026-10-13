@@ -3,7 +3,7 @@ import { TILE } from '../config/constants';
 import { BIKES } from '../data/bikes';
 import { PASSENGER_LOOKS } from '../data/npcs';
 import type { LocationDef } from '../types/game';
-import { RIDER_H, RIDER_STOPPED, RIDER_W, riderTexture, skateFrame } from './CyclistArt';
+import { RIDER_H, RIDER_SCALE, RIDER_STOPPED, RIDER_W, riderTexture, skateFrame } from './CyclistArt';
 import { phaseOf } from './Motion';
 
 /**
@@ -52,7 +52,7 @@ export class SkateParkView {
       const look = PASSENGER_LOOKS[Math.floor(phaseOf(seed) * PASSENGER_LOOKS.length)];
       const key = riderTexture(scene, { look, bike: SKATER, color: i % SKATER.colors.length, helmet: false, pack: false });
       this.riders.push({
-        image: scene.add.image(0, 0, key, 0).setOrigin(0, 0).setVisible(false),
+        image: scene.add.image(0, 0, key, 0).setOrigin(0, 0).setScale(RIDER_SCALE).setVisible(false),
         seed,
         period: 15_000 + Math.floor(phaseOf(seed + 3) * 9_000),
         phase: phaseOf(seed * 3 + 1),
