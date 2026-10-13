@@ -4,7 +4,7 @@ import { every } from '../world/Motion';
 import { TILE } from '../config/constants';
 import type { Facing, NpcDef } from '../types/game';
 import { findPoint } from '../systems/Navigation';
-import { personFrame, personScale, personTexture } from '../world/TextureFactory';
+import { PEOPLE, personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
 import type { Pose } from '../world/HumanArt';
 import { getStation, STATIONS, type Motion, type StationDef } from '../data/stations';
 import type { SeatIdle } from '../data/seating';
@@ -205,6 +205,8 @@ export class Character extends Phaser.GameObjects.Sprite {
   private wasSeated = false;
   /** Acaba de pararse: el reposo empieza de pie y quieto, no a mitad de una respiración. */
   private settle = false;
+  /** El aspecto que muestra y retiene (world/TextureFactory.showPerson); null, escondido o en el pozo. */
+  private shown: string | null = null;
 
   constructor(scene: Phaser.Scene, def: NpcDef, seed = 0) {
     super(scene, 0, 0, personTexture(def.id), personFrame(def.id, 'down'));
@@ -219,6 +221,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     this.glass = scene.add.image(0, 0, 'fx-glass-beer').setOrigin(0.5, 1).setVisible(false);
     this.umbrellaImg = scene.add.image(0, 0, 'fx-umbrella-0').setOrigin(0.5, 1).setVisible(false);
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.shown = showPerson(this.shown, null);
       this.shadow.destroy();
       this.lampShade.destroy();
       this.icon.destroy();
@@ -354,6 +357,8 @@ export class Character extends Phaser.GameObjects.Sprite {
 
   /** null: está en otro sitio o dentro de un edificio. */
   place(where: Placement | null, time = 0): void {
+    // Lo que se ve retiene su ropa de 28 × 42 (se hornea si no estaba); escondido, la suelta.
+    this.shown = showPerson(this.shown, where ? this.lookId : null);
     // El aspecto de 28 × 42 (world/HumanArtHD) va a escala 16/28: mide lo mismo que los de 16 × 24.
     const scale = personScale(this.lookId);
     if (this.scaleX !== scale) this.setScale(scale);
@@ -370,6 +375,8 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.lastPos = null;
       this.facing = null;
       this.anims.stop();
+      // Escondido no apunta a una textura de 28 × 42 que ya nadie retiene (y que se puede tirar).
+      this.setTexture(PEOPLE, personFrame(this.lookId, 'down'));
       return;
     }
     // El icono es de todos (móvil, plato, bocadillo): sólo lo que se sostiene en un gesto va en espejo.

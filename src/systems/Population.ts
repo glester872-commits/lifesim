@@ -51,16 +51,6 @@ export const POPULATION_SEED = 'vallesco-2026';
 /** Gente nueva, además de las caras de siempre (data/npcs.ts). Cada una, cuatro filas del atlas (con sus capas de tiempo). */
 export const GENERATED_COUNT = 36;
 
-/**
- * La gente nueva que ya va vestida con ropa de verdad (data/outfits.FASHION_OUTFITS): doce que entre todos
- * cubren las siete complexiones, las tres alturas, nueve peinados y los complementos (gafas, bolso, gorra,
- * bastón, pañuelo, auriculares, barba). ponytail: limitado por el atlas people-hd (world/TextureFactory, una
- * página son 97 aspectos con sus capas); para vestir a todos, más páginas o hornear bajo demanda.
- */
-export const DRESSED: ReadonlySet<string> = new Set([
-  'vecino-2', 'vecino-6', 'vecino-7', 'vecino-8', 'vecino-9', 'vecino-10', 'vecino-11', 'vecino-14', 'vecino-17', 'vecino-19', 'vecino-23', 'vecino-24',
-]);
-
 type W<T extends string> = Readonly<Partial<Record<T, number>>>;
 
 function pick<T extends string>(rng: Rng, weights: W<T>): T {
@@ -333,8 +323,9 @@ function generate(): { people: Generated[]; family: [number, number, 'siblings' 
     for (let k = 0; used.has(name) && k < 10; k++) name = oneOf(r, names);
     used.add(name);
     const look = lookOf(r, id, person, body, palette);
-    // Ropa de verdad (28 × 42, como el jugador) con su propia semilla: no gasta tiradas de `r`, así el resto de la gente no cambia.
-    if (DRESSED.has(id)) look.outfit = outfitFor(person.fashion, hashSeed(POPULATION_SEED, 'ropa', id));
+    // Ropa de verdad (28 × 42, como el jugador; world/TextureFactory la hornea al aparecer) con su propia semilla: no gasta
+    // tiradas de `r`, así el resto de la gente no cambia.
+    look.outfit = outfitFor(person.fashion, hashSeed(POPULATION_SEED, 'ropa', id));
     unclone(look, person.fashion, worn);
     people.push({ look, person: { ...person, ...body, id, name } });
     if (kin >= 0 && fixed.age !== undefined) family.push([kin, i, kinType]);

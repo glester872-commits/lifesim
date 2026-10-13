@@ -1,17 +1,18 @@
-// Variedad de la gente vestida con ropa de verdad (systems/Population.DRESSED, data/outfits.FASHION_OUTFITS): `npm run check`.
+// Variedad de la gente vestida con ropa de verdad (los 36 vecinos de systems/Population, data/outfits.FASHION_OUTFITS): `npm run check`.
 // El catálogo llega a lo mínimo (4 siluetas, 6 peinados, 6 conjuntos), el aspecto es estable (la misma persona siempre igual),
 // los conjuntos casan con la moda de cada cual y nadie de la pelea ni con nombre cambia de ropa.
 import assert from 'node:assert/strict';
 import { FASHION_OUTFITS } from '../src/data/outfits.ts';
-import { NPC_DEFS, PASSENGER_LOOKS } from '../src/data/npcs.ts';
+import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../src/data/npcs.ts';
 import { FIGHTER_PROFILES } from '../src/data/streetEvents.ts';
-import { DRESSED, GENERATED_PEOPLE } from '../src/systems/Population.ts';
+import { GENERATED_COUNT, GENERATED_PEOPLE, outfitSignature } from '../src/systems/Population.ts';
 import { outfitOf } from '../src/systems/People.ts';
 
-const dressed = GENERATED_PEOPLE.filter((g) => DRESSED.has(g.look.id));
-assert.equal(dressed.length, DRESSED.size, 'DRESSED nombra a alguien que no existe');
+// Los 36, todos vestidos (world/HdCache hornea su ropa al aparecer, no al arrancar).
+const dressed = GENERATED_PEOPLE;
+assert.equal(dressed.length, GENERATED_COUNT);
+assert.equal(GENERATED_COUNT, 36);
 for (const g of dressed) assert.ok(g.look.outfit, `${g.look.id} sin ropa`);
-for (const g of GENERATED_PEOPLE) if (!DRESSED.has(g.look.id)) assert.equal(g.look.outfit, undefined, `${g.look.id} vestido sin estar en DRESSED`);
 
 const kinds = <T>(xs: T[]): number => new Set(xs).size;
 const silhouettes = kinds(dressed.map((g) => `${g.look.build}/${g.look.height}`));
@@ -35,7 +36,11 @@ for (const o of Object.values(FASHION_OUTFITS).flat()) {
   if (o.top === 'sport') assert.ok(o.bottom === 'track' && o.shoes === 'runner', `deporte mezclado: ${JSON.stringify(o)}`);
 }
 // Las identidades diseñadas no cambian: quien pelea y los personajes con nombre siguen sin ropa nueva.
-for (const f of FIGHTER_PROFILES) assert.ok(!DRESSED.has(f.look), `${f.look} (pelea) vestido`);
+// Quien pelea no es de los vecinos: su dibujo de pelea (world/StreetEventView) no cambia.
+for (const f of FIGHTER_PROFILES) assert.ok(!dressed.some((g) => g.look.id === f.look), `${f.look} (pelea) es un vecino`);
+assert.ok(UNIFORM_LOOKS.every((u) => !u.outfit), 'un uniforme ha cambiado de ropa');
+// Estable: la misma semilla da la misma ropa. Y nadie igual a otro (anti-clones de systems/Population).
+assert.equal(new Set(dressed.map((g) => outfitSignature(g.look))).size, dressed.length, 'dos vecinos con la misma ropa');
 assert.ok(NPC_DEFS.every((n) => !n.outfit), 'un personaje con nombre ha cambiado de ropa');
 // Anti-clones: la firma de ropa ve el corte de quien va vestido.
 const idx = (id: string): number => PASSENGER_LOOKS.findIndex((l) => l.id === id);

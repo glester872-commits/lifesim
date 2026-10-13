@@ -113,7 +113,7 @@ import { INIT_SLOT, lineFor, markRead, tierOf, phoneTick, planFromTalk, sendMess
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
-import { PLAYER_H } from '../world/TextureFactory';
+import { PLAYER_H, pumpPeopleHD } from '../world/TextureFactory';
 import type { Services } from '../services';
 
 /** Lo que se le da a quien pide en la calle: una moneda. */
@@ -161,6 +161,14 @@ function shotCue(shot: Shot): string {
 
 /** Tras cambiar de escena, el fundido (TRANSITION_MS) y lo que tarda un doble toque: E / «acción» se gastan sin hacer nada. */
 const ARRIVAL_LOCK_MS = 450;
+/**
+ * Lo que se gasta cada frame horneando la ropa de 28 × 42 de quien aparece (world/HdCache; unos 70 ms cada aspecto):
+ * en juego, poco (cabe en el frame, y quien llega por el borde se hornea antes de verse); al entrar en una escena
+ * (el fundido y su primer segundo), mucho, para que quien ya está allí salga vestido enseguida.
+ */
+const HD_BAKE_MS = 5;
+const HD_BAKE_ENTRY_MS = 40;
+const HD_ENTRY_MS = 1_200;
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
@@ -658,6 +666,8 @@ export class WorldScene extends Phaser.Scene {
   update(time: number, delta: number): void {
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
+    // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
+    pumpPeopleHD(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < HD_ENTRY_MS ? HD_BAKE_ENTRY_MS : HD_BAKE_MS);
 
     // El mapa es un modo de interfaz, como el menú: el jugador se para, nada responde a la E y el
     // mundo espera (ni reloj ni gente) hasta cerrarlo. M o Esc lo cierran; su botón, también.

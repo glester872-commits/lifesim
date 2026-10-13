@@ -15,6 +15,7 @@ import { buildAmbientTextures } from './AmbientArt';
 import { buildPopUpTextures } from './PopUpArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
 import { drawPlayerHD, HD_H, HD_SCALE, HD_W, setPremium } from './HumanArtHD';
+import { HdCache, type HdBackend } from './HdCache';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
 import { WEATHER_LOOKS } from './WeatherLooks';
@@ -518,6 +519,11 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
     }
     return;
   }
+  // Con ropa de verdad: se hornea (o se repinta ya, si tiene textura) con la apariencia de hoy.
+  if (HD_LOOKS.has(id)) {
+    hdAppearance.set(id, changes);
+    hdCache.repaint(id);
+  }
   const look = NPC_DEFS.find((n) => n.id === id);
   if (!look || !scene.textures.exists(PEOPLE)) return;
   const atlas = scene.textures.get(PEOPLE) as Phaser.Textures.CanvasTexture;
@@ -551,59 +557,83 @@ const ATLAS_MAX = 4096;
 export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
 
 /**
- * Gente con ropa de verdad (la que lleva `outfit`: data/npcs.ts, con sus versiones de
- * abrigo, verano, capucha y gimnasio): a 28 × 42 con world/Garments, como el
- * jugador, en una textura aparte con los mismos nombres de fotograma.
- * entities/Character y entities/Walker la ponen a la escala del mundo. El resto
- * sigue en el atlas de siempre (16 × 24): hornear a toda la calle a 28 × 42
- * pasaría de lo que aguanta una textura en el móvil.
+ * Gente con ropa de verdad (la que lleva `outfit`: los 36 vecinos de systems/Population y algunas caras de
+ * data/npcs.ts, con sus versiones de abrigo, verano, capucha y gimnasio): a 28 × 42 con world/Garments, como el
+ * jugador, una textura por aspecto con los mismos nombres de fotograma que el atlas de siempre. No se hornea al
+ * arrancar: world/HdCache la hace cuando alguien va a salir en escena (entities/Character, Walker y NPC la
+ * retienen con showPerson mientras se ven) y la guarda con un límite de memoria. Mientras se hornea, esa persona
+ * se ve con su dibujo de 16 × 24 del atlas de siempre; personTexture y personScale dicen cuál toca ahora, y sus
+ * animaciones se rehacen al pasar de una a otra.
  */
-export const PEOPLE_HD = 'people-hd';
-const HD_LOOKS: readonly NpcLook[] = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].filter((l) => l.outfit);
-const HD_IDS: ReadonlySet<string> = new Set(HD_LOOKS.map((l) => l.id));
+const HD_LOOKS: ReadonlyMap<string, NpcLook> = new Map(
+  [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].filter((l) => l.outfit).map((l) => [l.id, l]),
+);
 /** El primero con ropa de verdad que sale a la calle (lo usa lifesim.scaleCompare). */
-export const HD_PERSON = HD_LOOKS.find((l) => PASSENGER_LOOKS.includes(l))?.id;
-/** Aspectos por página: una página es una textura de como mucho ATLAS_MAX px de alto (la primera conserva la clave people-hd). */
-const HD_PER_PAGE = Math.floor(ATLAS_MAX / HD_H);
-const hdPage = (row: number): string => (row < HD_PER_PAGE ? PEOPLE_HD : `${PEOPLE_HD}-${Math.floor(row / HD_PER_PAGE)}`);
-const HD_TEXTURE: ReadonlyMap<string, string> = new Map(HD_LOOKS.map((l, row) => [l.id, hdPage(row)]));
-export const personTexture = (id: string): string => HD_TEXTURE.get(id) ?? PEOPLE;
-export const personScale = (id: string): number => (HD_IDS.has(id) ? HD_SCALE : 1);
+export const HD_PERSON = PASSENGER_LOOKS.find((l) => l.outfit)?.id;
+const hdKey = (id: string): string => `person-hd:${id}`;
+const HD_ROW_W = FACINGS.length * POSES.length * HD_W;
+/** Lo que se guarda, como mucho, de lo que ya nadie muestra (unos 45 aspectos). Lo que se ve no se tira nunca. */
+export const HD_CACHE_MB = 24;
+/** La apariencia de hoy de quien persiste (repaintPerson): se hornea con ella. */
+const hdAppearance = new Map<string, Appearance>();
+/** Texturas y animaciones son del juego, no de una escena: sobreviven a los cambios de escena. */
+let hdGame: Phaser.Game | null = null;
+let hdCell: CanvasRenderingContext2D | null = null;
+
+const hdBackend: HdBackend = {
+  create(id) {
+    const atlas = hdGame!.textures.createCanvas(hdKey(id), HD_ROW_W, HD_H)!;
+    FACINGS.forEach((facing, f) => POSES.forEach((pose, i) => atlas.add(personFrame(id, facing, pose), 0, (f * POSES.length + i) * HD_W, 0, HD_W, HD_H)));
+  },
+  paint(id, cell) {
+    if (!hdCell) {
+      const canvas = document.createElement('canvas');
+      canvas.width = HD_W;
+      canvas.height = HD_H;
+      hdCell = canvas.getContext('2d', { willReadFrequently: true });
+      if (!hdCell) throw new Error('Sin canvas 2D');
+    }
+    const look = HD_LOOKS.get(id)!;
+    const changes = hdAppearance.get(id);
+    drawPlayerHD(hdCell, FACINGS[Math.floor(cell / POSES.length)], POSES[cell % POSES.length], changes ? withAppearance(colorsOf(look), changes) : colorsOf(look));
+    const ctx = (hdGame!.textures.get(hdKey(id)) as Phaser.Textures.CanvasTexture).getContext();
+    ctx.clearRect(cell * HD_W, 0, HD_W, HD_H);
+    ctx.drawImage(hdCell.canvas, cell * HD_W, 0);
+  },
+  done(id) {
+    (hdGame!.textures.get(hdKey(id)) as Phaser.Textures.CanvasTexture).refresh();
+    personAnims(hdGame!.anims, id);
+  },
+  drop(id) {
+    // Primero sus animaciones vuelven al atlas de siempre; luego se borra la textura (nadie la muestra: world/HdCache).
+    personAnims(hdGame!.anims, id);
+    hdGame!.textures.remove(hdKey(id));
+  },
+};
+export const hdCache = new HdCache(hdBackend, FACINGS.length * POSES.length, HD_ROW_W * HD_H * 4, HD_CACHE_MB * 2 ** 20);
+
+export const personTexture = (id: string): string => (hdCache.ready(id) ? hdKey(id) : PEOPLE);
+export const personScale = (id: string): number => (hdCache.ready(id) ? HD_SCALE : 1);
 
 /**
- * Pinta (o repinta) a la gente con ropa de verdad, una fila por aspecto y una celda por dirección y pose,
- * repartida en páginas del alto justo. Se hornea una vez al arrancar: nada de esto pasa por frame.
+ * Un sprite deja de mostrar a `prev` y pasa a mostrar a `next` (null: se esconde). Sólo cuenta quien lleva ropa
+ * de verdad. Devuelve `next` para guardarlo: `this.shown = showPerson(this.shown, id)`.
  */
-function paintPeopleHD(scene: Phaser.Scene): void {
-  const rowW = FACINGS.length * POSES.length * HD_W;
-  if (!HD_LOOKS.length) return;
-  const cell = document.createElement('canvas');
-  cell.width = HD_W;
-  cell.height = HD_H;
-  const c = cell.getContext('2d', { willReadFrequently: true });
-  if (!c) return;
-  for (let first = 0; first < HD_LOOKS.length; first += HD_PER_PAGE) {
-    const looks = HD_LOOKS.slice(first, first + HD_PER_PAGE);
-    const key = hdPage(first);
-    let atlas = scene.textures.exists(key) ? (scene.textures.get(key) as Phaser.Textures.CanvasTexture) : null;
-    const fresh = !atlas;
-    atlas ??= scene.textures.createCanvas(key, rowW, looks.length * HD_H);
-    if (!atlas) return;
-    const ctx = atlas.getContext();
-    looks.forEach((look, row) => {
-      const colors = colorsOf(look);
-      FACINGS.forEach((facing, f) =>
-        POSES.forEach((pose, i) => {
-          drawPlayerHD(c, facing, pose, colors);
-          const x = (f * POSES.length + i) * HD_W;
-          ctx.clearRect(x, row * HD_H, HD_W, HD_H);
-          ctx.drawImage(cell, x, row * HD_H);
-          if (fresh) atlas.add(personFrame(look.id, facing, pose), 0, x, row * HD_H, HD_W, HD_H);
-        }),
-      );
-    });
-    atlas.refresh();
-  }
+export function showPerson(prev: string | null, next: string | null): string | null {
+  if (prev === next) return next;
+  if (next && HD_LOOKS.has(next)) hdCache.acquire(next);
+  if (prev && HD_LOOKS.has(prev)) hdCache.release(prev);
+  return next;
+}
+
+/** Hornea un poco de lo pendiente (scenes/WorldScene, cada frame). */
+export const pumpPeopleHD = (budgetMs: number): number => (hdGame ? hdCache.pump(budgetMs) : 0);
+
+/** Desarrollo (lifesim.hdCompare, lifesim.lineup): lo deja hecho ya, retenido hasta recargar. */
+export function preparePersonHD(id: string): void {
+  if (!HD_LOOKS.has(id) || !hdGame) return;
+  hdCache.acquire(id);
+  hdCache.finish(id);
 }
 
 /**
@@ -613,7 +643,7 @@ function paintPeopleHD(scene: Phaser.Scene): void {
 export function setPremiumClothes(scene: Phaser.Scene, on: boolean, player: Appearance): void {
   setPremium(on);
   repaintPerson(scene, 'player', player);
-  paintPeopleHD(scene);
+  hdCache.repaint();
 }
 
 function buildPeople(scene: Phaser.Scene): void {
@@ -741,7 +771,6 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'train-door-light', 6, 2, drawDoorLight);
 
   buildPeople(scene);
-  paintPeopleHD(scene);
 
   // Charco de luz: anillos escalonados, sin degradado suave. Blanco: world/Lighting lo tiñe (farola cálida, tubo frío).
   make(scene, 'fx-light', 56, 56, (ctx) => {
@@ -848,14 +877,14 @@ export function buildTextures(scene: Phaser.Scene): void {
  * Paso en cuatro tiempos (pie, paso, pie, paso) y respiración en reposo: el
  * tronco baja un píxel cada par de segundos. Mismo ritmo para todos.
  */
-function humanAnims(scene: Phaser.Scene, prefix: string, at: (facing: Facing, pose: Pose) => Phaser.Types.Animations.AnimationFrame): void {
+function humanAnims(anims: Phaser.Animations.AnimationManager, prefix: string, at: (facing: Facing, pose: Pose) => Phaser.Types.Animations.AnimationFrame): void {
   for (const facing of FACINGS) {
     const frame = (pose: Pose): Phaser.Types.Animations.AnimationFrame => at(facing, pose);
-    if (!scene.anims.exists(`${prefix}-walk-${facing}`)) {
-      scene.anims.create({ key: `${prefix}-walk-${facing}`, frames: [frame(1), frame(0), frame(2), frame(0)], frameRate: 8, repeat: -1 });
+    if (!anims.exists(`${prefix}-walk-${facing}`)) {
+      anims.create({ key: `${prefix}-walk-${facing}`, frames: [frame(1), frame(0), frame(2), frame(0)], frameRate: 8, repeat: -1 });
     }
-    if (!scene.anims.exists(`${prefix}-idle-${facing}`)) {
-      scene.anims.create({ key: `${prefix}-idle-${facing}`, frames: [{ ...frame(0), duration: 1100 }, frame(3)], frameRate: 2, repeat: -1 });
+    if (!anims.exists(`${prefix}-idle-${facing}`)) {
+      anims.create({ key: `${prefix}-idle-${facing}`, frames: [{ ...frame(0), duration: 1100 }, frame(3)], frameRate: 2, repeat: -1 });
     }
   }
 }
@@ -865,22 +894,34 @@ function humanAnims(scene: Phaser.Scene, prefix: string, at: (facing: Facing, po
  * frase; y sentado esperando, respirando (la 24 suelta el aire). Quien las usa les da su propio punto de
  * partida y su compás (por semilla): nadie gesticula ni respira a la vez que el de al lado.
  */
-function npcAnims(scene: Phaser.Scene, id: string): void {
+function npcAnims(anims: Phaser.Animations.AnimationManager, id: string): void {
   for (const facing of FACINGS) {
     const frame = (pose: Pose, duration: number): Phaser.Types.Animations.AnimationFrame => ({ key: personTexture(id), frame: personFrame(id, facing, pose), duration });
     const talk = `npc-${id}-talk-${facing}`;
-    if (!scene.anims.exists(talk)) {
-      scene.anims.create({ key: talk, frames: [frame(0, 700), frame(35, 520), frame(0, 900), frame(3, 420), frame(35, 640), frame(0, 500)], frameRate: 1, repeat: -1 });
+    if (!anims.exists(talk)) {
+      anims.create({ key: talk, frames: [frame(0, 700), frame(35, 520), frame(0, 900), frame(3, 420), frame(35, 640), frame(0, 500)], frameRate: 1, repeat: -1 });
     }
     const sit = `npc-${id}-sit-${facing}`;
-    if (!scene.anims.exists(sit)) scene.anims.create({ key: sit, frames: [frame(4, 3_300), frame(24, 520)], frameRate: 1, repeat: -1 });
+    if (!anims.exists(sit)) anims.create({ key: sit, frames: [frame(4, 3_300), frame(24, 520)], frameRate: 1, repeat: -1 });
   }
 }
 
+/**
+ * Las animaciones de alguien, hacia la textura que le toca ahora (personTexture): el atlas de siempre o la suya de
+ * 28 × 42. Se rehacen al terminar de hornearla y al tirarla (world/HdCache); quien las estuviera reproduciendo se para
+ * (Phaser) y la vuelve a pedir: entities/Character en cada frame, entities/Walker y entities/NPC al notar el cambio.
+ */
+function personAnims(anims: Phaser.Animations.AnimationManager, id: string): void {
+  for (const facing of FACINGS) for (const kind of ['walk', 'idle', 'talk', 'sit']) anims.remove(`npc-${id}-${kind}-${facing}`);
+  humanAnims(anims, `npc-${id}`, (facing, pose) => ({ key: personTexture(id), frame: personFrame(id, facing, pose) }));
+  npcAnims(anims, id);
+}
+
 export function registerAnimations(scene: Phaser.Scene): void {
-  humanAnims(scene, 'player', (facing, pose) => ({ key: humanKey('player', facing, pose) }));
+  hdGame = scene.game;
+  humanAnims(scene.anims, 'player', (facing, pose) => ({ key: humanKey('player', facing, pose) }));
   for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS]) {
-    humanAnims(scene, `npc-${npc.id}`, (facing, pose) => ({ key: personTexture(npc.id), frame: personFrame(npc.id, facing, pose) }));
-    npcAnims(scene, npc.id);
+    humanAnims(scene.anims, `npc-${npc.id}`, (facing, pose) => ({ key: personTexture(npc.id), frame: personFrame(npc.id, facing, pose) }));
+    npcAnims(scene.anims, npc.id);
   }
 }

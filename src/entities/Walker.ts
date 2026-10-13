@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
-import { personFrame, personScale, personTexture } from '../world/TextureFactory';
+import { PEOPLE, personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
 import type { Pose } from '../world/HumanArt';
 import { TILE } from '../config/constants';
 import { WALK_REF } from './Character';
@@ -46,6 +46,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   private readonly phase: number;
   private readonly tempo: number;
   private readonly stride: number;
+  /** El aspecto que muestra y retiene (world/TextureFactory.showPerson); null, en el pool. */
+  private shown: string | null = null;
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
     super(scene, 0, 0, personTexture(look.id), personFrame(look.id, facing));
@@ -82,6 +84,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     );
 
     this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.shown = showPerson(this.shown, null);
       this.shadow.destroy();
       this.iconImage.destroy();
       scene.events.off(
@@ -119,6 +122,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   /** El pool se recicla con otra cara: sólo mientras está fuera de escena. */
   setLook(look: NpcLook): void {
     this.currentLook = look;
+    if (this.shown) this.shown = showPerson(this.shown, look.id);
     this.fit();
   }
 
@@ -140,6 +144,9 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     const body = this.body as Phaser.Physics.Arcade.Body;
     this.setVisible(true);
     this.shadow.setVisible(true);
+    // Lo que se ve retiene su ropa de 28 × 42 (se hornea si no estaba).
+    this.shown = showPerson(this.shown, this.currentLook.id);
+    this.fit();
     body.enable = true;
     body.reset(at.x, at.y);
     this.face(facing);
@@ -152,12 +159,24 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.path = [];
     body.stop();
     body.enable = false;
-    this.anims.stop();
-    this.setIcon(null);
-    this.speechToken++;
-    this.speechEl.hidden = true;
+    // Primero se esconde: así quitarle el icono no le vuelve a poner a respirar (rest sólo anima lo que se ve).
     this.setVisible(false);
     this.shadow.setVisible(false);
+    this.setIcon(null);
+    this.anims.stop();
+    this.speechToken++;
+    this.speechEl.hidden = true;
+    // En el pool suelta su ropa de 28 × 42 y no apunta a ella (se puede tirar): crear o guardar no hornea nada.
+    this.shown = showPerson(this.shown, null);
+    this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir));
+  }
+
+  /** Su ropa de 28 × 42 acaba de estar lista (o se ha tirado): otra textura, la misma talla y el mismo cuerpo en el mundo. */
+  protected preUpdate(time: number, delta: number): void {
+    super.preUpdate(time, delta);
+    if (!this.shown || this.scaleX === personScale(this.currentLook.id)) return;
+    this.fit();
+    if (!this.moving) this.rest();
   }
 
   walk(path: Vec2[], speed: number): void {
@@ -199,6 +218,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
    * ratos; si no, respira de pie. Hablando con el jugador, respira y escucha.
    */
   private rest(settle = false): void {
+    // En el pool no se anima nada (ni se apunta a una ropa de 28 × 42 que nadie retiene).
+    if (!this.visible) return;
     const id = this.currentLook.id;
     const phone = this.icon === 'phone' && this.dir !== 'up';
     if (this.seated) {

@@ -30,7 +30,7 @@ import { AlleyDealView } from './world/AlleyDealView';
 let scaleShown: Phaser.GameObjects.GameObject[] = [];
 
 import { SCALE } from './config/scale';
-import { HD_PERSON, PLAYER_COLORS, humanKey, personFrame, personScale, personTexture, setPremiumClothes } from './world/TextureFactory';
+import { HD_PERSON, PLAYER_COLORS, hdCache, humanKey, personFrame, personScale, personTexture, preparePersonHD, setPremiumClothes } from './world/TextureFactory';
 import { colorsOf, type Pose } from './world/HumanArt';
 import type { Facing } from './types/game';
 
@@ -557,11 +557,15 @@ social: {
           { label: 'jugador', colors: withAppearance(PLAYER_COLORS, state.appearanceOf('player')), live: (f, p) => ({ key: humanKey('player', f, p) }) },
           // Banco de ropa: calle, diario, deporte y arreglado, con la textura que llevan en la calle.
           ...ids.map((id) => {
+            // Su ropa de 28 × 42 se hace al aparecer (world/HdCache): aquí, ya.
+            preparePersonHD(id);
             const look = PASSENGER_LOOKS.find((l) => l.id === id) ?? PASSENGER_LOOKS[0];
             return { label: `${id} · ${look.outfit?.top ?? '-'} / ${look.outfit?.bottom ?? '-'} / ${look.outfit?.shoes ?? '-'}`, colors: colorsOf(look), live: (f: Facing, p: Pose) => ({ key: personTexture(id), frame: personFrame(id, f, p) }) };
           }),
         ]);
       },
+      // La caché de la ropa de 28 × 42 (world/HdCache): lifesim.hd.size, .bytes, .pending, .refs(id), .ready(id).
+      hd: hdCache,
       // Ropa de verdad (world/Garments) o la de siempre, en el jugador y en quien la lleva: lifesim.clothes(false) / (true).
       clothes: (on = true) => {
         const world = game.scene.getScene('World') as WorldSceneType;
@@ -628,7 +632,10 @@ social: {
           sizes.push(`${label}: ${measure(key, frame, scale)}`);
           x += Math.max(img.displayWidth, 18) + 14;
         };
-        const person = (label: string, id: string): void => put(label, personTexture(id), personFrame(id, 'down'), personScale(id));
+        const person = (label: string, id: string): void => {
+          preparePersonHD(id);
+          put(label, personTexture(id), personFrame(id, 'down'), personScale(id));
+        };
         put('jugador', humanKey('player', 'down', 0), undefined, HD_SCALE);
         person('anónimo', PASSENGER_LOOKS[0].id);
         person('anónimo HD', HD_PERSON ?? PASSENGER_LOOKS[0].id);
