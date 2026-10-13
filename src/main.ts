@@ -52,6 +52,7 @@ import { Menu } from './ui/Menu';
 import { MapScreen } from './ui/MapScreen';
 import { PhoneScreen } from './ui/Phone';
 import { MobileControls } from './ui/MobileControls';
+import { consumeSkipTitle, GameMenu } from './ui/GameMenu';
 import { PlayerInput } from './systems/PlayerInput';
 import { METRO_CONFIG } from './config/metro';
 import type { Services } from './services';
@@ -63,6 +64,7 @@ function requireEl(selector: string): HTMLElement {
 }
 
 const save = new SaveSystem();
+const hadSave = save.exists;
 const loaded = save.load();
 // Si el mapa cambió desde que se guardó (un sitio renombrado, una posición que ahora cae dentro de algo),
 // systems/SaveSystem.restore recoloca al jugador y conserva el resto de la partida.
@@ -97,6 +99,17 @@ css.setProperty('--night', PALETTE.night);
 css.setProperty('--white', PALETTE.white);
 css.setProperty('--amber', PALETTE.amber);
 css.setProperty('--accent', PALETTE.glassLit);
+
+// Pantalla de inicio y menú de partida (ui/GameMenu). Hasta elegir en el inicio no se guarda nada.
+const gameMenu = new GameMenu(menu, save, state, () => (game.scene.getScene('World') as WorldSceneType).persist(true));
+if (!consumeSkipTitle()) gameMenu.title(loaded !== null, hadSave && loaded === null);
+const openGameMenu = (): void => {
+  if (!menu.isOpen && !dialogue.isOpen && !phone.isOpen && !services.map.isOpen) gameMenu.pause();
+};
+requireEl('#game-button').addEventListener('click', openGameMenu);
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'KeyG' && !e.repeat) openGameMenu();
+});
 
 new HUD(requireEl('#hud'), state);
 new DialogueBox(requireEl('#dialogue'), services.dialogue);
@@ -242,6 +255,7 @@ function devEvents() {
     acuden: e.responders.join(', ') || '—',
     enfriamiento: e.cooldownLeft > 0 ? `${Math.round(e.cooldownLeft)} ${e.unit}` : '—',
     forzado: e.forced,
+    motivo: e.reason || '—',
   });
   return {
     list: () => {
@@ -753,6 +767,7 @@ social: {
   });
 }
 
+// Con la ranura echada (inicio sin elegir, o partida recién sustituida) save.save no escribe: no pisa nada.
 window.addEventListener('beforeunload', () => {
   save.save(state.snapshot);
 });

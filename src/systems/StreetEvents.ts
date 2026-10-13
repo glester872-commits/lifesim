@@ -24,7 +24,7 @@ export type EventPhase = 'none' | 'gathering' | 'fight' | 'break' | 'dispersing'
 export type Role = 'fighter' | 'spectator' | 'watcher' | 'lookout' | 'bookmaker';
 
 /** Minutos de juego: corrillo antes de empezar, asalto, descanso entre asaltos y rato en que el patio se vacía. */
-export const GATHER = 40;
+export const GATHER = 60;
 export const ROUND = 24;
 export const BREAK = 10;
 export const DISPERSE = 30;
@@ -172,7 +172,9 @@ export function planNight(def: StreetEventDef, loc: LocationDef, day: number, fo
   if (w.celsius > def.weather.warmAbove) crowd += def.weather.warmExtra;
   crowd = Math.max(2, Math.min(def.spectators.length, Math.round(crowd)));
   // A mano no hay aviso del vigía: la pelea dura lo que se ha pedido (y fijada, hasta que se suelte).
-  const raidAt = !force && raidRoll < def.raid ? fightAt + raidWhen * (end - fightAt) * 0.8 : null;
+  // El aviso llega con dos asaltos ya peleados (~30 s reales): una pelea no se corta antes de poder verla.
+  const raidFrom = fightAt + 2 * ROUND + BREAK;
+  const raidAt = !force && raidRoll < def.raid && raidFrom < end ? raidFrom + raidWhen * (end - raidFrom) * 0.8 : null;
   const stop = raidAt ?? end;
 
   const entries = def.entries.map((id) => loc.points?.[id]).filter((p): p is NonNullable<typeof p> => !!p);
@@ -494,8 +496,11 @@ export class StreetEvent {
         .map((d) => (d + 1) * 1440 + 12 * 60)
         .filter((until) => t < until);
       cooldownLeft = Math.max(t < clear ? clear - t : 0, ...doneUntil.map((u) => u - t), 0);
-      lifecycle = cooldownLeft > 0 ? 'COOLDOWN' : 'ELIGIBLE';
+      // Esta noche toca y aún no ha empezado: ya está en el plan.
+      lifecycle = cooldownLeft > 0 ? 'COOLDOWN' : n.happens && t < n.start ? 'SCHEDULED' : 'ELIGIBLE';
     }
+    const tonight = this.night(today);
+    const reason = tonight.happens ? '' : { weekday: 'hoy no toca (día de la semana)', chance: 'esta noche no salió (azar)', rain: 'suspendida por lluvia', ok: '' }[tonight.why];
     const live = phase !== 'none';
     return {
       id: eventId('fight', this.def.id),
@@ -511,6 +516,7 @@ export class StreetEvent {
       responders: [],
       cooldownLeft,
       forced: !!dev?.forced,
+      reason,
     };
   }
 

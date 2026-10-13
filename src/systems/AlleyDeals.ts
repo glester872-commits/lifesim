@@ -29,7 +29,7 @@ export type Interruption = 'player' | 'authority' | 'dev';
 /** Franjas del día en que puede haber un rato, en horas. Por la mañana y a mediodía, nunca. */
 export const SLOTS = { late: [0.5, 3.5], afternoon: [16, 19], evening: [20, 23.5] } as const;
 /** Lo que dura un rato, en minutos de juego. */
-const LENGTH: readonly [number, number] = [35, 60];
+const LENGTH: readonly [number, number] = [60, 90];
 /** Lo que se queda quien compra junto al vendedor: un momento. */
 export const EXCHANGE = 1.6;
 /** Paso al llegar y al irse, en tiles por minuto de juego; con prisa, más. */
@@ -37,7 +37,7 @@ const WALK = 0.7;
 const FLEE = 1.5;
 /** El jugador muy cerca (tiles) durante tanto (minutos de juego): se dan cuenta. */
 export const NOTICE_TILES = 2.6;
-export const LINGER_MIN = 5;
+export const LINGER_MIN = 8;
 /** Alguien de uniforme a esta distancia (tiles) del vendedor: se van sin decir nada. */
 export const AWARE_TILES = 7;
 /** Al darse cuenta del jugador, le miran un momento antes de irse. */
@@ -400,7 +400,9 @@ export class AlleyDeal {
     const present = ep ? this.presentAt(t) : [];
     const cut = ep?.interrupted;
     let lifecycle: Lifecycle;
-    if (!ep) lifecycle = this.state.cooldownUntil > t ? 'COOLDOWN' : 'ELIGIBLE';
+    const plan = this.plan(Math.floor(t / 1440));
+    // Hoy hay un rato que aún no ha empezado: ya está en el plan.
+    if (!ep) lifecycle = this.state.cooldownUntil > t ? 'COOLDOWN' : plan.episodes.some((e) => e.start - 15 > t && !e.interrupted) ? 'SCHEDULED' : 'ELIGIBLE';
     else if (cut && t < cut.at + (cut.why === 'player' ? GLARE : 0) + 1) lifecycle = 'RESOLUTION';
     else if (phase === 'dispersing') lifecycle = 'CLEANUP';
     else if (phase === 'none') lifecycle = 'SPAWNING';
@@ -419,6 +421,8 @@ export class AlleyDeal {
       responders: [],
       cooldownLeft: Math.max(0, this.state.cooldownUntil - t),
       forced: !!this.state.forced,
+      // Franjas de hoy que no salieron y por qué: azar, lluvia u ocupado (pelea en el patio).
+      reason: Object.entries(plan.skipped).map(([slot, why]) => `${slot}: ${why}`).join(', '),
     };
   }
 

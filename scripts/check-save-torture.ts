@@ -11,7 +11,7 @@ import { CHARACTERS } from '../src/data/characters.ts';
 import { GARMENTS } from '../src/data/retail.ts';
 import { STREET_EVENTS } from '../src/data/streetEvents.ts';
 import { ALLEY_SPOTS } from '../src/data/alleyDeals.ts';
-import { createInitialState, restore, SaveSystem, UNREADABLE_KEY, type SaveStorage } from '../src/systems/SaveSystem.ts';
+import { BACKUP_KEY, createInitialState, parseSave, restore, SaveSystem, serialize, UNREADABLE_KEY, type SaveStorage } from '../src/systems/SaveSystem.ts';
 import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
 import { placeInfo } from '../src/systems/Places.ts';
 import { purchase, payFare } from '../src/systems/Commerce.ts';
@@ -240,6 +240,49 @@ for (const raw of ['{roto', JSON.stringify({ version: SAVE_VERSION + 1, savedAt:
   assert.equal(store.get(SAVE_KEY), raw, 'cargar no toca la partida');
 }
 ok('partidas viejas, mínimas, renombradas, en pared, en vía, con valores raros, rotas y futuras');
+
+// 13. Guardar nunca miente: almacenamiento lleno o bloqueado (write lanza), uno que no escribe nada, ranura echada.
+{
+  const good = { ...base, money: 77 };
+  store.clear();
+  assert.ok(save.save(good), 'un guardado normal no se confirma');
+  const full = new SaveSystem({ ...storage, write: () => { throw new Error('QuotaExceededError'); } });
+  assert.equal(full.save({ ...good, money: 1 }), false, 'cuota llena: dice que guardó');
+  const deaf = new SaveSystem({ ...storage, write: () => {} });
+  assert.equal(deaf.save({ ...good, money: 2 }), false, 'escritura perdida: dice que guardó');
+  assert.equal(save.load()?.money, 77, 'un guardado fallido tocó la partida buena');
+  save.locked = true;
+  assert.equal(save.save({ ...good, money: 3 }), false, 'ranura echada: guardó igual');
+  save.locked = false;
+  assert.equal(save.load()?.money, 77);
+}
+ok('guardar falla de verdad con el almacenamiento lleno, sordo o echado, y no toca la buena');
+
+// 14. Sustituir (nueva partida, importar, recuperar): la anterior se aparta, se puede recuperar, y nada se pisa a medias.
+{
+  store.clear();
+  assert.ok(save.save({ ...base, money: 500 }));
+  // Importación inválida: ni se lee ni se toca nada.
+  for (const bad of ['no es json', '{}', JSON.stringify({ version: SAVE_VERSION + 1, state: base }), JSON.stringify({ version: 1, state: { money: 'mucho' } })]) assert.equal(parseSave(bad), null, `importa basura: ${bad}`);
+  assert.equal(parseSave(serialize({ ...base, money: 9 }))?.money, 9, 'una exportación no se vuelve a importar');
+  // Sin versión (partidas de antes de numerarlas) se leen como la 1.
+  assert.equal(parseSave(JSON.stringify({ state: { ...base, money: 8 } }))?.money, 8);
+  // Sin sitio para la copia de seguridad: no se sustituye nada.
+  const noBackup = new SaveSystem({ ...storage, write: (k, v) => { if (k === BACKUP_KEY) throw new Error('lleno'); store.set(k, v); } });
+  assert.equal(noBackup.replace({ ...base, money: 1 }), false, 'sustituye sin poder apartar la anterior');
+  assert.equal(save.load()?.money, 500);
+  const fresh = createInitialState();
+  const slot = new SaveSystem(storage);
+  assert.ok(slot.replace(fresh), 'nueva partida no se escribe');
+  assert.equal(parseSave(store.get(SAVE_KEY)!)?.money, fresh.money);
+  assert.equal(slot.backup()?.money, 500, 'la partida anterior no quedó apartada');
+  assert.equal(slot.save({ ...base, money: 2 }), false, 'tras sustituir, el autoguardado/beforeunload pisa la nueva');
+  const back = new SaveSystem(storage);
+  assert.ok(back.restoreBackup(), 'no se recupera la copia');
+  assert.equal(back.load()?.money, 500, 'recuperar no devuelve la anterior');
+  assert.equal(back.backup()?.money, fresh.money, 'recuperar pierde la que había');
+}
+ok('nueva/importada/recuperada: la anterior se aparta y se recupera; basura e importaciones futuras no entran');
 
 console.log(results.map((r, i) => `${String(i + 1).padStart(2)}. ${r}`).join('\n'));
 console.log('\nOK: todo vuelve igual tras cargar, nada a medias, nada en una pared ni en la vía, nada se pisa.');

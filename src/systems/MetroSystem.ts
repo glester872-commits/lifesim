@@ -101,6 +101,8 @@ export interface MetroClock {
  */
 /** Lo más que puede durar un robo en el andén (acercarse, tirón, persecución, escolta): después se cierra. */
 const PICKPOCKET_MAX_MS = 120_000;
+/** Cuánto espera un robo que ha tocado a que haya gente parada en el andén (entre trenes lo normal es que la haya). */
+const PICKPOCKET_WAIT_MS = 45_000;
 
 export class MetroSystem {
   readonly train: TrainSystem;
@@ -162,6 +164,8 @@ export class MetroSystem {
    * pasados PICKPOCKET_MAX_MS: ningún robo ni ningún vigilante queda ocupado para siempre.
    */
   private crime: { thief: PassengerAI; since: number } | null = null;
+  /** Un robo que ha tocado (microevento) esperando a que haya gente parada; 0 si no hay ninguno. */
+  private pickpocketPendingMs = 0;
 
   private contextTimer = CONTEXT_REFRESH_MS;
   private debugTimer = 0;
@@ -452,7 +456,7 @@ export class MetroSystem {
 
     this.elapsed += dt;
     this.watchStuck(dt);
-    this.tickCrime();
+    this.tickCrime(dt);
 
     this.contextTimer -= dt;
 
@@ -1196,7 +1200,16 @@ export class MetroSystem {
   }
 
   /** Cierra el robo cuando ya no queda nadie en él, o a la fuerza si dura demasiado. */
-  private tickCrime(): void {
+  private tickCrime(dt: number): void {
+    // Un robo que ha tocado y espera a que haya al menos dos personas paradas (ladrón y víctima).
+    if (this.pickpocketPendingMs > 0) {
+      this.pickpocketPendingMs -= dt;
+      if (this.crime) this.pickpocketPendingMs = 0;
+      else if (this.passengers.filter((p) => p.idleWaiting).length >= 2) {
+        this.pickpocketPendingMs = 0;
+        this.startPickpocket();
+      } else if (this.pickpocketPendingMs <= 0) this.note('carterista: no hubo nadie parado en el andén a tiempo');
+    }
     const c = this.crime;
     if (!c) return;
     if (c.thief.state === 'OFFSTAGE' && !this.onDuty) {
@@ -1241,6 +1254,8 @@ export class MetroSystem {
       responders: guard ? [`${guard.walker.look.id} (${guard.state})`] : [],
       cooldownLeft: 0,
       forced: false,
+      // El último intento (o su motivo para no empezar), del registro del andén.
+      reason: this.log.find((line) => line.includes('carterista')) ?? '',
     };
   }
 
@@ -1750,7 +1765,8 @@ export class MetroSystem {
       }
 
       case 'PICKPOCKET': {
-        this.startPickpocket();
+        // Si toca justo con todos subiendo al tren, no se pierde: espera a que haya gente parada en el andén.
+        if (!this.crime) this.pickpocketPendingMs = PICKPOCKET_WAIT_MS;
 
         return;
       }

@@ -41,6 +41,10 @@ export const ALLEY_LINES = {
   buyer: ['Ya me iba.', '(Mira al suelo y se aparta.)'],
   /** Te has quedado demasiado cerca: lo dice quien está más cerca antes de irse todos. */
   noticed: ['¿Qué miras?', 'Vale, nos vamos.', 'Mal sitio para pararse.'],
+  /** Lo que se oye cerca sin verlo (systems/EventCues). {name}: el sitio. */
+  hear: ['Un silbido corto desde el {name}. Alguien se calla de golpe.', 'Voces bajas en el {name}. Alguien vigila la boca.'],
+  /** Lo que suelta alguien de la calle ese día. Vago: dónde, no qué. */
+  rumor: ['Yo de noche por el {name} no paso. Siempre hay alguien esperando que no espera el autobús.', 'En el {name}, a ciertas horas, mejor no pararse a mirar.'],
 } as const;
 
 export const ALLEY_SPOTS: readonly AlleySpotDef[] = [
@@ -56,7 +60,7 @@ export const ALLEY_SPOTS: readonly AlleySpotDef[] = [
     lookout: { tx: 75, ty: 14, facing: 'down' },
     scan: 'up',
     entries: [{ tx: 71, ty: 17 }, { tx: 80, ty: 17 }],
-    odds: { afternoon: 0.05, evening: 0.35, late: 0.4 },
+    odds: { afternoon: 0.08, evening: 0.5, late: 0.5 },
     yieldsTo: 'patio-mayor',
   },
   {
@@ -70,6 +74,6 @@ export const ALLEY_SPOTS: readonly AlleySpotDef[] = [
     lookout: { tx: 57, ty: 42, facing: 'up' },
     scan: 'down',
     entries: [{ tx: 53, ty: 41 }, { tx: 56, ty: 51 }],
-    odds: { afternoon: 0.03, evening: 0.3, late: 0.35 },
+    odds: { afternoon: 0.05, evening: 0.45, late: 0.45 },
   },
 ];

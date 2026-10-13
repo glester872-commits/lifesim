@@ -46,7 +46,9 @@ export class HUD {
     this.cardEl = this.pick(root, '.hud__card');
 
     state.on('change', () => this.render());
-    state.on('saved', () => this.flashSaved());
+    state.on('saved', () => this.flashSaved('partida guardada', false));
+    // Un fallo de verdad (modo privado, almacenamiento lleno): se dice, más rato y en rojo.
+    state.on('save-failed', () => this.flashSaved('no se pudo guardar · exporta la partida (G)', true));
     this.render();
   }
 
@@ -66,11 +68,13 @@ export class HUD {
     this.cardEl.hidden = card === undefined;
   }
 
-  private flashSaved(): void {
+  private flashSaved(text: string, failed: boolean): void {
+    this.savedEl.textContent = text;
+    this.savedEl.classList.toggle('is-failed', failed);
     this.savedEl.classList.add('is-visible');
     window.clearTimeout(this.savedTimer);
     this.savedTimer = window.setTimeout(() => {
       this.savedEl.classList.remove('is-visible');
-    }, 1400);
+    }, failed ? 5000 : 1400);
   }
 }

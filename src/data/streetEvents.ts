@@ -95,6 +95,10 @@ export interface StreetEventDef {
     dispersing: readonly string[];
     lookout: readonly string[];
     arrive: Readonly<Record<'gathering' | 'fight' | 'break' | 'dispersing', string>>;
+    /** Lo que se oye desde la calle sin verlo (systems/EventCues): reunión y pelea. */
+    hear: Readonly<Record<'gathering' | 'fight', string>>;
+    /** Lo que suelta alguien de la calle en una charla, esa misma noche antes de que acabe. */
+    rumor: readonly string[];
   };
 }
 
@@ -119,10 +123,10 @@ export const STREET_EVENTS: readonly StreetEventDef[] = [
     ],
     watchers: [{ tx: 71, ty: 2 }, { tx: 75, ty: 6, facing: 'up' }],
     lookout: { tx: 75, ty: 14, facing: 'down' },
-    window: [21, 3],
+    window: [21, 1],
     // Jueves a domingo, como la Órbita: la noche del barrio.
-    days: [3, 4, 5, 6],
-    chance: 0.45,
+    days: [2, 3, 4, 5, 6],
+    chance: 0.6,
     crowd: [5, 8],
     rounds: [2, 3],
     raid: 0.15,
@@ -138,6 +142,15 @@ export const STREET_EVENTS: readonly StreetEventDef[] = [
         break: 'Entre asalto y asalto: los dos respiran y el corro comenta.',
         dispersing: 'El corro se deshace. Alguien recoge los vasos.',
       },
+      hear: {
+        gathering: 'Murmullo de gente por el callejón de servicio, hacia el patio de atrás.',
+        fight: 'Gritos y jaleo al fondo del callejón de servicio. Alguien jalea un nombre.',
+      },
+      rumor: [
+        'Esta noche hay movida en el patio de detrás de la Mayor. Por el callejón de servicio. Yo no te he dicho nada.',
+        'Si oyes gritos por el callejón de la Mayor, no es una fiesta. Hay peleas, a partir de las nueve o así.',
+        'Hoy se juntan en el patio de atrás. Apuestas y todo. Yo paso.',
+      ],
     },
   },
 ];

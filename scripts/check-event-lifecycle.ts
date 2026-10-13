@@ -11,7 +11,7 @@ import { AlleyDeal, COOLDOWN } from '../src/systems/AlleyDeals.ts';
 import { readFileSync } from 'node:fs';
 import type { EventInfo, Lifecycle } from '../src/systems/WorldEvents.ts';
 
-const ORDER: Lifecycle[] = ['ELIGIBLE', 'SPAWNING', 'ACTIVE', 'RESOLUTION', 'CLEANUP', 'COOLDOWN'];
+const ORDER: Lifecycle[] = ['ELIGIBLE', 'SCHEDULED', 'SPAWNING', 'ACTIVE', 'RESOLUTION', 'CLEANUP', 'COOLDOWN'];
 const uniqueIds = (e: EventInfo): void => assert.equal(new Set(e.participants.map((p) => p.id)).size, e.participants.length, `${e.id}: participante repetido`);
 /** El ciclo sólo avanza (ELIGIBLE → … → COOLDOWN), nunca hacia atrás dentro del mismo suceso. */
 function forward(seen: Lifecycle[], id: string): void {
@@ -30,7 +30,8 @@ for (const def of STREET_EVENTS) {
   while (!ev.night(day).happens) day++;
   const night = ev.night(day);
   const t0 = night.start - 180;
-  assert.equal(ev.lifecycle(t0).lifecycle, 'ELIGIBLE', `${def.id}: antes de nada no está ELIGIBLE`);
+  // Esa tarde ya se sabe que habrá pelea: está en el plan.
+  assert.equal(ev.lifecycle(t0).lifecycle, 'SCHEDULED', `${def.id}: la tarde de una noche con pelea no está SCHEDULED`);
 
   // a) Natural de principio a fin: acotada, sin gente al acabar, y en enfriamiento hasta el día siguiente.
   const natural: Lifecycle[] = [];
@@ -43,7 +44,7 @@ for (const def of STREET_EVENTS) {
   }
   const naturalPath = dedupe(natural);
   forward(naturalPath, def.id);
-  assert.deepEqual(naturalPath.slice(0, 3), ['ELIGIBLE', 'SPAWNING', 'ACTIVE'], `${def.id}: natural ${naturalPath.join(' → ')}`);
+  assert.deepEqual(naturalPath.slice(0, 3), ['SCHEDULED', 'SPAWNING', 'ACTIVE'], `${def.id}: natural ${naturalPath.join(' → ')}`);
   assert.equal(naturalPath.at(-1), 'COOLDOWN', `${def.id}: la natural no acaba (${naturalPath.join(' → ')})`);
   assert.equal(ev.presentAt(t).length, 0, `${def.id}: queda gente tras la pelea`);
   assert.ok(t - night.start < 10 * 60, `${def.id}: dura ${t - night.start} min`);
@@ -78,7 +79,7 @@ for (const def of STREET_EVENTS) {
   ev.devCancel(t0 + 5);
   assert.equal(ev.presentAt(t0 + 5).length, 0, `${def.id}: cancelada y con gente`);
   ev.devReset();
-  assert.equal(ev.lifecycle(t0).lifecycle, 'ELIGIBLE', `${def.id}: tras reiniciar no vuelve a ELIGIBLE`);
+  assert.equal(ev.lifecycle(t0).lifecycle, 'SCHEDULED', `${def.id}: tras reiniciar no vuelve al plan`);
   assert.ok(ev.presentAt(night.fightAt).length > 0, `${def.id}: tras reiniciar no vuelve a pasar`);
   ev.devForce(t0);
   assert.equal(ev.lifecycle(t0 + 2).lifecycle, 'SPAWNING', `${def.id}: no se puede volver a forzar`);
@@ -92,7 +93,7 @@ for (const spot of ALLEY_SPOTS) {
   const deal = new AlleyDeal(spot, getLocation(spot.location));
   deal.devReset();
   const t0 = 30 * 1440 + 13 * 60;
-  assert.equal(deal.lifecycle(t0).lifecycle, 'ELIGIBLE', `${spot.id}: no está ELIGIBLE`);
+  assert.ok(['ELIGIBLE', 'SCHEDULED'].includes(deal.lifecycle(t0).lifecycle), `${spot.id}: no está ELIGIBLE/SCHEDULED`);
 
   // a) Forzado → activo → resuelto (alguien de uniforme) → recogida → enfriamiento COOLDOWN minutos.
   deal.devForce(t0);
@@ -127,7 +128,7 @@ for (const spot of ALLEY_SPOTS) {
   assert.equal(deal.presentAt(t0 + 5).length, 0, `${spot.id}: cancelado y con gente`);
   assert.equal(deal.lifecycle(t0 + 5).lifecycle, 'COOLDOWN', `${spot.id}: cancelado sin enfriamiento`);
   deal.devReset();
-  assert.equal(deal.lifecycle(t0).lifecycle, 'ELIGIBLE');
+  assert.ok(['ELIGIBLE', 'SCHEDULED'].includes(deal.lifecycle(t0).lifecycle));
   deal.devForce(t0);
   assert.ok(['SPAWNING', 'ACTIVE'].includes(deal.lifecycle(t0 + 1).lifecycle), `${spot.id}: no se puede volver a forzar`);
 

@@ -8,14 +8,14 @@ import type { TilePoint } from '../types/game.ts';
  * del reloj con semilla; el carterista es una máquina de estados) y aquí sólo
  * se nombra en qué punto está cada uno con las mismas palabras:
  *
- *   ELIGIBLE → SPAWNING → ACTIVE → RESOLUTION → CLEANUP → COOLDOWN → ELIGIBLE
+ *   ELIGIBLE → SCHEDULED → SPAWNING → ACTIVE → RESOLUTION → CLEANUP → COOLDOWN → ELIGIBLE
  *
- * SPAWNING: llegan los participantes. ACTIVE: pasa. RESOLUTION: hay reacción
+ * SCHEDULED: ya está decidido que hoy pasa (el plan del día) y aún no ha empezado. SPAWNING: llegan los participantes. ACTIVE: pasa. RESOLUTION: hay reacción
  * (un vigilante acude, el vigía avisa, el jugador mira). CLEANUP: ya está
  * decidido y la gente se va (sus papeles temporales desaparecen al salir).
  * COOLDOWN: no vuelve a pasar en ese sitio hasta `cooldownLeft`.
  */
-export type Lifecycle = 'ELIGIBLE' | 'SPAWNING' | 'ACTIVE' | 'RESOLUTION' | 'CLEANUP' | 'COOLDOWN';
+export type Lifecycle = 'ELIGIBLE' | 'SCHEDULED' | 'SPAWNING' | 'ACTIVE' | 'RESOLUTION' | 'CLEANUP' | 'COOLDOWN';
 
 export type WorldEventType = 'fight' | 'alley' | 'pickpocket';
 
@@ -43,6 +43,8 @@ export interface EventInfo {
   /** Cuánto falta para que vuelva a poder pasar (0: ya puede). */
   cooldownLeft: number;
   forced: boolean;
+  /** Por qué hoy no pasa o no puede pasar (día, azar, lluvia, sitio ocupado…); vacío si nada lo impide. Sólo para depurar. */
+  reason?: string;
 }
 
 export const eventId = (type: WorldEventType, site: string): string => `${type}:${site}`;

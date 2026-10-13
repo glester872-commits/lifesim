@@ -83,6 +83,7 @@ import { hashSeed, seededRng, type Rng } from '../systems/MetroDaily';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
 import { AlleyDealView } from '../world/AlleyDealView';
+import { alleyHeard, distanceTo, HEAR_ALLEY, HEAR_FIGHT, rumorFor } from '../systems/EventCues';
 import { alleySpotsOf } from '../systems/AlleyDeals';
 import { STREET_EVENTS } from '../data/streetEvents';
 import { Occlusion } from '../world/Occlusion';
@@ -776,6 +777,7 @@ export class WorldScene extends Phaser.Scene {
     this.alleyDeals.forEach((a) => {
       a.update(eventMinute, this.playerTile());
     });
+    this.hearEvents(eventMinute);
     // Quien está en el corro o en el callejón no anda a la vez por la calle (la misma persona en dos sitios).
     if (this.street && (this.streetEvents.length || this.alleyDeals.length)) {
       this.street.claimLooks(new Set([...this.streetEvents.flatMap((e) => e.looks), ...this.alleyDeals.flatMap((a) => a.agents.map((g) => g.look))]));
@@ -1973,7 +1975,14 @@ export class WorldScene extends Phaser.Scene {
       } else {
         const talk = this.conversationWith(target.sprite);
         this.startTalk(target.sprite);
-        if (talk) this.say(target.def.name, target.sprite, talk, talk.open(), target.def.id);
+        if (talk) {
+          const turn = talk.open();
+          // La gente anónima de la calle a veces cuenta lo que va a pasar hoy por aquí (systems/EventCues): la única pista, aparte del ruido.
+          const named = this.characters.some((c) => c.sprite === target.sprite);
+          const rumor = named ? null : rumorFor(this.services.state.locationId, this.services.state.day * 1440 + this.services.clock.minuteOfDay, target.def.id);
+          if (rumor) turn.lines.push(rumor);
+          this.say(target.def.name, target.sprite, talk, turn, target.def.id);
+        }
         else this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
       }
     }
@@ -2901,12 +2910,55 @@ export class WorldScene extends Phaser.Scene {
     dialogue.ask(speaker, ev.lines, choices.map((c) => c.label), (i) => settle(choices[i].id));
   }
 
-  private persist(): void {
+  /** Lo ya oído de cada suceso (id → fase o rato): cada cosa suena una vez, no en bucle. */
+  private readonly heard = new Map<string, string>();
+
+  /**
+   * Lo que se oye de un suceso escondido sin tenerlo delante (systems/EventCues): la pelea desde la calle de al
+   * lado, el trapicheo sólo muy cerca. Una línea discreta arriba, una vez por fase; dentro del sitio ya se ve.
+   */
+  private hearEvents(t: number): void {
+    const p = this.playerTile();
+    const say = (key: string, mark: string, line: string): void => {
+      if (this.heard.get(key) === mark) return;
+      this.heard.set(key, mark);
+      this.services.announcer.say(line, 'se oye');
+    };
+    for (const e of this.streetEvents) {
+      const phase = e.phaseNow === 'gathering' ? 'gathering' : e.phaseNow === 'fight' || e.phaseNow === 'break' ? 'fight' : null;
+      if (!phase) {
+        this.heard.delete(e.def.id);
+        continue;
+      }
+      const d = distanceTo(e.def.area, p);
+      if (d > 1.5 && d <= HEAR_FIGHT) say(e.def.id, phase, e.def.lines.hear[phase]);
+    }
+    for (const a of this.alleyDeals) {
+      const ep = a.deal.episodeAt(t);
+      if (!ep || a.deal.phase(t) === 'none' || a.deal.phase(t) === 'dispersing') continue;
+      const d = distanceTo(a.spot.area, p);
+      if (d > 1.5 && d <= HEAR_ALLEY) say(a.spot.id, String(ep.start), alleyHeard(a.spot.name, Math.floor(ep.start)));
+    }
+  }
+
+  /** Último guardado salió bien: un fallo del autoguardado sólo se avisa al pasar de bien a mal, no cada 10 s. */
+  private savedOk = true;
+
+  /**
+   * Guarda la partida. true sólo si quedó escrita (systems/SaveSystem). Con la ranura echada (pantalla de
+   * inicio, o tras sustituir la partida) no se intenta ni se avisa. `manual`: «Guardar ahora» avisa siempre.
+   */
+  persist(manual = false): boolean {
     const { save, state } = this.services;
+    if (save.locked) return false;
     const snapshot = state.snapshot;
     // Probándose una prenda: lo que se guarda es lo de antes, no la prueba.
     const outfit = this.menus.fittingOutfit;
     if (outfit) snapshot.appearance.player = { ...outfit };
-    if (save.save(snapshot)) state.emit('saved');
+    const ok = save.save(snapshot);
+    if (ok) state.emit('saved');
+    else if (manual || this.savedOk) state.emit('save-failed');
+    this.savedOk = ok;
+    return ok;
   }
 }

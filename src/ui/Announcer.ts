@@ -4,6 +4,7 @@ const VISIBLE_MS = 5_000;
 export class Announcer {
   private readonly root: HTMLElement;
   private readonly text: HTMLElement;
+  private readonly label: HTMLElement;
   private hideTimer: number | undefined;
 
   constructor(root: HTMLElement) {
@@ -12,9 +13,11 @@ export class Announcer {
     const text = root.querySelector<HTMLElement>('.announce__text');
     if (!text) throw new Error('Announcer: falta .announce__text');
     this.text = text;
+    this.label = root.querySelector<HTMLElement>('.announce__label')!;
   }
 
-  say(message: string): void {
+  say(message: string, label = 'megafonía'): void {
+    this.label.textContent = label;
     this.text.textContent = message;
     this.root.classList.add('is-visible');
     window.clearTimeout(this.hideTimer);

@@ -74,64 +74,36 @@ export function restore(loaded: GameStateData | null): GameStateData {
 /** Clave donde se aparta una partida que no se puede leer (rota o de una versión más nueva) antes de que el autoguardado la pise. */
 export const UNREADABLE_KEY = `${SAVE_KEY}.unreadable`;
 
+/** Copia de la partida anterior: se aparta aquí antes de sustituirla (nueva, importada o recuperada). */
+export const BACKUP_KEY = `${SAVE_KEY}.backup`;
+
 /**
- * Backend de persistencia.
- *
- * localStorage es la implementación actual.
+ * Backend de persistencia (localStorage en el navegador; un Map en los scripts).
+ * write LANZA si no se pudo escribir (modo privado, cuota llena): SaveSystem lo
+ * convierte en `false`, nunca en un «guardado» falso.
  */
 export interface SaveStorage {
-  read(
-    key: string,
-  ): string | null;
-
-  write(
-    key: string,
-    value: string,
-  ): void;
-
-  remove(
-    key: string,
-  ): void;
+  read(key: string): string | null;
+  write(key: string, value: string): void;
+  remove(key: string): void;
 }
 
-export class LocalStorageAdapter
-  implements SaveStorage {
-  read(
-    key: string,
-  ): string | null {
+export class LocalStorageAdapter implements SaveStorage {
+  read(key: string): string | null {
     try {
-      return window.localStorage.getItem(
-        key,
-      );
+      return window.localStorage.getItem(key);
     } catch {
       return null;
     }
   }
 
-  write(
-    key: string,
-    value: string,
-  ): void {
-    try {
-      window.localStorage.setItem(
-        key,
-        value,
-      );
-    } catch {
-      /*
-       * Modo privado o cuota llena:
-       * la partida continúa aunque no persista.
-       */
-    }
+  write(key: string, value: string): void {
+    window.localStorage.setItem(key, value);
   }
 
-  remove(
-    key: string,
-  ): void {
+  remove(key: string): void {
     try {
-      window.localStorage.removeItem(
-        key,
-      );
+      window.localStorage.removeItem(key);
     } catch {
       // Ignorado.
     }
@@ -493,73 +465,124 @@ function parseCounts(
 // SAVE SYSTEM
 // ================================================================
 
-export class SaveSystem {
-  private readonly storage:
-    SaveStorage;
+/** La partida tal y como se escribe (y se exporta): versión, fecha y estado. */
+export function serialize(state: GameStateData): string {
+  const file: SaveFile = { version: SAVE_VERSION, savedAt: Date.now(), state };
+  return JSON.stringify(file);
+}
 
-  constructor(
-    storage:
-      SaveStorage =
-      new LocalStorageAdapter(),
-  ) {
-    this.storage =
-      storage;
+/**
+ * Lee un fichero de partida (lo guardado o uno importado). null si no es una
+ * partida: JSON roto, de una versión más nueva o sin dinero ni reloj. Sin
+ * número de versión, o con uno anterior, se lee con los valores seguros de
+ * parseState (hasta ahora sólo existe la 1: no hace falta migrar nada más).
+ */
+export function parseSave(raw: string): GameStateData | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const file = isRecord(parsed) ? parsed : {};
+    const version = file.version === undefined ? 1 : file.version;
+    return isNumber(version) && version <= SAVE_VERSION ? parseState(file.state) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Una ranura de partida. `key` deja abierta la puerta a varias ranuras; hoy hay una.
+ * `locked`: mientras está echado no se escribe nada (antes de elegir en la pantalla
+ * de inicio, y tras sustituir la partida hasta recargar), así ni el autoguardado
+ * ni el beforeunload pisan lo que se acaba de decidir.
+ */
+export class SaveSystem {
+  locked = false;
+  private readonly storage: SaveStorage;
+  readonly key: string;
+
+  constructor(storage: SaveStorage = new LocalStorageAdapter(), key = SAVE_KEY) {
+    this.storage = storage;
+    this.key = key;
   }
 
-  save(
-    state: GameStateData,
-  ): boolean {
-    const file:
-      SaveFile = {
-      version:
-        SAVE_VERSION,
+  private get backupKey(): string {
+    return this.key === SAVE_KEY ? BACKUP_KEY : `${this.key}.backup`;
+  }
 
-      savedAt:
-        Date.now(),
+  private get unreadableKey(): string {
+    return this.key === SAVE_KEY ? UNREADABLE_KEY : `${this.key}.unreadable`;
+  }
 
-      state,
-    };
-
+  /** true sólo si quedó escrito y se lee igual: con el almacenamiento lleno o bloqueado, false. */
+  private write(key: string, raw: string): boolean {
     try {
-      this.storage.write(
-        SAVE_KEY,
-        JSON.stringify(
-          file,
-        ),
-      );
-
-      return true;
+      this.storage.write(key, raw);
+      return this.storage.read(key) === raw;
     } catch {
       return false;
     }
   }
 
+  save(state: GameStateData): boolean {
+    if (this.locked) return false;
+    return this.write(this.key, serialize(state));
+  }
+
   /**
-   * La partida guardada, o null si no hay o no se puede leer. Sin número de
-   * versión, o con uno anterior, se lee con los valores seguros de parseState
-   * (hasta ahora sólo existe la 1: no hace falta migrar nada más). Una partida
-   * rota o de una versión más nueva NO se pisa: se aparta a UNREADABLE_KEY
+   * La partida guardada, o null si no hay o no se puede leer. Una partida rota
+   * o de una versión más nueva NO se pisa: se aparta a la clave de ilegibles
    * antes de que el autoguardado de la partida nueva la sobrescriba.
    */
   load(): GameStateData | null {
-    const raw = this.storage.read(SAVE_KEY);
+    const raw = this.storage.read(this.key);
     if (!raw) return null;
-    let state: GameStateData | null = null;
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      const file = isRecord(parsed) ? parsed : {};
-      const version = file.version === undefined ? 1 : file.version;
-      if (isNumber(version) && version <= SAVE_VERSION) state = parseState(file.state);
-    } catch {
-      state = null;
-    }
-    if (!state) this.storage.write(UNREADABLE_KEY, raw);
+    const state = parseSave(raw);
+    if (!state) this.write(this.unreadableKey, raw);
     return state;
   }
 
+  /** Hay algo guardado en la ranura (legible o no). */
+  get exists(): boolean {
+    return this.storage.read(this.key) !== null;
+  }
+
+  /** La copia apartada al sustituir la partida, si se puede leer. */
+  backup(): GameStateData | null {
+    const raw = this.storage.read(this.backupKey);
+    return raw ? parseSave(raw) : null;
+  }
+
+  /**
+   * Sustituye la partida (nueva o importada). La que había, si es legible, se
+   * aparta antes a la copia de seguridad; si no se puede apartar, no se toca
+   * nada y devuelve false. Si sale bien, la ranura queda echada hasta recargar.
+   */
+  replace(state: GameStateData): boolean {
+    const prev = this.storage.read(this.key);
+    if (prev && parseSave(prev) && !this.write(this.backupKey, prev)) return false;
+    if (!this.write(this.key, serialize(state))) {
+      // Lo que hubiera a medias vuelve a como estaba.
+      if (prev) this.write(this.key, prev);
+      return false;
+    }
+    this.locked = true;
+    return true;
+  }
+
+  /** Recupera la copia de seguridad intercambiándola con la partida actual: no se pierde ninguna de las dos. */
+  restoreBackup(): boolean {
+    const raw = this.storage.read(this.backupKey);
+    if (!raw || !parseSave(raw)) return false;
+    const current = this.storage.read(this.key);
+    if (!this.write(this.key, raw)) {
+      if (current) this.write(this.key, current);
+      return false;
+    }
+    if (current && parseSave(current)) this.write(this.backupKey, current);
+    this.locked = true;
+    return true;
+  }
+
   clear(): void {
-    this.storage.remove(
-      SAVE_KEY,
-    );
+    this.storage.remove(this.key);
   }
 }

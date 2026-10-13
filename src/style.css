@@ -119,6 +119,48 @@ body {
   opacity: 0.75;
 }
 
+.hud__saved.is-failed {
+  color: #ff6b6b;
+}
+
+.hud__saved.is-failed.is-visible {
+  opacity: 1;
+}
+
+/* Menú de partida (G), debajo del móvil y del mismo material. */
+#game-button {
+  position: absolute;
+  top: 94px;
+  right: 14px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 8px;
+  border: 2px solid rgba(232, 227, 218, 0.14);
+  background: rgba(14, 15, 22, 0.8);
+  color: var(--white);
+  font: 700 11px var(--ui-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#game-button:hover,
+#game-button:focus-visible {
+  border-color: var(--amber);
+  outline: none;
+}
+
+@media (max-width: 520px), (max-height: 480px) {
+  #game-button {
+    top: calc(max(10px, env(safe-area-inset-top)) + 104px);
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* -------------------------------------------------------------- diálogo */
 
 #dialogue {
