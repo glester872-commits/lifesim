@@ -37,6 +37,10 @@ export const SERVICE_OFFERS = {
   'shop-archivo': { kind: 'retail', store: 'archivo', minutes: 10 },
   'shop-vuelta': { kind: 'retail', store: 'vuelta', minutes: 20 },
   'shop-suela': { kind: 'retail', store: 'suela', minutes: 10 },
+  // Cuatro Ríos.
+  'haircut-rio': { kind: 'appearance', slot: 'hair', title: 'Barbería del Cruce · corte', greeting: 'Pasa, siéntate. ¿Como la última vez?', minutes: 30 },
+  'shop-hilvana': { kind: 'retail', store: 'hilvana', minutes: 10 },
+  'shop-ambar': { kind: 'retail', store: 'ambar', minutes: 10 },
   'club-bar': { kind: 'activities', title: 'Barra · Sala Órbita', activities: ['club-drink', 'club-water'] },
   'wine-bar': { kind: 'activities', title: 'Barra · La Cepa', activities: ['wine-glass', 'wine-board'] },
   'bar-ribera': { kind: 'activities', title: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },

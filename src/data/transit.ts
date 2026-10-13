@@ -36,6 +36,8 @@ export const LINES: readonly TransitLine[] = [
 ];
 
 export const STOPS: readonly TransitStop[] = [
+  // Cuatro Ríos, la parada de antes de Vallesco: a una de Vallesco y a dos de la Ribera. Los trayectos de antes no cambian.
+  { id: 'cuatro-rios', name: 'Cuatro Ríos', line: 'L2', order: -1, station: 'cuatro-rios-station' },
   { id: 'vallesco', name: 'Vallesco', line: 'L2', order: 0, station: 'vallesco-station' },
   { id: 'ribera', name: 'Ribera Norte', line: 'L2', order: 1, station: 'ribera-station' },
   { id: 'decathlon', name: 'Polígono Norte · Decathlon', line: 'L2', order: 2, offMap: 'decathlon' },

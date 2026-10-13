@@ -16,7 +16,7 @@ import type { TrafficBand } from './vehicles.ts';
  *   facades            → scripts/check-districts (qué edificios caben en la zona)
  */
 
-export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit' | 'riverside';
+export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit' | 'riverside' | 'dense';
 
 /** Estilo de ropa de la gente anónima (NpcLook.style). Sin estilo, 'everyday'. */
 export type LookStyle = 'everyday' | 'smart' | 'street' | 'sport';
@@ -132,6 +132,18 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     vehicles: { all: { casual: 1.5, commuter: 0.8, courier: 0.6, skater: 3 } },
     facades: ['civic', 'wine', 'res-*'],
     ambience: { leaf: 2.5, paper: 0.3, steam: 0.3 },
+  },
+  // Cuatro Ríos: ciudad densa de diario. Suelo más gastado y polvoriento, luz de escaparate algo más fuerte, cajas,
+  // armarios de la luz y carteles contra las fachadas; furgonetas y repartos de sobra, poco coche de lujo.
+  dense: {
+    wash: ['#a08f7c', 0.06],
+    grade: { morning: '#fff3e6', day: '#fbf8f2', sunset: '#ffe8d2', night: '#ece6f2' },
+    lamp: ['#ffc07e', 1.1],
+    kit: { props: ['utility-box', 'crates', 'poster', 'bike', 'ad-panel'], on: 'facade', every: 6, max: 12 },
+    crowd: { everyday: 4, street: 1.6, smart: 1.2, sport: 1 },
+    vehicles: { all: { van: 1.6, 'small-truck': 1.5, 'delivery-truck': 1.4, premium: 0.4, courier: 1.6 }, morning: { bus: 1.4 }, evening: { bus: 1.3 } },
+    facades: ['res-*', 'super', 'fruit', 'bakery', 'restaurant', 'hair', 'phone', 'gym', 'pharmacy', 'grocer', 'fashion', 'streetwear', 'arcade', 'laundry', 'cafe', 'backdrop'],
+    ambience: { leaf: 0.5, paper: 1.6, steam: 1.3 },
   },
   // Boca de metro: acero y granito, luz más neutra; la gente de paso de cualquier sitio.
   transit: {

@@ -108,9 +108,10 @@ export const DISTRICT_IDENTITIES: Readonly<Record<string, DistrictIdentity>> = {
     scooters: 1.5,
     security: 1.4, events: 1.2, ambience: 1.4,
   },
+  // Cuatro Ríos (data/cuatroRios.ts): ciudad densa de diario; las dos horas punta (7:30–9:30 y 17:00–20:00) mandan.
   'cuatro-rios': {
     name: 'Cuatro Ríos', tagline: 'flujo urbano denso y cotidiano, de muchos orígenes y oficios',
-    density: { bands: [[6.5, 9.5, 1.4], [9.5, 17, 1.1], [17, 21, 1.3], [21, 24, 0.8]], rest: 0.6, weekend: 1.1 },
+    density: { bands: [[6.5, 7.5, 1.1], [7.5, 9.5, 1.5], [9.5, 17, 1.05], [17, 20, 1.5], [20, 22, 1], [22, 24, 0.75]], rest: 0.5, weekend: 1 },
     groups: { commute: 1.4, food: 1.3, retail: 1.2, family: 1.3, social: 1.2, nightlife: 0.9 },
     traffic: { vehicles: 1.2, bikes: 1.1, deliveries: 1.4 },
     scooters: 1,
@@ -140,4 +141,6 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'vallesco-station': 'vallesco',
   ribera: 'ribera',
   'ribera-station': 'ribera',
+  'cuatro-rios': 'cuatro-rios',
+  'cuatro-rios-station': 'cuatro-rios',
 };

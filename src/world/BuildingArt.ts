@@ -18,7 +18,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -100,6 +100,8 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   bakery: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#e3cfa4', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#8a5a32', '#efe2c4'], sign: 'bread' },
   // Alimentación Mari: azulejo verde, toldo verde y blanco, cajas de fruta y baldas a la vista y la cesta.
   grocer: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#5f8a6e', shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: [PALETTE.leaf, PALETTE.white], sign: 'basket' },
+  // Cuatro Ríos: móviles y reparaciones. Rótulo de luz fría, persiana a medio subir y el teléfono de rótulo.
+  phone: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#2f3e52', shop: 'display', upper: 'windows', lit: NEON_CYAN, door: 'glass', sign: 'phone', wallArt: 'posters' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
 };
 
@@ -918,7 +920,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     cross: PALETTE.leafLit, scissors: PALETTE.glassLit, euro: PALETTE.amber, apple: RUST, key: PALETTE.amber,
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
-    sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e', bread: PALETTE.amber,
+    sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e', bread: PALETTE.amber, phone: NEON_CYAN,
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -929,6 +931,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
   switch (sign) {
     case 'house': p(7, 3, 2, 1); p(5, 4, 6, 1); p(4, 5, 8, 1); p(5, 6, 6, 6); px(ctx, PALETTE.amber, 7, 9, 2, 3); break;
     case 'dumbbell': p(4, 7, 8, 2); p(4, 5, 2, 6); p(10, 5, 2, 6); break;
+    case 'phone': p(5, 3, 6, 10); px(ctx, NEON_CYAN, 6, 4, 4, 7); p(7, 11, 2, 1); break;
     case 'cup': p(4, 6, 6, 5); p(10, 7, 2, 2); p(5, 4, 1, 1); p(7, 3, 1, 2); px(ctx, PALETTE.amber, 5, 7, 4, 1); break;
     case 'hanger': p(7, 4, 2, 1); p(8, 5, 1, 2); p(5, 7, 6, 1); p(4, 8, 2, 1); p(10, 8, 2, 1); p(3, 9, 10, 1); break;
     case 'basket': p(4, 7, 8, 1); p(5, 8, 6, 4); p(6, 4, 1, 3); p(9, 4, 1, 3); p(6, 4, 4, 1); break;

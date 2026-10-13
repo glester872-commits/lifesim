@@ -53,7 +53,7 @@ export function interiorOf(v: FoodVenue): LocationDef {
     props: [
       ...many('shelf', shelves),
       at('stove', L.stoveX, 2),
-      // Pizza: la mesa donde se estira la masa, a cada lado del cocinero.
+      // Pizza: la mesa donde se estira la masa, junto al cocinero.
       ...many('table', (L.prepTables ?? []).map((x): [number, number] => [x, 3])),
       ...many('counter', counter),
       ...many('dining-table', L.tables),

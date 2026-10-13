@@ -68,6 +68,24 @@ export const CATALOGS: readonly Catalog[] = [
     products: [item('ice-cream', 'Helado de cucurucho', 2.5), item('ice-lolly', 'Polo de limón', 1.5), item('water', 'Agua fría', 1.2)],
   },
   {
+    // Frutas Dos Orillas (Cuatro Ríos): fruta del día y verdura para cocinar.
+    id: 'fruteria-counter',
+    greeting: 'Lo de hoy está a la entrada. ¿Qué te pongo?',
+    products: [item('fruit', 'Bolsa de fruta', 2), item('groceries', 'Verdura y legumbre para cocinar', 7.5), item('water', 'Agua', 0.8)],
+  },
+  {
+    // Conecta (Cuatro Ríos): tienda de móviles que, como tantas, recarga la tarjeta de transporte y tiene nevera.
+    id: 'conecta-counter',
+    greeting: 'Recargas, fundas y reparaciones. ¿Qué necesitas?',
+    products: [
+      { id: 'conecta-transport-10', label: 'Recarga de transporte €10', price: 10, effect: { card: 'transport', load: 10 } },
+      { id: 'conecta-transport-new', label: 'Tarjeta de transporte (con €10 de saldo)', price: 12.5, effect: { card: 'transport', load: 10, issue: true } },
+      item('water', 'Agua', 1),
+      item('cola', 'Refresco de cola', 1.3),
+      item('energy-drink', 'Bebida energética', 2.1),
+    ],
+  },
+  {
     // La misma máquina en todas las estaciones.
     id: 'transport-machine',
     greeting: 'Metro · Línea 2. Tarjetas y recargas. El viaje se descuenta al subir al tren.',

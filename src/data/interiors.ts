@@ -882,63 +882,71 @@ const ARCADE_FIGHT_X = [2, 3, 4, 5, 6] as const;
 const ARCADE_RACE_X = [9, 10, 11, 12] as const;
 const ARCADE_CLAW_X = [15, 16, 17] as const;
 
-export const ARCADE: LocationDef = {
-  id: 'arcade',
-  name: 'Salón Recreativo Nova',
-  kind: 'interior',
-  ground: room(20, 14, 10, (_x, y) => (y >= 10 ? 't' : 'n')),
-  props: [
-    ...ARCADE_FIGHT_X.map((x) => at('arcade-cabinet', x, 2)),
-    ...ARCADE_RACE_X.map((x) => at('arcade-racing', x, 2)),
-    ...ARCADE_CLAW_X.map((x) => at('arcade-claw', x, 2)),
-    at('neon', 7, 1),
-    ...many('arcade-rhythm', [[3, 8], [6, 8]]),
-    // Los sofás de quien espera turno, mirando a la sala.
-    ...many('sofa', [[14, 6], [17, 6]]),
-    // El mostrador de las fichas.
-    ...many('counter', [[15, 10], [16, 10], [17, 10]]),
-    at('register', 17, 10),
-    ...many('plant', [[1, 11], [18, 2]]),
-  ],
-  ambient: '#d2c6ff',
-  ...exitTo('ribera-arcade', 10, 14),
-  // La puerta da a la calle de la Ribera, no al barrio de siempre.
-  portals: [{ id: 'exit', tx: 10, ty: 12, label: 'Salir a la calle', to: { location: 'ribera', spawn: 'ribera-arcade' } }],
-  // Nadie colocado a mano: la gente la pone data/population.ts según la hora.
-  npcs: [],
-  spots: [
-    { tx: 4, ty: 3, name: 'Máquina de lucha', activities: ['arcade-fight'] },
-    { tx: 10, ty: 3, name: 'Máquina de carreras', activities: ['arcade-race'] },
-    { tx: 16, ty: 3, name: 'Máquina de las pinzas', activities: ['arcade-claw'] },
-    { tx: 3, ty: 9, name: 'Máquina de ritmo', activities: ['arcade-rhythm'] },
-  ],
-  points: {
-    ARCADE_EXIT: p(10, 11, 'exit', 'up'),
-    ARCADE_STAFF: p(16, 9, 'work', 'down'),
-    ARCADE_TILL: p(16, 11, 'interact', 'up'),
-    ...Object.fromEntries(ARCADE_FIGHT_X.map((x, i) => [`ARCADE_FIGHT_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
-    ...Object.fromEntries(ARCADE_RACE_X.map((x, i) => [`ARCADE_RACE_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
-    ...Object.fromEntries(ARCADE_CLAW_X.map((x, i) => [`ARCADE_CLAW_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
-    ARCADE_RHYTHM_01: use(3, 8, 'rhythm', 'up'),
-    ARCADE_RHYTHM_02: use(6, 8, 'rhythm', 'up'),
-    // Detrás de quien juega, esperando turno o mirando por encima del hombro.
-    ARCADE_WAIT_01: p(3, 5, 'wait', 'up'),
-    ARCADE_WAIT_02: p(5, 5, 'wait', 'up'),
-    ARCADE_WAIT_03: p(10, 5, 'wait', 'up'),
-    ARCADE_WAIT_04: p(12, 5, 'wait', 'up'),
-    ARCADE_WAIT_05: p(16, 5, 'wait', 'up'),
-    // Los sofás: dos plazas cada uno.
-    ARCADE_SEAT_01: p(14, 6, 'seat', 'down'),
-    ARCADE_SEAT_02: p(15, 6, 'seat', 'down'),
-    ARCADE_SEAT_03: p(17, 6, 'seat', 'down'),
-    ARCADE_SEAT_04: p(18, 6, 'seat', 'down'),
-    // Un rato de charla en medio de la sala.
-    ARCADE_CHAT_01: p(9, 7, 'meet', 'right'),
-    ARCADE_CHAT_02: p(10, 7, 'meet', 'left'),
-    ARCADE_FLOOR_01: p(8, 6, 'work'),
-    ARCADE_FLOOR_02: p(12, 8, 'work'),
-  },
-};
+/**
+ * El salón entero, para cualquier calle: `exit` es la puerta a la que sale y `pre` el prefijo de sus puntos (únicos en
+ * el mundo). Nova usa 'ARCADE_'; otro salón, el suyo, y su gente sale de data/population.ts arcadeProfile.
+ */
+export function arcadeRoom(id: string, name: string, exit: { location: string; spawn: string }, pre: string): LocationDef {
+  return {
+    id,
+    name,
+    kind: 'interior',
+    ground: room(20, 14, 10, (_x, y) => (y >= 10 ? 't' : 'n')),
+    props: [
+      ...ARCADE_FIGHT_X.map((x) => at('arcade-cabinet', x, 2)),
+      ...ARCADE_RACE_X.map((x) => at('arcade-racing', x, 2)),
+      ...ARCADE_CLAW_X.map((x) => at('arcade-claw', x, 2)),
+      at('neon', 7, 1),
+      ...many('arcade-rhythm', [[3, 8], [6, 8]]),
+      // Los sofás de quien espera turno, mirando a la sala.
+      ...many('sofa', [[14, 6], [17, 6]]),
+      // El mostrador de las fichas.
+      ...many('counter', [[15, 10], [16, 10], [17, 10]]),
+      at('register', 17, 10),
+      ...many('plant', [[1, 11], [18, 2]]),
+    ],
+    ambient: '#d2c6ff',
+    portals: [{ id: 'exit', tx: 10, ty: 12, label: 'Salir a la calle', to: exit }],
+    spawns: { entry: { tx: 10, ty: 11, facing: 'up' } },
+    // Nadie colocado a mano: la gente la pone data/population.ts según la hora.
+    npcs: [],
+    spots: [
+      { tx: 4, ty: 3, name: 'Máquina de lucha', activities: ['arcade-fight'] },
+      { tx: 10, ty: 3, name: 'Máquina de carreras', activities: ['arcade-race'] },
+      { tx: 16, ty: 3, name: 'Máquina de las pinzas', activities: ['arcade-claw'] },
+      { tx: 3, ty: 9, name: 'Máquina de ritmo', activities: ['arcade-rhythm'] },
+    ],
+    points: {
+      [`${pre}EXIT`]: p(10, 11, 'exit', 'up'),
+      [`${pre}STAFF`]: p(16, 9, 'work', 'down'),
+      [`${pre}TILL`]: p(16, 11, 'interact', 'up'),
+      ...Object.fromEntries(ARCADE_FIGHT_X.map((x, i) => [`${pre}FIGHT_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
+      ...Object.fromEntries(ARCADE_RACE_X.map((x, i) => [`${pre}RACE_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
+      ...Object.fromEntries(ARCADE_CLAW_X.map((x, i) => [`${pre}CLAW_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
+      [`${pre}RHYTHM_01`]: use(3, 8, 'rhythm', 'up'),
+      [`${pre}RHYTHM_02`]: use(6, 8, 'rhythm', 'up'),
+      // Detrás de quien juega, esperando turno o mirando por encima del hombro.
+      [`${pre}WAIT_01`]: p(3, 5, 'wait', 'up'),
+      [`${pre}WAIT_02`]: p(5, 5, 'wait', 'up'),
+      [`${pre}WAIT_03`]: p(10, 5, 'wait', 'up'),
+      [`${pre}WAIT_04`]: p(12, 5, 'wait', 'up'),
+      [`${pre}WAIT_05`]: p(16, 5, 'wait', 'up'),
+      // Los sofás: dos plazas cada uno.
+      [`${pre}SEAT_01`]: p(14, 6, 'seat', 'down'),
+      [`${pre}SEAT_02`]: p(15, 6, 'seat', 'down'),
+      [`${pre}SEAT_03`]: p(17, 6, 'seat', 'down'),
+      [`${pre}SEAT_04`]: p(18, 6, 'seat', 'down'),
+      // Un rato de charla en medio de la sala.
+      [`${pre}CHAT_01`]: p(9, 7, 'meet', 'right'),
+      [`${pre}CHAT_02`]: p(10, 7, 'meet', 'left'),
+      [`${pre}FLOOR_01`]: p(8, 6, 'work'),
+      [`${pre}FLOOR_02`]: p(12, 8, 'work'),
+    },
+  };
+}
+
+// Nova: la puerta da a la calle de la Ribera, no al barrio de siempre.
+export const ARCADE: LocationDef = arcadeRoom('arcade', 'Salón Recreativo Nova', { location: 'ribera', spawn: 'ribera-arcade' }, 'ARCADE_');
 
 // ------------------------------------------------- Ribera Norte: los locales de la calle
 //

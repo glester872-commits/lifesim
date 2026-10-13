@@ -368,4 +368,61 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'Ya es tardísimo...', weight: 1, hours: [22, 6], from: { types: ['transit'], edge: true }, to: HOMES },
     ],
   },
+  // ------------------------------------------------------ Cuatro Ríos
+  // Ciudad densa de diario (data/cuatroRios.ts). Lo que la define son las dos horas punta: de 7:30 a 9:30 todo el
+  // barrio baja al metro, a la parada y al trabajo; de 17:00 a 20:00 vuelve, compra, entrena y queda. Entre medias,
+  // recados, comidas, repartos y gente de paso; de noche, la tienda de abajo y quien vuelve tarde.
+  {
+    location: 'cuatro-rios',
+    bands: [
+      [6, 7, 'LOW'], [7, 7.5, 'MEDIUM'], [7.5, 9.5, 'VERY_HIGH'], [9.5, 12, 'MEDIUM'], [12, 14, 'HIGH'], [14, 17, 'MEDIUM'],
+      [17, 20, 'VERY_HIGH'], [20, 22, 'HIGH'], [22, 24, 'MEDIUM'], [0, 1, 'LOW'],
+    ],
+    // El domingo, sin hora punta.
+    weekday: [0, 0, 0, 0, 0, 0, -1],
+    scale: 1.6,
+    maxWalkers: 64,
+    // El metro: en hora punta, un tren cada tres minutos de juego y de cada uno sale un grupo; el resto del día, menos.
+    bursts: [{ point: 'CR_METRO_ENTRANCE', every: [[6.5, 7.5, 8], [7.5, 9.5, 3], [9.5, 17, 10], [17, 20, 3], [20, 24, 12], [0, 1.5, 20]], size: [2, 4] }],
+    draws: [{ place: 'cr-arcade', perLevel: 1 }],
+    trips: [
+      // Hora punta de la mañana: al metro y a la parada; quien llega a trabajar a las tiendas; estudiantes y el cole.
+      { role: 'commuter', label: 'Alguien con prisa', line: 'Si pierdo este, llego tarde. Si cojo este, también.', weight: 8, hours: [7.5, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
+      { role: 'commuter-student', label: 'Estudiante con la mochila', line: 'Examen a las nueve. Lo llevo... más o menos.', weight: 4, hours: [7.5, 9.25], days: 'weekday', from: HOMES, to: TRANSIT, group: [1, 2], bond: ['friends'] },
+      { role: 'metro-arrival', label: 'Alguien que llega a trabajar', line: 'Abro la persiana a las nueve. Son menos cinco.', weight: 4, hours: [7.5, 9.5], days: 'weekday', from: TRANSIT, to: { tags: ['work'] } },
+      { role: 'plaza-family-school', label: 'Una familia camino del cole', line: 'Corre, que cierran la puerta a las nueve.', weight: 3, hours: [8, 9.25], days: 'weekday', from: HOMES, to: CITY, group: [2, 3], bond: ['family'] },
+      { role: 'bakery', label: 'Alguien que va a por el pan', line: 'Una barra y un café para llevar, y al metro.', weight: 3, hours: [7, 10], from: HOMES, to: { points: ['CR_BAKERY_ENTRANCE'] }, then: TRANSIT },
+      { role: 'bus', label: 'Alguien esperando el bus', line: 'El 27 viene lleno. El siguiente, también.', weight: 3, hours: [7, 9.5], days: 'weekday', from: HOMES, to: { points: ['CR_BUS_STOP'] }, stay: [3, 8], stayState: 'PHONE', then: CITY, max: 4 },
+      { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Media hora antes de currar. Si no, no voy.', weight: 2, hours: [6.5, 9], from: HOMES, to: { points: ['CR_GYM_ENTRANCE'] } },
+      // Hora punta de la tarde: vuelta a casa, compras de camino, gimnasio y quedar al salir.
+      { role: 'returning', label: 'Alguien volviendo a casa', line: 'Compro algo de camino y a casa. Ni un plan más.', weight: 8, hours: [17, 20.5], from: { types: ['transit'], edge: true }, to: HOMES },
+      { role: 'shopper', label: 'Alguien con bolsas', line: 'Lo de la cena, y ya que estoy, lo de mañana.', weight: 4, hours: [17, 20.5], from: { types: ['transit'], edge: true }, to: { tags: ['shop'] }, then: HOMES },
+      { role: 'gym', label: 'Alguien que va al gimnasio', line: 'Del trabajo al gimnasio sin pasar por casa. Si paso, no salgo.', weight: 3, hours: [17, 21], from: { types: ['transit', 'residence'] }, to: { points: ['CR_GYM_ENTRANCE'] }, group: [1, 2], bond: ['gym'] },
+      { role: 'after-work', label: 'Compañeros a la salida del trabajo', line: '¿Una pizza y para casa? Venga, una.', weight: 3, hours: [17.5, 21], days: 'weekday', from: { types: ['transit'], edge: true }, to: { points: ['CR_MEET_', 'CR_ARCADE_HANG_'] }, stay: [8, 20], stayState: 'TALK', then: { tags: ['food', 'game'], types: ['transit'], edge: true }, group: [2, 4], bond: ['coworkers', 'friends'], max: 4 },
+      { role: 'bus', label: 'Alguien esperando el bus', line: 'Dice tres minutos. Lleva tres minutos diciéndolo.', weight: 2, hours: [17, 20.5], from: { tags: ['shop', 'work'], edge: true }, to: { points: ['CR_BUS_STOP'] }, stay: [3, 8], stayState: 'PHONE', then: CITY, max: 4 },
+      // El metro a cualquier hora: quien sale y quien espera a alguien que sale.
+      { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Qué agobio de vagón. Y eso que hoy iba vacío.', weight: 3, hours: [6.5, 1.5], from: TRANSIT, to: { types: ['residence'], tags: ['shop', 'food'], edge: true } },
+      { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Me ha escrito que ya sube. Hace diez minutos.', weight: 3, hours: [8, 23], from: HOMES_OR_CITY, to: { points: ['CR_METRO_MEET_'] }, stay: [4, 12], stayState: 'PHONE', then: TRANSIT, max: 3 },
+      // El resto del día: recados, escaparates, comida y la plaza.
+      { role: 'errands', label: 'Alguien de recados', line: 'Farmacia, frutería y la recarga. Por ese orden.', weight: 4, hours: [9.5, 21], from: HOMES_OR_CITY, to: { tags: ['shop'] } },
+      { role: 'shopper', label: 'Alguien con bolsas', line: 'Sólo venía a por tomates.', weight: 2, hours: [10, 21], from: { tags: ['shop'] }, to: HOMES_OR_CITY },
+      { role: 'window-shopper', label: 'Alguien mirando escaparates', line: 'Este móvil vale lo que mi alquiler. Sólo miro.', weight: 2, hours: [10, 21], from: HOMES_OR_CITY, to: { points: ['CR_FRUIT_WINDOW', 'CR_PHONE_WINDOW', 'CR_HILVANA_WINDOW', 'CR_AMBAR_WINDOW'] }, stay: [1, 4], stayState: 'BROWSE', then: { tags: ['shop'], types: ['residence'], edge: true }, max: 4 },
+      { role: 'diner', label: 'Alguien que va a comer', line: 'Menú rápido y vuelvo, que tengo cuarenta minutos.', weight: 3, hours: [13, 15.5], from: { tags: ['work'], edge: true }, to: { points: ['CR_PIZZA_ENTRANCE', 'CR_BURGER_ENTRANCE', 'CR_SUSHI_ENTRANCE'] }, group: [1, 3], bond: ['coworkers', 'friends'] },
+      { role: 'diner', label: 'Alguien que va a cenar', line: 'Hoy no cocina nadie. Está decidido.', weight: 3, hours: [20, 23], from: HOMES_OR_CITY, to: { points: ['CR_PIZZA_ENTRANCE', 'CR_BURGER_ENTRANCE', 'CR_SUSHI_ENTRANCE'] }, group: [2, 4], bond: ['family', 'friends', 'couple'] },
+      { role: 'plaza-elders', label: 'Vecinos de toda la vida', line: 'Aquí antes había una mercería. Y antes, un cine.', weight: 2, hours: [10, 13], from: HOMES, to: { points: ['CR_PLAZA_BENCH_'] }, stay: [15, 35], stayState: 'TALK', group: [1, 2], bond: ['friends', 'couple'] },
+      { role: 'plaza-family', label: 'Una familia en la plaza', line: 'Cinco minutos, que la merienda se acaba antes que las ganas.', weight: 2, hours: [17, 20], from: HOMES, to: { points: ['CR_PLAZA_BENCH_', 'CR_METRO_MEET_'] }, stay: [8, 18], stayState: 'TALK', group: [2, 4], bond: ['family'] },
+      { role: 'gamer', label: 'Gente que va a los recreativos', line: 'Salimos de clase y directos. La de carreras es nuestra.', weight: 3, hours: [15, 23], from: HOMES_OR_CITY, to: { points: ['CR_ARCADE_ENTRANCE'] }, group: [2, 3], bond: ['friends'] },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'Una vuelta a la manzana. Él decide cuál.', weight: 2, hours: [7, 9.5], from: HOMES, to: HOMES, via: ['cr-b03', 'cr-b37'], pace: 'stroll', dog: true, pause: 0.6 },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última y a casa.', weight: 2, hours: [20, 23.5], from: HOMES, to: HOMES, via: ['cr-b37', 'cr-b03'], pace: 'stroll', dog: true, pause: 0.6 },
+      { role: 'late-shop', label: 'Alguien que baja a la tienda', line: 'Leche y pan. Y algo de picar, que es viernes. O jueves.', weight: 2, hours: [21, 2], from: HOMES, to: { points: ['CR_ABIERTO_ENTRANCE'] }, then: HOMES },
+      // Trabajo en la calle: limpieza antes de la hora punta, y repartidores a la hora de comer y de cenar.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'La plaza del metro antes de las siete y media. Luego, imposible.', weight: 6, hours: [6, 7.5], from: CITY, to: CITY, via: ['cr-pl-w', 'cr-pl-e', 'cr-b37'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Después de la hora punta, la avenida es un cenicero.', weight: 3, hours: [9.5, 11.5], from: CITY, to: CITY, via: ['cr-s03', 'cr-s25', 'CR_AMBAR_WINDOW'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Tres pedidos, dos portales y un timbre que no va.', weight: 8, hours: [12.5, 15.5], from: { points: ['CR_PIZZA_ENTRANCE', 'CR_BURGER_ENTRANCE', 'CR_SUSHI_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cena para cuatro en el quinto. Sin ascensor, claro.', weight: 10, hours: [19.5, 23.5], from: { points: ['CR_PIZZA_ENTRANCE', 'CR_BURGER_ENTRANCE', 'CR_SUSHI_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 4 },
+      // De paso, a cualquier hora, y quien vuelve tarde.
+      { role: 'passer', label: 'Alguien de paso', line: 'Perdona, voy con prisa.', weight: 3, from: CITY, to: CITY },
+      { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'El último metro. Por los pelos.', weight: 1.5, hours: [22, 6], from: { types: ['transit'], edge: true }, to: HOMES },
+    ],
+  },
 ];

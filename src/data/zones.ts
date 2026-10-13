@@ -267,4 +267,35 @@ export const ZONES: readonly ZoneDef[] = [
     ambience: 'riverside',
     tags: ['outdoor', 'food'],
   },
+  // Cuatro Ríos (data/cuatroRios.ts): la calle de vecinos de atrás, la avenida con su comercio y la plaza del metro.
+  // Las tres se vacían a media mañana y se llenan de 7:30 a 9:30 y de 17:00 a 20:00.
+  {
+    id: 'cr-afluente', name: 'Calle del Afluente', type: 'residential', location: 'cuatro-rios', districtId: 'cuatro-rios',
+    rects: [{ tx: 0, ty: 23, w: 48, h: 11 }],
+    population: { label: 'vecinos que salen y vuelven, perros, familias y repartidores', roles: { returning: 1.3, 'dog-walker': 1.2, courier: 1.3, 'plaza-family-school': 1.2 } },
+    activity: { bands: [[7.5, 9.5, 1.5], [9.5, 17, 0.8], [17, 20, 1.5], [20, 23, 1], [23, 24, 0.5]], rest: 0.2, weekend: 0.9, outdoor: 0.7, variation: 0.15 },
+    traffic: { vehicles: 0.6, bikes: 0.8, deliveries: 1.6 },
+    ambience: 'dense',
+    tags: ['outdoor', 'residential'],
+  },
+  {
+    id: 'cr-avenida', name: 'Avenida de los Ríos', type: 'main_road', location: 'cuatro-rios', districtId: 'cuatro-rios',
+    rects: [{ tx: 0, ty: 0, w: 48, h: 18 }],
+    population: {
+      label: 'gente que va y viene del trabajo, compras, la parada y los que quedan a la salida',
+      roles: { commuter: 1.3, 'commuter-student': 1.2, errands: 1.2, shopper: 1.3, 'window-shopper': 1.2, bus: 1.3, 'after-work': 1.4, passer: 1.2 },
+    },
+    activity: { bands: [[7.5, 9.5, 1.7], [9.5, 13, 0.9], [13, 15, 1.1], [15, 17, 0.9], [17, 20, 1.7], [20, 23, 0.9]], rest: 0.25, weekend: 0.85, outdoor: 0.6, variation: 0.12 },
+    traffic: { vehicles: 1.3, bikes: 1.2, deliveries: 1.4 },
+    ambience: 'dense',
+    tags: ['outdoor', 'shops', 'traffic'],
+  },
+  {
+    id: 'cr-metro', name: 'Plaza del Metro · Cuatro Ríos', type: 'metro', location: 'cuatro-rios', districtId: 'cuatro-rios',
+    rects: [{ tx: 2, ty: 18, w: 11, h: 5 }],
+    population: { label: 'quien sale del tren, quien le espera y quien baja corriendo', roles: { 'metro-arrival': 1.5, 'metro-meet': 1.4, commuter: 1.3 } },
+    activity: { bands: [[7.5, 9.5, 2], [9.5, 17, 0.9], [17, 20, 2], [20, 24, 0.7]], rest: 0.2, weekend: 0.8, outdoor: 0.6, variation: 0.1 },
+    ambience: 'transit',
+    tags: ['outdoor', 'metro'],
+  },
 ];

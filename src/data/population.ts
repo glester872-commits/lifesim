@@ -1,5 +1,6 @@
 import type { Level } from '../config/population.ts';
 import type { OfferId, ServiceId } from './services.ts';
+import { CR_PROFILES } from './cuatroRiosVenues.ts';
 
 /**
  * Quién hay dentro de cada local y qué hace. Todo es dato: cambiar el horario
@@ -101,6 +102,59 @@ const CHECK_IN: PlanStep = { state: 'CHECK_IN', points: ['GYM_RECEPTION'], minut
 const CHANGE_IN: PlanStep = { state: 'CHANGE', points: ['GYM_CHANGE_{s}_'], minutes: [5, 7], outfit: 'gym' };
 const SHOWER: PlanStep = { state: 'SHOWER', points: ['GYM_SHOWER_{s}_'], minutes: [6, 10] };
 const CHANGE_OUT: PlanStep = { state: 'CHANGE', points: ['GYM_CHANGE_{s}_'], minutes: [5, 7], outfit: 'street' };
+
+/**
+ * La gente de un salón recreativo (data/interiors.ts arcadeRoom): `pre`, el prefijo de sus puntos; `cashier`, cómo se
+ * llama el mostrador. Cerrado por la mañana; por la tarde, chavales y algún adulto nostálgico; por la noche y el fin de
+ * semana, lleno. Cuánto dura cada máquina lo dice su puesto (data/stations.ts); aquí, a cuál va cada uno y en qué orden.
+ */
+export function arcadeProfile(place: string, pre: string, cashier: string): PopulationProfile {
+  return {
+    place,
+    bands: [[12, 15, 'LOW'], [15, 18, 'MEDIUM'], [18, 24, 'HIGH']],
+    weekday: [0, 0, 0, 0, 1, 2, 1],
+    maxVisitors: 18,
+    staff: [
+      { service: 'cashier', label: cashier, line: 'Las monedas, al mostrador. Y a las máquinas no se les pega.', look: 'uniforme-arcade', points: [`${pre}STAFF`] },
+      { service: 'shop-worker', label: 'Cambiando fichas', line: 'Esa lleva rota desde el martes. Pero te quita las monedas igual.', look: 'uniforme-arcade', points: [`${pre}FLOOR_`], minLevel: 'HIGH' },
+    ],
+    visitors: [
+      {
+        role: 'arcade_fighter', label: 'Alguien echando una partida', line: 'No me molestes, que estoy en el último jefe.', weight: 4,
+        plan: [
+          { state: 'PAY', points: [`${pre}TILL`], minutes: [1, 2], chance: 0.5 },
+          { state: 'WAIT', points: [`${pre}WAIT_`], minutes: [1, 3], chance: 0.4 },
+          { state: 'PLAY', points: [`${pre}FIGHT_`, `${pre}RACE_`], minutes: [8, 14], repeat: [1, 3] },
+          { state: 'REST', points: [`${pre}SEAT_`], minutes: [3, 8], chance: 0.5 },
+        ],
+      },
+      {
+        role: 'arcade_racer', label: 'Alguien en las carreras', line: 'Una más y me voy. Eso dije hace tres partidas.', weight: 3,
+        plan: [
+          { state: 'WAIT', points: [`${pre}WAIT_`], minutes: [1, 3], chance: 0.4 },
+          { state: 'PLAY', points: [`${pre}RACE_`], minutes: [8, 14], repeat: [1, 2] },
+          { state: 'PLAY', points: [`${pre}CLAW_`], minutes: [4, 8], chance: 0.5 },
+        ],
+      },
+      {
+        role: 'arcade_rhythm', label: 'Alguien en la máquina de ritmo', line: 'No sabía que tenía tanto ritmo. Resulta que tampoco.', weight: 2,
+        plan: [
+          { state: 'WAIT', points: [`${pre}WAIT_`], minutes: [1, 3], chance: 0.5 },
+          { state: 'PLAY', points: [`${pre}RHYTHM_`], minutes: [5, 9], repeat: [1, 2] },
+          { state: 'REST', points: [`${pre}SEAT_`], minutes: [3, 8], chance: 0.6 },
+        ],
+      },
+      {
+        role: 'arcade_crowd', label: 'Gente en el salón', line: 'Yo miro. Mi amigo es el que juega. Yo miro y critico.', weight: 3, hours: [17, 24], party: [2, 3],
+        plan: [
+          { state: 'WAIT', points: [`${pre}WAIT_`, `${pre}CHAT_`], minutes: [3, 8] },
+          { state: 'PLAY', points: [`${pre}FIGHT_`, `${pre}RACE_`, `${pre}RHYTHM_`], minutes: [8, 14], repeat: [1, 2] },
+          { state: 'REST', points: [`${pre}SEAT_`], minutes: [4, 10] },
+        ],
+      },
+    ],
+  };
+}
 
 export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   {
@@ -546,53 +600,10 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     ],
   },
   // ------------------------------------------------------ Ribera Norte
-  {
-    place: 'arcade',
-    // Cerrado por la mañana; por la tarde, chavales y algún adulto nostálgico; por la noche y el fin de semana, lleno.
-    bands: [[12, 15, 'LOW'], [15, 18, 'MEDIUM'], [18, 24, 'HIGH']],
-    weekday: [0, 0, 0, 0, 1, 2, 1],
-    maxVisitors: 18,
-    staff: [
-      { service: 'cashier', label: 'Nova', line: 'Las monedas, al mostrador. Y a las máquinas no se les pega.', look: 'uniforme-arcade', points: ['ARCADE_STAFF'] },
-      { service: 'shop-worker', label: 'Cambiando fichas', line: 'Esa lleva rota desde el martes. Pero te quita las monedas igual.', look: 'uniforme-arcade', points: ['ARCADE_FLOOR_'], minLevel: 'HIGH' },
-    ],
-    // Cuánto dura cada máquina lo dice su puesto (data/stations.ts); aquí, a cuál va cada uno y en qué orden.
-    visitors: [
-      {
-        role: 'arcade_fighter', label: 'Alguien echando una partida', line: 'No me molestes, que estoy en el último jefe.', weight: 4,
-        plan: [
-          { state: 'PAY', points: ['ARCADE_TILL'], minutes: [1, 2], chance: 0.5 },
-          { state: 'WAIT', points: ['ARCADE_WAIT_'], minutes: [1, 3], chance: 0.4 },
-          { state: 'PLAY', points: ['ARCADE_FIGHT_', 'ARCADE_RACE_'], minutes: [8, 14], repeat: [1, 3] },
-          { state: 'REST', points: ['ARCADE_SEAT_'], minutes: [3, 8], chance: 0.5 },
-        ],
-      },
-      {
-        role: 'arcade_racer', label: 'Alguien en las carreras', line: 'Una más y me voy. Eso dije hace tres partidas.', weight: 3,
-        plan: [
-          { state: 'WAIT', points: ['ARCADE_WAIT_'], minutes: [1, 3], chance: 0.4 },
-          { state: 'PLAY', points: ['ARCADE_RACE_'], minutes: [8, 14], repeat: [1, 2] },
-          { state: 'PLAY', points: ['ARCADE_CLAW_'], minutes: [4, 8], chance: 0.5 },
-        ],
-      },
-      {
-        role: 'arcade_rhythm', label: 'Alguien en la máquina de ritmo', line: 'No sabía que tenía tanto ritmo. Resulta que tampoco.', weight: 2,
-        plan: [
-          { state: 'WAIT', points: ['ARCADE_WAIT_'], minutes: [1, 3], chance: 0.5 },
-          { state: 'PLAY', points: ['ARCADE_RHYTHM_'], minutes: [5, 9], repeat: [1, 2] },
-          { state: 'REST', points: ['ARCADE_SEAT_'], minutes: [3, 8], chance: 0.6 },
-        ],
-      },
-      {
-        role: 'arcade_crowd', label: 'Gente en el salón', line: 'Yo miro. Mi amigo es el que juega. Yo miro y critico.', weight: 3, hours: [17, 24], party: [2, 3],
-        plan: [
-          { state: 'WAIT', points: ['ARCADE_WAIT_', 'ARCADE_CHAT_'], minutes: [3, 8] },
-          { state: 'PLAY', points: ['ARCADE_FIGHT_', 'ARCADE_RACE_', 'ARCADE_RHYTHM_'], minutes: [8, 14], repeat: [1, 2] },
-          { state: 'REST', points: ['ARCADE_SEAT_'], minutes: [4, 10] },
-        ],
-      },
-    ],
-  },
+  arcadeProfile('arcade', 'ARCADE_', 'Nova'),
+  // Cuatro Ríos (data/cuatroRiosVenues.ts): el mismo salón con otro mostrador, y sus tiendas, gimnasio y restaurantes.
+  arcadeProfile('cr-arcade', 'CR_ARCADE_', 'Delta'),
+  ...CR_PROFILES,
   {
     place: 'tattoo-studio',
     // Con cita: el primer turno a mediodía y el grueso por la tarde.

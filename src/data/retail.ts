@@ -161,6 +161,21 @@ export const STORES: readonly RetailStoreDef[] = [
       { garment: 'zapatilla-edicion', price: 220 }, { garment: 'bota-cuero', price: 130 },
     ],
   },
+  // Cuatro Ríos: dos tiendas pequeñas de barrio, con las prendas del catálogo de siempre a precio de calle.
+  {
+    id: 'hilvana', name: 'Hilvana · moda', greeting: 'Lo nuevo llega los martes. Lo de la mesa, rebajado.', thanks: 'Si no te vale, me lo traes con el tique.',
+    stock: [
+      { garment: 'camisa-lino', price: 36 }, { garment: 'vaquero-recto', price: 45 }, { garment: 'camiseta-algodon', price: 16 },
+      { garment: 'rebeca-punto', price: 28 }, { garment: 'vestido-lunares', price: 39 }, { garment: 'pantalon-pinzas', price: 42 },
+    ],
+  },
+  {
+    id: 'ambar', name: 'Ámbar · calle y deporte', greeting: 'Chándal, sudadera, zapatilla. Lo de siempre, pero bien.', thanks: 'Esa la lleva medio barrio. Por algo será.',
+    stock: [
+      { garment: 'chandal-gris', price: 30 }, { garment: 'camiseta-grafica', price: 18 }, { garment: 'cargo-negro', price: 44 },
+      { garment: 'zapatilla-blanca', price: 69 }, { garment: 'camiseta-tirantes', price: 14 },
+    ],
+  },
 ];
 
 const GARMENT_BY_ID = new Map(GARMENTS.map((g) => [g.id, g]));

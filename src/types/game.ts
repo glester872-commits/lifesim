@@ -280,6 +280,8 @@ export type BuildingStyle =
   // Calle Mayor, tramo este: el horno y la tienda de alimentación de toda la vida.
   | 'bakery'
   | 'grocer'
+  // Cuatro Ríos: móviles y reparaciones.
+  | 'phone'
   | 'backdrop';
 
 /**

@@ -2,6 +2,8 @@ import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
 import { VALLESCO } from './vallesco.ts';
 import { RIBERA } from './ribera.ts';
+import { CUATRO_RIOS } from './cuatroRios.ts';
+import { CR_INTERIORS } from './cuatroRiosVenues.ts';
 import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
 /**
@@ -412,6 +414,16 @@ const RIBERA_STATION = platform(
   ],
 );
 
+// Cuatro Ríos: la misma estación. Sin habituales con nombre todavía; el vestíbulo, el de Rocío cuando le toque.
+const CUATRO_RIOS_STATION = platform(
+  'cuatro-rios-station',
+  'Metro · Cuatro Ríos',
+  { location: 'cuatro-rios', spawn: 'cr-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
 /** Tres taburetes a la barra, delante del mostrador (fila 6), mirando hacia él. */
 const BAR_STOOLS: Record<string, PointDef> = Object.fromEntries([2, 3, 4].map((x, i) => [`BAR_STOOL_0${i + 1}`, { tx: x, ty: 6, kind: 'seat', facing: 'up' } as PointDef]));
 
@@ -525,7 +537,10 @@ export const LOCATIONS: readonly LocationDef[] = [
   RIBERA_SPORT,
   CAFE_RIO,
   CASA_MAR,
-  // Los locales de comida (data/foodInteriors.ts: FOOD_INTERIORS) entran aquí cuando tengan edificio en una calle.
+  // Cuatro Ríos (data/cuatroRios.ts): la calle, su estación y sus locales, con los tres de comida que tienen ahí su puerta.
+  CUATRO_RIOS,
+  CUATRO_RIOS_STATION,
+  ...CR_INTERIORS,
 ];
 
 export const START_LOCATION = VALLESCO.id;

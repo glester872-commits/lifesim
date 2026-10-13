@@ -119,7 +119,8 @@ export const ARCHETYPES: readonly FoodArchetype[] = [
     layout: {
       w: 17, h: 12, doorX: 8,
       tables: [[8, 4], [11, 4], [14, 4], [8, 7], [11, 7], [14, 7]],
-      counter: [2, 5], stoveX: 3, prepTables: [2, 5],
+      // Una sola mesa de masa, a la izquierda: con otra a la derecha el cocinero quedaba encerrado entre horno y mostrador.
+      counter: [2, 5], stoveX: 3, prepTables: [2],
     },
     hours: [12, 24],
     capacity: 16,
@@ -173,7 +174,8 @@ export const ARCHETYPES: readonly FoodArchetype[] = [
     lines: LINES_CASUAL,
     layout: {
       w: 17, h: 12, doorX: 8,
-      tables: [[9, 4], [12, 4], [15, 4], [9, 7], [12, 7]],
+      // Como la pizzería: con la mesa en x 15 su segunda silla caía dentro de la pared.
+      tables: [[8, 4], [11, 4], [14, 4], [9, 7], [12, 7]],
       bar: [[3, 5], [4, 5], [5, 5]],
       counter: [2, 6], stoveX: 4,
     },
@@ -235,19 +237,16 @@ export interface FoodVenue {
 }
 
 /**
- * Los locales que hay. Ninguno tiene todavía edificio en el mapa (los barrios
- * actuales no tienen solar), así que su interior (FOOD_INTERIORS) y su perfil
- * (FOOD_VENUE_PROFILES) todavía no están en data/locations.ts ni en
- * data/population.ts: los demás checks recorren esas listas y esperan un lugar
- * con edificio. Para ponerlo: un `b(...)` con `enter: into(id)` y `door.building`
- * como id en la calle, su lugar en data/places.ts, y esas dos listas esparcidas
- * donde se registran. Carta y caja ya están (data/menus.ts, data/catalogs.ts).
+ * Los locales que hay. Los tres casuales tienen edificio en Cuatro Ríos (data/cuatroRios.ts): su interior y su
+ * perfil se registran desde data/cuatroRiosVenues.ts. Para poner otro: un `b(...)` con `enter: into(id)` y
+ * `door.building` como id en la calle, su lugar en data/places.ts, y su interior (FOOD_INTERIORS) y su perfil
+ * (FOOD_VENUE_PROFILES) donde se registran. Carta y caja ya están (data/menus.ts, data/catalogs.ts).
  * El premium es del barrio de Velaria, que aún no tiene mapa.
  */
 export const FOOD_VENUES: readonly FoodVenue[] = [
-  { id: 'pizzeria-roma', archetype: 'pizza-casual', name: 'Pizzería Roma', prefix: 'PIZZA', door: { location: 'district', building: 'pizzeria-roma-door' } },
-  { id: 'burger-norte', archetype: 'burger-fast', name: 'Burger Norte', prefix: 'BURGER', door: { location: 'district', building: 'burger-norte-door' } },
-  { id: 'sushi-nori', archetype: 'sushi-casual', name: 'Sushi Nori', prefix: 'NORI', door: { location: 'district', building: 'sushi-nori-door' } },
+  { id: 'pizzeria-roma', archetype: 'pizza-casual', name: 'Pizzería Roma', prefix: 'PIZZA', door: { location: 'cuatro-rios', building: 'cr-pizzeria' } },
+  { id: 'burger-norte', archetype: 'burger-fast', name: 'Burger Norte', prefix: 'BURGER', door: { location: 'cuatro-rios', building: 'cr-burger' } },
+  { id: 'sushi-nori', archetype: 'sushi-casual', name: 'Sushi Nori', prefix: 'NORI', door: { location: 'cuatro-rios', building: 'cr-sushi' } },
   { id: 'kaizen', archetype: 'sushi-premium', name: 'Kaizen', prefix: 'KAIZEN', door: { location: 'velaria', building: 'kaizen-door' } },
 ];
 
