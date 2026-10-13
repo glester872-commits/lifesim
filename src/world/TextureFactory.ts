@@ -570,6 +570,8 @@ export const personScale = (id: string): number => (HD_IDS.has(id) ? HD_SCALE : 
 function paintPeopleHD(scene: Phaser.Scene): void {
   const rowW = FACINGS.length * POSES.length * HD_W;
   if (!HD_LOOKS.length) return;
+  // ponytail: una sola textura de 4096 px de alto (~97 aspectos); para toda la calle a 28 × 42, repartir en columnas o texturas.
+  if (HD_LOOKS.length * HD_H > ATLAS_MAX) throw new Error(`people-hd: ${HD_LOOKS.length} aspectos no caben en ${ATLAS_MAX} px`);
   let atlas = scene.textures.exists(PEOPLE_HD) ? (scene.textures.get(PEOPLE_HD) as Phaser.Textures.CanvasTexture) : null;
   const fresh = !atlas;
   atlas ??= scene.textures.createCanvas(PEOPLE_HD, rowW, HD_LOOKS.length * HD_H);

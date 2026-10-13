@@ -550,12 +550,13 @@ social: {
       placesOfType,
       // El jugador a 28 × 42 (world/HumanArtHD.drawPlayerHD): lifesim.hdCompare() pone, junto a él y por parejas,
       // a la izquierda el ORIGINAL de 16 × 24 y a la derecha el HD (la textura que usa su sprite). Otra llamada lo quita.
-      hdCompare: () => {
+      // Con ids, esa gente en vez del banco de ropa: lifesim.hdCompare(['pasajero-3', 'pasajero-9', …]).
+      hdCompare: (ids: readonly string[] = ['pasajero-22', 'pasajero-14', 'pasajero-2', 'pasajero-1', 'pasajero-4', 'pasajero-7', 'pasajero-13']) => {
         const world = game.scene.getScene('World') as WorldSceneType;
         return hdCompare(world, { x: state.position.x, y: state.position.y + 26 }, [
           { label: 'jugador', colors: withAppearance(PLAYER_COLORS, state.appearanceOf('player')), live: (f, p) => ({ key: humanKey('player', f, p) }) },
           // Banco de ropa: calle, diario, deporte y arreglado, con la textura que llevan en la calle.
-          ...(['pasajero-22', 'pasajero-14', 'pasajero-2', 'pasajero-1', 'pasajero-4', 'pasajero-7', 'pasajero-13'] as const).map((id) => {
+          ...ids.map((id) => {
             const look = PASSENGER_LOOKS.find((l) => l.id === id) ?? PASSENGER_LOOKS[0];
             return { label: `${id} · ${look.outfit?.top ?? '-'} / ${look.outfit?.bottom ?? '-'} / ${look.outfit?.shoes ?? '-'}`, colors: colorsOf(look), live: (f: Facing, p: Pose) => ({ key: personTexture(id), frame: personFrame(id, f, p) }) };
           }),

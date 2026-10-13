@@ -343,18 +343,19 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
  */
 /**
  * Las caras de siempre: pasajero-N (las de la pelea, entre ellas). Las que llevan
- * `outfit` son el banco de ropa (world/Garments): calle, diario, deporte y arreglado.
+ * `outfit` son el banco de ropa (world/Garments): calle, diario, deporte y arreglado. 3, 9, 16, 19, 20 y 21
+ * son la primera tanda de anónimos llevados al acabado del jugador (pelo largo, canas, gorra, bolso).
  */
 export const AUTHORED_PASSENGERS: readonly NpcLook[] = [
   { id: 'pasajero-1', cloth: '#4f6a8c', clothDark: '#3b5070', hair: '#2a2430', trousers: '#2b2d33', shoes: '#4a2f1f', outfit: { top: 'denim-jacket', bottom: 'trousers', shoes: 'boot', inner: '#e6e0d4' } },
   { id: 'pasajero-2', cloth: '#e8e4da', clothDark: '#c9c3b6', hair: '#4a3b2f', trousers: '#3f5a8c', shoes: '#e8e6e0', outfit: { top: 'tee', bottom: 'jeans', shoes: 'sneaker' } },
-  { id: 'pasajero-3', cloth: '#8c4f4f', clothDark: '#693b3b', hair: '#1f1a15' },
+  { id: 'pasajero-3', cloth: '#8c4f4f', clothDark: '#693b3b', hair: '#1f1a15', outfit: { top: 'sweatshirt', bottom: 'jeans', shoes: 'sneaker' } },
   { id: 'pasajero-4', style: 'sport', cloth: '#56705a', clothDark: '#415443', hair: '#6b5a3f', trousers: '#2b2d33', shoes: '#e8e8ee', outfit: { top: 'sport', bottom: 'track', shoes: 'runner', accent: '#e86a3a' } },
   { id: 'pasajero-5', cloth: '#6f5a86', clothDark: '#534364', hair: '#241d16' },
   { id: 'pasajero-6', cloth: '#9a8a6a', clothDark: '#74674f', hair: '#33291f' },
   { id: 'pasajero-7', style: 'smart', cloth: '#8a6a4a', clothDark: '#6a5038', hair: '#2b2622', trousers: '#2a2c34', shoes: '#3a2418', outfit: { top: 'coat', bottom: 'trousers', shoes: 'shoe', inner: '#2b2d33' } },
   { id: 'pasajero-8', cloth: '#a0664a', clothDark: '#784c37', hair: '#3a3128' },
-  { id: 'pasajero-9', style: 'smart', cloth: '#4d4d5c', clothDark: '#393945', hair: '#b8b0a4' },
+  { id: 'pasajero-9', style: 'smart', cloth: '#4d4d5c', clothDark: '#393945', hair: '#b8b0a4', outfit: { top: 'blazer', bottom: 'trousers', shoes: 'shoe', inner: '#e6e0d4' } },
   { id: 'pasajero-10', cloth: '#8a7a3f', clothDark: '#675b2f', hair: '#241d16' },
   { id: 'pasajero-11', style: 'sport', cloth: '#5c8a7a', clothDark: '#45675b', hair: '#5a3b2a' },
   { id: 'pasajero-12', style: 'street', cloth: '#9a5a78', clothDark: '#74435a', hair: '#2a2430' },
@@ -362,12 +363,12 @@ export const AUTHORED_PASSENGERS: readonly NpcLook[] = [
   { id: 'pasajero-13', style: 'smart', cloth: '#2f3a52', clothDark: '#222a3c', hair: '#2a2430', bag: '#5a3a26', trousers: '#2f4563', shoes: '#232329', outfit: { top: 'blazer', bottom: 'trousers', shoes: 'shoe', inner: '#f2efe8' } },
   { id: 'pasajero-14', style: 'street', cloth: '#2f3a4a', clothDark: '#222a36', hair: '#6b5a3f', cap: '#b8423a', trousers: '#3f5a8c', shoes: '#e8e6e0', outfit: { top: 'zip-hoodie', bottom: 'wide', shoes: 'chunky' } },
   { id: 'pasajero-15', style: 'street', cloth: '#c98a3f', clothDark: '#9d6a2f', hair: '#1f1a15', longHair: true, earrings: '#e8c86a' },
-  { id: 'pasajero-16', cloth: '#3f6f5a', clothDark: '#2f5444', hair: '#b8b0a4', bag: '#2a2830' },
+  { id: 'pasajero-16', cloth: '#3f6f5a', clothDark: '#2f5444', hair: '#b8b0a4', bag: '#2a2830', outfit: { top: 'jacket', bottom: 'trousers', shoes: 'shoe', inner: '#d8d2c4' } },
   { id: 'pasajero-17', style: 'street', cloth: '#e6e0d4', clothDark: '#c4bdb0', hair: '#4a3b2f', sleeves: '#5c6fa8', cap: '#232329' },
   { id: 'pasajero-18', style: 'street', cloth: '#7a3f5a', clothDark: '#5c2f44', hair: '#241d16', bag: '#c9a27a', skin: '#96654a' },
-  { id: 'pasajero-19', cloth: '#4f5f8c', clothDark: '#3b4769', hair: '#8a4a2a', longHair: true },
-  { id: 'pasajero-20', style: 'smart', cloth: '#6a6d75', clothDark: '#50525a', hair: '#2b2622', cap: '#3f5d78', trousers: '#5b4b3a' },
-  { id: 'pasajero-21', cloth: '#b86a5a', clothDark: '#8e5044', hair: '#33291f', bag: '#232329', skin: '#f0caa8' },
+  { id: 'pasajero-19', cloth: '#4f5f8c', clothDark: '#3b4769', hair: '#8a4a2a', longHair: true, outfit: { top: 'tee', bottom: 'wide', shoes: 'chunky' } },
+  { id: 'pasajero-20', style: 'smart', cloth: '#6a6d75', clothDark: '#50525a', hair: '#2b2622', cap: '#3f5d78', trousers: '#5b4b3a', outfit: { top: 'shirt', bottom: 'trousers', shoes: 'boot' } },
+  { id: 'pasajero-21', cloth: '#b86a5a', clothDark: '#8e5044', hair: '#33291f', bag: '#232329', skin: '#f0caa8', outfit: { top: 'hoodie', bottom: 'joggers', shoes: 'runner' } },
   { id: 'pasajero-22', style: 'street', cloth: '#4a5a3a', clothDark: '#3a472d', hair: '#c9b27a', earrings: '#d8d2c4', trousers: '#6a6d75', shoes: '#ecebe6', outfit: { top: 'bomber', bottom: 'cargo', shoes: 'chunky' } },
   { id: 'pasajero-23', style: 'sport', cloth: '#8aa05a', clothDark: '#687844', hair: '#3a3128', sleeves: '#e6e0d4', bag: '#7b5a3d' },
   { id: 'pasajero-24', style: 'street', cloth: '#5a4a7a', clothDark: '#43375c', hair: '#1f1a15', cap: '#e6e0d4', skin: '#b98462' },
