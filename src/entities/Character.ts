@@ -123,7 +123,7 @@ const TURN_MS = 90;
  * Velocidad (tiles/s) a la que el paso de 8 fps no resbala: cuatro pasos por
  * segundo de medio tile. Corriendo, la zancada es más larga.
  */
-const WALK_REF = 2;
+export const WALK_REF = 2;
 const RUN_REF = 2.6;
 const OPPOSITE: Readonly<Record<Facing, Facing>> = { up: 'down', down: 'up', left: 'right', right: 'left' };
 
@@ -339,6 +339,11 @@ export class Character extends Phaser.GameObjects.Sprite {
     return time < this.turnUntil ? this.turnVia : dir;
   }
 
+  /** Charlando, a ratos le toca hablar a él (un tercio del tiempo, cada uno a su compás): entonces se ve el bocadillo. */
+  private speaking(time: number): boolean {
+    return Math.floor((time + this.seed * 700) / 1800) % 3 === 0;
+  }
+
   /** Recién levantado: de pie, un instante, antes de echar a andar. */
   private rising(where: Placement, time: number): boolean {
     if (!where.moving || time >= this.riseUntil) return false;
@@ -499,6 +504,10 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.anims.stop();
       const up = Math.floor((time + this.seed * 431) / LIFT_MS) % 2 === 0;
       this.setTexture(personTexture(id), personFrame(id, where.dir, up ? 6 : 0));
+    } else if (activity === 'talk' && !this.talkingTo && !this.def.cane && this.speaking(time)) {
+      // Mientras le toca hablar (el bocadillo de charla), la mano sube a ratos, cada uno a su compás; escuchando, respira
+      // como cualquiera. Con bastón, las manos quietas.
+      this.loop(`npc-${id}-talk-${where.dir}`);
     } else if (activity === 'idle' && !this.talkingTo && every(time, this.seed, 6500 + (this.seed % 5) * 1100, 1100)) {
       // De pie sin nada que hacer, de vez en cuando mira a un lado: el personal, a la estantería; la gente, a la calle.
       const side = where.dir === 'up' || where.dir === 'down' ? (this.seed % 2 ? 'left' : 'right') : 'down';
@@ -511,7 +520,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     const top = y - lift;
 
     // El móvil, en la mano; la charla, a ratos y cada uno a su compás.
-    const talking = (activity === 'talk' || activity === 'sit-talk') && Math.floor((time + this.seed * 700) / 1800) % 3 === 0;
+    const talking = (activity === 'talk' || activity === 'sit-talk') && this.speaking(time);
     if (activity === 'eat' || (activity === 'drink' && !where.drink)) {
       // Lo que tiene delante va sobre la mesa, en el tile hacia el que mira.
       const [ox, oy] = TABLE_OFFSET[where.dir];
@@ -572,7 +581,7 @@ export class Character extends Phaser.GameObjects.Sprite {
     } else if (step.pose !== undefined) {
       this.anims.stop();
       this.setTexture(personTexture(id), personFrame(id, dir, step.pose));
-    } else this.loop(`npc-${id}-idle-${dir}`);
+    } else this.loop(`npc-${id}-${step.talk && !this.def.cane ? 'talk' : 'idle'}-${dir}`);
 
     // La mano cercana, la boca y la mesa, en px desde los pies (sentado, tres más abajo el tronco).
     // Sacado de los píxeles de world/HumanArt: de frente y de espaldas las manos cuelgan en las

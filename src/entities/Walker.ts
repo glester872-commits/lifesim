@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
 import { personFrame, personScale, personTexture } from '../world/TextureFactory';
+import type { Pose } from '../world/HumanArt';
+import { TILE } from '../config/constants';
+import { WALK_REF } from './Character';
 
 export type WalkerIcon = 'phone' | 'talk' | 'alert' | null;
 
@@ -38,11 +41,20 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   /** Pies del jugador, si está en su misma escena (MetroSystem.update): a quien cede el paso. */
   avoid: Vec2 | null = null;
   private yielded = 0;
+  private static made = 0;
+  /** Cada uno a su compás: desde dónde empieza un bucle, lo rápido que respira y lo larga que es su zancada. */
+  private readonly phase: number;
+  private readonly tempo: number;
+  private readonly stride: number;
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
     super(scene, 0, 0, personTexture(look.id), personFrame(look.id, facing));
     this.currentLook = look;
     this.dir = facing;
+    const n = Walker.made++;
+    this.phase = (n * 0.618034) % 1;
+    this.tempo = 0.9 + (n % 5) * 0.05;
+    this.stride = 0.94 + ((n * 3) % 5) * 0.03;
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -158,20 +170,43 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
   halt(): void {
     this.path = [];
     (this.body as Phaser.Physics.Arcade.Body).stop();
-    this.anims.stop();
-    this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, this.dir, this.pose));
+    this.rest(true);
   }
 
   /** Se sienta donde está (encima del banco), mirando hacia donde mira el asiento. Se levanta al volver a andar. */
   sit(facing: Facing): void {
     this.seated = true;
-    this.anims.stop();
     this.face(facing);
   }
 
-  /** De pie o sentado. */
-  private get pose(): 0 | 4 {
-    return this.seated ? 4 : 0;
+  /** Un bucle desde su propio punto (no todos a la vez); al pararse, el reposo empieza de pie y quieto. */
+  private loop(key: string, timeScale: number, settle = false): void {
+    if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) {
+      this.anims.play(key);
+      this.anims.setProgress(settle ? 0 : this.phase);
+    }
+    this.anims.timeScale = timeScale;
+  }
+
+  private still(pose: Pose): void {
+    this.anims.stop();
+    this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, this.dir, pose));
+  }
+
+  /**
+   * Parado, según lo que hace de verdad (systems/PassengerAI): sentado respira; con el móvil, lo
+   * sostiene en las manos (de espaldas, el brillo del icono); charlando con otro pasajero, gesticula a
+   * ratos; si no, respira de pie. Hablando con el jugador, respira y escucha.
+   */
+  private rest(settle = false): void {
+    const id = this.currentLook.id;
+    const phone = this.icon === 'phone' && this.dir !== 'up';
+    if (this.seated) {
+      if (phone) this.still(25);
+      else this.loop(`npc-${id}-sit-${this.dir}`, this.tempo);
+    } else if (phone) this.still(5);
+    else if (this.icon === 'talk' && !this.currentLook.cane) this.loop(`npc-${id}-talk-${this.dir}`, this.tempo);
+    else this.loop(`npc-${id}-idle-${this.dir}`, this.tempo, settle);
   }
 
   /** Se para y mira a quien le habla, respirando. La ruta no se pierde: sigue al despedirse. */
@@ -180,8 +215,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     (this.body as Phaser.Physics.Arcade.Body).stop();
     this.dir = facing;
     // Sentado, se gira sin levantarse.
-    if (this.seated) this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, facing, 4));
-    else this.anims.play(`npc-${this.currentLook.id}-idle-${facing}`, true);
+    this.rest();
     this.sync();
   }
 
@@ -189,7 +223,6 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     if (this.resumeDir === null) return;
     const dir = this.resumeDir;
     this.resumeDir = null;
-    this.anims.stop();
     this.face(dir);
   }
 
@@ -199,13 +232,13 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       return;
     }
     this.dir = facing;
-    if (!this.moving) this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, facing, this.pose));
+    if (!this.moving && this.visible) this.rest();
     this.sync();
   }
 
   setIcon(icon: WalkerIcon): void {
     this.icon = icon;
-    this.iconImage.setVisible(icon !== null);
+    if (!this.moving && this.visible) this.rest();
     if (icon) {
       this.iconImage.setTexture(
         icon === 'phone' ? 'fx-phone' :
@@ -245,15 +278,17 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
       this.path.shift();
       this.sync();
       if (this.path.length > 0) return false;
-      this.anims.stop();
-      this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, this.dir));
+      this.rest(true);
       return true;
     }
 
     const pace = this.yieldPace(dx / distance, dy / distance, deltaMs);
     body.setVelocity((dx / distance) * this.speed * pace, (dy / distance) * this.speed * pace);
     this.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
-    this.anims.play(`npc-${this.currentLook.id}-${pace > 0 ? 'walk' : 'idle'}-${this.dir}`, true);
+    // El compás del paso sale de la velocidad de verdad (también al pasar despacio junto al jugador): el pie no resbala.
+    const cadence = Math.min(2.4, Math.max(0.5, (this.speed * pace) / (WALK_REF * TILE))) / this.stride;
+    if (pace > 0) this.loop(`npc-${this.currentLook.id}-walk-${this.dir}`, cadence);
+    else this.loop(`npc-${this.currentLook.id}-idle-${this.dir}`, this.tempo, true);
     this.sync();
     return false;
   }
@@ -304,7 +339,10 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(this.y);
     this.shadow.setPosition(this.x, this.y - 1).setDepth(this.y - 1);
 
-    if (!this.icon) return;
+    // Parado con el móvil de cara o de perfil, el móvil ya va pintado en sus manos (rest): sin icono encima.
+    const inHands = this.icon === 'phone' && !this.moving && this.dir !== 'up';
+    this.iconImage.setVisible(this.icon !== null && !inHands);
+    if (!this.icon || inHands) return;
     if (this.icon === 'phone') {
       // En la mano, del lado hacia el que mira.
       const side = this.dir === 'left' ? -4 : this.dir === 'right' ? 4 : 3;

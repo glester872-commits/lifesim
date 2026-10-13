@@ -860,9 +860,27 @@ function humanAnims(scene: Phaser.Scene, prefix: string, at: (facing: Facing, po
   }
 }
 
+/**
+ * Sólo gente (el jugador no): hablar de pie, con la mano arriba a ratos y una respiración entre frase y
+ * frase; y sentado esperando, respirando (la 24 suelta el aire). Quien las usa les da su propio punto de
+ * partida y su compás (por semilla): nadie gesticula ni respira a la vez que el de al lado.
+ */
+function npcAnims(scene: Phaser.Scene, id: string): void {
+  for (const facing of FACINGS) {
+    const frame = (pose: Pose, duration: number): Phaser.Types.Animations.AnimationFrame => ({ key: personTexture(id), frame: personFrame(id, facing, pose), duration });
+    const talk = `npc-${id}-talk-${facing}`;
+    if (!scene.anims.exists(talk)) {
+      scene.anims.create({ key: talk, frames: [frame(0, 700), frame(35, 520), frame(0, 900), frame(3, 420), frame(35, 640), frame(0, 500)], frameRate: 1, repeat: -1 });
+    }
+    const sit = `npc-${id}-sit-${facing}`;
+    if (!scene.anims.exists(sit)) scene.anims.create({ key: sit, frames: [frame(4, 3_300), frame(24, 520)], frameRate: 1, repeat: -1 });
+  }
+}
+
 export function registerAnimations(scene: Phaser.Scene): void {
   humanAnims(scene, 'player', (facing, pose) => ({ key: humanKey('player', facing, pose) }));
   for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS]) {
     humanAnims(scene, `npc-${npc.id}`, (facing, pose) => ({ key: personTexture(npc.id), frame: personFrame(npc.id, facing, pose) }));
+    npcAnims(scene, npc.id);
   }
 }

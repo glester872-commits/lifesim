@@ -122,10 +122,13 @@ function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w:
  *
  * Gestos de ambiente (data/ambientActions.ts): 32 de pie con la mano en la boca (un cigarro, un
  * café, un bocado) · 33 lo mismo sentado · 34 de pie con el móvil en alto, haciendo una foto.
+ *
+ * Charla (entities/Character, entities/Walker): 35 de pie hablando, una mano levantada a media
+ * altura y hacia fuera; el otro brazo cuelga.
  */
-export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34;
+export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35;
 /** Las de la textura común de gente: todas menos las de pelea, que se hornean aparte y sólo para quien pelea. */
-export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 32, 33, 34];
+export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 32, 33, 34, 35];
 /** Sólo la pelea existente: carga del golpe, esquive, cansancio, victoria y discusión. */
 export const FIGHT_POSES: readonly Pose[] = [0, 7, 8, 9, 10, 27, 28, 29, 30, 31];
 
@@ -504,6 +507,15 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     // Foto: los dos brazos suben y las manos quedan delante de la cara (se pintan al final).
     px(ctx, sleeve, 3, 9 + b, 1, 3);
     px(ctx, sleeveDark, 12, 9 + b, 1, 3);
+  } else if (pose === 35) {
+    // Hablando: un brazo cuelga; el otro dobla el codo (el antebrazo y la mano, delante del pecho, se pintan al final).
+    if (back) {
+      arm(ctx, c, 'r', 12, armR, 1, 5, sleeveDark, skinDark);
+      px(ctx, sleeve, 3, 11 + b, 1, 3);
+    } else {
+      arm(ctx, c, 'r', 3, armL, 1, 5, sleeve, c.skin);
+      px(ctx, sleeveDark, 12, 11 + b, 1, 3);
+    }
   } else if (onPhone(pose)) {
     // Sólo el brazo: el antebrazo va doblado hacia el pecho y se pinta encima del tronco.
     px(ctx, sleeve, 3, 11 + b, 1, 3);
@@ -626,6 +638,11 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, c.skin, 6, 13 + b, 1, 2);
     px(ctx, shade(c.skin, -0.08), 9, 13 + b, 1, 2);
     px(ctx, PALETTE.ink, 7, 12 + b, 2, 3);
+  }
+  if (pose === 35 && !back) {
+    // Hablando: el antebrazo cruza hacia el centro y la mano abierta queda delante del pecho, por encima de la cintura.
+    px(ctx, c.sleeves ? shade(c.sleeves, -0.08) : c.clothDark, 10, 13 + b, 2, 1);
+    px(ctx, shade(c.skin, -0.08), 9, 11 + b, 1, 2);
   }
   if (pose === 6) {
     // La barra por encima de la cabeza, con un disco a cada lado.
@@ -1021,6 +1038,11 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, sleeve, 8, 11, 4, 2);
     px(ctx, c.skin, 11, 8, 2, 4);
     px(ctx, c.skin, 13, 8, 1, 2);
+  } else if (pose === 35) {
+    // Hablando: el codo pegado al cuerpo y el antebrazo hacia delante, la mano abierta a media altura.
+    px(ctx, sleeve, 7, 11 + b, 2, 3);
+    px(ctx, sleeve, 9, 13 + b, 2, 1);
+    px(ctx, c.skin, 11, 11 + b, 1, 3);
   } else if (pose === 9) {
     // Golpe: el brazo estirado hacia delante a la altura del hombro.
     px(ctx, sleeve, 8, 10 + b, 5, 2);
