@@ -27,6 +27,7 @@ import { FREEZING_BELOW, HEAVY_RAIN, outdoorAppeal, SCORCHING_ABOVE, weatherAt, 
 import type { StreetSurvivor, SurvivalState } from '../data/streetSurvival.ts';
 import { planFor, survivorsOf, type SurvivalPlan } from './StreetSurvival.ts';
 import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
+import { Litter } from './Litter.ts';
 import { absMinute, dueOut, enterPlace, insideLooks, type Handoff } from './Handoff.ts';
 
 /**
@@ -59,6 +60,7 @@ const toShelter = (rule: TripRule): boolean =>
  */
 export function weatherBias(rule: TripRule, w: Weather): number {
   const appeal = outdoorAppeal(w);
+  if (rule.rainproof) return 1 + Math.max(0, 1 - appeal) * 0.8;
   if (outdoorLeisure(rule)) return appeal;
   if (toShelter(rule)) return 1 + Math.max(0, 1 - appeal) * 0.8;
   return 1;
@@ -66,6 +68,10 @@ export function weatherBias(rule: TripRule, w: Weather): number {
 
 const MS_PER_GAME_MINUTE = 1000 / GAME_MINUTES_PER_REAL_SECOND;
 /** Nadie se queda parado en la calzada, aunque se pueda pisar. */
+/** Rol ambiente (TripRule.ambient): como mucho tanta gente a la vez en toda la calle, y la probabilidad de que cada decisión de la calle saque uno. */
+export const AMBIENT_CAP = 8;
+const AMBIENT_CHANCE = 0.15;
+const DIRTY: ReadonlySet<string> = new Set(['bin', 'debris', 'bus-stop', 'kiosk', 'vending', 'cafe-table', 'bench', 'plaza-bench']);
 /** Cada cuánto (ms reales) la calle decide si sale alguien más. */
 const TICK: readonly [number, number] = [1_200, 2_600];
 /** Quien va solo a veces se para un momento a mitad de camino (el móvil, un escaparate). */
@@ -145,6 +151,10 @@ export interface Walker extends Agent {
   settled: boolean;
   /** Se para un momento cuando le quedan tantos tramos; -1, no. */
   pauseAt: number;
+  /** Limpieza viaria: la basura que va a recoger (id en Litter) y, mientras, a dónde iba. */
+  pickup?: number;
+  /** Paradas de trabajo (limpieza viaria): cuántos tramos le quedan en cada una; barre un momento y sigue. */
+  stops?: number[];
   /** Lleva perro: su aspecto (systems/Wildlife.ts lo pasea detrás). */
   dog?: number;
   /** Semáforos: el sitio del bordillo al que va a esperar, o el semáforo al que espera. */
@@ -211,6 +221,7 @@ export class StreetLife {
   private now = 0;
   /** Calzada, carril bici y vías sin paso de cebra: ningún rodeo de recuperación pasa por ahí. */
   private roadTiles?: Set<string>;
+  private dirty?: TilePoint[];
   private readonly loc: LocationDef;
   private readonly profile: StreetProfile;
   private readonly places: PlaceInfo[];
@@ -249,9 +260,12 @@ export class StreetLife {
 
   /** Los robos de la calle (systems/Pickpocket): raros, sólo con mucha gente alrededor y en zonas que lo permiten. */
   readonly pickpocket: StreetPickpocket;
+  /** La basura de la calle (systems/Litter): la limpieza viaria la recoge. */
+  readonly litter: Litter;
 
   constructor(loc: LocationDef, profile: StreetProfile, rng: Rng = Math.random) {
     this.loc = loc;
+    this.litter = new Litter(loc);
     this.pickpocket = new StreetPickpocket({
       location: loc.id,
       people: () => this.agents,
@@ -460,6 +474,8 @@ export class StreetLife {
     // Quien sale ahora mismo de un local por su puerta, antes que nadie: su cara no se la queda otro.
     for (const h of dueOut(this.loc.id, this.now)) this.emerge(h, clock);
     for (let tries = 0; this.walkers().length < target && tries < target * 4; tries++) this.startTrip(clock, player, target, true);
+    for (let tries = 0; tries < AMBIENT_CAP; tries++) if (this.rng() < 0.5) this.startAmbient(clock, player, true);
+    this.litter.seed(clock, this.crowdNear);
     this.rng = this.baseRng;
     this.refresh(clock);
   }
@@ -472,6 +488,7 @@ export class StreetLife {
     this.tickSignals(clock, deltaMs);
     this.metroWaves(deltaMs, clock, player);
     this.elapsed += deltaMs;
+    this.litter.update(clock, this.crowdNear);
     this.seats.tick(deltaMs);
     for (const s of this.services) s.update(deltaMs, hourOf(clock));
     this.tick -= deltaMs;
@@ -534,6 +551,8 @@ export class StreetLife {
       const staying = this.agents.filter((a) => a.staying && !a.leader && a.kind === 'visitor').sort((a, b) => b.timer - a.timer);
       for (const a of staying.slice(0, 2)) a.timer = Math.min(a.timer, 1_500);
     }
+    if (this.rng() < AMBIENT_CHANCE) this.startAmbient(clock, player, false);
+    this.seekLitter();
     this.refresh(clock);
   }
 
@@ -590,13 +609,16 @@ export class StreetLife {
       // Parada breve a mitad de camino.
       a.timer -= deltaMs;
       a.moving = false;
-      if (a.timer <= 0) a.state = 'WALK';
+      if (a.timer <= 0) {
+        a.state = 'WALK';
+        if (a.pickup !== undefined) this.finishPickup(a);
+      }
       return;
     }
     if (a.path.length > 0) {
       this.walk(a, deltaMs);
-      // Si acaba de llegar, decide ya: nadie se queda un frame encima de otro.
-      if (a.path.length > 0) return;
+      // Si acaba de llegar, decide ya: nadie se queda un frame encima de otro (quien llega a una basura se pone a barrer).
+      if (a.path.length > 0 || a.pickup !== undefined) return;
     }
     a.moving = false;
     if (a.vanish) return;
@@ -708,6 +730,13 @@ export class StreetLife {
     a.x = target.tx;
     a.y = target.ty;
     a.path.shift();
+    // Llegó a la basura: la barre un momento (advance la quita al acabar y sigue su ruta).
+    if (a.path.length === 0 && a.pickup !== undefined) {
+      a.moving = false;
+      a.state = 'SWEEP';
+      a.timer = between(this.rng, 2_200, 3_600);
+      return;
+    }
     // Acabó el rodeo de recuperación: sigue hacia donde iba, por la acera.
     if (a.path.length === 0 && a.resume) {
       const to = a.resume;
@@ -728,6 +757,11 @@ export class StreetLife {
       if (a.settled && a.leader?.stayPoint) a.dir = facingTo(target, this.pointAt(a.leader.stayPoint));
       if (a.face) a.dir = facingTo(target, a.face);
       a.face = undefined;
+    } else if (a.stops?.includes(a.path.length) && !this.onRoadway(target)) {
+      a.stops = a.stops.filter((n) => n !== a.path.length);
+      a.moving = false;
+      a.state = 'SWEEP';
+      a.timer = between(this.rng, 3_000, 7_000);
     } else if (a.path.length === a.pauseAt && !this.onRoadway(target)) {
       a.pauseAt = -1;
       a.moving = false;
@@ -789,21 +823,35 @@ export class StreetLife {
 
   // ------------------------------------------------------ personal de terraza
 
+  /** La gente que cuenta para el nivel de la calle: la de los roles ambiente tiene su propio cupo. */
   private walkers(): Walker[] {
-    return this.agents.filter((a) => a.kind === 'visitor');
+    return this.agents.filter((a) => a.kind === 'visitor' && !a.rule?.ambient);
+  }
+
+  private ambientCount(): number {
+    return this.agents.filter((a) => a.kind === 'visitor' && a.rule?.ambient).length;
+  }
+
+  /** Un rol ambiente más, si cabe en su cupo (AMBIENT_CAP): el grupo se recorta a lo que queda. */
+  private startAmbient(clock: Clock, player: TilePoint, midway: boolean): void {
+    const room = AMBIENT_CAP - this.ambientCount();
+    if (room > 0) this.startTrip(clock, player, this.walkers().length + room, midway, undefined, true);
   }
 
   /**
    * El camarero de la terraza sale por la puerta de su local cuando abre (y,
    * con minLevel, cuando hay gente dentro) y entra al cerrar. Sólo trabaja
-   * fuera: dentro ya está el suyo (data/population.ts).
+   * fuera: dentro ya está el suyo (data/population.ts). Con lluvia fuerte la
+   * terraza no se sirve (como los puestos de calle, systems/PopUps): el camarero
+   * entra y quien esté fuera se queda sin servicio, como al cerrar.
    */
   private staffShift(clock: Clock): void {
+    const downpour = weatherAt(clock.day, clock.hour + clock.minute / 60).rain > HEAVY_RAIN;
     for (const post of this.profile.staff ?? []) {
       const place = placeInfo(post.place)!;
       const profile = profileFor(post.place);
       const level = profile ? levelAt(place, profile, clock) : isOpen(place, clock.day, clock.hour, clock.minute) ? 'MEDIUM' : null;
-      const onDuty = level !== null && (!post.minLevel || LEVELS.indexOf(level) >= LEVELS.indexOf(post.minLevel));
+      const onDuty = level !== null && (!post.minLevel || LEVELS.indexOf(level) >= LEVELS.indexOf(post.minLevel)) && !(downpour && post.service === 'waiter');
       const here = this.agents.find((a) => a.post === post && !a.vanish);
       if (onDuty && !here) this.addStaff(post);
       if (!onDuty && here) {
@@ -992,9 +1040,11 @@ export class StreetLife {
   // -------------------------------------------------------------- viajes
 
   /** Sale alguien (o un grupo) a hacer un viaje que tenga sentido ahora. Midway: ya iba de camino. */
-  private startTrip(clock: Clock, player: TilePoint, target: number, midway: boolean, fromPoint?: string): void {
-    const rule = this.pickRule(clock, fromPoint);
+  private startTrip(clock: Clock, player: TilePoint, target: number, midway: boolean, fromPoint?: string, ambient = false): void {
+    const rule = this.pickRule(clock, fromPoint, ambient);
     if (!rule) return;
+    // Con mal tiempo salen menos de los que no son de lluvia (los de reparto y el VTC, no).
+    if (ambient && this.rng() > weatherBias(rule, this.weather)) return;
     const from = fromPoint ?? this.pickEnd(rule.from, clock, undefined, false);
     if (!from) return;
     const to = this.pickEnd(rule.to, clock, from, true, rule.role);
@@ -1058,6 +1108,10 @@ export class StreetLife {
     // Cada cual a su paso; el grupo, al de quien lo lleva.
     leader.speed *= paceOf(IDENTITIES[leaderLook]);
     if (rule.dog) leader.dog = Math.floor(this.rng() * DOG_LOOKS);
+    if (rule.sweep) {
+      leader.belongings = ['trolley', 'broom'];
+      leader.stops = this.workStops(path);
+    }
     if (size === 1 && !seated && path.length > 2 && this.rng() < (rule.pause ?? PAUSE_CHANCE)) {
       leader.pauseAt = 1 + Math.floor(this.rng() * (path.length - 2));
     }
@@ -1092,8 +1146,66 @@ export class StreetLife {
     }
   }
 
+  /** Gente sentada o parada alrededor de un sitio: lo que ensucia una mesa. */
+  private readonly crowdNear = (tx: number, ty: number): number => this.agents.filter((a) => a.staying && Math.hypot(a.x - tx, a.y - ty) <= 2.5).length;
+
+  /**
+   * Quien limpia y no está ocupado mira si hay basura a la vista (a menos de siete tiles, nadie más va a por ella y se
+   * llega por la acera en un tramo corto): se desvía, la barre y sigue su ruta (finishPickup). Lo que no se alcanza se marca y se deja.
+   */
+  private seekLitter(): void {
+    for (const a of this.agents) {
+      if (!a.rule?.sweep || a.kind !== 'visitor' || a.pickup !== undefined || a.staying || a.timer > 0 || a.vanish || a.leader || a.path.length < 3) continue;
+      const item = this.litter.nearest(a.x, a.y, 7, a.id, (id) => this.agents.some((x) => x.id === id));
+      if (!item) continue;
+      const path = this.detour({ tx: Math.round(a.x), ty: Math.round(a.y) }, item);
+      if (!path || path.length > 14) {
+        item.failed = true;
+        continue;
+      }
+      a.resume = a.path[a.path.length - 1];
+      a.path = path;
+      a.pickup = item.id;
+      a.stops = [];
+      item.claimedBy = a.id;
+    }
+  }
+
+  private finishPickup(a: Walker): void {
+    if (a.pickup !== undefined) this.litter.remove(a.pickup);
+    a.pickup = undefined;
+    const dest = a.resume;
+    a.resume = undefined;
+    if (!dest) return;
+    a.path = this.detour({ tx: Math.round(a.x), ty: Math.round(a.y) }, dest) ?? [];
+    a.stops = this.workStops(a.path);
+  }
+
+  /** Lo que se barre: papeleras, restos, paradas, quioscos, máquinas y mesas de terraza. */
+  private dirtySpots(): TilePoint[] {
+    this.dirty ??= this.loc.props.filter((p) => DIRTY.has(p.kind)).map((p) => ({ tx: p.tx, ty: p.ty }));
+    return this.dirty;
+  }
+
+  /**
+   * Dónde para a barrer quien limpia: hasta cuatro sitios del camino a un par de tiles de algo que se ensucia, con
+   * distancia de por medio; si no pasa por ninguno, una parada hacia la mitad. Cuántos tramos le quedan en cada una.
+   */
+  private workStops(path: readonly TilePoint[]): number[] {
+    const spots = this.dirtySpots();
+    const stops: number[] = [];
+    let last = -99;
+    for (let i = 2; i < path.length - 2 && stops.length < 4; i++) {
+      if (i - last < 8 || !spots.some((d) => Math.hypot(d.tx - path[i].tx, d.ty - path[i].ty) <= 2.2)) continue;
+      stops.push(path.length - 1 - i);
+      last = i;
+    }
+    if (stops.length === 0 && path.length > 8) stops.push(Math.floor(path.length / 2));
+    return stops;
+  }
+
   /** Un viaje que tenga sentido ahora (y, con `fromPoint`, que pueda empezar ahí: quien sale del metro). */
-  private pickRule(clock: Clock, fromPoint?: string): TripRule | undefined {
+  private pickRule(clock: Clock, fromPoint?: string, ambient = false): TripRule | undefined {
     const t = hourOf(clock);
     const weekend = weekIndex(logicalDay(clock)) >= 5;
     const rhythm = rhythmAt(clock.day, clock.hour);
@@ -1102,6 +1214,7 @@ export class StreetLife {
     const popup = activePopUp(this.loc.id, clock)?.id;
     for (const rule of this.profile.trips) {
       if (rule.popup && rule.popup !== popup) continue;
+      if (!!rule.ambient !== ambient) continue;
       if (!inHours(rule.hours, t)) continue;
       if (rule.days === 'weekday' && weekend) continue;
       if (rule.days === 'weekend' && !weekend) continue;
@@ -1207,7 +1320,7 @@ export class StreetLife {
       x: at.tx, y: at.ty, dir: 'down', moving: false, state: 'WALK',
       // Con lluvia se aprieta el paso.
       speed: between(this.rng, ...POPULATION.walkSpeed) * (this.weather.rain > 0.08 ? 1.2 : 1), path, timer: 0, plan: [], leaveSoon: false, leaving: false,
-      rule, staying: false, vanish: false, delay: 0, settled: false, pauseAt: -1,
+      rule, staying: false, vanish: false, delay: 0, settled: false, pauseAt: -1, uniform: rule?.uniform,
     };
     this.agents.push(walker);
     return walker;

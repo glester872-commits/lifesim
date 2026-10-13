@@ -1481,6 +1481,11 @@ const SOCIAL_IDS =
     ),
   );
 
+/** Opciones clásicas que son preguntarle por lo suyo; el resto (tiempo, aficiones, responder) cuenta como charla. */
+const CLASSIC_RAPPORT: Readonly<Record<string, SocialActionId>> = {
+  doing: 'question', hood: 'question', plans: 'question', work: 'question', people: 'question',
+};
+
 const isSocialAction = (
   id: string,
 ): id is SocialActionId =>
@@ -1911,6 +1916,27 @@ export class Conversation {
           'howru'
       ) {
         this.positives++;
+      }
+
+      // Hablar de lo suyo (qué hace, el barrio, sus planes, un tema que le gusta) también va creando trato con
+      // alguien con nombre: la misma tirada que una pregunta o una charla, una vez por opción y charla (usedOptions).
+      if (
+        this.socialProfile &&
+        c.named &&
+        !isSocialAction(
+          optionId,
+        )
+      ) {
+        this.socialProfile =
+          resolveSocialAction(
+            this.socialProfile,
+            CLASSIC_RAPPORT[optionId] ?? 'casual',
+            this.socialContext(),
+            this.rng,
+          ).profile;
+
+        this.socialTouched =
+          true;
       }
 
       if (

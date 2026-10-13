@@ -72,6 +72,7 @@ import type { AmbientPlacement, Placement } from '../entities/Character';
 import { stopAtStation } from '../systems/Transit';
 import { Menus } from './Menus';
 import { CrowdView } from '../world/CrowdView';
+import { LitterView } from '../world/LitterView';
 import { ServiceView } from '../world/ServiceView';
 import type { PlayerCall, TableService } from '../systems/TableService';
 import { say, type MenuItem, type MoreOption } from '../data/menus';
@@ -307,6 +308,7 @@ export class WorldScene extends Phaser.Scene {
   /** Inspector de gente (world/PopulationInspector): también sólo con el modo depuración. */
   private inspector: PopulationInspector | null = null;
   private crowdViews: CrowdView[] = [];
+  private litterView: LitterView | null = null;
   /** Lo que hay en las mesas, el pase y la cocina de un local con servicio de mesa. */
   private serviceViews: ServiceView[] = [];
   /** Sentado a una mesa con servicio y ya apuntado en ella: el camarero sabe que está. */
@@ -506,6 +508,8 @@ export class WorldScene extends Phaser.Scene {
     this.street?.populate(this.clockNow(), this.playerTile());
     const weather = (): ReturnType<typeof weatherAt> => weatherAt(this.services.state.day, this.services.state.hour + this.services.state.minute / 60);
     const hourNow = (): number => this.services.state.hour + this.services.state.minute / 60;
+    // La basura de la calle: se rehace con la escena (StreetLife.populate), así que al volver no queda nada de la otra vez.
+    this.litterView = this.street ? new LitterView(this, this.street.litter) : null;
     this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street, hourNow));
     // Lo que pasa en sitios escondidos algunas noches (data/streetEvents.ts): su corro es gente como la de la calle.
     this.streetEvents = STREET_EVENTS.filter((e) => e.location === def.id).map((e) => new StreetEventView(this, def, e, weather));
@@ -642,6 +646,8 @@ export class WorldScene extends Phaser.Scene {
       autosave.remove();
       this.services.metroDebug?.hide();
       this.metro?.shutdown();
+      this.litterView?.destroy();
+      this.litterView = null;
       this.zoneDebug?.destroy();
       this.zoneDebug = null;
       this.inspector?.destroy();
@@ -736,6 +742,7 @@ export class WorldScene extends Phaser.Scene {
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
     this.street?.update(delta, this.clockNow(), this.playerTile());
     for (const view of this.crowdViews) view.sync(time);
+    this.litterView?.sync();
     for (const view of this.serviceViews) view.sync(time);
     // Se acaba el turno (cierra el local, se va el camarero) con el jugador esperando a la mesa: nadie vendrá.
     // Se mira cada frame, también con el menú de la mesa abierto (es «en vivo»: el mundo sigue): se cierra ese
@@ -743,7 +750,8 @@ export class WorldScene extends Phaser.Scene {
     const tables = this.tableService;
     if (this.dining && tables && !tables.staffed && tables.playerTable?.state !== 'SERVED') {
       if (menu.isOpen && menu.isLive) menu.close();
-      this.leaveTable('Ya no queda nadie atendiendo.');
+      // Con la cuenta ya pagada no hay nada que contar: se acaba el servicio sin aviso.
+      this.leaveTable(tables.playerTable?.state === 'PAID' ? undefined : 'Ya no queda nadie atendiendo.');
     }
     const { hour, minute } = this.services.state;
     this.wildlife?.update(delta, time, hour + minute / 60, this.playerTile(), (this.player.body as Phaser.Physics.Arcade.Body).speed > 1);

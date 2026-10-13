@@ -201,6 +201,12 @@ export const ROLE_AFFINITY: Readonly<Record<string, { interests?: readonly Inter
   'carmen-outfit': { interests: ['fashion', 'photography', 'art'], ages: [16, 45] },
   'carmen-prenight': { interests: ['nightlife', 'music'], ages: [18, 45] },
   'bar-smoke': { ages: [18, 70] },
+  // Trabajo en la calle: gente en edad de trabajar; quien espera un VTC, de salir.
+  'street-cleaner': { ages: [22, 64] },
+  maintenance: { ages: [22, 64] },
+  courier: { ages: [18, 45] },
+  'work-break': { ages: [20, 64] },
+  'ride-wait': { ages: [18, 60] },
   'popup-market': { interests: ['fashion', 'art', 'music', 'photography'] },
   'popup-queue': { interests: ['fashion', 'skating', 'technology', 'gaming'], ages: [16, 40] },
   'popup-dj': { interests: ['music', 'nightlife'], ages: [18, 45] },
@@ -225,6 +231,7 @@ export const ROLE_AFFINITY: Readonly<Record<string, { interests?: readonly Inter
 export const VISITOR_ROLES: ReadonlySet<string> = new Set([
   'tourist', 'stroller', 'passer', 'coffee', 'terrace', 'brunch', 'diner', 'carmen-browse', 'carmen-couple',
   'window-shopper', 'metro-arrival', 'park-stroll', 'carmen-hang', 'carmen-outfit', 'carmen-prenight', 'bar-smoke', 'popup-market', 'popup-queue', 'popup-dj', 'popup-art', 'club-queue', 'club-goer', 'club-smoke', 'club-leaving',
+  'street-cleaner', 'maintenance', 'courier', 'work-break', 'ride-wait',
 ]);
 
 /** Qué relaciones valen para cada tipo de grupo. */

@@ -101,6 +101,31 @@ export function buildSurvivalTextures(scene: Phaser.Scene): void {
     px(ctx, PALETTE.ink, 2, 12, 3, 2);
     px(ctx, PALETTE.ink, 10, 12, 3, 2);
   });
+  // Carrito de limpieza viaria, de perfil: cubo verde con tapa, bolsa colgada, mango atrás y la escoba apoyada. Más pequeño que un coche: 14 × 15 px.
+  make(scene, belongingKey('trolley'), 14, 15, (ctx) => {
+    const body = '#3f8f3a';
+    px(ctx, PALETTE.outline, 2, 4, 10, 9);
+    px(ctx, body, 3, 5, 8, 7);
+    px(ctx, shade(body, 0.2), 3, 5, 8, 1);
+    px(ctx, shade(body, -0.25), 9, 6, 2, 6);
+    px(ctx, '#e9ecd2', 3, 8, 8, 1);
+    px(ctx, PALETTE.outline, 1, 3, 12, 2);
+    px(ctx, '#2b2d33', 2, 3, 10, 1);
+    px(ctx, '#3a3a44', 12, 5, 1, 1);
+    px(ctx, '#7a7f88', 12, 1, 1, 5);
+    px(ctx, '#7a7f88', 11, 1, 3, 1);
+    px(ctx, '#8a6a3a', 4, 0, 1, 5);
+    px(ctx, '#c9a13a', 3, 0, 3, 1);
+    px(ctx, PALETTE.ink, 3, 13, 3, 2);
+    px(ctx, PALETTE.ink, 9, 13, 3, 2);
+  });
+  // Escoba de barrer: mango y cerdas, de frente a quien la lleva.
+  make(scene, belongingKey('broom'), 6, 14, (ctx) => {
+    px(ctx, '#8a6a3a', 2, 0, 1, 10);
+    px(ctx, PALETTE.outline, 0, 9, 5, 5);
+    px(ctx, '#c9a13a', 1, 10, 3, 3);
+    px(ctx, shade('#c9a13a', -0.25), 1, 12, 3, 1);
+  });
   // Vaso de papel para las monedas.
   make(scene, belongingKey('cup'), 4, 5, (ctx) => {
     px(ctx, PALETTE.outline, 0, 0, 4, 5);

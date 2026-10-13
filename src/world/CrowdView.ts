@@ -81,7 +81,7 @@ export class CrowdView {
       if (a.state === 'SHOWER' && !a.moving && a.path.length === 0) continue;
       // Quien vive en la calle y duerme: tumbado bajo su manta (world/SurvivalArt), no de pie. No se le despierta.
       const asleep = a.kind === 'street' && a.state === 'SLEEP' && !a.moving && a.path.length === 0;
-      if (a.belongings) this.kitOf(a, px, py, asleep);
+      if (a.belongings) this.kitOf(a, px, py, asleep, time);
       if (asleep) continue;
       here.add(a.id);
       let sprite = this.sprites.get(a.id);
@@ -163,7 +163,7 @@ export class CrowdView {
    * si está pidiendo y el carro, también andando (delante, empujándolo). Dormido,
    * él mismo tumbado bajo la manta. Seis personas como mucho: imágenes sueltas.
    */
-  private kitOf(a: Agent, px: number, py: number, asleep: boolean): void {
+  private kitOf(a: Agent, px: number, py: number, asleep: boolean, time: number): void {
     buildSurvivalTextures(this.scene);
     this.kitShown.add(a.id);
     const kit = this.kits.get(a.id) ?? new Map<string, Phaser.GameObjects.Image>();
@@ -196,6 +196,13 @@ export class CrowdView {
     const cx = settled ? px - 13 : px + (a.dir === 'left' ? -12 : a.dir === 'right' ? 12 : 10);
     const cy = py + (settled || side ? 0 : a.dir === 'down' ? 6 : -4);
     show('cart', belongingKey('cart'), has('cart'), cx, cy, cy, a.dir === 'left');
+    // Limpieza viaria: el carrito, empujado delante (aparcado al lado cuando barre) y la escoba en la mano, moviéndose al barrer.
+    const sweeping = !a.moving && a.state === 'SWEEP';
+    const tx = settled ? px - 12 : px + (a.dir === 'left' ? -10 : a.dir === 'right' ? 10 : 9);
+    const ty = py + (settled || side ? 0 : a.dir === 'down' ? 5 : -3);
+    show('trolley', belongingKey('trolley'), has('trolley'), tx, ty, ty, a.dir === 'left');
+    const swing = Math.round(Math.sin(time / 180 + a.id) * 3);
+    show('broom', belongingKey('broom'), has('broom') && sweeping, px + (a.dir === 'left' ? -9 : 9) + swing, py + 1, py + 1, a.dir === 'left');
   }
 
   /** Hacia dónde queda quien viene con él (su grupo), si está parado a su lado. */

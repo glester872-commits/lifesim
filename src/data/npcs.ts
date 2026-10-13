@@ -330,6 +330,11 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'uniforme-vuelta', cloth: '#4f7d3a', clothDark: '#3b5e2b', hair: '#6b5a3f', trousers: '#4f6a8c' },
   // Salón Recreativo Nova: camiseta violeta con el neón del local.
   { id: 'uniforme-arcade', cloth: '#5a3f9a', clothDark: '#42306f', hair: '#2a2830', trousers: '#232329' },
+  // Gente que trabaja en la calle (TripRule.uniform): chaleco de limpieza, mono de mantenimiento y mochila de reparto.
+  // Limpieza viaria (ficticia): verde fluorescente con bandas reflectantes y pantalón oscuro con franja plateada.
+  { id: 'uniforme-limpieza', cloth: '#7be22b', clothDark: '#58b81c', hair: '#2a2430', trousers: '#2b3a34', sleeves: '#7be22b', cap: '#7be22b', reflective: '#e9ecd2', stripe: '#e9ecd2' },
+  { id: 'uniforme-mantenimiento', cloth: '#3d6f9a', clothDark: '#2c5273', hair: '#33291f', trousers: '#3d6f9a', cap: '#e0a21e' },
+  { id: 'uniforme-reparto', cloth: '#1f9a8a', clothDark: '#157064', hair: '#1f1a15', trousers: '#232329', bag: '#1f9a8a', cap: '#232329' },
 ];
 
 /**

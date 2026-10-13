@@ -71,6 +71,20 @@ export interface TripRule {
   pause?: number;
   /** Como mucho tantos viajes de este tipo a la vez: ni diez personas mirando el mismo escaparate. */
   max?: number;
+  /**
+   * Rol ambiente (la capa de vida de la calle): ocasional y fuera del nivel de gente; tiene su propio cupo
+   * (StreetLife.AMBIENT_CAP) y no le quita sitio a nadie. Sin él, el viaje cuenta como cualquier otro.
+   */
+  ambient?: boolean;
+  /**
+   * Limpieza viaria: lleva el carrito y la escoba, y por el camino para a barrer junto a papeleras, bancos, paradas y
+   * mesas de terraza (StreetLife.workStops); en un sitio para estar, barre mientras está (stayState 'SWEEP').
+   */
+  sweep?: boolean;
+  /** Uniforme de quien trabaja en la calle (id en UNIFORM_LOOKS, data/npcs.ts): limpieza, mantenimiento, reparto. */
+  uniform?: string;
+  /** No se queda en casa por el tiempo: con lluvia no baja, sube (quien pide a domicilio, quien llama a un VTC). */
+  rainproof?: boolean;
   /** Sólo mientras está en marcha ese evento (data/popups.ts, systems/PopUps): el mercadillo, la cola, el DJ. */
   popup?: string;
 }
@@ -218,6 +232,21 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'brunch', label: 'Gente de brunch', line: 'Otro café y nos vamos. Eso dijimos hace una hora.', weight: 4, hours: [10, 13.5], days: 'weekend', from: HOMES_OR_CITY, to: { points: ['CAFE_TERRACE_'] }, stay: [30, 60], stayState: 'DRINK', group: [2, 3], bond: ['friends', 'couple'] },
       { role: 'park-stroll', label: 'Gente paseando', line: 'Sábado sin plan. El mejor plan.', weight: 4, hours: [10.5, 20], days: 'weekend', from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['park-w', 'park-e'], pace: 'stroll', group: [1, 3], bond: ['family', 'couple', 'friends'] },
       { role: 'bus', label: 'Alguien esperando el bus', line: 'Dice ocho minutos desde hace veinte.', weight: 1, hours: [6.5, 23], from: HOMES, to: { points: ['BUS_STOP'] }, stay: [4, 12], then: CITY },
+      // Vida de trabajo en la calle (uniformes de data/npcs.ts): limpieza al amanecer, mantenimiento entre semana, repartos a la hora de comer y de cenar, pausas de oficina y quien espera un VTC a la salida de la noche.
+      // Limpieza viaria (sweep: carrito, escoba y paradas a barrer junto a papeleras, bancos y mesas): de madrugada el parque, la calle y el metro; la plaza antes de que baje la gente; las terrazas tras la comida y un turno suelto de noche.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Hoy hay más hojas que ayer. Siempre hay más hojas.', weight: 7, hours: [6, 9.5], from: CITY, to: CITY, via: ['park-w', 'park-e'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'La Mayor y el metro, antes de la hora punta. Y después también.', weight: 6, hours: [6.5, 10], from: CITY, to: CITY, via: ['METRO_MEET_01', 'NEWS_KIOSK', 'BUS_STOP'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'La fuente y los bancos, antes de que baje la gente.', weight: 4, hours: [6, 9], from: CITY, to: { points: ['PLAZA_FOUNTAIN', 'PLAZA_BENCH_'] }, stay: [6, 14], stayState: 'SWEEP', then: CITY, uniform: 'uniforme-limpieza', sweep: true, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Tras la comida, las terrazas. Siempre igual.', weight: 3, hours: [15.5, 17.5], from: CITY, to: CITY, via: ['CAFE_TERRACE_WAITER', 'RESTAURANT_TERRACE_WAITER', 'METRO_MEET_01'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Un repaso a mediodía, que con tanto bocadillo...', weight: 1.5, hours: [12.5, 14], days: 'weekday', from: CITY, to: CITY, via: ['NEWS_KIOSK', 'BUS_STOP'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Turno de noche: lo que deja la gente al irse.', weight: 2, hours: [23, 1], from: CITY, to: CITY, via: ['METRO_MEET_01', 'CAFE_TERRACE_WAITER'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'maintenance', ambient: true, label: 'Operario de mantenimiento', line: 'La fuente pierde agua. Otra vez.', weight: 4, hours: [8.5, 17], days: 'weekday', from: CITY, to: { points: ['PLAZA_FOUNTAIN'] }, stay: [12, 30], then: CITY, uniform: 'uniforme-mantenimiento', max: 1 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Dos pedidos más y acabo el turno.', weight: 7, hours: [13, 15.5], from: { points: ['RESTAURANT_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cena para tres en el tercero. Sin ascensor.', weight: 9, hours: [20.5, 23.5], from: { points: ['RESTAURANT_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
+      { role: 'work-break', ambient: true, label: 'Alguien en su descanso', line: 'Veinte minutos. Ni uno más.', weight: 25, hours: [10.5, 11.75], days: 'weekday', from: { points: ['OFFICE_ENTRANCE'] }, to: { points: ['PLAZA_BENCH_'] }, stay: [10, 18], stayState: 'DRINK', then: { points: ['OFFICE_ENTRANCE'] }, group: [1, 2], bond: ['coworkers'], max: 3 },
+      { role: 'work-break', ambient: true, label: 'Alguien en su descanso', line: 'Sin móvil, sin correos. Cinco minutos de sol.', weight: 25, hours: [13.5, 15.5], days: 'weekday', from: { points: ['OFFICE_ENTRANCE'] }, to: { points: ['PLAZA_BENCH_'] }, stay: [10, 25], stayState: 'DRINK', then: { points: ['OFFICE_ENTRANCE'] }, group: [1, 3], bond: ['coworkers'], max: 3 },
+      { role: 'ride-wait', ambient: true, label: 'Alguien esperando un VTC', line: 'Dice dos minutos. Lleva diez.', weight: 7, hours: [22.5, 3.5], from: NIGHT_OUT, to: { points: ['METRO_MEET_'] }, stay: [4, 10], stayState: 'PHONE', then: CITY, rainproof: true, group: [1, 3], bond: ['friends', 'couple'], max: 3 },
+      { role: 'ride-wait', ambient: true, label: 'Alguien esperando un taxi', line: 'Al aeropuerto, y con tiempo. Por una vez.', weight: 3, hours: [5, 8], from: HOMES, to: { points: ['METRO_MEET_'] }, stay: [3, 8], stayState: 'PHONE', then: CITY, rainproof: true, max: 1 },
       // Gente de visita: en grupo, a la plaza a ver la fuente y el quiosco, y otra vez a la ciudad.
       { role: 'tourist', label: 'Gente de visita', line: 'Perdona, ¿la Plaza de la Fuente es esta? La del mapa.', weight: 1.5, hours: [10, 20.5], from: CITY, to: { points: ['PLAZA_FOUNTAIN', 'NEWS_KIOSK', 'PLAZA_BENCH_'] }, stay: [6, 15], then: CITY, group: [2, 3], bond: ['tourists'] },
       // Vida de barrio en la Mayor este: el pan por la mañana, el bar de abajo (desayuno, vermú, la noche y la puerta) y la tienda que cierra la última.
@@ -298,6 +327,15 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'Se para en cada farola. En todas.', weight: 1, hours: [13, 15], from: HOMES, to: HOMES, via: ['rb-pr05', 'rb-pr35'], pace: 'stroll', dog: true, pause: 0.6 },
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última vuelta y a casa.', weight: 3, hours: [19, 23.5], from: HOMES, to: HOMES_OR_CITY, via: ['rb-pr05', 'rb-pr35'], pace: 'stroll', dog: true, pause: 0.6 },
       // Pasear y mirar el agua.
+      // Trabajo en la calle de la Ribera: la limpieza del paseo al amanecer, repartos de las terrazas y el VTC de la salida.
+      // Limpieza viaria (sweep: carrito, escoba y paradas a barrer): el paseo al amanecer, la plaza del metro, las terrazas tras la comida y un turno suelto de tarde.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'El paseo se lleva lo peor: latas, colillas y patos.', weight: 7, hours: [6, 9.5], from: CITY, to: CITY, via: ['rb-pr05', 'rb-pr35'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 2 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Después de la comida, las terrazas. Siempre igual.', weight: 3, hours: [15.5, 17.5], from: CITY, to: CITY, via: ['RB_CAFE_TERRACE_WAITER', 'RB_CASAMAR_TERRACE_WAITER', 'RB_BAR_TERRACE_WAITER'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Turno de tarde: lo que deja la gente al irse.', weight: 2, hours: [22.5, 24], from: CITY, to: CITY, via: ['RB_METRO_FRONT', 'rb-pr05'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'maintenance', ambient: true, label: 'Operario de mantenimiento', line: 'Otra farola fundida. Es la tercera del mes.', weight: 4, hours: [8.5, 17], days: 'weekday', from: CITY, to: { points: ['RB_VIEW_'] }, stay: [12, 30], then: CITY, uniform: 'uniforme-mantenimiento', max: 1 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Una paella para el segundo. Se enfría por el camino.', weight: 7, hours: [13, 15.5], from: { points: ['RB_CASAMAR_ENTRANCE', 'RB_BAR_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cena para tres. Y el timbre no funciona.', weight: 9, hours: [20.5, 23.5], from: { points: ['RB_CASAMAR_ENTRANCE', 'RB_BAR_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
+      { role: 'ride-wait', ambient: true, label: 'Alguien esperando un VTC', line: 'Dice dos minutos. Lleva diez.', weight: 7, hours: [22.5, 3.5], from: { points: ['RB_BAR_ENTRANCE'] }, to: { points: ['RB_METRO_FRONT'] }, stay: [4, 10], stayState: 'PHONE', then: CITY, rainproof: true, group: [1, 3], bond: ['friends', 'couple'], max: 3 },
       { role: 'riverside-walk', label: 'Gente paseando', line: 'Hace buena tarde para no hacer nada.', weight: 3, hours: [10, 21.5], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['rb-pr05', 'rb-pr35'], pace: 'stroll', group: [1, 3], bond: ['family', 'friends', 'couple'] },
       { role: 'riverside-walk', label: 'Gente paseando', line: 'Con esta luz da pena irse a casa.', weight: 4, hours: [18.5, 23], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['rb-pr38', 'rb-pr05'], pace: 'stroll', group: [2, 4], bond: ['friends', 'family'] },
       { role: 'couple-walk', label: 'Una pareja paseando', line: 'Íbamos a cenar y se nos ha hecho tarde mirando el agua.', weight: 4, hours: [17.5, 23.5], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['rb-pr05', 'rb-pr35'], pace: 'stroll', group: [2, 2], bond: ['couple'] },

@@ -7,7 +7,7 @@ import { createInitialState, SaveSystem, type SaveStorage } from '../src/systems
 import { applyEffect, createStory } from '../src/systems/Story.ts';
 import { createPhone, phoneOptions } from '../src/systems/Phone.ts';
 import {
-  availableSocialActions, contactOfferChance, contactState, CONTACT_OFFER_NOTE, createSocialProfile, grantContact, positiveChanceFor,
+  availableSocialActions, contactOfferChance, contactReadiness, noteSocialEncounter, contactState, CONTACT_OFFER_NOTE, createSocialProfile, grantContact, positiveChanceFor,
   resolveSocialAction, type SocialContext, type SocialProfile,
 } from '../src/systems/Social.ts';
 
@@ -25,9 +25,37 @@ const moment = { day: 3, hour: 12, minute: 0 };
   assert.equal(contactState(createSocialProfile(), 3), 'UNKNOWN');
   assert.ok(!canAsk(met, 3), 'a quien acabas de conocer no se le pide el número');
   assert.deepEqual(phoneOptions(createPhone(), 'sara', met, 3 * 1440), [], 'sin número no hay mensajes');
-  const known = prof({ encounters: 3, friendship: 10, trust: 12 });
+  const known = prof({ encounters: 3, friendship: 10, trust: 9 });
   assert.equal(contactState(known, 3), 'KNOWN');
   assert.ok(!canAsk(known, 3), 'sin confianza todavía no');
+  assert.equal(contactReadiness(known, 3).eligible, false);
+  assert.ok(contactReadiness(known, 3).reason);
+  // Cualquiera de las vías basta: confianza, amistad, atracción o varios encuentros.
+  for (const p of [{ trust: 12 }, { friendship: 15 }, { attraction: 15 }, { encounters: 4 }]) assert.ok(canAsk(prof({ encounters: 2, ...p }), 3), JSON.stringify(p));
+  assert.ok(!availableSocialActions(prof({ encounters: 4 }), ctx(3, { mood: 'hurried' })).includes('ask-contact'), 'con prisa no');
+}
+
+// 1b) Juego normal: charlas amables (sin repetir opción dentro de una charla) hasta que sale «Pedir contacto».
+{
+  const MENU = ['greet', 'howru', 'casual', 'question', 'joke', 'compliment'] as const;
+  const needed: number[] = [];
+  for (let seed = 0; seed < 200; seed++) {
+    let p = createSocialProfile();
+    let talks = 0;
+    const rng = seededRng(hashSeed('natural', seed));
+    while (!canAsk(p, 3) && talks < 20) {
+      for (const a of MENU.slice(0, 4)) p = resolveSocialAction(p, a, ctx(3), rng).profile;
+      p = noteSocialEncounter(p, moment);
+      talks++;
+    }
+    needed.push(talks);
+  }
+  needed.sort((a, b) => a - b);
+  const median = needed[100];
+  assert.ok(!canAsk(createSocialProfile(), 3));
+  assert.ok(median >= 2 && median <= 4, `charlas hasta poder pedirlo (mediana): ${median}`);
+  assert.ok(needed[199] <= 4, `peor caso: ${needed[199]}`);
+  console.log(`charlas amables hasta ver «Pedir contacto»: mediana ${median}, máx ${needed[199]}`);
 }
 
 // 2) Amistad con confianza: casi siempre dice que sí, y el número abre el móvil.

@@ -170,7 +170,9 @@ function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phase
 {
   let total = 0, windows = 0, worst = 0;
   const WINDOW_MS = 20 * 60_000; // veinte minutos reales = 40 horas de juego
-  for (let seed = 1; seed <= 6; seed++) {
+  // Veinte ventanas (semillas 51-70): con la tasa de ~0,2-0,3 robos por ventana (4 con la capa de ambiente y la basura, 6 sin ella, mismas
+  // semillas), seis ventanas daban un 0 por puro azar una de cada cinco veces; con veinte, "nunca pasa" sólo salta si de verdad no pasa.
+  for (let seed = 1; seed <= 20; seed++) {
     const s = street(SAT, 19, seed + 50);
     s.step(WINDOW_MS);
     const n = s.life.pickpocket.stats.started;

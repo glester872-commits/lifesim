@@ -14,6 +14,7 @@ import { forceWeather, weatherAt } from './systems/Weather';
 import { dateOf, dayOfDate, formatDate, SEASON_LABEL } from './systems/Calendar';
 import { handoffs } from './systems/Handoff';
 import { MetroEventManager } from './systems/MetroEventManager';
+import { contactOnCooldown, contactReadiness, contactState, relationshipState } from './systems/Social';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { CyclistView } from './world/CyclistView';
@@ -323,9 +324,20 @@ if (import.meta.env.DEV) {
 // lifesim.social.dateReady('sara')
 // lifesim.social.friend('ada')
 // lifesim.social.reset('sara')
+// lifesim.social.contact('sara') → si ya se le puede pedir el número y, si no, por qué.
 social: {
   get: (id = 'sara') => {
     return state.socialOf(id);
+  },
+
+  contact: (id = 'sara') => {
+    const p = state.socialOf(id);
+    const ready = contactReadiness(p, state.day);
+    return {
+      relationshipState: relationshipState(p), encounters: p.encounters, friendship: p.friendship, trust: p.trust,
+      attraction: p.attraction, contactState: contactState(p, state.day), cooldown: contactOnCooldown(p, state.day),
+      askContact: ready.eligible ? 'YES' : 'NO', reason: ready.reason,
+    };
   },
 
   set: (

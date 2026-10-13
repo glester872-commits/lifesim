@@ -18,7 +18,7 @@
  * Nada de esto toca a la gente por su origen: no hay campos de procedencia, renta ni delito.
  */
 
-export type RoleGroup = 'nightlife' | 'retail' | 'leisure' | 'sport' | 'commute' | 'social' | 'food' | 'tourism' | 'family';
+export type RoleGroup = 'nightlife' | 'retail' | 'leisure' | 'sport' | 'commute' | 'social' | 'food' | 'tourism' | 'family' | 'work';
 
 /** Franjas [desde, hasta, factor] sobre la afluencia de las zonas del barrio (1 = la de la zona). */
 export type DensityBands = readonly (readonly [number, number, number])[];
@@ -50,6 +50,7 @@ export const ROLE_GROUPS: readonly (readonly [RegExp, RoleGroup])[] = [
   [/^(commuter|metro-arrival|office|bus|returning|passer)/, 'commute'],
   [/^(terrace|brunch|coffee|diner|bar-terrace|rincon-breakfast|ice-cream)/, 'food'],
   [/^(tourist)/, 'tourism'],
+  [/^(street-cleaner|maintenance|courier|work-break|ride-wait)/, 'work'],
   [/^(plaza-(family|elders|couple|rest)|park-elders|park-gathering)/, 'family'],
   [/^(river|riverside|couple-walk|park|plaza|stroller|dog-walker|reader|carmen-(couple|friends|bench)|metro-meet)/, 'leisure'],
 ];

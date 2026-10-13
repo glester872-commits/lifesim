@@ -14,7 +14,7 @@
 export type SurvivalState = 'SLEEP' | 'SIT' | 'REST' | 'ASK' | 'SHELTER' | 'IDLE';
 
 /** Lo que lleva consigo: se pinta a su lado cuando está quieto (el carro, también andando). */
-export type Belonging = 'blanket' | 'bags' | 'backpack' | 'cardboard' | 'cart' | 'cup';
+export type Belonging = 'blanket' | 'bags' | 'backpack' | 'cardboard' | 'cart' | 'cup' | 'trolley' | 'broom';
 
 /** Maneras de estar en la calle: cada persona combina una o dos. */
 export type SurvivalProfile = 'sleeper' | 'sitter' | 'doorway' | 'asker' | 'walker' | 'cart' | 'dog' | 'watcher';

@@ -265,7 +265,7 @@ export const AMBIENT_ACTIONS: AmbientActionDef[] = [
     // Quien sale de las tiendas lleva las bolsas.
     id: 'bags', label: 'Con bolsas', postures: ['walk'], contexts: ['walk'],
     weight: 1, total: [60_000, 90_000], dayparts: { morning: 0.5, afternoon: 1.4, evening: 1, night: 0 },
-    roles: { shopper: 6, errands: 1.2, 'carmen-browse': 1.5, 'window-shopper': 1, 'popup-market': 4, 'sneaker-heads': 3 }, otherRoles: 0,
+    roles: { shopper: 6, bakery: 1.5, errands: 1.2, 'carmen-browse': 1.5, 'window-shopper': 1, 'popup-market': 4, 'sneaker-heads': 3 }, otherRoles: 0,
     loop: [{ name: 'con las bolsas', ms: [60_000, 90_000], prop: 'bags', at: 'hand' }],
   },
 ];

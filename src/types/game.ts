@@ -514,6 +514,8 @@ export interface NpcLook {
   /** Brazos al aire (tirantes) o manga de otro color. */
   sleeves?: string;
   trousers?: string;
+  /** Bandas reflectantes del chaleco: dos franjas horizontales en el tronco (uniforme de limpieza). */
+  reflective?: string;
   /** Franja vertical por fuera de cada pernera (el uniforme de seguridad del metro). */
   stripe?: string;
   /** Calzado fijo al cambiar de capa; sin él, sale del id. */

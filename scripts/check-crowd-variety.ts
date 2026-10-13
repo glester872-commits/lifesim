@@ -7,25 +7,25 @@ import { Crowd, profileFor, type Agent, type Clock } from '../src/systems/Crowd.
 import { seededRng } from '../src/systems/MetroDaily.ts';
 import { outfitOf } from '../src/systems/People.ts';
 import { placeInfo } from '../src/systems/Places.ts';
-import { StreetLife, streetProfileFor } from '../src/systems/StreetLife.ts';
+import { AMBIENT_CAP, StreetLife, streetProfileFor } from '../src/systems/StreetLife.ts';
 import { forceWeather, outdoorAppeal, weatherAt } from '../src/systems/Weather.ts';
 
 const player = { tx: 40, ty: 30 };
 
 /** La calle a esa hora (día 1 = lunes) durante `minutes`, con el tiempo dado: lo que se ve y los pares cercanos. */
 function street(day: number, hour: number, weather: Parameters<typeof forceWeather>[0], minutes: number, seed: number): {
-  roles: Map<string, number>; people: number; staying: number; close: number; sameFace: number; sameOutfit: number; speeds: number[]; groups: number;
+  roles: Map<string, number>; people: number; staying: number; close: number; sameFace: number; sameOutfit: number; speeds: number[]; groups: number; ambient: number;
 } {
   forceWeather(weather);
   const s = new StreetLife(getLocation('district'), streetProfileFor('district')!, seededRng(seed));
   const start: Clock = { day, hour: Math.floor(hour), minute: Math.round((hour % 1) * 60) };
   s.populate(start, player);
-  const out = { roles: new Map<string, number>(), people: 0, staying: 0, close: 0, sameFace: 0, sameOutfit: 0, speeds: [] as number[], groups: 0 };
+  const out = { roles: new Map<string, number>(), people: 0, staying: 0, close: 0, sameFace: 0, sameOutfit: 0, speeds: [] as number[], groups: 0, ambient: 0 };
   for (let m = 0; m < minutes; m++) {
     const total = start.minute + m;
     const c: Clock = { day, hour: start.hour + Math.floor(total / 60), minute: total % 60 };
     for (let k = 0; k < 30; k++) s.update(33, c, player);
-    const v = s.agents.filter((a) => a.kind === 'visitor');
+    const v = s.agents.filter((a) => a.kind === 'visitor' && !a.rule?.ambient);
     for (let i = 0; i < v.length; i++) {
       for (let j = i + 1; j < v.length; j++) {
         if (Math.hypot(v[i].x - v[j].x, v[i].y - v[j].y) >= 8) continue;
@@ -37,8 +37,13 @@ function street(day: number, hour: number, weather: Parameters<typeof forceWeath
     if (m === minutes - 1) {
       for (const a of v.filter((x) => !x.leader)) {
         out.roles.set(a.role || '-', (out.roles.get(a.role || '-') ?? 0) + 1);
-        out.people++;
-        if (a.staying) out.staying++;
+        // El nivel de la calle (lo que mide el tiempo y la hora) es la gente de los viajes de siempre; los roles ambiente
+        // (data/streets.ts, TripRule.ambient: reparto, limpieza, VTC) tienen su cupo aparte y se cuentan aparte.
+        if (a.rule?.ambient) out.ambient++;
+        else {
+          out.people++;
+          if (a.staying) out.staying++;
+        }
         if (s.agents.some((b) => b.leader === a)) out.groups++;
       }
       out.speeds = v.map((a) => Math.round(a.speed * 100) / 100);
@@ -119,6 +124,8 @@ function street(day: number, hour: number, weather: Parameters<typeof forceWeath
   const wet = street(7, 21, { rain: 0.9, cloud: 1, wet: 1, celsius: 12 }, 30, 9);
   assert.ok(scorch.people < mild.people, `con 37 °C hay tanta gente fuera como con 22 (${scorch.people} y ${mild.people})`);
   assert.ok(wet.people < dry.people || wet.staying < dry.staying, `con lluvia hay tanta gente parada fuera como sin ella (${wet.people}/${wet.staying} y ${dry.people}/${dry.staying})`);
+  assert.ok(wet.ambient <= AMBIENT_CAP && dry.ambient <= AMBIENT_CAP, `roles ambiente por encima de su cupo (${wet.ambient} y ${dry.ambient}, cupo ${AMBIENT_CAP})`);
+  console.log(`  ambiente (aparte del nivel): seco ${dry.ambient}, lluvia ${wet.ambient}`);
   const base = weatherAt(1, 12);
   const appeal = (c: number, r = 0): number => outdoorAppeal({ ...base, celsius: c, rain: r, temp: c < 11 ? 'cold' : c > 22 ? 'warm' : 'mild' });
   assert.ok(appeal(37) < appeal(28) && appeal(-1) < appeal(5) && appeal(15, 0.9) < appeal(15), 'las ganas de estar fuera no siguen al tiempo');

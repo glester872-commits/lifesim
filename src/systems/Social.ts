@@ -833,17 +833,11 @@ export function availableSocialActions(
 
   if (
     !hurried &&
-    !profile.contactExchanged &&
-    atLeast(
-      profile,
-      'ACQUAINTANCE',
-    ) &&
-    profile.trust >= 20 &&
-    // Tras un «no» o un «aún no» no se vuelve a pedir enseguida.
-    !contactOnCooldown(
+    // Conocidos con algo de trato y sin un «no» reciente (contactReadiness).
+    contactReadiness(
       profile,
       context.day,
-    )
+    ).eligible
   ) {
     actions.push(
       'ask-contact',
@@ -2117,7 +2111,19 @@ export function contactState(profile: SocialProfile, day: number): ContactState 
   if (last && contactOnCooldown(profile, day)) return last.outcome === 'negative' ? 'REJECTED' : 'NOT_YET';
   const state = relationshipState(profile);
   if (state === 'STRANGER') return profile.encounters > 0 ? 'MET' : 'UNKNOWN';
-  return profile.trust >= 20 ? 'REQUEST_AVAILABLE' : 'KNOWN';
+  return contactReadiness(profile, day).eligible ? 'REQUEST_AVAILABLE' : 'KNOWN';
+}
+
+/**
+ * Ya tiene sentido pedirle el número: os conocéis (ACQUAINTANCE o más) y hay algo de trato por cualquiera de
+ * estas vías: confianza, amistad, atracción o haberos visto varias veces. Sin `reason` si se puede.
+ */
+export function contactReadiness(profile: SocialProfile, day: number): { eligible: boolean; reason?: string } {
+  if (profile.contactExchanged) return { eligible: false, reason: 'ya tenéis el número' };
+  if (!atLeast(profile, 'ACQUAINTANCE')) return { eligible: false, reason: 'aún sois desconocidos' };
+  if (contactOnCooldown(profile, day)) return { eligible: false, reason: 'te dijo que no / aún no hace poco' };
+  if (profile.trust >= 12 || profile.friendship >= 15 || profile.attraction >= 15 || profile.encounters >= 4) return { eligible: true };
+  return { eligible: false, reason: 'poco trato todavía (confianza 12, amistad 15, atracción 15 o 4 encuentros)' };
 }
 
 /**
@@ -2140,13 +2146,13 @@ export const CONTACT_OFFER_NOTE = 'te ofreció su número';
  * (hace falta para avisarse). Una persona extrovertida lo ofrece antes que una reservada.
  */
 export function contactOfferChance(profile: SocialProfile, temperament: Temperament, day: number): number {
-  if (profile.contactExchanged || profile.trust < 15 || contactOnCooldown(profile, day)) return 0;
+  if (profile.contactExchanged || profile.trust < 12 || contactOnCooldown(profile, day)) return 0;
   if (profile.memories.some((m) => m.kind === 'CONTACT_REQUEST' && m.note?.startsWith(CONTACT_OFFER_NOTE) && day - m.day < 4)) return 0;
   const state = relationshipState(profile);
   let chance =
     state === 'ATTRACTION' || state === 'ROMANTIC_INTEREST' || state === 'PARTNER' ? 0.45
       : state === 'FRIEND' || state === 'CLOSE_FRIEND' ? 0.35
-        : state === 'ACQUAINTANCE' && profile.friendship >= 20 ? 0.12
+        : state === 'ACQUAINTANCE' && (profile.friendship >= 15 || profile.attraction >= 15) ? 0.15
           : 0;
   if (!chance) return 0;
   // Un plan o una cita aceptados hoy: hay que poder avisarse.

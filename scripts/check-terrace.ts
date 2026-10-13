@@ -10,6 +10,7 @@ import { Crowd, profileFor, type Clock } from '../src/systems/Crowd.ts';
 import { StreetLife, streetProfileFor, type Walker } from '../src/systems/StreetLife.ts';
 import { TableService, type PlayerCall, type Table } from '../src/systems/TableService.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
+import { HEAVY_RAIN, weatherAt } from '../src/systems/Weather.ts';
 
 const STEP_MS = 100;
 const MS_PER_MIN = 500;
@@ -62,11 +63,11 @@ class Street {
   private readonly loc: LocationDef;
   private readonly player: TilePoint;
 
-  constructor(seed: number, hhmm: string, where: Terrace = CASA_TOMAS) {
+  constructor(seed: number, hhmm: string, where: Terrace = CASA_TOMAS, day = 6) {
     this.loc = getLocation(where.location);
     this.player = where.player;
     this.life = new StreetLife(this.loc, streetProfileFor(where.location)!, seededRng(seed));
-    this.clock = at(6, hhmm);
+    this.clock = at(day, hhmm);
     this.life.populate(this.clock, this.player);
     this.service = this.life.serviceAt(where.seats[0])!;
     this.place = where.place;
@@ -266,8 +267,10 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
 // ------------------------------------------------ el jugador en una mesa mientras la otra la usa la calle
 {
   let done = false;
+  // A la hora de comer la calle ocupa la otra mesa con cualquier semilla (100 de 100); a las 21:00 era un suceso raro (1 de 60 en
+  // el código de antes), así que la prueba pasaba o no por azar de la semilla y no por lo que comprueba.
   for (let seed = 1; seed <= 60 && !done; seed++) {
-    const street = new Street(seed, '21:00');
+    const street = new Street(seed, '13:00');
     if (!street.waiter() || street.table(SEAT_1).party !== null) continue;
     const mine = street.table(SEAT_1);
     const other = street.table(SEAT_2);
@@ -282,6 +285,17 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
     if (mine.state === 'PAID' && otherUsed) done = true;
   }
   assert.ok(done, 'no se probó al jugador con la otra mesa ocupada por la calle');
+}
+
+/** Un momento de lluvia fuerte con el local abierto (de la previsión de verdad, no inventado). */
+function rainyOpen(where: Terrace): { day: number; hhmm: string } {
+  for (let day = 1; day < 400; day++) {
+    for (const hhmm of where.open) {
+      const c = at(day, hhmm);
+      if (weatherAt(day, c.hour + c.minute / 60).rain > HEAVY_RAIN + 0.05) return { day, hhmm };
+    }
+  }
+  throw new Error(`${where.place}: ningún aguacero en horario de apertura`);
 }
 
 // ------------------------------------------------ todas las terrazas: el ciclo entero del jugador, su carta y su camarero
@@ -342,6 +356,11 @@ for (const where of TERRACES) {
   const closed = new Street(1, where.closed, where);
   closed.runUntil(() => false, 5_000);
   assert.equal(closed.service.staffed, false, `${tag}: con el local cerrado hay camarero en la terraza`);
+  // Con lluvia fuerte y el local abierto, la terraza tampoco se sirve (la misma regla que los puestos de calle).
+  const storm = rainyOpen(where);
+  const wet = new Street(1, storm.hhmm, where, storm.day);
+  wet.runUntil(() => false, 5_000);
+  assert.equal(wet.service.staffed, false, `${tag}: con lluvia fuerte (día ${storm.day} ${storm.hhmm}) hay camarero en la terraza`);
   console.log(`  ${tag}: sentarse, su servicio, camarero junto a la mesa, carta ${where.menu}, entrega, cuenta ${charged.toFixed(2)} EUR una vez, mesa libre`);
 }
 
