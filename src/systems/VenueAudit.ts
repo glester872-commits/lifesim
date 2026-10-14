@@ -83,7 +83,9 @@ export function auditVenues(locationId: string): VenueRow[] {
     const exteriorSpawnOk = !interiorId || (!!back && isWalkable(street, back.tx, back.ty) && !ROADWAY.has(street.ground[back.ty]?.[back.tx] ?? '') && !npcTiles.has(key(back)));
     const entry = interior?.spawns.entry;
     const interiorSpawnOk = !interior || (!!entry && isWalkable(interior, entry.tx, entry.ty));
-    const exitReturnsHere = !interior || interior.portals.some((p) => !p.train && p.to.location === street.id && p.to.spawn === b.id);
+    // Con dos puertas a la misma calle (las bocas del metro), la escena devuelve por la que se entró (WorldScene.cameIn).
+    const twoDoors = (street.buildings ?? []).filter((o) => o.enter?.location === interiorId).length > 1;
+    const exitReturnsHere = !interior || interior.portals.some((p) => !p.train && p.to.location === street.id && (p.to.spawn === b.id || twoDoors));
     const unreachable: string[] = [];
     if (interior && entry) {
       const seen = reach(interior, entry);

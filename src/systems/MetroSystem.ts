@@ -21,6 +21,7 @@ import {
   PASSENGER_LOOKS,
 } from '../data/npcs';
 import { ANNOUNCEMENTS } from '../data/announcements';
+import { matchOn, matchPhase } from './World';
 import { Walker } from '../entities/Walker';
 import {
   Train,
@@ -65,6 +66,9 @@ import {
   type MetroDailyState,
   type MicroEvent,
 } from './MetroDaily';
+
+/** «18:30»: la hora del saque en la megafonía. */
+const kickoffLabel = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 /** Pies del NPC dentro de un tile. */
 const at = (p: TilePoint): Vec2 => ({
@@ -119,6 +123,11 @@ export class MetroSystem {
 
   private readonly view: Train;
   private readonly passengers: PassengerAI[];
+
+  /** Pasajeros en escena (los del pool no cuestan nada): para lifesim.perf. */
+  get onStage(): number {
+    return this.passengers.filter((p) => p.state !== 'OFFSTAGE').length;
+  }
 
   /**
    * Pool completo de vigilantes disponibles en esta estación.
@@ -1660,6 +1669,13 @@ export class MetroSystem {
           this.level ===
             'RUSH_HOUR';
 
+        // Día de partido en el Arena (barrio sin mapa todavía): la megafonía de toda la línea lo dice.
+        const match = matchPhase(this.clock);
+        if (match && Math.random() < 0.5) {
+          this.say(match === 'leaving' ? 'matchEnd' : 'match');
+          return;
+        }
+
         this.say(
           this.tag ===
             'night'
@@ -1832,7 +1848,7 @@ export class MetroSystem {
         String(
           minutes,
         ),
-      );
+      ).replace('{kick}', kickoffLabel(matchOn(this.clock.day)?.kickoff ?? 0));
 
     this.announcer.say(
       text,

@@ -605,7 +605,9 @@ export class StreetLife {
       w.release -= deltaMs;
       if (w.pending <= 0 || w.release > 0) return;
       w.pending--;
-      w.release = between(this.rng, 700, 1_600);
+      // Con cola (hora punta: un tren cada 3 minutos), salen más seguidos: a una persona por segundo y pico, la cola
+      // crecía sin fin y la boca del metro se veía igual de vacía que a media mañana.
+      w.release = between(this.rng, 700, 1_600) / Math.max(1, w.pending / 3);
       const cap = Math.round(this.profile.maxWalkers * this.budget);
       if (this.walkers().length < cap) this.startTrip(clock, player, cap, false, b.point);
     });
@@ -660,6 +662,8 @@ export class StreetLife {
     }
     if (!a.staying) {
       this.arrive(a);
+      // Iba a ver una manta o a un artista que ya ha recogido: no hay nada que mirar, sigue su camino.
+      if (a.rule?.act && a.staying && !this.actWorking(a.rule.act)) this.moveOn(a, clock);
       return;
     }
     // Nadie del grupo se queda atrás: la parada empieza a contar cuando han llegado todos.

@@ -36,8 +36,13 @@ que existe; esto, lo que falta y por qué.
   puntos ni lugares.
 - Los interiores no tienen grafo: `route()` usa la cuadrícula. Basta para
   salas pequeñas; en un interior grande habría que añadir `links`.
-- El horario de `data/places.ts` no cierra nada en el juego: lo usan las
-  rutinas futuras y `check-world`.
 - La caja de la tienda de ropa tapa un poco los pies de Iván.
 - Un solo mapa por barrio. Con varias veces el tamaño de Vallesco habría que
   trocear por zonas o descartar props fuera de cámara.
+- La Ribera, Cuatro Ríos, Velaria y Puerta Central sólo se unen por metro: no hay
+  calles que crucen de un mapa a otro. Cuando dos mapas se toquen, su borde será un
+  portal de calle y `systems/World.travel()` lo dará como `walk`.
+- Arena y Luna son estado lógico sin mapa: el partido del Arena sólo se oye en la
+  megafonía del metro (y sale en `lifesim.world.now()`).
+- El móvil a tamaño de teléfono no se ha probado en navegador en esta pasada (la
+  ventana de pruebas no se deja redimensionar); `check-input` cubre la lógica táctil.

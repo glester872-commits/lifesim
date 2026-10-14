@@ -55,6 +55,7 @@ import { PhoneScreen } from './ui/Phone';
 import { MobileControls } from './ui/MobileControls';
 import { PlayerInput } from './systems/PlayerInput';
 import { METRO_CONFIG } from './config/metro';
+import { cityAt, districtAt, travel, worldTree } from './systems/World';
 import type { Services } from './services';
 
 function requireEl(selector: string): HTMLElement {
@@ -532,6 +533,19 @@ social: {
       phone: { get: () => state.phone },
       // Destinos del mundo para NPC futuros: lifesim.route('HOME_ENTRANCE', 'CAFE_ENTRANCE').
       findPoint,
+      // La ciudad entera (systems/World.ts), sin cargar ningún mapa: lifesim.world.now() da cada barrio (afluencia,
+      // locales abiertos, noche, sucesos, quién está), los sucesos y dónde anda cada personaje con nombre;
+      // .at({day, hour, minute}) lo mismo a otra hora; .tree() el árbol barrio → mapas, zonas, lugares, parada;
+      // .travel('vallesco', 'velaria') cómo se va (andando, metro con minutos y tarifa, o aún sin mapa).
+      world: {
+        now: () => cityAt({ day: state.day, hour: state.hour, minute: state.minute }),
+        at: cityAt,
+        tree: worldTree,
+        travel,
+        here: () => districtAt(state.locationId, Math.floor(state.position.x / 16), Math.floor(state.position.y / 16)),
+      },
+      // Lo que cuesta el sitio de ahora contra su presupuesto (config/budgets.ts): lifesim.perf().over vacío = dentro.
+      perf: () => (game.scene.getScene('World') as WorldSceneType).perfStats(),
       // Zonas lógicas (data/zones.ts): lifesim.zoneAt('district', 48, 52), lifesim.zoneActivity(zona, {day, hour, minute}).
       zoneAt,
       zoneActivity,

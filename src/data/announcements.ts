@@ -22,4 +22,10 @@ export const ANNOUNCEMENTS = {
     'Mantengan sus pertenencias a la vista.',
   ],
   surge: ['Tren con mucha ocupación. Por favor, dejen salir antes de entrar.'],
+  // Día de partido en el Arena (data/cityEvents.ts, systems/World.matchPhase): antes y durante, y al acabar. `{kick}`, la hora del saque.
+  match: [
+    'Hoy hay partido en el Arena, con saque a las {kick}.',
+    'Aficionados del Arena: el encuentro de hoy empieza a las {kick}.',
+  ],
+  matchEnd: ['Ha terminado el partido del Arena. Gracias por viajar en metro.'],
 } as const;

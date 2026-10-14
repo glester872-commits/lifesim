@@ -58,7 +58,8 @@ assert.ok(liking(getFood('maki-roll'), ['-pescado']) < 0, 'lo que se evita no re
 
 // ------------------------------------------------ 2. arquetipos: tienen lo que dicen tener
 
-assert.deepEqual(FOOD_VENUES.map((v) => getArchetype(v.archetype).id).sort(), ['burger-fast', 'pizza-casual', 'sushi-casual', 'sushi-premium']);
+// Varios locales comparten arquetipo (la pizzería de Cuatro Ríos y la de Puerta Central): se reutiliza, no se copia.
+assert.deepEqual([...new Set(FOOD_VENUES.map((v) => getArchetype(v.archetype).id))].sort(), ['burger-fast', 'pizza-casual', 'sushi-casual', 'sushi-premium']);
 for (const v of FOOD_VENUES) {
   const a = getArchetype(v.archetype);
   const loc = getLocation(v.id);

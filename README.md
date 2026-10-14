@@ -731,3 +731,23 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 - **Tiempo y energía**: corre el reloj del mundo (suave 15 min, normal 30, intenso 50; estirar, la mitad); al cortar a medias se gana y se gasta en proporción.
 - **Forma física** (`systems/Fitness.ts`, `GameState.fitness`, se guarda): forma, fuerza, resistencia y cansancio. Cardio sube resistencia y forma; pesas, fuerza; estirar quita cansancio. Rendimientos decrecientes por nivel y por sesiones del día. `bodyProgress()` es el gancho para el cuerpo (no se dibuja todavía).
 - **Prueba**: `scripts/check-fitness.ts`.
+
+## La ciudad como un todo · pasada de integración
+
+`MUNDO → BARRIO → ZONA → LUGAR → ACTIVIDAD`, sin estado nuevo: `systems/World.ts` junta lo que ya sale del reloj.
+
+- **Árbol** — `worldTree()`: cada barrio de `data/districtIdentity.ts` con sus mapas, zonas, lugares y parada. La Calle
+  del Carmen es un barrio dentro del mapa de Vallesco (manda la zona); un interior es del barrio de la calle a la que
+  sale. Arena y Luna existen como estado lógico, sin mapa.
+- **Viajar** — `travel(a, b)`: andando si comparten mapa, metro con minutos y tarifa si no, o «aún sin mapa».
+- **Un solo reloj** — todo es función de día y hora con semilla (horarios, rutinas, pop-ups, artistas, peleas,
+  tiempo, densidad por barrio, partido del Arena). `cityAt(reloj)` da la ciudad entera a esa hora sin cargar nada:
+  lo que no se ve no ocupa memoria y, como es determinista, al llegar está como decía.
+- **Lejos del jugador** — en el sitio cargado, a más de 30 tiles se avanza a pasos gruesos (StreetLife); fuera de
+  él, nada se simula: los personajes con nombre salen de su rutina (`whereabouts`).
+- **Sucesos con barrio** — mercadillo vintage → Calle Vintage, lanzamientos de moda → Velaria, artistas y manteros →
+  Puerta Central, pelea → zonas de noche, de evento o comerciales, partido → Arena (megafonía del metro).
+- **Presupuestos** — `config/budgets.ts` por calidad; `lifesim.perf()` da lo de ahora contra el presupuesto. El LOD
+  de gente mide el trabajo del frame, no el tiempo entre frames (a 30 Hz la calle ya no se vacía sola).
+- Consola: `lifesim.world.now()`, `.at({day, hour, minute})`, `.tree()`, `.travel('vallesco', 'velaria')`, `.here()`.
+- `scripts/check-world-integration.ts` lo comprueba todo, con la diversidad de tonos de piel por barrio.

@@ -186,8 +186,8 @@ const dayFor = (id: string, from: number, to: number): number => {
   throw new Error(`${id}: ningún día seco en que venga`);
 };
 {
-  // La manta de bisutería, de 10:45 a 15:30: llega con el hatillo, monta, vende, recoge y se va; quien mira, sólo mientras vende.
-  const day = dayFor('pc-manta-bisuteria', 10.75, 15.5);
+  // La manta de bisutería, de 10:45 a 16:00 (sale andando del borde: ~30 min a paso de paseo): llega con el hatillo, monta, vende, recoge y se va; quien mira, sólo mientras vende.
+  const day = dayFor('pc-manta-bisuteria', 10.75, 16);
   const life = new StreetLife(loc, street, seededRng(hashSeed('pc-manta')));
   let clock: Clock = { day, hour: 10, minute: 45 };
   life.populate(clock, PLAYER);
@@ -196,7 +196,7 @@ const dayFor = (id: string, from: number, to: number): number => {
   let elapsed = 0;
   let seen = false;
   let gone = false;
-  for (let ms = 0; ms < 285 * MS_PER_MIN; ms += STEP_MS) {
+  for (let ms = 0; ms < 315 * MS_PER_MIN; ms += STEP_MS) {
     life.update(STEP_MS, clock, PLAYER);
     elapsed += STEP_MS;
     if (elapsed >= MS_PER_MIN) {
@@ -260,7 +260,9 @@ const dayFor = (id: string, from: number, to: number): number => {
   }
   const total = [...skins.values()].reduce((a, b) => a + b, 0);
   assert.ok(total >= 40, `pocas mantas en 40 días (${total})`);
-  assert.ok(looks.size >= total * 0.5, `quien vende repite cara (${looks.size} de ${total})`);
+  // Hay 60 caras: con más puestos que caras se repiten por fuerza. Lo que se mira es que no haya caras fijas (al azar
+  // puro, 118 puestos sobre 60 caras dan ~52 distintas).
+  assert.ok(looks.size >= Math.min(total, PASSENGER_LOOKS.length) * 0.65, `quien vende repite cara (${looks.size} de ${total})`);
   assert.ok(skins.size >= 5, `quien vende tiene sólo ${skins.size} tonos de piel`);
   assert.ok(Math.max(...skins.values()) / total < 0.4, 'quien vende es casi siempre del mismo tono de piel');
   console.log(`  venta ambulante en 40 días: ${total} puestos, ${looks.size} caras, ${skins.size} tonos de piel`);

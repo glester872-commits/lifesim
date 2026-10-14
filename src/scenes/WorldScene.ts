@@ -15,6 +15,8 @@ import {
 import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { allLocations, doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
+import { QUALITY, type QualityLevel } from '../config/quality';
+import { BUDGETS, type Budget } from '../config/budgets';
 import { Ambience } from '../world/Ambience';
 import { Traffic } from '../systems/Traffic';
 import { withDistrictLanes } from '../systems/Districts';
@@ -212,6 +214,12 @@ export class WorldScene extends Phaser.Scene {
   /** Hasta cuándo (reloj de la escena) no se acepta E / «acción» tras llegar: el fundido y un doble toque. */
   private readyAt = 0;
   private leaving = false;
+  /**
+   * La puerta de calle por la que se entró al sitio de ahora. Un interior con dos puertas a la misma calle (las dos
+   * bocas del metro de Puerta Central) devuelve por la de entrada, no por la que diga su salida. Sobrevive al
+   * restart de la escena (es la misma instancia); el tren lo borra.
+   */
+  private cameIn: { from: string; door: string; into: string } | null = null;
   private mapWidth = 0;
   private mapHeight = 0;
   private metro: MetroSystem | null = null;
@@ -243,6 +251,28 @@ export class WorldScene extends Phaser.Scene {
   /** La gente de la calle de aquí, si la hay (desarrollo: sus carteristas). */
   get streetSystem(): StreetLife | null {
     return this.street;
+  }
+
+  /**
+   * Lo que cuesta el sitio ahora, contra su presupuesto (config/budgets.ts): lifesim.perf(). Sólo cuenta lo que hay;
+   * los demás barrios no están en memoria (systems/World.ts los calcula del reloj).
+   */
+  perfStats(): { location: string; interior: boolean; fps: number; quality: QualityLevel; counts: Budget; over: string[]; far: number; budgetScale: number } {
+    const p = this.playerTile();
+    const people = [...(this.street?.agents ?? []), ...(this.crowd?.agents ?? [])];
+    const near = people.filter((a) => Math.abs(a.x - p.tx) <= 30 && Math.abs(a.y - p.ty) <= 30).length;
+    const counts: Budget = {
+      agents: people.length + (this.metro?.onStage ?? 0),
+      near: near + (this.metro?.onStage ?? 0),
+      vehicles: (this.traffic?.vehicles.length ?? 0) + (this.bikes?.vehicles.length ?? 0),
+      particles: this.atmosphere?.live ?? 0,
+      tweens: this.tweens.getTweens().length,
+      objects: this.children.length,
+    };
+    const budget = BUDGETS[QUALITY.level];
+    const over = (Object.keys(budget) as (keyof Budget)[]).filter((k) => counts[k] > budget[k]).map((k) => `${k} ${counts[k]}/${budget[k]}`);
+    const def = getLocation(this.services.state.locationId);
+    return { location: def.id, interior: def.kind === 'interior', fps: Math.round(this.game.loop.actualFps), quality: QUALITY.level, counts, over, far: people.length - near, budgetScale: this.street?.budget ?? 1 };
   }
   private ambience: Ambience | null = null;
   /** Coches, furgonetas y autobuses de la calle (TrafficDef), y quien los pinta. */
@@ -316,8 +346,16 @@ export class WorldScene extends Phaser.Scene {
   /** Inspector de gente (world/PopulationInspector): también sólo con el modo depuración. */
   private inspector: PopulationInspector | null = null;
   private crowdViews: CrowdView[] = [];
-  /** Duración media del frame (ms), suavizada: decide el presupuesto de gente de la calle (StreetLife.budget). */
+  /**
+   * Trabajo medio del frame (ms, de empezar el update a acabar de pintar), suavizado: decide el presupuesto de gente
+   * de la calle (StreetLife.budget). No el tiempo entre frames: en una pantalla a 30 Hz (un móvil en ahorro de
+   * batería) son 33 ms aunque el frame cueste 2, y la calle se vaciaba sin motivo.
+   */
   private frameMs = 1000 / 60;
+  private frameStart = 0;
+  private readonly measureFrame = (): void => {
+    if (this.frameStart) this.frameMs += (Math.min(performance.now() - this.frameStart, 100) - this.frameMs) * 0.02;
+  };
   private litterView: LitterView | null = null;
   /** Lo que hay en las mesas, el pase y la cocina de un local con servicio de mesa. */
   private serviceViews: ServiceView[] = [];
@@ -633,7 +671,9 @@ export class WorldScene extends Phaser.Scene {
       callback: () => this.persist(),
     });
 
+    this.game.events.on(Phaser.Core.Events.POST_RENDER, this.measureFrame);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.off(Phaser.Core.Events.POST_RENDER, this.measureFrame);
       dialogue.off('close', onDialogueClose);
       state.off('story', onStory);
       this.services.phone.attach(null);
@@ -666,6 +706,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number): void {
+    this.frameStart = performance.now();
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
     // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
@@ -752,8 +793,7 @@ export class WorldScene extends Phaser.Scene {
     this.metro?.update(delta, time, this.player);
     this.placeCharacters(delta);
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
-    // LOD de gente: si los frames se alargan, sale menos gente de paso; si sobra, vuelve (systems/StreetLife.crowdBudget).
-    this.frameMs += (Math.min(delta, 100) - this.frameMs) * 0.02;
+    // LOD de gente: si los frames cuestan más, sale menos gente de paso; si sobra, vuelve (systems/StreetLife.crowdBudget).
     if (this.street) this.street.budget = crowdBudget(this.street.budget, this.frameMs);
     this.street?.update(delta, this.clockNow(), this.playerTile());
     for (const view of this.crowdViews) view.sync(time);
@@ -2796,7 +2836,11 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     if (portal.minutes) this.services.clock.advanceMinutes(portal.minutes);
-    this.go(portal.to.location, portal.to.spawn, false);
+    const here = this.services.state.locationId;
+    const via = this.cameIn;
+    const spawn = via && via.into === here && via.from === portal.to.location && getLocation(via.from).spawns[via.door] ? via.door : portal.to.spawn;
+    this.cameIn = { from: here, door: portal.id, into: portal.to.location };
+    this.go(portal.to.location, spawn, false);
   }
 
   /**
@@ -2861,6 +2905,7 @@ export class WorldScene extends Phaser.Scene {
       this.openDialogue('Puerta', ['Por aquí no se puede pasar ahora.']);
       return;
     }
+    if (byTrain) this.cameIn = null;
     const position = spawnToWorld(spawn);
     state.locationId = target.id;
     state.position.x = position.x;
