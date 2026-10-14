@@ -199,5 +199,22 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'pc-burger', name: 'Burger Plaza', type: 'business', tags: ['food', 'social', 'nightlife', WORK], building: 'pc-burger', capacity: 20, hours: [11, 2], why: 'Hamburguesa en mesa o para llevar; abierta hasta las dos para quien sale.' },
   { id: 'metro-puerta-central', name: 'Metro · Puerta Central', type: 'transit', tags: ['transit'], building: 'pc-metro', anchors: ['PC_METRO_MEET_03', 'PC_METRO_MEET_04'], capacity: 120 },
   { id: 'metro-puerta-central-oeste', name: 'Metro · Puerta Central (oeste)', type: 'transit', tags: ['transit'], building: 'pc-metro-w', anchors: ['PC_METRO_MEET_01', 'PC_METRO_MEET_02'], capacity: 120 },
+  // ------------------------------------------------------------------ Distrito Arena (data/arena.ts)
+  { id: 'res-ar-1', name: 'Avenida del Estadio 1', type: 'residence', tags: ['home'], building: 'ar-res-1', capacity: 14 },
+  { id: 'res-ar-2', name: 'Avenida del Estadio 21', type: 'residence', tags: ['home'], building: 'ar-res-2', capacity: 12 },
+  { id: 'res-ar-3', name: 'Avenida del Estadio 25', type: 'residence', tags: ['home'], building: 'ar-res-3', capacity: 16 },
+  // El estadio: sin interior aún. Es un lugar público como una plaza: se llega a sus cinco tornos (la gente entra y
+  // desaparece). Cuando tenga interior, pasa a ser el lugar del edificio con su `enter`. Sin horario: manda systems/Match.
+  { id: 'ar-estadio', name: 'Estadio del Halcón', type: 'public', tags: ['sport', 'stadium'], anchors: ['AR_GATE_1', 'AR_GATE_2', 'AR_GATE_3', 'AR_GATE_4', 'AR_GATE_5'], capacity: 400 },
+  { id: 'ar-deportes', name: 'Deportes Arena', type: 'business', tags: ['shop', 'sport', WORK], building: 'ar-deportes', capacity: 6, hours: [10, 21], days: [0, 1, 2, 3, 4, 5], why: 'Chándal, camisetas técnicas y zapatillas: ropa de deporte que te llevas puesta.' },
+  // Abre todos los días hasta tarde: el fin de semana es cuando hay partido.
+  { id: 'ar-oficial', name: 'Tienda Oficial Halcones', type: 'business', tags: ['shop', 'sport', 'stadium', WORK], building: 'ar-oficial', capacity: 8, hours: [10, 21.5], why: 'Las camisetas y la sudadera del club: te las llevas puestas.' },
+  { id: 'ar-burger', name: 'Burger Fondo Sur', type: 'business', tags: ['food', 'social', WORK], building: 'ar-burger', capacity: 20, hours: [12, 24], why: 'Hamburguesa en mesa o para llevar, a dos pasos del estadio.' },
+  { id: 'ar-pizza', name: 'Pizzería La Prórroga', type: 'business', tags: ['food', 'social', WORK], building: 'ar-pizza', capacity: 20, hours: [12.5, 24], why: 'Pizza en mesa o para llevar; después del partido, la cena de media grada.' },
+  { id: 'ar-larguero', name: 'Bar El Larguero', type: 'business', tags: ['food', 'social', 'nightlife', 'arena-bar', WORK], building: 'ar-larguero', anchors: ['AR_LARGUERO_OUT_01', 'AR_LARGUERO_OUT_02', 'AR_LARGUERO_OUT_03'], capacity: 16, hours: [11, 1] },
+  { id: 'ar-grada', name: 'Taberna La Grada', type: 'business', tags: ['food', 'social', 'nightlife', 'arena-bar', WORK], building: 'ar-grada', anchors: ['AR_GRADA_OUT_01', 'AR_GRADA_OUT_02', 'AR_GRADA_OUT_03'], capacity: 16, hours: [12, 1] },
+  { id: 'ar-cafe', name: 'Café del Córner', type: 'business', tags: ['food', 'social', WORK], building: 'ar-cafe', capacity: 10, hours: [7.5, 21], why: 'Café y tostada en la barra, viendo la fachada del estadio.' },
+  { id: 'metro-arena', name: 'Metro · Arena', type: 'transit', tags: ['transit'], building: 'ar-metro', anchors: ['AR_METRO_MEET_01'], capacity: 200 },
+  { id: 'explanada-arena', name: 'Explanada del Estadio', type: 'public', tags: ['social', 'outdoor', 'stadium'], anchors: ['AR_FANS_01', 'AR_FANS_03', 'AR_FANS_05', 'AR_FANS_07'], capacity: 120 },
   { id: 'plaza-puerta-central', name: 'Plaza de la Puerta', type: 'public', tags: ['social', 'outdoor'], anchors: ['PC_BENCH_01', 'PC_BENCH_02', 'PC_BENCH_03', 'PC_BENCH_04'], capacity: 40 },
 ];

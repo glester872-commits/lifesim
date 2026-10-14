@@ -56,6 +56,7 @@ import { MobileControls } from './ui/MobileControls';
 import { PlayerInput } from './systems/PlayerInput';
 import { METRO_CONFIG } from './config/metro';
 import { cityAt, districtAt, travel, worldTree } from './systems/World';
+import { matchNow, upcomingMatches } from './systems/Match';
 import type { Services } from './services';
 
 function requireEl(selector: string): HTMLElement {
@@ -543,6 +544,9 @@ social: {
         tree: worldTree,
         travel,
         here: () => districtAt(state.locationId, Math.floor(state.position.x / 16), Math.floor(state.position.y / 16)),
+        // Partidos del Estadio del Halcón (systems/Match): .match() el de ahora y su fase; .matches(14) los de dos semanas.
+        match: () => matchNow({ day: state.day, hour: state.hour, minute: state.minute }),
+        matches: (days = 14) => upcomingMatches(state.day, days),
       },
       // Lo que cuesta el sitio de ahora contra su presupuesto (config/budgets.ts): lifesim.perf().over vacío = dentro.
       perf: () => (game.scene.getScene('World') as WorldSceneType).perfStats(),

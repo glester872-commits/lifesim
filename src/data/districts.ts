@@ -16,7 +16,7 @@ import type { TrafficBand } from './vehicles.ts';
  *   facades            → scripts/check-districts (qué edificios caben en la zona)
  */
 
-export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit' | 'riverside' | 'dense' | 'premium' | 'centre';
+export type DistrictId = 'residential' | 'commercial' | 'vintage' | 'nightlife' | 'park' | 'transit' | 'riverside' | 'dense' | 'stadium' | 'premium' | 'centre';
 
 /** Estilo de ropa de la gente anónima (NpcLook.style). Sin estilo, 'everyday'. */
 export type LookStyle = 'everyday' | 'smart' | 'street' | 'sport';
@@ -179,6 +179,18 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     },
     facades: ['res-*', 'souvenir', 'fashion', 'restaurant', 'cafe', 'metro', 'backdrop'],
     ambience: { leaf: 0.6, paper: 1.6, steam: 1.2 },
+  },
+  // Distrito Arena: hormigón del estadio y granito de la explanada; farola cálida casi blanca (lo frío, las torres de focos). La gente, de chándal y de
+  // camiseta del equipo más que de oficina; furgonetas de catering y algún autobús.
+  stadium: {
+    wash: ['#9aa4a8', 0.05],
+    grade: { morning: '#f6f8fa', day: '#fbfcfc', sunset: '#ffeedd', night: '#e6eef8' },
+    lamp: ['#ffe6c8', 1.15],
+    kit: { props: ['bin', 'bollard', 'ad-panel'], on: 'facade', every: 8, max: 8 },
+    crowd: { sport: 3.5, everyday: 2.5, street: 1.5, smart: 0.4 },
+    vehicles: { all: { van: 1.4, bus: 1.2, taxi: 1.3, premium: 0.5 } },
+    facades: ['res-*', 'stadium', 'team-store', 'sports', 'bar', 'restaurant', 'cafe', 'metro', 'backdrop'],
+    ambience: { leaf: 0.4, paper: 1.8, steam: 0.8 },
   },
   // Boca de metro: acero y granito, luz más neutra; la gente de paso de cualquier sitio.
   transit: {

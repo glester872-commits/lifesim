@@ -22,7 +22,7 @@ import { zoneAt } from '../src/systems/Zones.ts';
 // --------------------------------------------------- 1. MUNDO → BARRIO → ZONA → LUGAR
 const tree = worldTree();
 assert.deepEqual(tree.map((d) => d.id).sort(), Object.keys(DISTRICT_IDENTITIES).sort(), 'un barrio sin nodo');
-const mapped = ['vallesco', 'vintage', 'ribera', 'velaria', 'puerta-central', 'cuatro-rios'];
+const mapped = ['vallesco', 'vintage', 'ribera', 'velaria', 'puerta-central', 'cuatro-rios', 'arena'];
 for (const id of mapped) {
   const d = tree.find((n) => n.id === id)!;
   assert.ok(d.maps.length > 0, `${id} sin mapa`);
@@ -30,7 +30,7 @@ for (const id of mapped) {
   assert.ok(d.places.length > 0, `${id} sin lugares`);
   assert.ok(d.stop, `${id} sin parada de metro (propia o compartida)`);
 }
-for (const id of ['arena', 'luna']) assert.equal(tree.find((n) => n.id === id)!.maps.length, 0, `${id} tiene mapa: actualiza este check`);
+for (const id of ['luna']) assert.equal(tree.find((n) => n.id === id)!.maps.length, 0, `${id} tiene mapa: actualiza este check`);
 for (const z of ZONES) assert.ok(z.districtId in DISTRICT_IDENTITIES, `zona ${z.id}: barrio ${z.districtId} desconocido`);
 for (const loc of allLocations()) assert.ok(districtAt(loc.id), `${loc.id}: de ningún barrio`);
 for (const loc of allLocations().filter((l) => l.kind !== 'interior')) assert.ok(loc.id in LOCATION_DISTRICT, `calle ${loc.id} fuera de LOCATION_DISTRICT`);
@@ -47,7 +47,8 @@ const toRibera = travel('vallesco', 'ribera');
 assert.ok(toRibera.mode === 'metro' && toRibera.minutes > 0 && toRibera.fare > 0, 'Vallesco → Ribera en metro');
 const fromCarmen = travel('vintage', 'puerta-central');
 assert.ok(fromCarmen.mode === 'metro' && fromCarmen.from === 'vallesco', 'desde el Carmen, el metro de Vallesco');
-assert.equal(travel('vallesco', 'arena').mode, 'none', 'el Arena no tiene mapa todavía');
+assert.equal(travel('vallesco', 'arena').mode, 'metro', 'al Arena se llega en metro');
+assert.equal(travel('vallesco', 'luna').mode, 'none', 'Luna no tiene mapa todavía');
 for (const a of mapped) for (const b of mapped) assert.notEqual(travel(a, b).mode, 'none', `${a} → ${b} sin forma de llegar`);
 
 // --------------------------------------------------- 3. un reloj, lejos del jugador
@@ -97,8 +98,13 @@ for (const f of STREET_EVENTS) {
 }
 // Fases del partido, en orden.
 const md = Array.from({ length: 60 }, (_, i) => i + 1).find((d) => matchOn(d))!;
-const phases = Array.from({ length: 48 }, (_, i) => matchPhase({ day: md, hour: Math.floor(i / 2), minute: (i % 2) * 30 })).filter(Boolean);
-assert.deepEqual([...new Set(phases)], ['arrival', 'live', 'leaving'], 'el partido no llega, se juega y se vacía');
+// De las 6:00 del día del partido a las 4:00 del siguiente, cada cinco minutos: un saque a las 21:00 sigue de madrugada.
+const phases = Array.from({ length: 22 * 12 }, (_, i) => { const m = 6 * 60 + i * 5; return matchPhase({ day: md + Math.floor(m / 1440), hour: Math.floor((m % 1440) / 60), minute: m % 60 }); }).filter(Boolean);
+assert.deepEqual([...new Set(phases)], ['build-up', 'arrival', 'live', 'leaving', 'after'], 'el partido no llega, se juega, se vacía y sigue en los bares');
+// El barrio del estadio en día de partido: lleno a la llegada, medio vacío durante, desbordado a la salida (DistrictIdentity.match).
+const m0 = matchOn(md)!;
+const arenaAt = (min: number) => dz(cityAt({ day: md, hour: Math.floor((m0.kickoff + min) / 60), minute: (m0.kickoff + min) % 60 }), 'arena').activity;
+assert.ok(arenaAt(-30) > arenaAt(45) && arenaAt(130) > arenaAt(45), 'el Arena no cambia con el partido');
 
 // --------------------------------------------------- 5. gente diversa en cada barrio y picos dentro del presupuesto
 // El tono de piel como lo pinta world/HumanArt (las caras sin `skin` toman uno fijo por id), igual que check-population.

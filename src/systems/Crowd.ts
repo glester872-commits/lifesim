@@ -7,6 +7,7 @@ import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
 import { between, dayFactor, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { weekIndex } from './Calendar.ts';
+import { byPhase, matchPhase } from './Match.ts';
 import { outdoorAppeal, weatherAt } from './Weather.ts';
 import { isOpen, openingDay, type PlaceInfo } from './Places.ts';
 import { tilePath } from './Navigation.ts';
@@ -41,7 +42,8 @@ export function levelAt(place: PlaceInfo, profile: PopulationProfile, clock: Clo
   const band = profile.bands.find(([from, to]) => t >= from && t < to);
   const base = LEVELS.indexOf(band ? band[2] : 'VERY_LOW');
   // La madrugada del sábado cuenta como noche del viernes.
-  const shifted = base + profile.weekday[weekIndex(openingDay(place, clock.day, clock.hour, clock.minute))];
+  // Día de partido (systems/Match): el bar del estadio se llena antes y después; sin partido, nada cambia.
+  const shifted = base + profile.weekday[weekIndex(openingDay(place, clock.day, clock.hour, clock.minute))] + byPhase(profile.match, clock);
   return LEVELS[Math.max(0, Math.min(LEVELS.length - 1, shifted))];
 }
 
@@ -128,6 +130,8 @@ export interface Agent {
   act?: { kind: import('../data/streetActs.ts').ActKind; kit: readonly import('../data/streetActs.ts').ActProp[] };
   /** Lleva la ropa de entrenar (se la ha puesto en el vestuario). Su aspecto de calle no se toca: es `look`. */
   sport?: boolean;
+  /** Va con la camiseta y la bufanda del equipo (día de partido en el Arena): world/CrowdView le pone su versión de aficionado. */
+  fan?: boolean;
   /** Se cambia en el paso que hace ahora (PlanStep.outfit): la ropa cambia a mitad, o al acabar el paso, siempre en su sitio. */
   pendingOutfit?: 'gym' | 'street';
   /** Ms que lleva en el sitio antes de que se note el cambio de ropa. */
@@ -189,6 +193,8 @@ export class Crowd {
   private player: TilePoint = { tx: -999, ty: -999 };
   /** Minuto absoluto de juego (systems/Handoff.absMinute): la hora de las fichas de quien entró desde la calle. */
   private now = 0;
+  /** Parte de quien entra que viene de aficionado (PopulationProfile.fans), sólo en día de partido. */
+  private fanShare = 0;
 
   constructor(loc: LocationDef, place: PlaceInfo, profile: PopulationProfile, rng: Rng = Math.random) {
     this.loc = loc;
@@ -267,6 +273,7 @@ export class Crowd {
     const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
     const seed = seededRng(hashSeed('populate', this.place.id, clock.day, slot));
     this.rng = seed;
+    this.fanShare = this.profile.fans && matchPhase(clock) ? this.profile.fans : 0;
     const level = levelAt(this.place, this.profile, clock);
     const far = (id: string): boolean => this.distance(this.pointAt(id), player) >= POPULATION.spawnClearance && this.seatOk(id);
 
@@ -333,6 +340,7 @@ export class Crowd {
 
   update(deltaMs: number, clock: Clock, player: TilePoint): void {
     this.now = absMinute(clock.day, clock.hour, clock.minute);
+    this.fanShare = this.profile.fans && matchPhase(clock) ? this.profile.fans : 0;
     this.elapsed += deltaMs;
     this.seats.tick(deltaMs);
     this.tick -= deltaMs;
@@ -791,6 +799,7 @@ export class Crowd {
       x: at.tx, y: at.ty, dir: 'up', moving: false, state: 'ENTER',
       speed: between(this.rng, ...POPULATION.walkSpeed), path: [], timer: 0, plan: [], leaveSoon: false, leaving: false,
     };
+    if (kind === 'visitor' && this.fanShare > 0 && this.rng() < this.fanShare) agent.fan = true;
     this.agents.push(agent);
     return agent;
   }

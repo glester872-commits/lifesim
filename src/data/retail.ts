@@ -105,6 +105,16 @@ const SEEDS: readonly GarmentSeed[] = [
   { id: 'botin-chelsea', name: 'Botines Chelsea', category: 'zapatos', description: 'Ante negro, elástico lateral y suela de cuero.', color: '#2b2d33' },
   { id: 'zapatilla-piel-lujo', name: 'Zapatillas de piel italiana', category: 'zapatillas', description: 'Napa blanca, suela cosida y el talón de otro color.', color: '#f2efe8' },
   { id: 'cazadora-napa', name: 'Cazadora de napa', category: 'chaqueta', description: 'Napa de cordero, forro de seda. Se ablanda con los años.', color: '#1c1a20', dark: '#121016' },
+  // Distrito Arena. La tienda oficial del CD Halcones del Arena (ficticio: turquesa y naranja, un halcón bordado) y la
+  // tienda de deportes de la avenida.
+  { id: 'camiseta-halcones-1', name: 'Camiseta Halcones · primera', category: 'camiseta', description: 'Turquesa, cuello y mangas naranjas y el halcón bordado en el pecho. La de la grada.', color: '#1f8f8a', dark: '#166a66', sleeve: 'short' },
+  { id: 'camiseta-halcones-2', name: 'Camiseta Halcones · segunda', category: 'camiseta', description: 'Naranja con el remate turquesa. La de fuera de casa, y la de quien quiere que se le vea.', color: '#f08a24', dark: '#c26c18', sleeve: 'short' },
+  { id: 'sudadera-halcones', name: 'Sudadera del club', category: 'sudadera', description: 'Turquesa oscuro, capucha y «HALCONES» en naranja a la espalda.', color: '#17605d', dark: '#104644' },
+  { id: 'chandal-halcones', name: 'Pantalón de chándal Halcones', category: 'pantalon', description: 'Turquesa oscuro con la franja naranja por fuera de la pierna.', color: '#17605d' },
+  { id: 'camiseta-tecnica', name: 'Camiseta técnica', category: 'camiseta', description: 'Tejido que respira, costuras planas. Para el partido del domingo o para correr.', color: '#2f6fa8', dark: '#23537e', sleeve: 'short' },
+  { id: 'sudadera-entreno', name: 'Sudadera de entrenamiento', category: 'sudadera', description: 'Gris jaspeado, cremallera corta. La que se lleva antes y después de jugar.', color: '#8a8f96', dark: '#6a6f76' },
+  { id: 'pantalon-chandal', name: 'Pantalón de chándal', category: 'pantalon', description: 'Negro, puño en el tobillo y bolsillos con cremallera.', color: '#1c1c22' },
+  { id: 'zapatillas-futbol-sala', name: 'Zapatillas de fútbol sala', category: 'zapatillas', description: 'Suela lisa de goma, puntera reforzada. Blancas, hasta el primer partido.', color: '#f2f2f2' },
   // Puerta Central. Recuerdos de la Puerta: lo de la plaza, para llevárselo puesto.
   { id: 'camiseta-rosa', name: 'Camiseta de la Rosa de los Vientos', category: 'camiseta', description: 'Blanca, con la esfera del monumento en rojo y «Puerta Central» debajo. Se reconoce desde lejos.', color: '#f2efe8', dark: '#d2cec4', sleeve: 'short' },
   { id: 'sudadera-puerta', name: 'Sudadera «Puerta Central»', category: 'sudadera', description: 'Azul marino, capucha y el nombre de la plaza en letras de colegio americano.', color: '#2a3550', dark: '#1d2539' },
@@ -204,6 +214,15 @@ export const STORES: readonly RetailStoreDef[] = [
       { garment: 'mocasin-piel', price: 320 }, { garment: 'botin-chelsea', price: 380 }, { garment: 'zapatilla-piel-lujo', price: 410 },
       { garment: 'cazadora-napa', price: 890 }, { garment: 'bota-cuero', price: 260 },
     ],
+  },
+  // Distrito Arena: la tienda oficial y la de deportes.
+  {
+    id: 'halcones', name: 'Tienda Oficial Halcones', greeting: '¡Aúpa Halcones! La primera, la segunda o la sudadera: todo lo de la temporada.', thanks: 'Que dé suerte. Y si no da, que por lo menos abrigue.',
+    stock: [{ garment: 'camiseta-halcones-1', price: 65 }, { garment: 'camiseta-halcones-2', price: 65 }, { garment: 'sudadera-halcones', price: 45 }, { garment: 'chandal-halcones', price: 35 }],
+  },
+  {
+    id: 'deportes-arena', name: 'Deportes Arena', greeting: 'Buenas. Si buscas botas, dime en qué superficie juegas.', thanks: 'A darle caña. Y a estirar después, que luego vienen las lesiones.',
+    stock: [{ garment: 'camiseta-tecnica', price: 18 }, { garment: 'sudadera-entreno', price: 32 }, { garment: 'pantalon-chandal', price: 25 }, { garment: 'zapatillas-futbol-sala', price: 45 }],
   },
   // Puerta Central: la tienda de recuerdos y la cadena de moda de la calle.
   {

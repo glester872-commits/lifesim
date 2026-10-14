@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import { ARENA_CLUB, ARENA_MATCHES } from '../data/cityEvents';
+import { LOCATION_DISTRICT } from '../data/districtIdentity';
+import { kickoffLabel, matchNow, matchOn } from '../systems/Match';
 import {
   AUTOSAVE_INTERVAL_MS,
   CAMERA_LERP,
@@ -639,7 +642,9 @@ export class WorldScene extends Phaser.Scene {
 
     state.locationId = def.id;
     clock.setPaused(false);
-    this.services.place.show(def.name);
+    // En el barrio del estadio, el día de partido se anuncia al llegar (systems/Match): rival y hora del saque.
+    const game = LOCATION_DISTRICT[def.id] === ARENA_MATCHES.district ? (matchNow(state) ?? matchOn(state.day)) : null;
+    this.services.place.show(game ? `${def.name} · hoy ${ARENA_CLUB.short} – ${game.rival}, ${kickoffLabel(game.kickoff)}` : def.name);
 
     // Hablar no para el mundo: sólo a quien atiende, que vuelve a lo suyo al despedirse.
     const onDialogueClose = (): void => {

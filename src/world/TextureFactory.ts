@@ -8,6 +8,7 @@ import { buildPropTextures } from './PropArt';
 import { buildUrbanTextures } from './UrbanArt';
 import { buildVegetationTextures } from './Vegetation';
 import { buildStreetTextures } from './StreetArt';
+import { buildArenaTextures } from './ArenaArt';
 import { buildVehicleTextures } from './VehicleArt';
 import { buildWeatherTextures } from './WeatherView';
 import { buildAtmosphereTextures } from './Atmosphere';
@@ -869,6 +870,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   buildPopUpTextures(scene);
   buildVegetationTextures(scene);
   buildStreetTextures(scene);
+  buildArenaTextures(scene);
   buildBuildingTextures(scene);
   buildVehicleTextures(scene);
   buildWeatherTextures(scene);

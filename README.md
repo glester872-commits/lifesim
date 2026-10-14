@@ -738,7 +738,7 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 
 - **Árbol** — `worldTree()`: cada barrio de `data/districtIdentity.ts` con sus mapas, zonas, lugares y parada. La Calle
   del Carmen es un barrio dentro del mapa de Vallesco (manda la zona); un interior es del barrio de la calle a la que
-  sale. Arena y Luna existen como estado lógico, sin mapa.
+  sale. Luna existe como estado lógico, sin mapa.
 - **Viajar** — `travel(a, b)`: andando si comparten mapa, metro con minutos y tarifa si no, o «aún sin mapa».
 - **Un solo reloj** — todo es función de día y hora con semilla (horarios, rutinas, pop-ups, artistas, peleas,
   tiempo, densidad por barrio, partido del Arena). `cityAt(reloj)` da la ciudad entera a esa hora sin cargar nada:
@@ -746,8 +746,34 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 - **Lejos del jugador** — en el sitio cargado, a más de 30 tiles se avanza a pasos gruesos (StreetLife); fuera de
   él, nada se simula: los personajes con nombre salen de su rutina (`whereabouts`).
 - **Sucesos con barrio** — mercadillo vintage → Calle Vintage, lanzamientos de moda → Velaria, artistas y manteros →
-  Puerta Central, pelea → zonas de noche, de evento o comerciales, partido → Arena (megafonía del metro).
+  Puerta Central, pelea → zonas de noche, de evento o comerciales, partido → Distrito Arena (ver abajo).
 - **Presupuestos** — `config/budgets.ts` por calidad; `lifesim.perf()` da lo de ahora contra el presupuesto. El LOD
   de gente mide el trabajo del frame, no el tiempo entre frames (a 30 Hz la calle ya no se vacía sola).
 - Consola: `lifesim.world.now()`, `.at({day, hour, minute})`, `.tree()`, `.travel('vallesco', 'velaria')`, `.here()`.
 - `scripts/check-world-integration.ts` lo comprueba todo, con la diversidad de tonos de piel por barrio.
+
+## Distrito Arena · el estadio y el día de partido
+
+`data/arena.ts`: el Estadio del Halcón del **CD Halcones del Arena** (club ficticio, turquesa y naranja, sin escudo real;
+`data/cityEvents.ts ARENA_CLUB`), su explanada, cinco puertas con tornos, colas entre vallas y control de entradas,
+taquillas, puestos de comida y bufandas, kiosco, torres de focos y banderas, y la boca de metro (parada `arena`, una más
+allá de Puerta Central). En la Avenida del Estadio: Deportes Arena, la Tienda Oficial, Burger Fondo Sur, Pizzería La
+Prórroga, Bar El Larguero, Taberna La Grada y Café del Córner. El estadio no tiene interior: es un lugar público al que
+se llega por sus tornos; cuando lo tenga, la Puerta 3 lleva `enter` y nada más cambia.
+
+- **Un reloj** — `systems/Match.ts`: el partido de cada día sale de una semilla (`matchOn`), con fases relativas al saque:
+  `build-up` (−4 h), `arrival` (−90 min), `live`, `leaving` (pitido final) y `after` (bares, hasta pasada la medianoche).
+  Nada se guarda: recargar da el mismo partido.
+- **Cada sistema lo lee con sus datos**, sin condicionales por sitio: `TripRule.match` (afición, policía, personal de los
+  tornos, cola del metro), `StreetProfile.match` (paseantes de más o de menos, y el tope), ráfagas de metro con `match`,
+  `PopulationProfile.match`/`fans` (bares llenos antes y después), `StreetAct.match` (venta ambulante),
+  `DistrictIdentity.match` (afluencia de las zonas y de `cityAt`), `ARENA_MATCHES.metro` (andenes del Arena y del
+  intercambiador) y `ARENA_MATCHES.litter` (basura tras el partido; la limpieza viaria sale a recogerla).
+- **Afición** — `Agent.fan`: la misma persona con la camiseta (primera o segunda), la bufanda y alguna gorra del club,
+  horneada como la ropa de gimnasio (`world/WeatherLooks.fanLook`). Cánticos (gesto `chant`) y fotos con la fachada.
+- **Seguridad** — policía en los pasos y la explanada, patrullas y personal de seguridad en los tornos, sólo en día de
+  partido y en la capa ambiente (cupo propio). Conflicto raro (`fan-argument`): dos que discuten a voces, nunca golpes.
+- **Presupuesto** — tope de la calle 36 + 36 a la salida: el pico cabe en la calidad baja (75); el LOD de siempre
+  (`StreetLife.budget`) recorta lo que pase de ahí.
+- Al llegar al barrio un día de partido, el rótulo del sitio dice rival y hora. Consola: `lifesim.world.match()`,
+  `lifesim.world.matches(14)`. `scripts/check-arena.ts` simula la calle en cada fase contra un día sin partido.

@@ -3,6 +3,7 @@ import { DISTRICT_IDENTITIES, NEUTRAL_IDENTITY, roleGroupOf, type DistrictIdenti
 import { ZONES, type ZoneDef } from '../data/zones.ts';
 import { nightOwner, weekIndex } from './Calendar.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
+import { byPhase } from './Match.ts';
 import { outdoorAppeal, weatherAt } from './Weather.ts';
 
 export interface ZoneClock {
@@ -66,6 +67,8 @@ export function zoneActivity(z: ZoneDef, clock: ZoneClock): number {
   v *= 1 + (outdoorAppeal(weatherAt(clock.day, t)) - 1) * a.outdoor;
   // El carácter del barrio: sus horas fuertes y su fin de semana, por encima de lo que dice cada zona.
   v *= districtDensity(identityOf(z.districtId), t, day >= 5);
+  // Día de partido (systems/Match): el barrio del estadio se llena antes, se vacía durante y se desborda después.
+  v *= byPhase(identityOf(z.districtId).match, clock, 1);
   const rng = seededRng(hashSeed('zone', z.id, nightOwner(clock.day, clock.hour)));
   v *= 1 + (rng() * 2 - 1) * a.variation;
   if (memo.size > 2_000) memo.clear();

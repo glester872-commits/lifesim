@@ -354,4 +354,36 @@ export const ZONES: readonly ZoneDef[] = [
     ambience: 'centre',
     tags: ['outdoor', 'social', 'metro'],
   },
+  // Distrito Arena (data/arena.ts): la avenida de los bares, la explanada del estadio y la boca de metro. Un día normal,
+  // poca gente; en día de partido, el barrio entero (DistrictIdentity.match) lo multiplica todo.
+  {
+    id: 'ar-avenida', name: 'Avenida del Estadio', type: 'restaurant_area', location: 'arena', districtId: 'arena',
+    rects: [{ tx: 0, ty: 22, w: 56, h: 18 }],
+    population: {
+      label: 'vecinos, quien trabaja en los bares y la tienda, alguna visita al estadio y, en día de partido, la afición',
+      roles: { returning: 1.2, errands: 1.1, diner: 1.3, 'fan-bar': 1.4, 'fan-celebrate': 1.3, 'fan-bar-door': 1.3 },
+    },
+    activity: { bands: [[7, 10, 0.8], [10, 13, 0.9], [13, 16, 1.1], [16, 20, 0.9], [20, 24, 1.1]], rest: 0.35, weekend: 1.1, outdoor: 0.5, variation: 0.12 },
+    ambience: 'stadium',
+    tags: ['outdoor', 'food', 'traffic'],
+  },
+  {
+    id: 'ar-explanada', name: 'Explanada del Estadio', type: 'special_event_area', location: 'arena', districtId: 'arena',
+    rects: [{ tx: 0, ty: 0, w: 56, h: 22 }],
+    population: {
+      label: 'turistas que hacen la foto a la fachada, quien pregunta en taquilla y, en día de partido, colas, cánticos y bufandas',
+      roles: { 'stadium-visit': 1.3, 'fan-gather': 1.5, 'fan-photo': 1.4, 'fan-queue': 1.5, 'fan-direct': 1.3 },
+    },
+    activity: { bands: [[9, 13, 0.7], [13, 19, 0.9], [19, 22, 0.7]], rest: 0.3, weekend: 1.2, outdoor: 0.7, variation: 0.15 },
+    ambience: 'stadium',
+    tags: ['outdoor', 'social', 'stadium'],
+  },
+  {
+    id: 'ar-metro', name: 'Metro · Arena', type: 'metro', location: 'arena', districtId: 'arena',
+    rects: [{ tx: 0, ty: 16, w: 9, h: 8 }],
+    population: { label: 'quien sale del metro y, a la salida del partido, la cola para bajar', roles: { 'metro-arrival': 1.3, 'fan-metro-queue': 1.5 } },
+    activity: { bands: [[7, 10, 1], [10, 20, 0.9], [20, 24, 1]], rest: 0.4, weekend: 1, outdoor: 0.3, variation: 0.1 },
+    ambience: 'transit',
+    tags: ['transit', 'metro'],
+  },
 ];

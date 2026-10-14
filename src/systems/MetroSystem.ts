@@ -21,7 +21,7 @@ import {
   PASSENGER_LOOKS,
 } from '../data/npcs';
 import { ANNOUNCEMENTS } from '../data/announcements';
-import { matchOn, matchPhase } from './World';
+import { kickoffLabel, matchMetroShift, matchNow, matchPhase } from './Match';
 import { Walker } from '../entities/Walker';
 import {
   Train,
@@ -68,7 +68,6 @@ import {
 } from './MetroDaily';
 
 /** «18:30»: la hora del saque en la megafonía. */
-const kickoffLabel = (m: number): string => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 /** Pies del NPC dentro de un tile. */
 const at = (p: TilePoint): Vec2 => ({
@@ -102,7 +101,11 @@ export interface MetroClock {
 }
 
 /** Niveles de gente de más en el andén de esa estación (data/transit.ts: hub). */
-const hubOf = (stationId: string): number => STOPS.find((s) => s.station === stationId)?.hub ?? 0;
+/** Niveles de más de una parada: el intercambiador siempre; la del estadio (y el intercambiador), en día de partido. */
+const hubOf = (stationId: string, c: { day: number; hour: number; minute: number }): number => {
+  const stop = STOPS.find((s) => s.station === stationId);
+  return (stop?.hub ?? 0) + matchMetroShift(stop?.id, c);
+};
 
 /**
  * Estación viva: tren, pasajeros y vigilancia.
@@ -209,7 +212,7 @@ export class MetroSystem {
       this.daily,
       clock.hour,
       clock.minute,
-      hubOf(stationId),
+      hubOf(stationId, clock),
     );
 
     this.tag = hourTag(
@@ -663,7 +666,7 @@ export class MetroSystem {
       this.daily,
       hour,
       minute,
-      hubOf(this.stationId),
+      hubOf(this.stationId, { day: this.clock.day, hour, minute }),
     );
 
     if (level === this.level) {
@@ -1669,10 +1672,10 @@ export class MetroSystem {
           this.level ===
             'RUSH_HOUR';
 
-        // Día de partido en el Arena (barrio sin mapa todavía): la megafonía de toda la línea lo dice.
+        // Día de partido en el Arena: la megafonía de toda la línea lo dice antes, y después pide paciencia.
         const match = matchPhase(this.clock);
-        if (match && Math.random() < 0.5) {
-          this.say(match === 'leaving' ? 'matchEnd' : 'match');
+        if (match && match !== 'live' && Math.random() < 0.5) {
+          this.say(match === 'leaving' || match === 'after' ? 'matchEnd' : 'match');
           return;
         }
 
@@ -1848,7 +1851,7 @@ export class MetroSystem {
         String(
           minutes,
         ),
-      ).replace('{kick}', kickoffLabel(matchOn(this.clock.day)?.kickoff ?? 0));
+      ).replace('{kick}', kickoffLabel(matchNow(this.clock)?.kickoff ?? 0));
 
     this.announcer.say(
       text,

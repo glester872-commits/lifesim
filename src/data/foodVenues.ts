@@ -253,6 +253,9 @@ export const FOOD_VENUES: readonly FoodVenue[] = [
   // data/puertaCentralVenues.ts.
   { id: 'pc-pizza', archetype: 'pizza-casual', name: 'Pizzería Vesubio', prefix: 'PCPIZZA', door: { location: 'puerta-central', building: 'pc-pizza' } },
   { id: 'pc-burger', archetype: 'burger-fast', name: 'Burger Plaza', prefix: 'PCBURGER', door: { location: 'puerta-central', building: 'pc-burger' } },
+  // Distrito Arena (data/arena.ts): la hamburguesería y la pizzería de la avenida; se registran desde data/arenaVenues.ts.
+  { id: 'ar-burger', archetype: 'burger-fast', name: 'Burger Fondo Sur', prefix: 'ARBURGER', door: { location: 'arena', building: 'ar-burger' } },
+  { id: 'ar-pizza', archetype: 'pizza-casual', name: 'Pizzería La Prórroga', prefix: 'ARPIZZA', door: { location: 'arena', building: 'ar-pizza' } },
 ];
 
 // ------------------------------------------------------------------ derivados

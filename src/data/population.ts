@@ -3,6 +3,7 @@ import type { OfferId, ServiceId } from './services.ts';
 import { CR_PROFILES } from './cuatroRiosVenues.ts';
 import { VL_PROFILES } from './velariaVenues.ts';
 import { PC_PROFILES } from './puertaCentralVenues.ts';
+import { AR_PROFILES } from './arenaVenues.ts';
 
 /**
  * Quién hay dentro de cada local y qué hace. Todo es dato: cambiar el horario
@@ -96,6 +97,13 @@ export interface PopulationProfile {
    * del servicio y no de un reloj fijo.
    */
   tableService?: { menu: string; pass: string; kitchen: string };
+  /**
+   * Día de partido en el Arena (systems/Match): niveles que sube o baja el local en cada fase (el bar lleno antes y
+   * después, medio vacío mientras se juega si no tiene tele; la tienda oficial, a reventar antes del saque).
+   */
+  match?: Partial<Record<import('./cityEvents.ts').MatchPhase, number>>;
+  /** En día de partido, la parte de la clientela que viene con la camiseta y la bufanda del equipo (0–1). */
+  fans?: number;
 }
 
 // Gimnasio: entrar, cambiarse en su vestuario, entrenar, (a veces) ducharse y volver a la ropa de calle. Cada punto lleva
@@ -608,6 +616,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   ...CR_PROFILES,
   ...VL_PROFILES,
   ...PC_PROFILES,
+  ...AR_PROFILES,
   {
     place: 'tattoo-studio',
     // Con cita: el primer turno a mediodía y el grueso por la tarde.

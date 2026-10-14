@@ -92,6 +92,10 @@ export interface TripRule {
    * para a ver la actuación. Si recoge, quien estaba acaba enseguida.
    */
   act?: string;
+  /** Sólo en estas fases del partido del Arena (systems/Match): la afición, la policía, la cola del metro a la salida. */
+  match?: readonly import('./cityEvents.ts').MatchPhase[];
+  /** Parte de quienes hacen el viaje que van con la camiseta y la bufanda del equipo (0–1). */
+  fan?: number;
 }
 
 export interface StreetProfile {
@@ -117,7 +121,18 @@ export interface StreetProfile {
    * Salidas en oleada: cada vez que llega un tren sale gente por esa boca, de una
    * en una. [desde, hasta, minutos entre trenes] por hora; fuera de las franjas, nada.
    */
-  bursts?: readonly { point: string; every: readonly (readonly [number, number, number])[]; size: readonly [number, number] }[];
+  bursts?: readonly {
+    point: string;
+    every: readonly (readonly [number, number, number])[];
+    size: readonly [number, number];
+    /** Sólo en estas fases del partido: los trenes llenos de afición. */
+    match?: readonly import('./cityEvents.ts').MatchPhase[];
+  }[];
+  /**
+   * Paseantes de más (o de menos) en cada fase del partido del Arena (systems/Match): el objetivo y el tope suben con
+   * ellos, como con un evento de calle. Negativo: mientras se juega, la calle se vacía.
+   */
+  match?: Partial<Record<import('./cityEvents.ts').MatchPhase, number>>;
   trips: readonly TripRule[];
 }
 
@@ -428,6 +443,90 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       // De paso, a cualquier hora, y quien vuelve tarde.
       { role: 'passer', label: 'Alguien de paso', line: 'Perdona, voy con prisa.', weight: 3, from: CITY, to: CITY },
       { role: 'night-walker', label: 'Alguien volviendo tarde', line: 'El último metro. Por los pelos.', weight: 1.5, hours: [22, 6], from: { types: ['transit'], edge: true }, to: HOMES },
+    ],
+  },
+  // ------------------------------------------------------ Distrito Arena
+  // El barrio del estadio (data/arena.ts). Un día normal: vecinos, el café y los dos bares, quien trabaja en las tiendas
+  // y alguna visita que se hace la foto con la fachada. Un día de partido (systems/Match) manda el saque: `match` sube o
+  // baja la gente y el tope, los trenes llegan llenos y los viajes con `match` sólo salen en su fase. Tope en día de
+  // partido: 36 + 36 a la salida, dentro del presupuesto de gente de la calidad baja (config/budgets.ts).
+  {
+    location: 'arena',
+    bands: [[7, 9.5, 'LOW'], [9.5, 13, 'LOW'], [13, 15.5, 'MEDIUM'], [15.5, 19.5, 'LOW'], [19.5, 23, 'MEDIUM'], [23, 24, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 0, 0],
+    scale: 1.1,
+    maxWalkers: 36,
+    match: { 'build-up': 14, arrival: 30, live: -10, leaving: 36, after: 12 },
+    bursts: [
+      { point: 'AR_METRO_ENTRANCE', every: [[7, 10, 8], [10, 21, 12], [21, 24, 15], [0, 1.5, 20]], size: [1, 2] },
+      // Día de partido: un tren cada tres minutos de juego, y de cada uno sale un grupo de afición.
+      { point: 'AR_METRO_ENTRANCE', every: [[0, 24, 3]], size: [3, 6], match: ['build-up', 'arrival'] },
+    ],
+    draws: [{ place: 'ar-larguero', perLevel: 1 }, { place: 'ar-grada', perLevel: 1 }],
+    trips: [
+      // ---- Un día cualquiera.
+      { role: 'coffee', label: 'Alguien a por el café', line: 'Un cortado y el periódico deportivo. Lo de siempre.', weight: 3, hours: [7.5, 11], from: HOMES_OR_CITY, to: { points: ['AR_CAFE_ENTRANCE'] } },
+      { role: 'shift-shop', label: 'Alguien que llega a abrir', line: 'Abro a las diez. Los días de partido, a las nueve y con refuerzos.', weight: 2, hours: [9.5, 10.75], from: TRANSIT, to: { tags: ['work'] } },
+      { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Una parada después del centro y parece otro barrio. Lo es.', weight: 2, hours: [7, 24], from: TRANSIT, to: { types: ['residence'], tags: ['shop', 'food'], edge: true } },
+      { role: 'returning', label: 'Alguien volviendo a casa', line: 'Vivir al lado del estadio: tranquilo seis días, el séptimo no hay quien aparque.', weight: 4, hours: [17, 21.5], from: { types: ['transit'], edge: true }, to: HOMES },
+      { role: 'errands', label: 'Alguien de recados', line: 'Las zapatillas del crío y el pan. Por ese orden.', weight: 2, hours: [10, 20.5], from: HOMES_OR_CITY, to: { tags: ['shop'] } },
+      { role: 'window-shopper', label: 'Alguien mirando el escaparate', line: 'La camiseta nueva. Sesenta y cinco euros. Me la miro otra semana.', weight: 2, hours: [10, 21], from: HOMES_OR_CITY, to: { points: ['AR_DEPORTES_WINDOW', 'AR_OFICIAL_WINDOW'] }, stay: [1, 3], stayState: 'BROWSE', then: { tags: ['shop'], types: ['transit'], edge: true }, max: 2 },
+      { role: 'stadium-visit', label: 'Visitantes del estadio', line: '¿Nos haces una foto con la fachada? Que se vea el halcón.', weight: 2, hours: [10, 19], from: TRANSIT, to: { points: ['AR_PHOTO_'] }, stay: [2, 5], stayState: 'WAIT', then: { points: ['AR_TAQUILLA_', 'AR_OFICIAL_ENTRANCE'], types: ['transit'] }, group: [2, 3], bond: ['tourists', 'family', 'friends'], max: 2 },
+      { role: 'ticket', label: 'Alguien en la taquilla', line: 'Dos para el sábado, en el fondo. Si queda.', weight: 1, hours: [10, 20], from: HOMES_OR_CITY, to: { points: ['AR_TAQUILLA_'] }, stay: [2, 4], stayState: 'WAIT', then: CITY, max: 2 },
+      { role: 'diner', label: 'Alguien que va a comer', line: 'Menú rápido, que a las cuatro abro la tienda.', weight: 3, hours: [13, 15.5], from: { tags: ['work'], edge: true }, to: { points: ['AR_BURGER_ENTRANCE', 'AR_PIZZA_ENTRANCE'] }, group: [1, 3], bond: ['coworkers', 'friends'] },
+      { role: 'diner', label: 'Alguien que va a cenar', line: 'Pizza y a casa, que mañana se madruga.', weight: 3, hours: [20, 23], from: HOMES_OR_CITY, to: { points: ['AR_BURGER_ENTRANCE', 'AR_PIZZA_ENTRANCE'] }, group: [2, 4], bond: ['family', 'friends', 'couple'] },
+      { role: 'after-work', label: 'Alguien que va al bar', line: 'Una caña y a casa. El partido es el sábado; hoy, la caña.', weight: 2, hours: [18.5, 23.5], from: { types: ['transit'], edge: true }, to: { tags: ['arena-bar'] }, group: [1, 3], bond: ['coworkers', 'friends'] },
+      { role: 'bar-door', label: 'Alguien con la caña en la puerta', line: 'Dentro no se oye ni la tele. Aquí fuera se está mejor.', weight: 1, hours: [19.5, 24], from: { tags: ['arena-bar'] }, to: { points: ['AR_LARGUERO_OUT_', 'AR_GRADA_OUT_'] }, stay: [8, 18], stayState: 'DRINK', then: HOMES_OR_CITY, max: 3 },
+      { role: 'jogger', label: 'Alguien corriendo', line: 'Tres vueltas al estadio son cinco kilómetros. Me lo ha dicho el reloj.', weight: 2, hours: [7, 9.5], from: HOMES, to: HOMES, via: ['ar-p05', 'ar-p50'], pace: 'jog', pause: 0 },
+      { role: 'jogger', label: 'Alguien corriendo', line: 'A esta hora la explanada es mía.', weight: 2, hours: [19, 21.5], from: HOMES, to: HOMES, via: ['ar-p50', 'ar-p05'], pace: 'jog', pause: 0 },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'Los días de partido no salimos. Hoy, sí.', weight: 2, hours: [7, 9.5], from: HOMES, to: HOMES, via: ['ar-p11', 'ar-p43'], pace: 'stroll', dog: true, pause: 0.6 },
+      { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última vuelta, por la explanada.', weight: 2, hours: [20.5, 23.5], from: HOMES, to: HOMES, via: ['ar-p43', 'ar-p11'], pace: 'stroll', dog: true, pause: 0.6 },
+      { role: 'passer', label: 'Alguien de paso', line: 'Perdona, voy con prisa.', weight: 2, from: CITY, to: CITY },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'La explanada a primera hora. Un día normal, se barre en diez minutos.', weight: 5, hours: [6, 8], from: CITY, to: CITY, via: ['ar-p05', 'ar-p50', 'ar-s41'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'courier', ambient: true, label: 'Repartidor', line: 'Seis pizzas a la Avenida del Estadio. Hoy no hay partido y aun así.', weight: 6, hours: [20, 23.5], from: { points: ['AR_PIZZA_ENTRANCE', 'AR_BURGER_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
+
+      // ---- Día de partido, horas antes (build-up): llega la afición, los bares se llenan, salen los puestos y la policía.
+      { role: 'fan-bar', label: 'Aficionados camino del bar', line: 'Primero, al Larguero. Al estadio se llega cantando.', weight: 8, match: ['build-up'], from: { types: ['transit'], edge: true }, to: { tags: ['arena-bar'] }, group: [2, 5], bond: ['friends', 'family', 'coworkers'], fan: 0.85 },
+      { role: 'fan-bar-door', label: 'Aficionado con la caña en la puerta', line: 'Dentro no cabe nadie más. Aquí fuera se canta mejor.', weight: 6, match: ['build-up'], from: { tags: ['arena-bar'], types: ['transit'] }, to: { points: ['AR_LARGUERO_OUT_', 'AR_GRADA_OUT_'] }, stay: [12, 25], stayState: 'DRINK', then: { points: ['AR_GATE_'] }, group: [1, 3], bond: ['friends'], fan: 0.9, max: 6 },
+      { role: 'fan-gather', label: 'Peña cantando en la explanada', line: '¡Ha-lco-nes! ¡Ha-lco-nes!', weight: 6, match: ['build-up', 'arrival'], from: { types: ['transit'], tags: ['arena-bar'], edge: true }, to: { points: ['AR_FANS_'] }, stay: [8, 20], stayState: 'TALK', then: { points: ['AR_GATE_'] }, group: [2, 4], bond: ['friends', 'family'], fan: 0.95, max: 8 },
+      { role: 'fan-photo', label: 'Aficionados haciéndose la foto', line: 'Una con la fachada, que es su primer partido.', weight: 2, match: ['build-up', 'arrival'], from: { types: ['transit'], edge: true }, to: { points: ['AR_PHOTO_'] }, stay: [1, 3], stayState: 'WAIT', then: { points: ['AR_GATE_'] }, group: [2, 3], bond: ['family', 'friends', 'couple'], fan: 0.85, max: 2 },
+      { role: 'fan-merch', label: 'Aficionado comprando la bufanda', line: 'La de este año. La del año pasado ya da mala suerte.', weight: 4, match: ['build-up', 'arrival'], from: { types: ['transit'], edge: true }, to: { points: ['AR_SCARF_', 'AR_KIOSK_'] }, stay: [1, 3], stayState: 'WAIT', then: { points: ['AR_GATE_', 'AR_FANS_'] }, group: [1, 2], bond: ['family', 'friends'], fan: 0.6, max: 3 },
+      { role: 'fan-food', label: 'Aficionado en el puesto de bocadillos', line: 'Uno de lomo para dentro, que el descanso es muy corto.', weight: 3, match: ['build-up', 'arrival'], from: { types: ['transit'], edge: true }, to: { points: ['AR_FOOD_'] }, stay: [1, 3], stayState: 'WAIT', then: { points: ['AR_GATE_'] }, group: [1, 2], bond: ['friends', 'family'], fan: 0.8, max: 2 },
+      { role: 'fan-shop', label: 'Aficionado camino de la tienda oficial', line: 'La camiseta nueva, con el nombre detrás. Hoy estreno.', weight: 3, match: ['build-up', 'arrival'], from: { types: ['transit'], edge: true }, to: { points: ['AR_OFICIAL_ENTRANCE', 'AR_DEPORTES_ENTRANCE'] }, group: [1, 3], bond: ['family', 'friends'], fan: 0.6 },
+      { role: 'stall-browse', label: 'Alguien mirando las bufandas', line: '¿Y ésta cuánto? ¿Y si me llevo dos, una para mi padre?', weight: 4, act: 'ar-manta-bufandas', from: { types: ['transit'], edge: true }, to: { points: ['AR_PITCH_A_SEE_'] }, stay: [2, 4], stayState: 'BROWSE', then: { points: ['AR_GATE_', 'AR_FANS_'] }, group: [1, 2], bond: ['friends', 'family'], fan: 0.7, max: 2 },
+      { role: 'stall-browse', label: 'Alguien comprando pipas', line: 'Una bolsa grande y un agua. Que el partido es largo.', weight: 3, act: 'ar-bandeja', from: { types: ['transit'], edge: true }, to: { points: ['AR_PITCH_B_SEE_'] }, stay: [1, 2], stayState: 'BROWSE', then: { points: ['AR_GATE_'], types: ['transit'] }, fan: 0.8, max: 2 },
+      { role: 'stall-browse', label: 'Alguien mirando camisetas', line: 'La del partido de hoy, con la fecha. Para el recuerdo.', weight: 3, act: 'ar-manta-camisetas', from: { types: ['transit'], edge: true }, to: { points: ['AR_PITCH_C_SEE_'] }, stay: [2, 4], stayState: 'BROWSE', then: { points: ['AR_GATE_'], types: ['transit'] }, fan: 0.7, max: 2 },
+
+      // ---- La última hora y media (arrival): riadas hacia los tornos y colas en cada puerta.
+      { role: 'fan-direct', label: 'Aficionados camino de su puerta', line: 'Puerta 4, fila 12. O la 12, puerta 4. Ya lo veremos.', weight: 12, match: ['arrival'], from: { types: ['transit'], edge: true }, to: { points: ['AR_GATE_'] }, group: [1, 4], bond: ['friends', 'family', 'couple'], fan: 0.85 },
+      ...[1, 2, 3, 4, 5].map((n): TripRule => ({ role: 'fan-queue', label: `Aficionado en la cola de la Puerta ${n}`, line: 'Abono en el móvil y el brazo arriba. Que no se apague la pantalla.', weight: 4, match: ['arrival'], from: { types: ['transit'], edge: true }, to: { points: [`AR_Q${n}_`] }, stay: [1, 3], stayState: 'WAIT', then: { points: [`AR_GATE_${n}`] }, group: [1, 2], bond: ['friends', 'family'], fan: 0.85, max: 3 })),
+      { role: 'ticket', label: 'Aficionado recogiendo la entrada', line: 'Está a mi nombre. Sí, con el DNI. Sí, ese soy yo con barba.', weight: 3, match: ['build-up', 'arrival'], from: { types: ['transit'], edge: true }, to: { points: ['AR_TAQUILLA_'] }, stay: [2, 4], stayState: 'WAIT', then: { points: ['AR_GATE_'] }, fan: 0.7, max: 2 },
+
+      // ---- Durante el partido (live): la calle se queda casi vacía; algún rezagado corriendo y quien lo sigue desde la puerta del bar.
+      { role: 'fan-late', label: 'Aficionado que llega tarde', line: '¿Cómo van? ¿Ya? ¿Quién ha marcado?', weight: 2, match: ['live'], from: TRANSIT, to: { points: ['AR_GATE_'] }, pace: 'jog', fan: 0.9, max: 2 },
+      { role: 'fan-bar-door', label: 'Aficionado oyendo el partido en la puerta del bar', line: 'Sin entrada, pero con la radio. Es casi lo mismo. Casi.', weight: 2, match: ['live'], from: { tags: ['arena-bar'] }, to: { points: ['AR_LARGUERO_OUT_', 'AR_GRADA_OUT_'] }, stay: [15, 30], stayState: 'DRINK', then: { tags: ['arena-bar'] }, fan: 0.9, max: 3 },
+
+      // ---- El pitido final (leaving): salida masiva por todas las puertas, cola en el metro, a cenar o al bar.
+      { role: 'fan-exit', label: 'Aficionados saliendo del estadio', line: '¡Qué partido! Bueno, la segunda parte. La primera, mejor ni hablar.', weight: 12, match: ['leaving'], from: { points: ['AR_GATE_'] }, to: { types: ['transit'], edge: true }, group: [2, 4], bond: ['friends', 'family', 'couple'], fan: 0.85 },
+      { role: 'fan-metro-queue', label: 'Aficionado en la cola del metro', line: 'Tres trenes y aún no hemos bajado. Tranquilos, que hay para todos.', weight: 8, match: ['leaving'], from: { points: ['AR_GATE_'] }, to: { points: ['AR_METRO_Q_'] }, stay: [2, 6], stayState: 'WAIT', then: TRANSIT, fan: 0.85, max: 6 },
+      { role: 'fan-celebrate', label: 'Peña celebrándolo en la explanada', line: '¡Eeeeh, Halcones, eeeeh!', weight: 4, match: ['leaving'], from: { points: ['AR_GATE_'] }, to: { points: ['AR_FANS_'] }, stay: [5, 12], stayState: 'TALK', then: { tags: ['arena-bar', 'food'], types: ['transit'] }, group: [2, 4], bond: ['friends'], fan: 0.95, max: 8 },
+      { role: 'fan-dinner', label: 'Aficionados camino de cenar', line: 'Hamburguesa y a comentar el penalti. Que no lo era.', weight: 5, match: ['leaving', 'after'], from: { points: ['AR_GATE_'], types: ['transit'] }, to: { points: ['AR_BURGER_ENTRANCE', 'AR_PIZZA_ENTRANCE'] }, group: [2, 4], bond: ['friends', 'family'], fan: 0.8 },
+      { role: 'fan-bar', label: 'Aficionados camino del bar', line: 'La última y a casa. Ésa la decimos siempre.', weight: 6, match: ['leaving', 'after'], from: { points: ['AR_GATE_'], types: ['transit'] }, to: { tags: ['arena-bar'] }, group: [2, 5], bond: ['friends'], fan: 0.85 },
+      { role: 'fan-exit-walk', label: 'Aficionado volviendo andando', line: 'Andando llego antes que en metro. Hoy, seguro.', weight: 4, match: ['leaving'], from: { points: ['AR_GATE_'] }, to: HOMES_OR_CITY, fan: 0.8 },
+
+      // ---- La sobremesa (after): bares y restaurantes a tope, y se va vaciando hacia el metro.
+      { role: 'fan-bar-door', label: 'Aficionado con la caña en la puerta', line: 'Repetimos la jugada del segundo gol. Ya van cuatro veces.', weight: 5, match: ['after'], from: { tags: ['arena-bar'], types: ['transit'] }, to: { points: ['AR_LARGUERO_OUT_', 'AR_GRADA_OUT_'] }, stay: [12, 25], stayState: 'DRINK', then: { types: ['transit'], edge: true }, group: [1, 3], bond: ['friends'], fan: 0.9, max: 6 },
+      { role: 'fan-home', label: 'Aficionado volviendo a casa', line: 'Mañana me duele la garganta. Ha merecido la pena.', weight: 4, match: ['after'], from: { tags: ['arena-bar', 'food'] }, to: { types: ['transit'], edge: true }, group: [1, 3], bond: ['friends', 'family'], fan: 0.85 },
+
+      // ---- Seguridad del día de partido: policía en los pasos y la explanada, patrullas, y el personal de los tornos. Capa
+      // ambiente (su propio cupo, StreetLife.AMBIENT_CAP): no compiten con la riada de afición por el tope de la calle.
+      { role: 'police', ambient: true, label: 'Policía', line: 'Por el paso de cebra, por favor. Y sin correr, que hay tiempo.', weight: 6, match: ['build-up', 'arrival', 'leaving', 'after'], from: CITY, to: { points: ['AR_POLICE_'] }, stay: [60, 120], stayState: 'WAIT', then: CITY, uniform: 'uniforme-policia', pause: 0, max: 4 },
+      { role: 'police-patrol', ambient: true, label: 'Patrulla de policía', line: 'Buenas tardes. Todo bien por aquí, ¿verdad?', weight: 2, match: ['build-up', 'arrival', 'leaving'], from: CITY, to: CITY, via: ['ar-p05', 'ar-p50'], pace: 'stroll', group: [2, 2], bond: ['coworkers'], uniform: 'uniforme-policia', pause: 0.3, max: 2 },
+      { role: 'steward', ambient: true, label: 'Control de entradas', line: 'Entrada en la mano y el bolso abierto, por favor. Gracias.', weight: 8, match: ['build-up', 'arrival', 'live'], from: CITY, to: { points: ['AR_STEWARD_'] }, stay: [120, 240], stayState: 'WAIT', then: CITY, uniform: 'uniforme-seguridad', pause: 0, max: 4 },
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Vasos, pipas y papeles. Esto en una hora está como nuevo.', weight: 8, match: ['leaving', 'after'], from: CITY, to: CITY, via: ['ar-p05', 'ar-p27', 'ar-p50'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 3 },
+
+      // ---- De higos a brevas: dos de equipos distintos discuten a voces la jugada; la policía está a dos pasos. Ni un golpe.
+      { role: 'fan-argument', label: 'Dos aficionados discutiendo', line: '¡Ese penalti no era ni de broma! — ¡Que sí, que lo ha visto todo el estadio!', weight: 0.3, match: ['leaving'], from: { points: ['AR_GATE_'] }, to: { points: ['AR_ARGUE_'] }, stay: [2, 4], stayState: 'TALK', then: { types: ['transit'], edge: true }, group: [2, 2], fan: 0.5, max: 1 },
     ],
   },
   // ------------------------------------------------------ Velaria

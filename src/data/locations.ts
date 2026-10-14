@@ -8,6 +8,9 @@ import { VELARIA } from './velaria.ts';
 import { VL_INTERIORS } from './velariaVenues.ts';
 import { PUERTA_CENTRAL } from './puertaCentral.ts';
 import { PC_INTERIORS } from './puertaCentralVenues.ts';
+import { ARENA } from './arena.ts';
+import { AR_INTERIORS } from './arenaVenues.ts';
+import { rebased } from './velariaVenues.ts';
 import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
 /**
@@ -532,6 +535,31 @@ const BAR: LocationDef = {
   },
 };
 
+// Distrito Arena: la misma estación de siempre; en día de partido se llena (systems/Match: STOPS 'arena').
+const ARENA_STATION = platform(
+  'arena-station',
+  'Metro · Arena',
+  { location: 'arena', spawn: 'ar-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
+/** Los dos bares del Distrito Arena: la planta del Bar Ribera con su prefijo, su barra y su puerta (la gente, en data/arenaVenues.ts). */
+const arenaBar = (id: string, name: string, pre: string, ambient: string, wall: string): LocationDef => ({
+  ...rebased(BAR, 'BAR_', `${pre}_`),
+  id,
+  name,
+  ambient,
+  portals: [{ id: 'exit', tx: 8, ty: 10, label: 'Salir a la calle', to: { location: 'arena', spawn: id } }],
+  spots: [{ tx: 9, ty: 5, name: `Barra · ${name}`, activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] }],
+  inspects: [{ tx: 14, ty: 1, name: 'Pared', lines: [wall] }],
+});
+const ARENA_BARS: readonly LocationDef[] = [
+  arenaBar('ar-larguero', 'Bar El Larguero', 'ARLARG', '#ffdcb4', 'Bufandas turquesa y naranja clavadas en la pared, una por cada ascenso. Hay tres. Y un hueco con un cartel: «el próximo».'),
+  arenaBar('ar-grada', 'Taberna La Grada', 'ARGRADA', '#ffd8c0', 'Fotos de la grada en blanco y negro, de cuando el estadio era de cemento y la tribuna, de madera. Debajo, la tele grande.'),
+];
+
 export const LOCATIONS: readonly LocationDef[] = [
   VALLESCO,
   HOME,
@@ -573,6 +601,11 @@ export const LOCATIONS: readonly LocationDef[] = [
   PUERTA_CENTRAL,
   PUERTA_CENTRAL_STATION,
   ...PC_INTERIORS,
+  // Distrito Arena (data/arena.ts): el estadio y su explanada, la estación, los locales y los dos bares.
+  ARENA,
+  ARENA_STATION,
+  ...AR_INTERIORS,
+  ...ARENA_BARS,
 ];
 
 export const START_LOCATION = VALLESCO.id;

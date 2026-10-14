@@ -14,6 +14,7 @@
  *   scooters   → systems/Districts.withDistrictLanes (patinetes eléctricos: 0 no hay ninguno; sólo sale donde todo el carril lo permite)
  *   security   → systems/MetroDaily.securityFor (rondas del vigilante de sus estaciones; siempre hay uno)
  *   ambience   → world/Atmosphere (efectos de ambiente: hojas, papeles, vapor)
+ *   match      → systems/Zones.zoneActivity y systems/World.cityAt (afluencia según la fase del partido, systems/Match)
  *
  * Nada de esto toca a la gente por su origen: no hay campos de procedencia, renta ni delito.
  */
@@ -40,18 +41,20 @@ export interface DistrictIdentity {
   events: number;
   /** Volumen de los efectos de ambiente (hojas, papeles, vapor): 1 = lo normal. */
   ambience: number;
+  /** Multiplica la afluencia según la fase del partido del Arena (systems/Match); fuera de partido, 1. */
+  match?: Partial<Record<import('./cityEvents.ts').MatchPhase, number>>;
 }
 
 /** De qué tipo es cada viaje de la gente (TripRule.role en data/streets.ts): por prefijo o nombre, el primero que cuadra. */
 export const ROLE_GROUPS: readonly (readonly [RegExp, RoleGroup])[] = [
-  [/^(club|bar-night|bar-smoke|rincon-night|rincon-smoke|rincon-vermut|night|carmen-prenight|gamer|popup-dj)/, 'nightlife'],
-  [/^(carmen-(browse|outfit|hang|wait)|window-shopper|shopper|late-shop|sneaker|tattoo|piercing|popup-(market|art|queue)|kiosk|errands|bakery|stall-)/, 'retail'],
-  [/^(hoops|calisthenics|cali-|court-|gym|jogger|skate)/, 'sport'],
+  [/^(club|bar-night|bar-smoke|bar-door|rincon-night|rincon-smoke|rincon-vermut|night|carmen-prenight|gamer|popup-dj)/, 'nightlife'],
+  [/^(carmen-(browse|outfit|hang|wait)|window-shopper|shopper|late-shop|sneaker|tattoo|piercing|popup-(market|art|queue)|kiosk|errands|bakery|stall-|ticket)/, 'retail'],
+  [/^(hoops|calisthenics|cali-|court-|gym|jogger|skate|fan-)/, 'sport'],
   [/^(commuter|metro-arrival|office|bus|returning|passer)/, 'commute'],
   [/^(terrace|brunch|coffee|diner|bar-terrace|rincon-breakfast|ice-cream)/, 'food'],
-  [/^(tourist|hotel-)/, 'tourism'],
+  [/^(tourist|hotel-|stadium-)/, 'tourism'],
   [/^(after-work|friends-)/, 'social'],
-  [/^(street-cleaner|maintenance|courier|work-break|ride-wait|doorman|shift-)/, 'work'],
+  [/^(street-cleaner|maintenance|courier|work-break|ride-wait|doorman|shift-|police|steward)/, 'work'],
   [/^(gallery|show-)/, 'leisure'],
   [/^(plaza-(family|elders|couple|rest)|park-elders|park-gathering)/, 'family'],
   [/^(river|riverside|couple-walk|park|plaza|stroller|dog-walker|reader|carmen-(couple|friends|bench)|metro-meet)/, 'leisure'],
@@ -122,8 +125,10 @@ export const DISTRICT_IDENTITIES: Readonly<Record<string, DistrictIdentity>> = {
     security: 1, events: 1, ambience: 1.2,
   },
   arena: {
-    name: 'Arena', tagline: 'días de partido y de evento',
-    density: { bands: [[10, 16, 0.7], [16, 23, 1.6], [23, 24, 0.9]], rest: 0.4, weekend: 1.8 },
+    // Distrito Arena (data/arena.ts): tranquilo entre semana; en día de partido manda el reloj del partido (match).
+    name: 'Distrito Arena', tagline: 'el estadio: barrio tranquilo, días de partido desbordados',
+    density: { bands: [[7, 10, 0.7], [10, 13, 0.8], [13, 16, 1], [16, 20, 0.9], [20, 23, 1.1], [23, 24, 0.7]], rest: 0.4, weekend: 1.1 },
+    match: { 'build-up': 1.8, arrival: 2.6, live: 0.45, leaving: 2.8, after: 1.6 },
     groups: { social: 1.6, food: 1.4, sport: 1.5, nightlife: 1.2, commute: 0.8 },
     traffic: { vehicles: 1.2, bikes: 0.9, deliveries: 1 },
     scooters: 1.2,
@@ -151,4 +156,6 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'velaria-station': 'velaria',
   'puerta-central': 'puerta-central',
   'puerta-central-station': 'puerta-central',
+  arena: 'arena',
+  'arena-station': 'arena',
 };

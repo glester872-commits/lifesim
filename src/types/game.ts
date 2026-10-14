@@ -190,7 +190,13 @@ export type PropKind =
   | 'asphalt-patch'
   | 'tyre-marks'
   | 'work-light'
-  | 'tube-light';
+  | 'tube-light'
+  // Distrito Arena (world/ArenaArt): taquilla, puesto de comida, puesto de bufandas, mástil con la bandera del club y torre de focos.
+  | 'ticket-booth'
+  | 'food-stall'
+  | 'scarf-stand'
+  | 'flag-pole'
+  | 'floodlight';
 
 export interface PropPlacement {
   kind: PropKind;
@@ -300,6 +306,9 @@ export type BuildingStyle =
   | 'res-noble'
   // Puerta Central: la tienda de recuerdos.
   | 'souvenir'
+  // Distrito Arena: el estadio (desde arriba, grada y césped) y la tienda oficial del club.
+  | 'stadium'
+  | 'team-store'
   | 'backdrop';
 
 /**

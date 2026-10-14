@@ -44,6 +44,8 @@ export const STOPS: readonly TransitStop[] = [
   // Cuatro Ríos, la parada de antes de Vallesco: a una de Vallesco y a dos de la Ribera. Los trayectos de antes no cambian.
   // Velaria, la cabecera: a una de Cuatro Ríos y a dos de Vallesco. Los trayectos de antes no cambian.
   // Puerta Central, la nueva cabecera: a una de Velaria. La estación más llena de la línea. Los trayectos de antes no cambian.
+  // El Arena, una más allá del intercambiador: en día de partido, media ciudad hace transbordo en Puerta Central.
+  { id: 'arena', name: 'Arena · Estadio del Halcón', line: 'L2', order: -4, station: 'arena-station' },
   { id: 'puerta-central', name: 'Puerta Central', line: 'L2', order: -3, station: 'puerta-central-station', hub: 1 },
   { id: 'velaria', name: 'Velaria', line: 'L2', order: -2, station: 'velaria-station' },
   { id: 'cuatro-rios', name: 'Cuatro Ríos', line: 'L2', order: -1, station: 'cuatro-rios-station' },

@@ -273,6 +273,12 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Patio de atrás: cajas de fruta apiladas (asiento improvisado) y una lámpara de pinza sobre otra pila: poca luz, cálida.
   crates: { key: 'prop-crates', tilesHigh: 2, variants: 2, shadow: [14, 4] },
   'work-light': { key: 'prop-work-light', tilesHigh: 2, light: { dy: 22, pool: [34, 16] }, shadow: [14, 4] },
+  // Distrito Arena (world/ArenaArt): taquilla y puestos de la explanada, mástil y torre de focos (luz fría, alta).
+  'ticket-booth': { key: 'prop-ticket-booth', tilesHigh: 2, tilesWide: 2, shadow: [28, 4] },
+  'food-stall': { key: 'prop-food-stall', tilesHigh: 2, tilesWide: 2, shadow: [28, 4] },
+  'scarf-stand': { key: 'prop-scarf-stand', tilesHigh: 2, tilesWide: 2, shadow: [26, 4] },
+  'flag-pole': { key: 'prop-flag-pole', tilesHigh: 4, shadow: [6, 2], cast: 20, post: true },
+  floodlight: { key: 'prop-floodlight', tilesHigh: 4, shadow: [10, 3], cast: 24, light: { dy: 58, cool: true } },
 };
 
 export function tileAt(ground: readonly string[], tx: number, ty: number): TileDef | undefined {

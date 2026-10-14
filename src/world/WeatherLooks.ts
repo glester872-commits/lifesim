@@ -4,6 +4,7 @@ import { CHARACTERS } from '../data/characters';
 import { HEAVY_RAIN, type Weather } from '../systems/Weather';
 import { colorsOf } from './HumanArt';
 import { shade } from './paint';
+import { ARENA_CLUB } from '../data/cityEvents';
 
 /**
  * La ropa de peatones anónimos y personajes con rutina según el tiempo.
@@ -72,15 +73,47 @@ function gymVariant(base: NpcLook): NpcLook {
   };
 }
 
+// De aficionado (día de partido en el Arena, Agent.fan): la camiseta del CD Halcones del Arena, la primera o la
+// segunda, casi siempre la bufanda y alguna gorra del club. Es la misma persona: piel, pelo, cuerpo y pantalón suyos.
+/** La misma persona con los colores del equipo. */
+function fanVariant(base: NpcLook): NpcLook {
+  const c = colorsOf(base);
+  const h = hash(`fan:${base.id}`);
+  const [shirt, trim] = h % 4 === 0 ? ARENA_CLUB.away : ARENA_CLUB.home;
+  return {
+    ...base,
+    id: `${base.id}~fan`,
+    cloth: shirt,
+    clothDark: shade(shirt, -0.14),
+    skin: c.skin,
+    hairStyle: c.hairStyle,
+    trousers: c.trousers,
+    shoes: c.shoes,
+    // Manga corta del color del remate; con frío de estadio, larga (la camiseta encima de la sudadera).
+    sleeves: (h >>> 3) % 3 === 0 ? undefined : trim,
+    sleeveLen: (h >>> 5) & 1 ? 2 : undefined,
+    scarf: (h >>> 7) % 5 === 0 ? undefined : (h >>> 9) & 1 ? trim : shirt,
+    cap: (h >>> 11) % 6 === 0 ? trim : undefined,
+    hood: undefined, headscarf: base.headscarf, bag: undefined,
+    outfit: base.outfit && { ...base.outfit, top: 'sport', topMat: undefined },
+  };
+}
+
 /** Todas las versiones, para hornearlas en el atlas de gente con sus animaciones (world/TextureFactory). */
 const BASE_LOOKS = [...PASSENGER_LOOKS, ...CHARACTERS.map((c) => getNpc(c.npc))];
 const GYM_LOOKS: readonly NpcLook[] = PASSENGER_LOOKS.map(gymVariant);
-export const WEATHER_LOOKS: readonly NpcLook[] = [...BASE_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l))), ...GYM_LOOKS];
+const FAN_LOOKS: readonly NpcLook[] = PASSENGER_LOOKS.map(fanVariant);
+export const WEATHER_LOOKS: readonly NpcLook[] = [...BASE_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l))), ...GYM_LOOKS, ...FAN_LOOKS];
 const BY_ID = new Map(WEATHER_LOOKS.map((l) => [l.id, l]));
 
 /** Su aspecto con la ropa de entrenar puesta (world/CrowdView, al cambiarse en el vestuario). */
 export function gymLook(base: NpcLook): NpcLook {
   return BY_ID.get(`${base.id}~gym`) ?? base;
+}
+
+/** Su aspecto de aficionado: la camiseta del equipo y la bufanda (world/CrowdView, día de partido). */
+export function fanLook(base: NpcLook): NpcLook {
+  return BY_ID.get(`${base.id}~fan`) ?? base;
 }
 
 /** Azar fijo de cada persona para cada decisión: la misma persona decide igual con el mismo tiempo. */

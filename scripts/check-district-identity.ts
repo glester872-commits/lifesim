@@ -24,7 +24,8 @@ const zone = (id: string) => ZONES.find((z) => z.id === id)!;
 {
   const KEYS = ['name', 'tagline', 'density', 'groups', 'traffic', 'scooters', 'security', 'events', 'ambience'];
   for (const [id, p] of Object.entries(DISTRICT_IDENTITIES)) {
-    assert.deepEqual(Object.keys(p).sort(), [...KEYS].sort(), `${id}: campos de más o de menos (nada de origen, renta ni delito)`);
+    // `match` (opcional): la afluencia del barrio según la fase del partido; no dice nada de quién vive ahí.
+    assert.deepEqual(Object.keys(p).filter((k) => k !== 'match').sort(), [...KEYS].sort(), `${id}: campos de más o de menos (nada de origen, renta ni delito)`);
     assert.ok(p.scooters >= 0 && p.scooters <= 2.5, `${id}: patinetes fuera de rango`);
     for (const f of [p.security, p.events, p.ambience, p.traffic.vehicles, p.traffic.bikes, p.traffic.deliveries, p.density.rest, p.density.weekend, ...Object.values(p.groups)]) assert.ok(f > 0 && f <= 2.5, `${id}: factor fuera de rango (${f})`);
     for (const [from, to, k] of p.density.bands) assert.ok(from < to && k > 0 && k <= 2.5, `${id}: franja ${from}-${to}`);

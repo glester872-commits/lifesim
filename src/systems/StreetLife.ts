@@ -18,6 +18,7 @@ import { lookWeights, profileAt } from './Districts.ts';
 import { zoneAt, zonePull } from './Zones.ts';
 import { StreetPickpocket } from './Pickpocket.ts';
 import { activePopUp, popUpCrowd } from './PopUps.ts';
+import { byPhase, matchPhase } from './Match.ts';
 import { bondMates, IDENTITIES, OUTFIT_CLASH, outfitOf, outfitsOf, paceOf, relationLine, roleAffinity } from './People.ts';
 import type { Bond, RelationType } from '../data/identity.ts';
 import { crossingOf, signalAt, waitSpots } from './Signals.ts';
@@ -140,9 +141,14 @@ export function streetTargetAt(profile: StreetProfile, clock: Clock): number {
     wanted += levels * d.perLevel;
   }
   wanted = Math.round(wanted * streetWeatherScale(weatherAt(clock.day, clock.hour + clock.minute / 60)));
-  // Un evento en la calle (mercadillo, cola, DJ) trae gente de más, y el tope sube con él.
-  const extra = popUpCrowd(profile.location, clock);
-  return Math.min(wanted + extra, profile.maxWalkers + extra);
+  // Un evento en la calle (mercadillo, cola, DJ) trae gente de más, y el tope sube con él. Un partido, igual (o la vacía).
+  const extra = popUpCrowd(profile.location, clock) + byPhase(profile.match, clock);
+  return Math.max(0, Math.min(wanted + extra, streetCapAt(profile, clock)));
+}
+
+/** Tope de paseantes ahora: el de la calle más lo que traen el evento de calle o el partido. */
+export function streetCapAt(profile: StreetProfile, clock: Clock): number {
+  return profile.maxWalkers + popUpCrowd(profile.location, clock) + Math.max(0, byPhase(profile.match, clock));
 }
 
 // ---------------------------------------------------------------- paseantes
@@ -591,10 +597,11 @@ export class StreetLife {
    * viaje. Siempre dentro del tope de la calle.
    */
   private metroWaves(deltaMs: number, clock: Clock, player: TilePoint): void {
+    const phase = matchPhase(clock);
     (this.profile.bursts ?? []).forEach((b, i) => {
       const w = this.waves[i];
       const hour = this.signalMinute / 60;
-      const band = b.every.find(([from, to]) => hour >= from && hour < to);
+      const band = b.match && !(phase && b.match.includes(phase)) ? undefined : b.every.find(([from, to]) => hour >= from && hour < to);
       if (band) {
         const train = Math.floor(this.signalMinute / band[2]);
         if (train !== w.train) {
@@ -608,7 +615,7 @@ export class StreetLife {
       // Con cola (hora punta: un tren cada 3 minutos), salen más seguidos: a una persona por segundo y pico, la cola
       // crecía sin fin y la boca del metro se veía igual de vacía que a media mañana.
       w.release = between(this.rng, 700, 1_600) / Math.max(1, w.pending / 3);
-      const cap = Math.round(this.profile.maxWalkers * this.budget);
+      const cap = Math.round(streetCapAt(this.profile, clock) * this.budget);
       if (this.walkers().length < cap) this.startTrip(clock, player, cap, false, b.point);
     });
   }
@@ -1337,8 +1344,10 @@ export class StreetLife {
     const weighted: [TripRule, number][] = [];
     // Un evento de la calle en marcha (data/popups.ts): sus viajes sólo valen entonces y los demás siguen igual.
     const popup = activePopUp(this.loc.id, clock)?.id;
+    const phase = matchPhase(clock);
     for (const rule of this.profile.trips) {
       if (rule.popup && rule.popup !== popup) continue;
+      if (rule.match && !(phase && rule.match.includes(phase))) continue;
       if (rule.act && !this.actWorking(rule.act)) continue;
       if (!!rule.ambient !== ambient) continue;
       if (!inHours(rule.hours, t)) continue;
@@ -1447,6 +1456,7 @@ export class StreetLife {
       // Con lluvia se aprieta el paso.
       speed: between(this.rng, ...POPULATION.walkSpeed) * (this.weather.rain > 0.08 ? 1.2 : 1), path, timer: 0, plan: [], leaveSoon: false, leaving: false,
       rule, staying: false, vanish: false, delay: 0, settled: false, pauseAt: -1, uniform: rule?.uniform,
+      fan: !!rule?.fan && this.rng() < rule.fan,
     };
     this.agents.push(walker);
     return walker;

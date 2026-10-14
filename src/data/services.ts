@@ -47,10 +47,15 @@ export const SERVICE_OFFERS = {
   'shop-brisa': { kind: 'retail', store: 'brisa', minutes: 15 },
   // Puerta Central.
   'shop-recuerdos': { kind: 'retail', store: 'recuerdos', minutes: 8 },
+  // Distrito Arena.
+  'shop-deportes-arena': { kind: 'retail', store: 'deportes-arena', minutes: 10 },
+  'shop-halcones': { kind: 'retail', store: 'halcones', minutes: 8 },
   'shop-central': { kind: 'retail', store: 'central', minutes: 12 },
   'club-bar': { kind: 'activities', title: 'Barra · Sala Órbita', activities: ['club-drink', 'club-water'] },
   'wine-bar': { kind: 'activities', title: 'Barra · La Cepa', activities: ['wine-glass', 'wine-board'] },
   'bar-ribera': { kind: 'activities', title: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
+  'bar-larguero': { kind: 'activities', title: 'Barra · Bar El Larguero', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
+  'bar-grada': { kind: 'activities', title: 'Barra · Taberna La Grada', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
 } as const satisfies Record<string, ServiceOffer>;
 
 export type OfferId = keyof typeof SERVICE_OFFERS;

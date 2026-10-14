@@ -41,11 +41,28 @@ export interface StreetAct {
   shifts: readonly (readonly [number, number])[];
   /** Sólo estos días (0 lunes … 6 domingo); sin él, cualquiera. */
   days?: readonly number[];
+  /** Sólo en estas fases del partido del Arena (systems/Match); entonces `shifts` no cuenta: manda el saque. */
+  match?: readonly import('./cityEvents.ts').MatchPhase[];
 }
 
 const WEEKEND = [4, 5, 6] as const;
 
 export const STREET_ACTS: readonly StreetAct[] = [
+  // ---------------------------------------------------------------- Distrito Arena (data/arena.ts)
+  // Sólo en día de partido (`match`, systems/Match): bufandas en manta y la bandeja de pipas y agua. Montan con la
+  // llegada de la afición y recogen al empezar el partido (la bandeja vuelve a la salida).
+  {
+    id: 'ar-manta-bufandas', location: 'arena', kind: 'vendor', label: 'Alguien vendiendo bufandas en una manta', line: 'Bufandas, gorros y banderas. Turquesa y naranja, de todos los tamaños.',
+    pitch: ['AR_PITCH_A'], kit: [['blanket-clothes']], presence: 0.95, shifts: [], match: ['build-up', 'arrival'],
+  },
+  {
+    id: 'ar-bandeja', location: 'arena', kind: 'vendor', label: 'Alguien vendiendo pipas y agua', line: 'Pipas, agua y banderitas. ¡Que dentro cuesta el doble!',
+    pitch: ['AR_PITCH_B'], kit: [['tray']], presence: 0.9, shifts: [], match: ['build-up', 'arrival', 'leaving'],
+  },
+  {
+    id: 'ar-manta-camisetas', location: 'arena', kind: 'vendor', label: 'Alguien vendiendo camisetas en una manta', line: 'La camiseta del partido de hoy, con la fecha. Mañana ya no la hay.',
+    pitch: ['AR_PITCH_C'], kit: [['blanket-clothes']], presence: 0.7, shifts: [], match: ['arrival', 'leaving'],
+  },
   // ---------------------------------------------------------------- Puerta Central (data/puertaCentral.ts)
   // Venta en manta, a lo largo del paseo de la plaza: bisutería, ropa y recuerdos. Mediodía y tarde, más el fin de semana.
   {

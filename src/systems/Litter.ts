@@ -5,6 +5,8 @@ import { absMinute } from './Handoff.ts';
 import { ROADWAY, isStandable } from './LocationSystem.ts';
 import { hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { zoneActivity, zoneAt, type ZoneClock } from './Zones.ts';
+import { matchLitter } from './Match.ts';
+import { LOCATION_DISTRICT } from '../data/districtIdentity.ts';
 import type { ZoneType } from '../data/zones.ts';
 
 export type LitterKind = 'paper' | 'cup' | 'wrapper' | 'can' | 'takeaway';
@@ -108,8 +110,14 @@ export class Litter {
       }
     }
     const rng = seededRng(hashSeed('litter', this.loc.id, now));
+    // Después del partido (systems/Match) cae mucho más y cabe más en el suelo: vasos, papeles, latas; la limpieza viaria
+    // lo recoge igual. Sin partido, surge 1: lo de siempre.
+    const surge = matchLitter(LOCATION_DISTRICT[this.loc.id], clock);
+    const cap = Math.round(LITTER_CAP * Math.min(2.5, surge));
     // Menos probable cuanto más lleno esté el cupo: el suelo no se llena.
-    if (rng() < DROP_CHANCE * (1 - this.items.length / LITTER_CAP)) this.drop(clock, now, crowdNear, rng);
+    for (let k = 0; k < Math.ceil(surge); k++) {
+      if (rng() < DROP_CHANCE * Math.min(1, surge - k) * (1 - this.items.length / cap)) this.drop(clock, now, crowdNear, rng, cap);
+    }
   }
 
   /** La basura más cercana a (x, y) a menos de `radius` tiles que nadie más va a recoger. */
@@ -134,8 +142,8 @@ export class Litter {
     this.removed++;
   }
 
-  private drop(clock: ZoneClock, now: number, crowdNear: (tx: number, ty: number) => number, rng: Rng): LitterItem | undefined {
-    if (this.items.length >= LITTER_CAP) return undefined;
+  private drop(clock: ZoneClock, now: number, crowdNear: (tx: number, ty: number) => number, rng: Rng, cap = LITTER_CAP): LitterItem | undefined {
+    if (this.items.length >= cap) return undefined;
     const t = clock.hour + clock.minute / 60;
     const night = t >= 20 || t < 3;
     const meal = (t >= 13 && t < 16) || (t >= 20 && t < 23);

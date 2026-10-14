@@ -95,6 +95,8 @@ export const TRAIT_SHARE: Readonly<Record<AmbientTrait, { base: number; roles?: 
       stroller: 0.3, 'park-stroll': 0.25, 'carmen-browse': 0.25, 'carmen-couple': 0.3, 'carmen-outfit': 0.75, 'popup-market': 0.3, 'popup-art': 0.35,
       // Puerta Central: el monumento y las actuaciones se fotografían; la manta, menos.
       tourist: 0.8, 'tourist-group': 0.6, 'tourist-walk': 0.5, 'show-watch': 0.5, 'stall-browse': 0.15,
+      // Distrito Arena: la foto con la fachada del estadio, y la de la peña antes del partido.
+      'stadium-visit': 0.85, 'fan-photo': 0.95, 'fan-gather': 0.3, 'fan-celebrate': 0.35,
     },
   },
 };
@@ -202,6 +204,17 @@ export const AMBIENT_ACTIONS: AmbientActionDef[] = [
       { name: 'hablando de cara', ms: [2_000, 3_800], look: 'companion', talk: true },
       { name: 'escuchando', ms: [1_400, 2_600], look: 'companion' },
       { name: 'mirando a la calle', ms: [900, 1_800] },
+    ],
+  },
+  // La peña cantando (Distrito Arena, día de partido): brazos arriba con la bufanda, a voces, y otra vez.
+  {
+    id: 'chant', label: 'Cantando con la peña', postures: ['stand'], contexts: ['talk', 'wait', 'idle'],
+    weight: 4, outdoor: true, total: [5_000, 10_000],
+    roles: { 'fan-gather': 1, 'fan-celebrate': 1.2, 'fan-bar-door': 0.4, 'fan-queue': 0.3 }, otherRoles: 0,
+    loop: [
+      { name: 'brazos arriba', ms: [900, 1_400], pose: 21, talk: true },
+      { name: 'a voces', ms: [700, 1_100], talk: true, look: 'companion' },
+      hold([500, 900]),
     ],
   },
   {

@@ -3,6 +3,7 @@ import { STREET_ACTS, type ActState, type StreetAct } from '../data/streetActs.t
 import { weekIndex } from './Calendar.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
 import { SHELTER_RAIN } from './StreetSurvival.ts';
+import { matchPhase } from './Match.ts';
 import type { Weather } from './Weather.ts';
 
 /** Ms reales que tarda en extender la manta o sacar la guitarra, y en recogerlo todo. Con lluvia, la mitad. */
@@ -34,6 +35,10 @@ export function actOn(act: StreetAct, clock: ActClock, weather: Pick<Weather, 'r
   const rng = seededRng(hashSeed('street-act', act.id, clock.day));
   if (rng() >= act.presence) return false;
   if (weather.rain >= SHELTER_RAIN) return false;
+  if (act.match) {
+    const phase = matchPhase(clock);
+    return !!phase && act.match.includes(phase);
+  }
   const late = rng() * 0.5;
   const early = rng() * 0.25;
   const h = clock.hour + clock.minute / 60;

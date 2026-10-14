@@ -340,6 +340,10 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'uniforme-portero', cloth: '#2f4a3a', clothDark: '#22362a', hair: '#33291f', trousers: '#1c1a20', cap: '#2f4a3a' },
   { id: 'uniforme-boutique', cloth: '#1c1a20', clothDark: '#121016', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20' },
   { id: 'uniforme-clinica', cloth: '#f2f4f6', clothDark: '#d4d9de', hair: '#4a3b2f', trousers: '#f2f4f6' },
+  // Distrito Arena, día de partido: policía (azul marino, chaleco con bandas reflectantes y gorra; ningún cuerpo real) y
+  // el personal de seguridad del estadio (peto naranja fluorescente sobre negro).
+  { id: 'uniforme-policia', cloth: '#1f2c4a', clothDark: '#162036', hair: '#2a2430', trousers: '#1f2c4a', sleeves: '#1f2c4a', cap: '#1f2c4a', reflective: '#d8e04a', stripe: '#d8e04a' },
+  { id: 'uniforme-seguridad', cloth: '#ff8a2a', clothDark: '#d86a18', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20', reflective: '#e9ecd2' },
 ];
 
 /**

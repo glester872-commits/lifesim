@@ -5,7 +5,7 @@ import { atTable, seatAt } from '../systems/Seating';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import type { NpcDef } from '../types/game';
 import type { Weather } from '../systems/Weather';
-import { dressedLook, gymLook, umbrellaFor } from './WeatherLooks';
+import { dressedLook, fanLook, gymLook, umbrellaFor } from './WeatherLooks';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards, gestureSet } from '../systems/AmbientActions';
 import { placeOfPoint } from '../systems/Places';
 import type { AmbientPlacement } from '../entities/Character';
@@ -311,6 +311,7 @@ function defOf(a: Agent, w: Weather): NpcDef {
   const uniform = a.uniform ? UNIFORM_LOOKS.find((l) => l.id === a.uniform) : undefined;
   const base = PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
   // Quien viene de la calle (systems/Handoff) trae su semilla de ropa: el mismo abrigo dentro que fuera.
-  const look = uniform ?? (a.sport ? gymLook(base) : dressedLook(base, a.dressSeed ?? a.id, w));
+  // Con la ropa de entrenar, la del gimnasio; de aficionado (día de partido), la camiseta del equipo y la bufanda.
+  const look = uniform ?? (a.sport ? gymLook(base) : a.fan ? fanLook(base) : dressedLook(base, a.dressSeed ?? a.id, w));
   return { ...look, name: a.label, lines: [a.line] };
 }

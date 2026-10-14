@@ -8,6 +8,7 @@ import { STREET_EVENTS } from '../data/streetEvents.ts';
 import { STOPS } from '../data/transit.ts';
 import { CHARACTERS } from '../data/characters.ts';
 import { ARENA_MATCHES } from '../data/cityEvents.ts';
+import { byPhase, matchPhase } from './Match.ts';
 import { allLocations, getLocation } from './LocationSystem.ts';
 import { findPoint } from './Navigation.ts';
 import { isOpen, placeInfo, type PlaceInfo } from './Places.ts';
@@ -18,7 +19,6 @@ import { whereabouts } from './Characters.ts';
 import { destinationsFrom } from './Transit.ts';
 import { districtDensity, identityOf, zoneAt } from './Zones.ts';
 import { nightOwner, weekIndex } from './Calendar.ts';
-import { hashSeed, seededRng } from './MetroDaily.ts';
 import { weatherAt } from './Weather.ts';
 
 /**
@@ -147,26 +147,8 @@ export interface CityEvent {
   phase: string;
 }
 
-/** El partido del día en el Arena, si lo hay: saque en minuto del día. Misma semilla, mismo partido. */
-export function matchOn(day: number): { kickoff: number } | null {
-  const s = ARENA_MATCHES;
-  const chance = s.days[weekIndex(day)] ?? 0;
-  const rng = seededRng(hashSeed('arena-match', day));
-  if (rng() >= chance) return null;
-  return { kickoff: s.kickoffs[Math.floor(rng() * s.kickoffs.length)] };
-}
-
-/** Fase del partido a esa hora: 'arrival' (llega la gente), 'live', 'leaving' o null. */
-export function matchPhase(c: WorldClock): 'arrival' | 'live' | 'leaving' | null {
-  const m = matchOn(c.day);
-  if (!m) return null;
-  const t = c.hour * 60 + c.minute;
-  const s = ARENA_MATCHES;
-  if (t >= m.kickoff - s.before && t < m.kickoff) return 'arrival';
-  if (t >= m.kickoff && t < m.kickoff + s.length) return 'live';
-  if (t >= m.kickoff + s.length && t < m.kickoff + s.length + s.after) return 'leaving';
-  return null;
-}
+// El reloj del partido vive en systems/Match.ts (sin dependencias: lo leen la calle, los bares y el metro).
+export { matchOn, matchPhase } from './Match.ts';
 
 const fights = new Map<string, StreetEvent>();
 
@@ -191,7 +173,7 @@ export function cityEvents(c: WorldClock): CityEvent[] {
     if (phase !== 'none') out.push({ id: def.id, name: def.name, district: districtAt(def.location, def.area.tx, def.area.ty), location: def.location, kind: 'fight', phase });
   }
   const match = matchPhase(c);
-  if (match) out.push({ id: 'arena-match', name: ARENA_MATCHES.name, district: ARENA_MATCHES.district, location: null, kind: 'match', phase: match });
+  if (match) out.push({ id: 'arena-match', name: ARENA_MATCHES.name, district: ARENA_MATCHES.district, location: 'arena', kind: 'match', phase: match });
   return out;
 }
 
@@ -236,7 +218,7 @@ export function cityAt(c: WorldClock): CityStatus {
   const districts = worldTree().map((node) => {
     const places = node.places.map((id) => placeInfo(id)!).filter((p) => p.hours);
     const open = places.filter((p) => isOpen(p, c.day, c.hour, c.minute));
-    const activity = districtDensity(identityOf(node.id), t, weekend);
+    const activity = districtDensity(identityOf(node.id), t, weekend) * byPhase(identityOf(node.id).match, c, 1);
     const nightlife = night && (node.maps.length ? open.some((p) => p.tags.includes('nightlife')) : activity >= 1.5 && (identityOf(node.id).groups.nightlife ?? 1) > 1.3);
     return {
       id: node.id,

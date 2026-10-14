@@ -4,6 +4,7 @@ import type { BuildingDef, BuildingStyle } from '../types/game';
 import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
 import { batch, hash as noise, mix } from './Surfaces';
 import { backRows, facadeRows, STOREY_ROWS } from '../systems/LocationSystem';
+import { ARENA_CLUB } from '../data/cityEvents';
 
 /** Alto de una planta de fachada al sur, en px (dos tiles): la escala del mundo (LocationSystem.STOREY_ROWS). */
 const STOREY = TILE * STOREY_ROWS;
@@ -45,6 +46,8 @@ const NEON_PINK = '#ff6ab8';
 const NEON_CYAN = '#8ff0ff';
 /** Latón de Velaria: rótulos, tiradores y marcos. */
 const BRASS = '#c9a45a';
+/** Los colores del CD Halcones del Arena (data/cityEvents.ts): turquesa y naranja. */
+const [TEAL, ORANGE] = ARENA_CLUB.home;
 
 const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   // Tu portal: el único bloque con puerta verde, todo encendido y plantas en cada balcón.
@@ -124,6 +127,11 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   // Portal noble de la Calle Marqués: sillería clara, balcones de forja y portal de madera.
   'res-noble': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#dccfb4', shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood' },
   // Puerta Central. Recuerdos: revoco amarillo de toda la vida, toldo rojo y gualda, el escaparate lleno y la banderita.
+  // Distrito Arena. El estadio: hormigón claro, las puertas son persianas metálicas (los tornos están delante), banda
+  // de cristal arriba y carteles del partido en los paños ciegos. Desde arriba, la grada y el césped (drawStadiumBowl).
+  stadium: { roof: '#9aa0a4', roofLit: '#b4babe', wall: '#b9bdc0', shop: 'shutter', upper: 'band', lit: PALETTE.white, door: 'metal', sign: 'ball', wallArt: 'posters' },
+  // La tienda oficial del club: fachada turquesa, toldo naranja y la bandera de rótulo.
+  'team-store': { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: TEAL, shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: [ORANGE, TEAL], sign: 'flag' },
   souvenir: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#d9b25c', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#b8433a', '#e8c25a'], sign: 'flag' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
 };
@@ -143,7 +151,65 @@ const ROOF_TONES = [-0.035, 0, 0.035] as const;
  * El remate cuenta la altura: albardilla de piedra y su sombra en azotea;
  * alero con la luz del noroeste en teja.
  */
+/**
+ * El estadio visto desde arriba: el anillo de hormigón, la grada en turquesa con filas naranjas (la del club), la
+ * cubierta de la tribuna en sombra y el césped segado a franjas con sus líneas. Una pieza, horneada una vez.
+ */
+function drawStadiumBowl(ctx: Ctx, w: number, h: number, seed: number): void {
+  px(ctx, '#8e9498', 0, 0, w, h);
+  px(ctx, '#a9afb3', 2, 2, w - 4, h - 4);
+  const stand = Math.max(16, Math.floor(h * 0.24));
+  const sx = Math.max(24, Math.floor(w * 0.07));
+  // La grada: filas de asientos, y cada pocas, una naranja; escaleras grises que la cortan.
+  for (let y = 4; y < h - 4; y += 2) {
+    for (let x = 4; x < w - 4; x += 2) {
+      const inStand = y < 4 + stand || y >= h - 4 - stand || x < 4 + sx || x >= w - 4 - sx;
+      if (!inStand) continue;
+      const ring = Math.min(y - 4, h - 5 - y, x - 4, w - 5 - x);
+      const row = Math.floor(ring / 2);
+      let c = row % 5 === 2 ? ORANGE : shade(TEAL, ((row % 2) * 0.06) - 0.04 + (noise(seed + x, y, 1) - 0.5) * 0.05);
+      if ((x + 6) % 48 < 2 || (y + 4) % 40 < 2) c = '#c4c8cb';
+      px(ctx, c, x, y, 2, 2);
+    }
+  }
+  // La cubierta de la tribuna (la del sur, la de la fachada): una banda de sombra sobre la grada.
+  ctx.globalAlpha = 0.28;
+  px(ctx, PALETTE.ink, 4, h - 4 - stand, w - 8, stand);
+  ctx.globalAlpha = 1;
+  // El césped, a franjas de corte, y sus líneas.
+  const px0 = 4 + sx + 4;
+  const py0 = 4 + stand + 4;
+  const pw = w - 2 * px0;
+  const ph = h - 2 * py0;
+  px(ctx, '#2f6a3a', px0 - 3, py0 - 3, pw + 6, ph + 6);
+  for (let x = 0; x < pw; x += 12) px(ctx, Math.floor(x / 12) % 2 ? '#3f8a4a' : '#4a9a55', px0 + x, py0, Math.min(12, pw - x), ph);
+  const line = PALETTE.white;
+  px(ctx, line, px0, py0, pw, 1);
+  px(ctx, line, px0, py0 + ph - 1, pw, 1);
+  px(ctx, line, px0, py0, 1, ph);
+  px(ctx, line, px0 + pw - 1, py0, 1, ph);
+  px(ctx, line, px0 + Math.floor(pw / 2), py0, 1, ph);
+  const cx = px0 + Math.floor(pw / 2);
+  const cy = py0 + Math.floor(ph / 2);
+  const r = Math.max(6, Math.floor(ph * 0.14));
+  for (let a = 0; a < 64; a++) px(ctx, line, Math.round(cx + Math.cos((a / 64) * Math.PI * 2) * r), Math.round(cy + Math.sin((a / 64) * Math.PI * 2) * r), 1, 1);
+  const boxW = Math.floor(pw * 0.13);
+  const boxH = Math.floor(ph * 0.55);
+  for (const left of [true, false]) {
+    const x = left ? px0 : px0 + pw - boxW;
+    px(ctx, line, x, cy - Math.floor(boxH / 2), boxW, 1);
+    px(ctx, line, x, cy + Math.floor(boxH / 2), boxW, 1);
+    px(ctx, line, left ? x + boxW : x, cy - Math.floor(boxH / 2), 1, boxH + 1);
+    // La portería, un poco por fuera de la línea.
+    px(ctx, '#e8ecef', left ? px0 - 2 : px0 + pw, cy - 4, 2, 9);
+  }
+}
+
 function drawRoofArea(ctx: Ctx, look: Look, style: BuildingStyle, tone: number, w: number, h: number, seed: number, capSouth: boolean, ridgeAt = 0.42): void {
+  if (style === 'stadium') {
+    drawStadiumBowl(ctx, w, h, seed);
+    return;
+  }
   const base = shade(look.roof, ROOF_TONES[tone]);
   const n = Number.parseInt(base.slice(1), 16);
   const tiled = ((n >> 16) & 255) > (n & 255) + 24;
@@ -709,6 +775,7 @@ type Goods = 'rack' | 'mannequins' | 'sale' | 'crates' | 'machines' | 'chair' | 
 const GOODS_BY_STYLE: Partial<Record<BuildingStyle, readonly Goods[]>> = {
   fashion: ['mannequins', 'rack', 'sale', 'mannequins'],
   souvenir: ['shelves', 'rack', 'shelves', 'sale'],
+  'team-store': ['rack', 'mannequins', 'rack', 'shelves'],
   vintage: ['rack', 'mannequins', 'plants', 'rack'],
   thrift: ['rack', 'sale', 'shelves', 'rack'],
   hair: ['chair', 'plants', 'chair', 'shelves'],
@@ -1194,6 +1261,7 @@ const DECO_BY_STYLE: Partial<Record<BuildingStyle, readonly Deco[]>> = {
   study: ['skylight', 'chimney'],
   metro: [],
   works: [],
+  stadium: [],
 };
 
 /** Ventana de la espalda (drawBack): la luz de casa, de noche. */
