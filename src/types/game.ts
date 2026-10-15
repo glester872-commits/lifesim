@@ -71,6 +71,9 @@ export type PropKind =
   | 'van'
   | 'bike'
   | 'bin'
+  | 'bin-tall'
+  | 'bin-pair'
+  | 'bin-post'
   | 'vending'
   | 'produce'
   | 'menu-board'
@@ -346,6 +349,8 @@ export interface TerminalDef {
   name: string;
   /** Id en data/catalogs.ts. */
   catalog: string;
+  /** Lugar (data/places.ts) cuyo horario manda, si el mostrador está en la calle; dentro manda el del interior. */
+  place?: string;
 }
 
 /**

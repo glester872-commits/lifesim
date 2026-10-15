@@ -15,10 +15,10 @@ import { districtAt, zonesOf } from './Districts.ts';
  * - obra: contenedor de escombros y vallas en la calzada de delante;
  * - semáforo: su armario de control junto al bordillo;
  * - boca de metro: patinetes de alquiler, mupi y papelera;
- * - banco: papelera al lado;
+ * - papeleras por contexto (alta, pareja de separar, compacta, colgada de farola), separadas entre sí;
  * - farmacia, banco, junta: buzón de correos;
  * - boca de callejón peatonal: bolardos y placa con el nombre;
- * - discoteca, parada, papeleras: la basura que deja cada sitio.
+ * - discoteca, parada: la mancha fija que deja cada sitio.
  *
  * Nada se pone donde estorba: ni en puntos ni tramos del grafo, ni en puertas,
  * pasos de cebra o sitios de espera del semáforo, y nada sólido que parta en
@@ -167,6 +167,36 @@ class Site {
     return true;
   }
 
+  /** ¿Hay ya una papelera (de cualquier tipo) a menos de `r` tiles? Para no juntar tres en el mismo sitio. */
+  binNear(from: TilePoint, r: number): boolean {
+    return [...this.def.props, ...this.placed].some((p) => PROPS[p.kind].waste && Math.hypot(p.tx - from.tx, p.ty - from.ty) < r);
+  }
+
+  /**
+   * Una papelera cerca de `from` si no hay otra a `spacing`: en acera (no en la terraza, donde se sirve), con todo su
+   * ancho en acera y sin pegarse a mesas ni asientos, que necesitan su hueco para sentarse.
+   */
+  placeBin(kind: PropKind, from: TilePoint, min: number, max: number, spacing: number): boolean {
+    if (this.binNear(from, spacing)) return false;
+    const wide = PROPS[kind].tilesWide ?? 1;
+    const pavement = (ch: string): boolean => WALKWAY.has(ch) && ch !== 'T';
+    const crowded = (x: number, y: number): boolean =>
+      [...this.def.props, ...this.placed].some((p) => (PROPS[p.kind].mount || p.kind === 'cafe-table') && Math.abs(p.tx - x) <= 1 && Math.abs(p.ty - y) <= 1);
+    for (const p of this.nearby(from, min, max, pavement)) {
+      let ok = true;
+      for (let x = p.tx; x < p.tx + wide && ok; x++) ok = pavement(this.at(x, p.ty)) && !crowded(x, p.ty);
+      if (ok && this.place(kind, p.tx, p.ty)) return true;
+    }
+    return false;
+  }
+
+  /** Colgada de una farola: el mismo tile que el poste, que ya ocupa y colisiona; una sola cosa colgada por farola. */
+  attach(kind: PropKind, post: PropPlacement): boolean {
+    if (this.placed.some((p) => p.tx === post.tx && p.ty === post.ty)) return false;
+    this.placed.push({ kind, tx: post.tx, ty: post.ty });
+    return true;
+  }
+
   /** Calzada junto a una acera y sin tráfico: donde se aparca, se ponen contenedores o la obra. */
   isKerbLane(x: number, y: number): boolean {
     return ASPHALT.has(this.at(x, y)) && !this.trafficRows.has(y) && (WALKWAY.has(this.at(x, y - 1)) || WALKWAY.has(this.at(x, y + 1)));
@@ -301,19 +331,47 @@ function metro(s: Site): void {
     let scooters = 0;
     for (const p of s.nearby(anchor, 1, 3, onWalkway)) if (scooters < 3 && s.place('scooter', p.tx, p.ty)) scooters++;
     for (const p of s.nearby(door, 3, 6, onWalkway)) if (s.place('ad-panel', p.tx, p.ty)) break;
-    for (const p of s.nearby(door, 2, 5, onWalkway)) if (s.place('bin', p.tx, p.ty)) break;
-    for (const p of s.nearby(door, 1, 4, onWalkway).slice(0, 2)) s.place('debris', p.tx, p.ty);
+    for (const p of s.nearby(door, 1, 4, onWalkway).slice(0, 1)) s.place('debris', p.tx, p.ty);
   }
 }
 
-/** Junto a cada grupo de bancos, una papelera. */
-function benchBins(s: Site): void {
+/** Donde se come o se compra: delante, la pareja de separar (envases y resto). */
+const FOOD_SHOP: ReadonlySet<string> = new Set(['cafe', 'restaurant', 'coffee', 'bar', 'bakery', 'gourmet', 'fine', 'super', 'grocer', 'fruit', 'souvenir', 'team-store']);
+
+/**
+ * Papeleras por contexto, nunca dos tipos juntos (cada una guarda distancia con las demás):
+ * - alta de pie: boca de metro, fuente, plaza, quiosco y parada, donde pasa más gente;
+ * - pareja de separar: delante de donde se come o se compra y junto a terrazas y máquinas;
+ * - la compacta de siempre: junto a un grupo de bancos;
+ * - la pequeña colgada: en alguna farola de una acera que se ha quedado sin ninguna (calles de vecinos, parque).
+ */
+function bins(s: Site): void {
+  const buildings = s.def.buildings ?? [];
+  for (const b of buildings) {
+    const door = entranceOf(b);
+    if (door && b.style === 'metro' && b.enter) s.placeBin('bin-tall', door, 2, 5, 6);
+  }
+  for (const p of s.def.props) if (['fountain', 'plaza-bench', 'kiosk', 'bus-stop'].includes(p.kind)) s.placeBin('bin-tall', p, 1, 4, 7);
+  for (const b of buildings) {
+    const door = entranceOf(b);
+    if (door && FOOD_SHOP.has(b.style)) s.placeBin('bin-pair', door, 2, 4, 7);
+  }
+  for (const p of s.def.props) if (['cafe-table', 'ice-cream-kiosk', 'vending'].includes(p.kind)) s.placeBin('bin-pair', p, 2, 4, 7);
   const benches = s.def.props.filter((p) => p.kind === 'bench');
   for (const b of benches) {
     if (benches.some((o) => o.ty === b.ty && o.tx === b.tx - 1)) continue; // sólo desde el primero del grupo
     let end = b.tx;
     while (benches.some((o) => o.ty === b.ty && o.tx === end + 1)) end++;
+    if (s.binNear(b, 5)) continue;
     for (const x of [end + 1, b.tx - 1]) if (s.place('bin', x, b.ty)) break;
+  }
+  // Farolas de acera: como mucho una de cada cuatro, y sólo donde no hay otra papelera cerca.
+  const lamps = s.def.props.filter((p) => PROPS[p.kind].post && PROPS[p.kind].light && WALKWAY.has(s.at(p.tx, p.ty)));
+  const quota = Math.ceil(lamps.length / 4);
+  let n = 0;
+  for (const l of lamps.sort((a, b) => hash(a.tx, a.ty, 51) - hash(b.tx, b.ty, 51))) {
+    if (n >= quota) break;
+    if (!s.binNear(l, 10) && s.attach('bin-post', l)) n++;
   }
 }
 
@@ -382,16 +440,19 @@ function districtKits(s: Site): void {
   });
 }
 
-/** La basura que deja cada sitio: colillas y flyers a la puerta de la discoteca; papeles junto a paradas y papeleras. */
+/**
+ * La mancha fija que deja cada sitio (no se barre: es suelo gastado, no basura suelta): colillas a la puerta de la
+ * discoteca y, de vez en cuando, junto a una parada, un quiosco o una máquina. Junto a una papelera, nada: está para eso.
+ */
 function litter(s: Site): void {
   for (const b of s.def.buildings ?? []) {
     if (b.style !== 'club') continue;
     const door = entranceOf(b)!;
     let n = 0;
-    for (const p of s.nearby(door, 1, 4, onWalkway)) if (n < 4 && s.place('debris', p.tx, p.ty)) n++;
+    for (const p of s.nearby(door, 1, 4, onWalkway)) if (n < 2 && s.place('debris', p.tx, p.ty)) n++;
   }
   for (const p of s.def.props) {
-    if (!['bin', 'bus-stop', 'kiosk', 'vending'].includes(p.kind) || hash(p.tx, p.ty, 21) > 0.6) continue;
+    if (!['bus-stop', 'kiosk', 'vending'].includes(p.kind) || hash(p.tx, p.ty, 21) > 0.3) continue;
     for (const q of s.nearby(p, 1, 2, onAnyGround)) if (s.place('debris', q.tx, q.ty)) break;
   }
 }
@@ -407,10 +468,18 @@ export function dress(def: LocationDef): PropPlacement[] {
   metro(s);
   mailboxes(s);
   alleyMouths(s);
-  benchBins(s);
+  bins(s);
   districtKits(s);
   parking(s);
   roadMarks(s);
   litter(s);
+  return s.placed;
+}
+
+/** Sólo las papeleras, para una calle exterior que trae su propio mobiliario hecho a mano (data/ribera.ts). */
+export function dressBins(def: LocationDef): PropPlacement[] {
+  if (def.kind !== 'exterior') return [];
+  const s = new Site(def);
+  bins(s);
   return s.placed;
 }

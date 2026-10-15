@@ -1,4 +1,5 @@
 import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from '../types/game.ts';
+import { dressBins } from '../systems/Dressing.ts';
 
 /**
  * Ribera Norte: el barrio del canal. Mismo mapa de 40 × 30 de siempre (el
@@ -205,7 +206,7 @@ const LINKS: readonly Link[] = [
   ['RB_SKATE_WATCH_01', 'rb-pr12'], ['RB_SKATE_WATCH_02', 'rb-pr12'],
 ];
 
-export const RIBERA: LocationDef = {
+const BASE: LocationDef = {
   id: 'ribera',
   name: 'Ribera Norte',
   kind: 'exterior',
@@ -262,7 +263,7 @@ export const RIBERA: LocationDef = {
   ],
   terminals: [
     { tx: 23, ty: 10, name: 'Máquina de bebidas', catalog: 'vending' },
-    { tx: 22, ty: 18, name: 'Heladería del Muelle', catalog: 'ice-cream-kiosk' },
+    { tx: 22, ty: 18, name: 'Heladería del Muelle', catalog: 'ice-cream-kiosk', place: 'heladeria' },
   ],
   // Nombres para el mapa (tecla M).
   areas: [
@@ -273,3 +274,6 @@ export const RIBERA: LocationDef = {
     { name: 'Zona de skate', tx: 6, ty: 23 },
   ],
 };
+
+/** El mobiliario es el de los datos; systems/Dressing sólo añade las papeleras que pide cada sitio. */
+export const RIBERA: LocationDef = { ...BASE, props: [...PROPS, ...dressBins(BASE)] };

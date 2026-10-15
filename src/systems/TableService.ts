@@ -592,8 +592,9 @@ export class TableService {
     t.due = this.now + Math.max(0, ...t.plates.filter((p) => !p.served).map((p) => p.item.prep)) * MS_PER_MIN;
   }
 
+  /** Lo que se debe: lo servido y sin pagar. Lo pedido que nunca llegó (se fue el camarero, cerró el local) no se cobra. */
   private bill(t: Table): number {
-    return t.plates.reduce((sum, p) => sum + (p.paid ? 0 : p.item.price), 0);
+    return t.plates.reduce((sum, p) => sum + (p.paid || !p.served ? 0 : p.item.price), 0);
   }
 
   private request(t: Table, job: Job, state: TableState): void {

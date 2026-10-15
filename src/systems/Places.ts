@@ -124,6 +124,32 @@ export function isOpen(place: PlaceInfo, day: number, hour: number, minute = 0):
   return overnight(today) ? t >= today[0] : t >= today[0] && t < today[1];
 }
 
+const hh = (h: number): string => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+
+/** Cuándo vuelve a abrir, desde su propio horario: el día y la hora de la próxima apertura. Sin horario o sin ningún día que abra, nunca. */
+export function nextOpening(place: PlaceInfo, day: number, hour: number, minute = 0): { day: number; hour: number } | null {
+  if (!place.hours) return null;
+  const t = hour + minute / 60;
+  for (let d = day; d <= day + 7; d++) {
+    const h = hoursOn(place, weekIndex(d));
+    if (h && (d > day || h[0] > t)) return { day: d, hour: h[0] };
+  }
+  return null;
+}
+
+/**
+ * Lo que dice un negocio cerrado: por qué (hoy no abre, aún no ha abierto, ya ha cerrado) y cuándo abre de verdad,
+ * calculado desde su horario; y el horario entero. Lo usan la puerta, el mostrador y quien está dentro al cerrar.
+ */
+export function closedLines(place: PlaceInfo, day: number, hour: number, minute = 0): string[] {
+  const today = hoursOn(place, weekIndex(day));
+  const t = hour + minute / 60;
+  const why = !today ? 'Hoy no abre.' : t < today[0] ? 'Todavía no ha abierto.' : 'Ya ha cerrado por hoy.';
+  const next = nextOpening(place, day, hour, minute);
+  const when = !next ? '' : next.day === day ? `Abre hoy a las ${hh(next.hour)}.` : next.day === day + 1 ? `Abre mañana a las ${hh(next.hour)}.` : `Abre el ${WEEKDAY_LABEL[WEEK[weekIndex(next.day)]]} a las ${hh(next.hour)}.`;
+  return [`Está cerrado. ${why}`, ...(when ? [when] : []), hoursLabel(place)];
+}
+
 /**
  * Lo que dice la puerta cerrada, con los días iguales juntos: «Abre de lunes a
  * sábado de 09:00 a 22:00; domingo de 10:00 a 15:00.» o «Abre jueves, viernes,
@@ -131,12 +157,11 @@ export function isOpen(place: PlaceInfo, day: number, hour: number, minute = 0):
  */
 export function hoursLabel(place: PlaceInfo): string {
   if (!place.hours) return 'Abierto siempre.';
-  const hh = (h: number): string => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
   const byHours = new Map<string, number[]>();
   for (let w = 0; w < 7; w++) {
     const h = hoursOn(place, w);
     if (!h) continue;
-    const key = `de ${hh(h[0])} a ${hh(h[1])}`;
+    const key = h[0] === 0 && h[1] === 24 ? 'las 24 horas' : `de ${hh(h[0])} a ${hh(h[1])}`;
     byHours.set(key, [...(byHours.get(key) ?? []), w]);
   }
   const name = (w: number): string => WEEKDAY_LABEL[WEEK[w]];

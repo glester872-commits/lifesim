@@ -21,6 +21,8 @@ import { allLocations, doorRow, getLocation, getSpawn, isStandable, spawnToWorld
 import { QUALITY, type QualityLevel } from '../config/quality';
 import { BUDGETS, type Budget } from '../config/budgets';
 import { Ambience } from '../world/Ambience';
+import { PROPS } from '../world/tiles';
+import { ClosedSigns } from '../world/ClosedSigns';
 import { Traffic } from '../systems/Traffic';
 import { withDistrictLanes } from '../systems/Districts';
 import { TrafficView } from '../world/TrafficView';
@@ -71,7 +73,7 @@ import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Clock } from '../systems/Crowd';
 import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
-import { hoursLabel, isOpen, placeForInterior, placeOfPoint } from '../systems/Places';
+import { closedLines, isOpen, placeForInterior, placeInfo, placeOfPoint, type PlaceInfo } from '../systems/Places';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
 import type { AmbientPlacement, Placement } from '../entities/Character';
 import { stopAtStation } from '../systems/Transit';
@@ -143,7 +145,7 @@ type Interactable =
   | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] }
-  | { kind: 'terminal'; x: number; y: number; name: string; catalog: string }
+  | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
@@ -306,6 +308,9 @@ export class WorldScene extends Phaser.Scene {
   private storyQueue: (() => void)[] = [];
   /** El móvil (systems/Phone): el último minuto y la última franja ya mirados. */
   private phoneMinute = -1;
+  closedSigns: ClosedSigns | null = null;
+  /** Si el local donde está el jugador estaba abierto la última vez que se miró (closingTick): avisa al cerrar. */
+  private roomOpen = false;
   private phoneSlot = -1;
   /** Gestos de ambiente de los personajes con nombre (systems/AmbientActions), igual que la gente de CrowdView. */
   private characterAmbient: AmbientDirector | null = null;
@@ -495,6 +500,11 @@ export class WorldScene extends Phaser.Scene {
     for (const item of def.inspects ?? []) {
       this.interactables.push({ kind: 'inspect', x: item.tx * TILE + TILE / 2, y: item.ty * TILE + TILE / 2, name: item.name, lines: item.lines });
     }
+    // Las papeleras (PropDef.waste), de cualquier tipo: se miran como un cartel.
+    for (const p of def.props) {
+      const waste = PROPS[p.kind].waste;
+      if (waste) this.interactables.push({ kind: 'inspect', x: p.tx * TILE + ((PROPS[p.kind].tilesWide ?? 1) * TILE) / 2, y: p.ty * TILE + TILE / 2, name: waste.name, lines: waste.lines });
+    }
     for (const b of def.buildings ?? []) {
       if (!b.inspect || b.doorX === undefined) continue;
       this.interactables.push({ kind: 'inspect', x: b.doorX * TILE + TILE / 2, y: doorRow(b) * TILE + TILE / 2, name: b.name, lines: b.inspect });
@@ -505,7 +515,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se compra: máquinas y mostradores, cada uno con su catálogo.
     for (const t of def.terminals ?? []) {
-      this.interactables.push({ kind: 'terminal', x: t.tx * TILE + TILE / 2, y: t.ty * TILE + TILE / 2, name: t.name, catalog: t.catalog });
+      this.interactables.push({ kind: 'terminal', x: t.tx * TILE + TILE / 2, y: t.ty * TILE + TILE / 2, name: t.name, catalog: t.catalog, place: t.place });
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
@@ -612,6 +622,8 @@ export class WorldScene extends Phaser.Scene {
     this.skatePark = def.skate ? new SkateParkView(this, def, () => state.hour + state.minute / 60) : null;
     // La hora se ve en la calle; dentro manda la luz del local.
     this.lighting = new Lighting(this, def, built, state);
+    // Y en la puerta de cada negocio, si está cerrado, su cartel (world/ClosedSigns): lo mismo que dice Places.isOpen.
+    this.closedSigns = new ClosedSigns(this, def, state);
     // Lo pequeño que se mueve solo: hojas, vaho, vapor, polvo, humo, el aire del tren (world/Atmosphere).
     const edgeY = def.metro ? def.metro.edgeRow * TILE + 12 : 0;
     this.atmosphere = new Atmosphere(this, def, {
@@ -798,6 +810,7 @@ export class WorldScene extends Phaser.Scene {
 
     clock.update(delta);
     this.phoneTick();
+    this.closingTick();
     this.metro?.update(delta, time, this.player);
     this.placeCharacters(delta);
     this.crowd?.update(delta, this.clockNow(), this.playerTile());
@@ -1970,7 +1983,8 @@ export class WorldScene extends Phaser.Scene {
     // (la gente sin nombre sólo se anuncia con «Hablar», en el botón).
     const toll =
       target.kind === 'portal' ? describePortal(target.portal) + (this.closedPlace(target.portal) ? ' · cerrado' : '')
-      : target.kind === 'terminal' || target.kind === 'spot' || target.kind === 'inspect' ? target.name
+      : target.kind === 'terminal' || target.kind === 'spot' ? target.name + (this.shutFor(target) ? ' · cerrado' : '')
+      : target.kind === 'inspect' ? target.name
       : target.kind === 'rack' ? target.rack.name
       : target.kind === 'event' ? target.view.def.name
       : target.kind === 'npc' ? target.def.name
@@ -2018,6 +2032,13 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.player.halt();
+    // Negocio cerrado (con el jugador aún dentro, o el mostrador de la calle): ni se compra ni se pide nada nuevo.
+    const shut = this.shutFor(target);
+    if (shut) {
+      const { day, hour, minute } = this.services.state;
+      this.openDialogue(shut.name, ['Ya no se atiende: no se cobra nada más.', ...closedLines(shut, day, hour, minute).slice(1)]);
+      return;
+    }
     if (target.kind === 'terminal') this.menus.openCatalog(target.name, target.catalog);
     else if (target.kind === 'rack') this.menus.openRack(target.rack);
     else if (target.kind === 'spot') {
@@ -2840,7 +2861,8 @@ export class WorldScene extends Phaser.Scene {
     // Fuera de horario, la puerta está cerrada: se dice cuándo abre y no se entra.
     const closed = this.closedPlace(portal);
     if (closed) {
-      this.openDialogue(closed.name, ['Está cerrado.', hoursLabel(closed)]);
+      const { day, hour, minute } = this.services.state;
+      this.openDialogue(closed.name, closedLines(closed, day, hour, minute));
       return;
     }
     if (portal.minutes) this.services.clock.advanceMinutes(portal.minutes);
@@ -2931,6 +2953,35 @@ export class WorldScene extends Phaser.Scene {
       camera.fadeOut(TRANSITION_MS, 0, 0, 0);
       camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, restart);
     }
+  }
+
+  /**
+   * El negocio cerrado al que pertenece lo que se compra o se pide ahí (mostrador, perchero, actividad, personal con
+   * oferta): el del mostrador de la calle (TerminalDef.place) o el de este interior. Mirar o charlar, sí se puede.
+   */
+  private shutFor(target: Interactable): PlaceInfo | undefined {
+    const commerce = target.kind === 'terminal' || target.kind === 'rack' || target.kind === 'spot' || (target.kind === 'npc' && !!this.offerOf(target.sprite));
+    if (!commerce) return undefined;
+    const place = target.kind === 'terminal' && target.place ? placeInfo(target.place) : placeForInterior(this.services.state.locationId);
+    const { day, hour, minute } = this.services.state;
+    return place?.type === 'business' && !isOpen(place, day, hour, minute) ? place : undefined;
+  }
+
+  /**
+   * Dentro de un negocio a la hora de cierre: se avisa una vez de que cierra y de que la puerta sigue abierta para
+   * salir (closedPlace sólo cierra la entrada). El personal y la gente se van solos por sus turnos (Crowd).
+   */
+  private closingTick(): void {
+    const place = placeForInterior(this.services.state.locationId);
+    if (place?.type !== 'business') return;
+    const { day, hour, minute } = this.services.state;
+    const open = isOpen(place, day, hour, minute);
+    if (this.roomOpen && !open) {
+      // Con algo abierto (hablando, un menú), el aviso espera a que se cierre; se da una sola vez.
+      if (this.services.dialogue.isOpen || this.services.menu.isOpen) return;
+      this.openDialogue(place.name, ['Vamos cerrando: ya no se cobra nada más. La puerta sigue abierta para salir.', ...closedLines(place, day, hour, minute).slice(1, 2)]);
+    }
+    this.roomOpen = open;
   }
 
   /** Lugar al que lleva el portal si ahora está cerrado. Salir siempre se puede. */

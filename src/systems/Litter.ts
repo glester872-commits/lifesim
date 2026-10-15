@@ -8,6 +8,7 @@ import { zoneActivity, zoneAt, type ZoneClock } from './Zones.ts';
 import { matchLitter } from './Match.ts';
 import { LOCATION_DISTRICT } from '../data/districtIdentity.ts';
 import type { ZoneType } from '../data/zones.ts';
+import { PROPS } from '../world/tiles.ts';
 
 export type LitterKind = 'paper' | 'cup' | 'wrapper' | 'can' | 'takeaway';
 
@@ -25,12 +26,18 @@ export interface LitterItem {
 }
 
 /** Como mucho tanta basura a la vez en toda la calle: nunca un suelo sucio, sólo lo justo para que se vea la vida. */
-export const LITTER_CAP = 14;
+export const LITTER_CAP = 8;
+/** Y en un mismo rincón (LOCAL_R tiles alrededor de donde cae): un foco, no un vertedero. */
+export const LOCAL_CAP = 3;
+const LOCAL_R = 3;
+/** Con una papelera (cualquier PropDef.waste) a menos de BIN_R tiles, se tira al suelo bastante menos. */
+const BIN_R = 5;
+const BIN_DAMP = 0.35;
 /** Cada cuántos minutos de juego se decide si cae algo, y la probabilidad base de cada decisión. */
 const TICK_MINUTES = 5;
-const DROP_CHANCE = 0.25;
-/** Cuánto dura sin que nadie lo recoja: de tres a siete horas de juego. */
-const TTL: readonly [number, number] = [180, 420];
+const DROP_CHANCE = 0.12;
+/** Cuánto dura sin que nadie lo recoja (el viento, el camión de baldeo): de dos a cinco horas de juego. */
+const TTL: readonly [number, number] = [120, 300];
 
 /** Qué se ensucia: dónde cae según lo que lo rodea. */
 interface Source {
@@ -42,21 +49,23 @@ interface Source {
   table?: boolean;
   /** Sitio de noche (la cola, la puerta a fumar): pesa más de madrugada. */
   night?: boolean;
+  /** Hay papelera cerca: se tira menos al suelo. */
+  binned: boolean;
 }
 
+/** Lo que ensucia la gente al usarlo. Una papelera no: es donde va la basura, no de donde sale. */
 const PROP_SOURCES: Readonly<Record<string, { kinds: readonly LitterKind[]; weight: number; table?: boolean }>> = {
-  bin: { kinds: ['wrapper', 'paper', 'can'], weight: 1 },
   'cafe-table': { kinds: ['cup', 'takeaway', 'paper'], weight: 1.2, table: true },
-  'plaza-bench': { kinds: ['wrapper', 'cup'], weight: 0.5 },
+  'plaza-bench': { kinds: ['wrapper', 'cup'], weight: 0.4 },
   bench: { kinds: ['wrapper', 'cup'], weight: 0.2 },
-  'bus-stop': { kinds: ['paper', 'cup'], weight: 0.6 },
-  kiosk: { kinds: ['paper', 'wrapper'], weight: 0.7 },
-  vending: { kinds: ['can', 'wrapper'], weight: 0.8 },
+  'bus-stop': { kinds: ['paper', 'cup'], weight: 0.5 },
+  kiosk: { kinds: ['paper', 'wrapper', 'can'], weight: 0.5 },
+  vending: { kinds: ['can', 'wrapper'], weight: 0.6 },
 };
 
-/** Cuánto ensucia cada tipo de zona: poco en lo residencial y en el parque, mucho donde se come, se sale o se compra. */
+/** Cuánto ensucia cada tipo de zona: casi nada en lo residencial y en el parque, algo donde se come, se sale o se compra. */
 const ZONE_FACTOR: Readonly<Partial<Record<ZoneType, number>>> = {
-  residential: 0.25, park: 0.3, main_road: 0.4, plaza: 1, commercial: 1, metro: 1, nightlife: 1.5, restaurant_area: 1.5, gym_area: 0.5, special_event_area: 1.2,
+  residential: 0.1, park: 0.15, main_road: 0.3, plaza: 1, commercial: 1, metro: 1, nightlife: 1.5, restaurant_area: 1.5, gym_area: 0.3, special_event_area: 1.2,
 };
 
 export class Litter {
@@ -71,13 +80,15 @@ export class Litter {
 
   constructor(loc: LocationDef) {
     this.loc = loc;
+    const bins = loc.props.filter((p) => PROPS[p.kind].waste);
+    const binned = (tx: number, ty: number): boolean => bins.some((b) => Math.hypot(b.tx - tx, b.ty - ty) <= BIN_R);
     for (const p of loc.props) {
       const def = PROP_SOURCES[p.kind];
-      if (def) this.sources.push({ tx: p.tx, ty: p.ty, kinds: def.kinds, weight: def.weight, table: def.table });
+      if (def) this.sources.push({ tx: p.tx, ty: p.ty, kinds: def.kinds, weight: def.weight, table: def.table, binned: binned(p.tx, p.ty) });
     }
     // La cola y la puerta de fumar de la noche (los puntos de la calle).
     for (const [id, p] of Object.entries(loc.points ?? {})) {
-      if (/SMOKE|QUEUE/.test(id)) this.sources.push({ tx: p.tx, ty: p.ty, kinds: ['can', 'cup', 'paper'], weight: 1.2, night: true });
+      if (/SMOKE|QUEUE/.test(id)) this.sources.push({ tx: p.tx, ty: p.ty, kinds: ['can', 'cup', 'paper'], weight: 1.2, night: true, binned: binned(p.tx, p.ty) });
     }
   }
 
@@ -85,11 +96,14 @@ export class Litter {
     return this.items.length;
   }
 
-  /** Lo que cae al empezar: un rastro pequeño de lo que lleva el día, con edades repartidas (la escena se rehace al entrar). */
+  /**
+   * Lo que cae al empezar: un rastro pequeño de lo que lleva el día, con edades repartidas (la escena se rehace al
+   * entrar). Casi nada a media mañana, recién barrido; algo más tras la comida y de madrugada, cuando se ha salido.
+   */
   seed(clock: ZoneClock, crowdNear: (tx: number, ty: number) => number): void {
     const now = absMinute(clock.day, clock.hour, clock.minute);
     const h = clock.hour;
-    const attempts = h >= 6 && h < 9 ? 7 : h >= 9 && h < 12 ? 3 : h >= 12 && h < 20 ? 5 : 6;
+    const attempts = (h >= 14 && h < 18) || h >= 22 || h < 4 ? 3 : h >= 6 && h < 9 ? 2 : 1;
     for (let i = 0; i < attempts; i++) {
       const item = this.drop(clock, now, crowdNear, seededRng(hashSeed('litter-seed', this.loc.id, clock.day, i, Math.floor(now / 30))));
       if (item) item.born = now - Math.floor(((item.ttl * 0.8) * (i + 1)) / attempts);
@@ -114,9 +128,10 @@ export class Litter {
     // lo recoge igual. Sin partido, surge 1: lo de siempre.
     const surge = matchLitter(LOCATION_DISTRICT[this.loc.id], clock);
     const cap = Math.round(LITTER_CAP * Math.min(2.5, surge));
+    const local = Math.round(LOCAL_CAP * Math.min(2, surge));
     // Menos probable cuanto más lleno esté el cupo: el suelo no se llena.
     for (let k = 0; k < Math.ceil(surge); k++) {
-      if (rng() < DROP_CHANCE * Math.min(1, surge - k) * (1 - this.items.length / cap)) this.drop(clock, now, crowdNear, rng, cap);
+      if (rng() < DROP_CHANCE * Math.min(1, surge - k) * (1 - this.items.length / cap)) this.drop(clock, now, crowdNear, rng, cap, local);
     }
   }
 
@@ -142,7 +157,7 @@ export class Litter {
     this.removed++;
   }
 
-  private drop(clock: ZoneClock, now: number, crowdNear: (tx: number, ty: number) => number, rng: Rng, cap = LITTER_CAP): LitterItem | undefined {
+  private drop(clock: ZoneClock, now: number, crowdNear: (tx: number, ty: number) => number, rng: Rng, cap = LITTER_CAP, local = LOCAL_CAP): LitterItem | undefined {
     if (this.items.length >= cap) return undefined;
     const t = clock.hour + clock.minute / 60;
     const night = t >= 20 || t < 3;
@@ -151,9 +166,12 @@ export class Litter {
     for (const s of this.sources) {
       const zone = zoneAt(this.loc.id, s.tx, s.ty);
       // Fuera de toda zona (un sitio sin vida) cae poco; en una zona, lo que dé su tipo por lo animada que esté.
-      let w = s.weight * (zone ? (ZONE_FACTOR[zone.type] ?? 1) * zoneActivity(zone, clock) : 0.2);
+      let w = s.weight * (zone ? (ZONE_FACTOR[zone.type] ?? 1) * zoneActivity(zone, clock) : 0.1);
       if (s.table) w *= (meal ? 1.8 : 1) * (0.3 + Math.min(3, crowdNear(s.tx, s.ty)) * 0.9);
-      if (s.night) w *= night ? 2 : 0.15;
+      if (s.night) w *= night ? 2 : 0.05;
+      if (s.binned) w *= BIN_DAMP;
+      // El rincón ya tiene su foco: lo siguiente cae en otra parte (o no cae).
+      if (this.items.filter((it) => Math.abs(it.tx - s.tx) <= LOCAL_R && Math.abs(it.ty - s.ty) <= LOCAL_R).length >= local) w = 0;
       if (w > 0) options.push([s, w]);
     }
     const total = options.reduce((n, [, w]) => n + w, 0);

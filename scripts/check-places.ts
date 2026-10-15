@@ -110,3 +110,41 @@ for (const place of PLACES) {
 console.log(rows.join('\n'));
 assert.ok(ready >= 5, 'menos lugares listos que antes');
 console.log(`\nOK: ${ready} lugares responden por qué entrar; el resto, pendientes a la vista.`);
+
+// Abierto o cerrado: una sola fuente (Places.isOpen) y lo que dice la puerta cerrada sale de ese mismo horario.
+// Día 1 = lunes: el 13 es sábado y el 14 domingo.
+{
+  const { placeInfo, isOpen, nextOpening, closedLines, hoursLabel } = await import('../src/systems/Places.ts');
+  const p = (id: string) => placeInfo(id)!;
+  // Cruce de medianoche y la noche de ayer: la discoteca del sábado sigue a las 00:00 y a las 05:59 del domingo.
+  assert.ok(isOpen(p('nightclub'), 13, 23, 59) && isOpen(p('nightclub'), 14, 0, 0) && isOpen(p('nightclub'), 14, 5, 59));
+  assert.ok(!isOpen(p('nightclub'), 14, 6, 0));
+  assert.deepEqual(nextOpening(p('nightclub'), 14, 6, 0), { day: 18, hour: 21 }, 'la discoteca reabre el jueves');
+  assert.match(closedLines(p('nightclub'), 14, 6, 0).join(' '), /Hoy no abre\. Abre el jueves a las 21:00\./);
+  // Cierre a las 00:00: abierto a las 23:59, cerrado a las 00:00 y «abre hoy» a mediodía.
+  assert.ok(isOpen(p('restaurant'), 9, 23, 59) && !isOpen(p('restaurant'), 10, 0, 0));
+  assert.match(closedLines(p('restaurant'), 10, 0, 0).join(' '), /Todavía no ha abierto\. Abre hoy a las 12:00\./);
+  // Horario propio del domingo: el súper cierra a las 15:00 y abre el lunes a las 09:00.
+  assert.ok(isOpen(p('supermarket'), 14, 14, 59) && !isOpen(p('supermarket'), 14, 15, 0));
+  assert.match(closedLines(p('supermarket'), 14, 16, 0).join(' '), /Ya ha cerrado por hoy\. Abre mañana a las 09:00\./);
+  // Lunes cerrado, pero la noche del domingo sigue: la vinoteca a las 00:30 del lunes está abierta; a las 18:00, no.
+  assert.ok(isOpen(p('wine-bar'), 8, 0, 30) && !isOpen(p('wine-bar'), 8, 18, 0));
+  assert.match(closedLines(p('wine-bar'), 8, 18, 0).join(' '), /Hoy no abre\. Abre mañana a las 18:00\./);
+  // 24 horas: siempre abierto y lo dice así; nunca una próxima apertura inventada.
+  for (let h = 0; h < 24; h++) assert.ok(isOpen(p('vl-hotel'), 14, h, 30));
+  assert.match(hoursLabel(p('vl-hotel')), /24 horas/);
+  // Fuera de la ventana, la próxima apertura nunca es antes de ahora y es una hora de apertura de verdad.
+  for (const place of PLACES.filter((x) => x.type === 'business' && x.hours).map((x) => p(x.id))) {
+    for (let day = 8; day <= 14; day++) for (let h = 0; h < 24; h++) {
+      if (isOpen(place, day, h, 0)) continue;
+      const next = nextOpening(place, day, h, 0);
+      assert.ok(next && (next.day > day || next.hour > h), `${place.id}: próxima apertura ${JSON.stringify(next)} desde ${day} ${h}h`);
+      assert.ok(isOpen(place, next.day, Math.floor(next.hour), Math.round((next.hour % 1) * 60)), `${place.id}: no abre a la hora que dice`);
+    }
+  }
+  // Un mostrador en la calle con lugar se rige por su horario (la heladería a las 03:00, cerrada).
+  for (const loc of LOCATIONS) for (const t of loc.terminals ?? []) if (t.place) assert.ok(placeInfo(t.place), `${loc.id}: ${t.name} con lugar desconocido ${t.place}`);
+  assert.equal(getLocation('ribera').terminals?.find((t) => t.catalog === 'ice-cream-kiosk')?.place, 'heladeria');
+  assert.ok(!isOpen(p('heladeria'), 10, 3, 0));
+  console.log('OK: horarios, medianoche, noche anterior, fin de semana, 24 h y próxima apertura.');
+}

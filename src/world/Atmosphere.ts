@@ -93,7 +93,8 @@ export function buildAtmosphereTextures(scene: Phaser.Scene): void {
 }
 
 const TREES: readonly PropKind[] = ['tree', 'plane-tree'];
-const LITTER: readonly PropKind[] = ['debris', 'bin', 'bus-stop', 'poster-column'];
+// Papeles que se lleva el viento: de los restos, la parada y la columna de carteles; de una papelera, no.
+const LITTER: readonly PropKind[] = ['debris', 'bus-stop', 'poster-column'];
 const VENTS: readonly PropKind[] = ['manhole', 'drain'];
 const LEAF_TINTS = [0x6a9a4a, 0x8a9a3a, 0xc49a3a, 0xa8743a] as const;
 

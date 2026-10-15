@@ -31,6 +31,7 @@ import type { StreetAct } from '../data/streetActs.ts';
 import { actOn, actsOf, PACK_MS, SETUP_MS, workState, working } from './StreetActs.ts';
 import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
 import { Litter } from './Litter.ts';
+import { PROPS } from '../world/tiles.ts';
 import { absMinute, dueOut, enterPlace, insideLooks, type Handoff } from './Handoff.ts';
 
 /**
@@ -87,7 +88,8 @@ export function crowdBudget(budget: number, frameMs: number): number {
 /** Rol ambiente (TripRule.ambient): como mucho tanta gente a la vez en toda la calle, y la probabilidad de que cada decisión de la calle saque uno. */
 export const AMBIENT_CAP = 8;
 const AMBIENT_CHANCE = 0.15;
-const DIRTY: ReadonlySet<string> = new Set(['bin', 'debris', 'bus-stop', 'kiosk', 'vending', 'cafe-table', 'bench', 'plaza-bench']);
+/** Donde para a barrer quien limpia: esto y toda papelera (PropDef.waste, de cualquier tipo). */
+const DIRTY: ReadonlySet<string> = new Set(['debris', 'bus-stop', 'kiosk', 'vending', 'cafe-table', 'bench', 'plaza-bench']);
 /** Cada cuánto (ms reales) la calle decide si sale alguien más. */
 const TICK: readonly [number, number] = [1_200, 2_600];
 /** Quien va solo a veces se para un momento a mitad de camino (el móvil, un escaparate). */
@@ -1368,7 +1370,7 @@ export class StreetLife {
 
   /** Lo que se barre: papeleras, restos, paradas, quioscos, máquinas y mesas de terraza. */
   private dirtySpots(): TilePoint[] {
-    this.dirty ??= this.loc.props.filter((p) => DIRTY.has(p.kind)).map((p) => ({ tx: p.tx, ty: p.ty }));
+    this.dirty ??= this.loc.props.filter((p) => DIRTY.has(p.kind) || PROPS[p.kind].waste).map((p) => ({ tx: p.tx, ty: p.ty }));
     return this.dirty;
   }
 

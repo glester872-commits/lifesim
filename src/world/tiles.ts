@@ -78,6 +78,11 @@ export interface PropDef {
    * en una acera de dos tiles, quien pasa no pierde la mitad del ancho (world/LocationBuilder).
    */
   post?: true;
+  /**
+   * Papelera: lo que se mira con E (`name`, `lines`), ancla de la limpieza viaria (StreetLife) y, cerca, la gente
+   * tira menos al suelo (systems/Litter). `attach: 'post'` va colgada de una farola, en el mismo tile (systems/Dressing).
+   */
+  waste?: { name: string; lines: readonly string[]; attach?: 'post' };
   /** Cuelga del techo: no pisa el suelo (ni colisiona ni hace sombra) y pasa por encima de la gente. */
   overhead?: true;
   /**
@@ -142,7 +147,13 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'car-c': { key: 'prop-car-c', tilesHigh: 2, tilesWide: 3 },
   van: { key: 'prop-van', tilesHigh: 2, tilesWide: 3 },
   bike: { key: 'prop-bike', tilesHigh: 1 },
-  bin: { key: 'prop-bin', tilesHigh: 1 },
+  bin: { key: 'prop-bin', tilesHigh: 1, waste: { name: 'Papelera', lines: ['Verde, con la boca algo mellada de tanto uso. Casi vacía.'] } },
+  'bin-tall': { key: 'prop-bin-tall', tilesHigh: 2, shadow: [10, 3], waste: { name: 'Papelera', lines: ['Alta, de chapa verde oscura y boca arriba. Alguien ha dejado un periódico doblado encima.'] } },
+  'bin-pair': {
+    key: 'prop-bin-pair', tilesHigh: 2, tilesWide: 2, shadow: [26, 4],
+    waste: { name: 'Papeleras de separar', lines: ['Dos bocas: la amarilla para envases, la gris para el resto. La gris, como siempre, más llena.'] },
+  },
+  'bin-post': { key: 'prop-bin-post', tilesHigh: 2, shadow: [5, 2], post: true, waste: { name: 'Papelera', lines: ['Pequeña, verde, atornillada a la farola con dos abrazaderas.'], attach: 'post' } },
   vending: { key: 'prop-vending', tilesHigh: 2 },
   produce: { key: 'prop-produce', tilesHigh: 1 },
   'menu-board': { key: 'prop-menu-board', tilesHigh: 1 },

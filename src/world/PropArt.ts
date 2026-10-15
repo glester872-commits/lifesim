@@ -358,6 +358,50 @@ function drawBin(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 7, 14, 2, 2);
 }
 
+const BIN_GREEN = '#2f4a3c';
+
+/** Papelera alta de pie: cuerpo verde oscuro casi antracita, lamas verticales, boca abierta arriba y pie de anclaje. */
+function drawBinTall(ctx: Ctx): void {
+  px(ctx, PALETTE.outline, 3, 11, 10, 19);
+  px(ctx, BIN_GREEN, 4, 12, 8, 17);
+  for (const x of [6, 9]) px(ctx, shade(BIN_GREEN, -0.25), x, 14, 1, 14);
+  px(ctx, shade(BIN_GREEN, 0.2), 4, 12, 1, 17);
+  // Aro de la boca y el hueco oscuro de dentro.
+  px(ctx, shade(BIN_GREEN, 0.3), 3, 11, 10, 2);
+  px(ctx, PALETTE.ink, 5, 11, 6, 1);
+  // Banda y pie.
+  px(ctx, shade(BIN_GREEN, -0.15), 4, 20, 8, 1);
+  px(ctx, PALETTE.metal, 5, 29, 6, 2);
+}
+
+/** Pareja de separar: frontal amarillo (envases) y gris oscuro (resto), con su tapa y la ranura, sobre un mismo bastidor. */
+function drawBinPair(ctx: Ctx): void {
+  const body = (x: number, front: string): void => {
+    px(ctx, PALETTE.outline, x, 13, 14, 17);
+    px(ctx, '#5a6066', x + 1, 14, 12, 15);
+    px(ctx, front, x + 1, 17, 12, 11);
+    px(ctx, shade(front, 0.2), x + 1, 17, 12, 1);
+    px(ctx, shade(front, -0.2), x + 1, 27, 12, 1);
+    // Tapa con boca.
+    px(ctx, shade('#5a6066', 0.2), x, 13, 14, 2);
+    px(ctx, PALETTE.ink, x + 4, 15, 6, 1);
+  };
+  body(1, '#d9b23a');
+  body(17, '#4a4f55');
+  px(ctx, PALETTE.metal, 2, 29, 28, 2);
+}
+
+/** Papelera compacta colgada de la farola: dos abrazaderas al fuste y el cubo verde a su derecha, boca arriba. */
+function drawBinPost(ctx: Ctx): void {
+  for (const y of [11, 17]) px(ctx, PALETTE.metal, 8, y, 3, 1);
+  px(ctx, PALETTE.outline, 10, 9, 6, 11);
+  px(ctx, PALETTE.leaf, 11, 10, 4, 9);
+  px(ctx, PALETTE.leafLit, 11, 10, 1, 9);
+  px(ctx, shade(PALETTE.leaf, 0.25), 10, 9, 6, 1);
+  px(ctx, PALETTE.ink, 11, 10, 4, 1);
+  px(ctx, shade(PALETTE.leaf, -0.2), 11, 17, 4, 1);
+}
+
 function drawVending(ctx: Ctx): void {
   px(ctx, '#a33f3f', 1, 4, 14, 27);
   px(ctx, '#bd5454', 1, 4, 14, 2);
@@ -884,6 +928,9 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-van', TILE * 3, TILE * 2, drawVan);
   make(scene, 'prop-bike', TILE, TILE, drawBike);
   make(scene, 'prop-bin', TILE, TILE, drawBin);
+  make(scene, 'prop-bin-tall', TILE, TILE * 2, drawBinTall);
+  make(scene, 'prop-bin-pair', TILE * 2, TILE * 2, drawBinPair);
+  make(scene, 'prop-bin-post', TILE, TILE * 2, drawBinPost);
   make(scene, 'prop-vending', TILE, TILE * 2, drawVending);
   make(scene, 'prop-produce', TILE, TILE, drawProduce);
   make(scene, 'prop-menu-board', TILE, TILE, drawMenuBoard);
