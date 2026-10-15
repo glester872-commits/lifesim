@@ -9,7 +9,7 @@ import { STOPS } from '../data/transit.ts';
 import { CHARACTERS } from '../data/characters.ts';
 import { ARENA_MATCHES } from '../data/cityEvents.ts';
 import { byPhase, matchPhase } from './Match.ts';
-import { allLocations, getLocation } from './LocationSystem.ts';
+import { allLocations, getLocation, hasLocation } from './LocationSystem.ts';
 import { findPoint } from './Navigation.ts';
 import { isOpen, placeInfo, type PlaceInfo } from './Places.ts';
 import { activePopUp } from './PopUps.ts';
@@ -124,10 +124,12 @@ export type Travel =
   | { mode: 'none'; why: string };
 
 export function travel(from: string, to: string): Travel {
-  if (from === to) return { mode: 'here' };
-  const a = districtNode(from);
-  const b = districtNode(to);
+  // Vale el barrio ('vallesco') o cualquier sitio del juego ('district', 'cafe', 'arena-station'): se viaja entre barrios.
+  const node = (id: string): DistrictNode | undefined => districtNode(id) ?? (hasLocation(id) ? districtNode(districtAt(id) ?? '') : undefined);
+  const a = node(from);
+  const b = node(to);
   if (!a || !b) return { mode: 'none', why: 'barrio desconocido' };
+  if (a.id === b.id) return { mode: 'here' };
   const map = a.maps.find((m) => b.maps.includes(m));
   if (map) return { mode: 'walk', map };
   if (!a.maps.length || !b.maps.length) return { mode: 'none', why: `${(a.maps.length ? b : a).name} aún no tiene mapa` };

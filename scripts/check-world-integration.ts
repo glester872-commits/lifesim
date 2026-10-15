@@ -49,6 +49,11 @@ const fromCarmen = travel('vintage', 'puerta-central');
 assert.ok(fromCarmen.mode === 'metro' && fromCarmen.from === 'vallesco', 'desde el Carmen, el metro de Vallesco');
 assert.equal(travel('vallesco', 'arena').mode, 'metro', 'al Arena se llega en metro');
 assert.equal(travel('vallesco', 'luna').mode, 'none', 'Luna no tiene mapa todavía');
+// También desde un sitio (calle, interior, andén), no sólo desde un barrio: el traspaso entre barrios lo resuelve.
+assert.equal(travel('district', 'arena').mode, 'metro', 'desde la calle de Vallesco al Arena');
+assert.deepEqual(travel('cafe', 'vintage'), { mode: 'walk', map: 'district' }, 'del café al Carmen se anda');
+assert.equal(travel('district', 'vallesco').mode, 'here');
+assert.equal(travel('arena-station', 'ar-larguero').mode, 'here', 'el andén y el bar son del mismo barrio');
 for (const a of mapped) for (const b of mapped) assert.notEqual(travel(a, b).mode, 'none', `${a} → ${b} sin forma de llegar`);
 
 // --------------------------------------------------- 3. un reloj, lejos del jugador
@@ -126,6 +131,8 @@ for (const profile of STREET_PROFILES) {
   let peak = 0;
   for (const [day, hour] of [[saturday - 3, 8.5], [saturday, 18], [saturday, 13]] as const) {
     const life = new StreetLife(loc, profile, seededRng(hashSeed('world', profile.location, day, hour)));
+    // Como en un móvil: el tope duro de la calidad baja (WorldScene pone el de la calidad activa).
+    life.ceiling = BUDGETS.low.agents;
     let clock = { day, hour: Math.floor(hour), minute: (hour % 1) * 60 };
     const player = { tx: 0, ty: 0 };
     life.populate(clock, player);
@@ -139,7 +146,7 @@ for (const profile of STREET_PROFILES) {
       }
     }
   }
-  assert.ok(peak <= budget.agents, `${profile.location}: pico de ${peak} personas > presupuesto ${budget.agents}`);
+  assert.ok(peak <= BUDGETS.low.agents, `${profile.location}: pico de ${peak} personas > presupuesto de la calidad baja ${BUDGETS.low.agents}`);
   // Diversidad: dos semanas a cuatro horas, por barrio (el Carmen aparte de Vallesco). Lo que cambia entre barrios es
   // la ropa, la hora y a dónde se va; el tono de piel, nunca.
   const skins = new Map<string, Map<string, number>>();
@@ -161,7 +168,7 @@ for (const profile of STREET_PROFILES) {
     assert.ok(m.size >= 8, `${d}: sólo ${m.size} tonos de piel entre ${total} personas`);
     assert.ok(Math.max(...m.values()) / total < 0.3, `${d}: un tono de piel es casi un tercio de la calle`);
   }
-  console.log(`  ${profile.location}: pico ${peak}/${budget.agents} · ${[...skins].map(([d, m]) => `${d} ${m.size} tonos`).join(', ')}`);
+  console.log(`  ${profile.location}: pico ${peak}/${BUDGETS.low.agents} (calidad baja) · ${[...skins].map(([d, m]) => `${d} ${m.size} tonos`).join(', ')}`);
 }
 
 const now = at(saturday, 22);

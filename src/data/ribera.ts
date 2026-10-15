@@ -138,7 +138,10 @@ const POINTS: Record<string, PointDef> = {
   RB_BAR_TERRACE_WAITER: p(9, 9, 'work', 'down'), RB_CAFE_TERRACE_WAITER: p(6, 14, 'work', 'up'), RB_CASAMAR_TERRACE_WAITER: p(13, 14, 'work', 'up'),
 
   // La plaza: delante del metro y del quiosco de helados.
-  RB_METRO_FRONT: p(19, 18, 'wait', 'up'),
+  // La boca del metro: por aquí se entra y aquí aparece quien sale (el spawn de la estación). Nadie se queda encima:
+  // quien espera a alguien lo hace a los lados, mirando a la salida.
+  RB_METRO_FRONT: p(19, 18, 'entrance', 'up'),
+  RB_METRO_MEET_01: p(18, 18, 'wait', 'right'), RB_METRO_MEET_02: p(20, 18, 'wait', 'left'),
   RB_ICE_CREAM_01: p(22, 18, 'wait', 'up'), RB_ICE_CREAM_02: p(23, 18, 'wait', 'up'),
 
   // La pista: dos tiradores por canasta y dos sitios para esperar el turno mirando.
@@ -185,7 +188,7 @@ const LINKS: readonly Link[] = [
 
   // La plaza: del metro al quiosco, la pista y la calistenia, siempre por la línea de abajo.
   ...chain('rb-s16', 'rb-pl-w', 'rb-pl-s', 'rb-pl-e', 'rb-p25', 'RB_COURT_REST_01', 'rb-ct', 'RB_COURT_REST_02', 'CALI_MAT_01', 'CALI_MAT_02', 'rb-cali'),
-  ['RB_METRO_FRONT', 'rb-pl-s'], ['rb-s24', 'rb-pl-e'],
+  ['RB_METRO_FRONT', 'rb-pl-s'], ['RB_METRO_MEET_01', 'rb-pl-s'], ['RB_METRO_MEET_02', 'rb-pl-s'], ['rb-s24', 'rb-pl-e'],
   ['RB_ICE_CREAM_01', 'rb-pl-e'], ['RB_ICE_CREAM_02', 'rb-pl-e'],
   ['RB_COURT_FT_01', 'rb-ct'], ['RB_COURT_FT_02', 'rb-ct'],
   ['HOOPS_01', 'rb-ct'], ['HOOPS_02', 'RB_COURT_REST_01'], ['HOOPS_03', 'rb-ct'], ['HOOPS_04', 'RB_COURT_REST_02'],

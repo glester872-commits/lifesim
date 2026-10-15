@@ -102,6 +102,37 @@ const hourOf = (c: Clock): number => c.hour + c.minute / 60;
 const inHours = (hours: readonly [number, number] | undefined, t: number): boolean =>
   !hours || (hours[0] <= hours[1] ? t >= hours[0] && t < hours[1] : t >= hours[0] || t < hours[1]);
 
+/**
+ * Dónde se pinta el carrito de limpieza (world/CrowdView), en píxeles de mundo (la base, centrada): andando, delante
+ * en su dirección; parado barriendo, a su izquierda. Si ahí hay una fachada, un banco o una valla, al otro lado, y si
+ * tampoco cabe, pegado a sus pies. No tiene física (no empuja a nadie): sólo no se pinta atravesando nada.
+ * `free(tx, ty)`: tile pisable. scripts/check-navigation comprueba lo mismo con esta función.
+ */
+export function trolleyAt(
+  a: { x: number; y: number; dir: string; moving: boolean; path: readonly unknown[] },
+  free: (tx: number, ty: number) => boolean,
+): { x: number; y: number } {
+  const px = a.x * 16 + 8;
+  const py = a.y * 16 + 16;
+  const settled = !a.moving && a.path.length === 0;
+  const options: readonly (readonly [number, number])[] = settled
+    ? [[-12, 0], [12, 0]]
+    : a.dir === 'left' ? [[-10, 0], [10, 0]]
+    : a.dir === 'right' ? [[10, 0], [-10, 0]]
+    : a.dir === 'down' ? [[9, 5], [-9, 5]]
+    : [[9, -3], [-9, -3]];
+  // La base del sprite mide 14 px: sus dos esquinas tienen que caer en suelo pisable. Con el píxel redondeado, el
+  // mismo que pinta world/CrowdView (si no, medio píxel de más lo mete en el tile de al lado).
+  const at = ([dx, dy]: readonly [number, number]) => ({ x: Math.round(px + dx), y: Math.round(py + dy) });
+  const fits = (o: readonly [number, number]): boolean => {
+    const { x, y } = at(o);
+    const row = Math.floor((y - 2) / 16);
+    return free(Math.floor((x - 7) / 16), row) && free(Math.floor((x + 6) / 16), row);
+  };
+  // Sin sitio a ningún lado: a sus pies, en su misma fila (la de abajo puede ser la fachada de enfrente).
+  return at(options.find(fits) ?? [0, 0]);
+}
+
 export function streetProfileFor(location: string): StreetProfile | undefined {
   return STREET_PROFILES.find((p) => p.location === location);
 }
@@ -288,6 +319,18 @@ export class StreetLife {
    */
   budget = 1;
 
+  /**
+   * Tope duro de gente en la calle (config/budgets.ts, el de la calidad: WorldScene lo pone). El LOD de arriba sólo
+   * baja con frames lentos; esto asegura que un pico de diseño (la plaza a las siete, la salida del partido) nunca pasa
+   * del presupuesto en un móvil. Personal, ambiente y puestos cuentan; quien pasa se recorta primero.
+   */
+  ceiling = Infinity;
+
+  /** Paseantes que caben de verdad: el objetivo, sin pasar del tope duro contando a todos los demás. */
+  private within(walkers: number): number {
+    return Math.max(0, Math.min(walkers, this.ceiling - (this.agents.length - this.walkers().length)));
+  }
+
   /** Los robos de la calle (systems/Pickpocket): raros, sólo con mucha gente alrededor y en zonas que lo permiten. */
   readonly pickpocket: StreetPickpocket;
   /** La basura de la calle (systems/Litter): la limpieza viaria la recoge. */
@@ -459,6 +502,8 @@ export class StreetLife {
   private emerge(h: Handoff, clock: Clock): void {
     // Sólo choca con otro paseante con su cara: el personal va de uniforme y quien vive en la calle tiene la suya.
     if (!this.graph.has(h.door) || this.agents.some((a) => a.kind === 'visitor' && a.look === h.look)) return;
+    // Con la calle en su tope duro (StreetLife.ceiling) no sale nadie más a la vista: su ficha caduca sola.
+    if (this.agents.length >= this.ceiling) return;
     const to = this.pickEnd({ types: ['residence'], edge: true }, clock, h.door, false);
     const path = to ? route(h.door, to) : null;
     if (!path) return;
@@ -498,7 +543,7 @@ export class StreetLife {
     this.tickSignals(clock, 0);
     const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
     this.rng = seededRng(hashSeed('street-populate', this.loc.id, clock.day, slot));
-    const target = Math.round(streetTargetAt(this.profile, clock) * this.budget);
+    const target = this.within(Math.round(streetTargetAt(this.profile, clock) * this.budget));
     this.staffShift(clock);
     this.survivorShift(clock, true);
     this.actShift(clock, true);
@@ -579,7 +624,7 @@ export class StreetLife {
     this.staffShift(clock);
     this.survivorShift(clock, false);
     this.actShift(clock, false);
-    const target = Math.round(this.stats.target * this.budget);
+    const target = this.within(Math.round(this.stats.target * this.budget));
     const walking = this.walkers().length;
     if (walking < target) this.startTrip(clock, player, target, false);
     else if (walking > target + 2) {
@@ -615,7 +660,7 @@ export class StreetLife {
       // Con cola (hora punta: un tren cada 3 minutos), salen más seguidos: a una persona por segundo y pico, la cola
       // crecía sin fin y la boca del metro se veía igual de vacía que a media mañana.
       w.release = between(this.rng, 700, 1_600) / Math.max(1, w.pending / 3);
-      const cap = Math.round(streetCapAt(this.profile, clock) * this.budget);
+      const cap = this.within(Math.round(streetCapAt(this.profile, clock) * this.budget));
       if (this.walkers().length < cap) this.startTrip(clock, player, cap, false, b.point);
     });
   }
@@ -836,8 +881,10 @@ export class StreetLife {
     const c = a.cross;
     if (!c || Math.hypot(c.at.tx - a.x, c.at.ty - a.y) > 1.6) return false;
     if (signalAt(c.signal, this.signalMinute).walk === 'walk') return false;
-    // Sin sitio libre en el bordillo, espera donde está si es acera y nadie más está ahí.
-    const spot = this.waitSpot(c.signal, c.dir, c.at) ?? this.standHere(a);
+    // Sin sitio libre en el bordillo, espera donde está si es acera y nadie más está ahí; con el bordillo lleno (la
+    // salida de un partido), espera igual donde está, detrás de los demás: con el muñeco en rojo no se cruza nunca.
+    // Sólo sigue quien ya pisa la calzada (acabar de cruzar es más seguro que pararse en medio).
+    const spot = this.waitSpot(c.signal, c.dir, c.at) ?? this.standHere(a) ?? this.sidewalkHere(a);
     if (!spot) return false;
     a.waitAt = spot;
     a.path.unshift(spot);
@@ -849,6 +896,12 @@ export class StreetLife {
     const tile = { tx: Math.round(a.x), ty: Math.round(a.y) };
     if (!isWalkable(this.loc, tile.tx, tile.ty) || this.onRoadway(tile) || this.occupiedTiles().has(`${tile.tx},${tile.ty}`)) return undefined;
     return tile;
+  }
+
+  /** Su propio tile aunque haya alguien más (la cola del semáforo apretada): pisable y fuera de la calzada. */
+  private sidewalkHere(a: Walker): TilePoint | undefined {
+    const tile = { tx: Math.round(a.x), ty: Math.round(a.y) };
+    return isWalkable(this.loc, tile.tx, tile.ty) && !this.onRoadway(tile) ? tile : undefined;
   }
 
   /** El sitio libre del bordillo más cerca de por donde iba a cruzar. */
@@ -875,7 +928,7 @@ export class StreetLife {
 
   /** Un rol ambiente más, si cabe en su cupo (AMBIENT_CAP): el grupo se recorta a lo que queda. */
   private startAmbient(clock: Clock, player: TilePoint, midway: boolean): void {
-    const room = AMBIENT_CAP - this.ambientCount();
+    const room = Math.min(AMBIENT_CAP - this.ambientCount(), this.ceiling - this.agents.length);
     if (room > 0) this.startTrip(clock, player, this.walkers().length + room, midway, undefined, true);
   }
 

@@ -23,10 +23,12 @@ export interface Budget {
   particles: number;
   tweens: number;
   objects: number;
+  /** Interiores cargados a la vez: uno, el sitio donde estás (los demás son estado lógico). */
+  interiors: number;
 }
 
 export const BUDGETS: Readonly<Record<QualityLevel, Budget>> = {
-  high: { agents: 110, near: 80, vehicles: 24, particles: 64, tweens: 160, objects: 4200 },
-  medium: { agents: 95, near: 70, vehicles: 20, particles: 48, tweens: 140, objects: 4000 },
-  low: { agents: 75, near: 55, vehicles: 16, particles: 0, tweens: 120, objects: 3600 },
+  high: { agents: 110, near: 80, vehicles: 24, particles: 64, tweens: 160, objects: 4200, interiors: 1 },
+  medium: { agents: 95, near: 70, vehicles: 20, particles: 48, tweens: 140, objects: 4000, interiors: 1 },
+  low: { agents: 75, near: 55, vehicles: 16, particles: 0, tweens: 120, objects: 3600, interiors: 1 },
 };

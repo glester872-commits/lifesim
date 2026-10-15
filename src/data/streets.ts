@@ -337,7 +337,7 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'commuter', label: 'Alguien con prisa', line: 'Llego tarde. Como todos los días.', weight: 4, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
       { role: 'returning', label: 'Alguien volviendo a casa', line: 'Hoy cena rápida y sofá.', weight: 4, hours: [17, 21], from: { types: ['transit'], edge: true }, to: HOMES },
       { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Al fin aire. El vagón era una sauna.', weight: 2, hours: [6.5, 1.5], from: TRANSIT, to: { types: ['residence'], tags: ['shop', 'food', 'social'], edge: true } },
-      { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Me ha dicho que ya sale del metro.', weight: 2, hours: [8, 23], from: HOMES_OR_CITY, to: { points: ['RB_METRO_FRONT'] }, stay: [4, 12], stayState: 'PHONE', then: HOMES_OR_CITY, max: 2 },
+      { role: 'metro-meet', label: 'Alguien esperando a alguien', line: 'Me ha dicho que ya sale del metro.', weight: 2, hours: [8, 23], from: HOMES_OR_CITY, to: { points: ['RB_METRO_MEET_'] }, stay: [4, 12], stayState: 'PHONE', then: HOMES_OR_CITY, max: 2 },
       { role: 'errands', label: 'Alguien de recados', line: 'Hielo para esta noche. Y pan, que siempre falta.', weight: 2, hours: [9.5, 22], from: HOMES_OR_CITY, to: { tags: ['shop'] } },
       // Correr: por la mañana mucho; a mediodía casi nada; al caer la tarde algo; de noche, nadie.
       { role: 'jogger', label: 'Alguien corriendo', line: 'No me pares, que pierdo el ritmo.', weight: 4, hours: [6.5, 9.5], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['rb-pr02', 'rb-pr38'], pace: 'jog', pause: 0 },

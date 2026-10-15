@@ -12,6 +12,7 @@ import type { AmbientPlacement } from '../entities/Character';
 import type { Belonging } from '../data/streetSurvival';
 import { belongingKey, blanketOf, buildSurvivalTextures, sleeperTexture } from './SurvivalArt';
 import { actKey, buildActTextures } from './StreetActArt';
+import { trolleyAt } from '../systems/StreetLife';
 
 /** Margen en px alrededor de la cámara dentro del cual la gente ya tiene sprite. */
 const MARGIN = 96;
@@ -54,8 +55,12 @@ export class CrowdView {
   private gestures: ReadonlySet<number> | null = null;
   private gesturesAt = -Infinity;
 
-  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean, hour?: () => number) {
+  /** Tile pisable del sitio (el carrito de limpieza no se pinta atravesando nada: StreetLife.trolleyAt). */
+  private readonly free: (tx: number, ty: number) => boolean;
+
+  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean, hour?: () => number, free: (tx: number, ty: number) => boolean = () => true) {
     this.scene = scene;
+    this.free = free;
     this.crowd = crowd;
     this.weather = weather;
     this.outdoor = outdoor;
@@ -223,9 +228,8 @@ export class CrowdView {
     show('cart', belongingKey('cart'), has('cart'), cx, cy, cy, a.dir === 'left');
     // Limpieza viaria: el carrito, empujado delante (aparcado al lado cuando barre) y la escoba en la mano, moviéndose al barrer.
     const sweeping = !a.moving && a.state === 'SWEEP';
-    const tx = settled ? px - 12 : px + (a.dir === 'left' ? -10 : a.dir === 'right' ? 10 : 9);
-    const ty = py + (settled || side ? 0 : a.dir === 'down' ? 5 : -3);
-    show('trolley', belongingKey('trolley'), has('trolley'), tx, ty, ty, a.dir === 'left');
+    const trolley = has('trolley') ? trolleyAt(a, this.free) : { x: px, y: py };
+    show('trolley', belongingKey('trolley'), has('trolley'), trolley.x, trolley.y, trolley.y, trolley.x < px);
     const swing = Math.round(Math.sin(time / 180 + a.id) * 3);
     show('broom', belongingKey('broom'), has('broom') && sweeping, px + (a.dir === 'left' ? -9 : 9) + swing, py + 1, py + 1, a.dir === 'left');
   }

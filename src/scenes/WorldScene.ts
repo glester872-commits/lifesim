@@ -17,7 +17,7 @@ import {
 } from '../config/constants';
 import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
-import { allLocations, doorRow, getLocation, getSpawn, spawnToWorld } from '../systems/LocationSystem';
+import { allLocations, doorRow, getLocation, getSpawn, isStandable, spawnToWorld } from '../systems/LocationSystem';
 import { QUALITY, type QualityLevel } from '../config/quality';
 import { BUDGETS, type Budget } from '../config/budgets';
 import { Ambience } from '../world/Ambience';
@@ -264,6 +264,7 @@ export class WorldScene extends Phaser.Scene {
     const p = this.playerTile();
     const people = [...(this.street?.agents ?? []), ...(this.crowd?.agents ?? [])];
     const near = people.filter((a) => Math.abs(a.x - p.tx) <= 30 && Math.abs(a.y - p.ty) <= 30).length;
+    const def = getLocation(this.services.state.locationId);
     const counts: Budget = {
       agents: people.length + (this.metro?.onStage ?? 0),
       near: near + (this.metro?.onStage ?? 0),
@@ -271,10 +272,10 @@ export class WorldScene extends Phaser.Scene {
       particles: this.atmosphere?.live ?? 0,
       tweens: this.tweens.getTweens().length,
       objects: this.children.length,
+      interiors: def.kind === 'interior' ? 1 : 0,
     };
     const budget = BUDGETS[QUALITY.level];
     const over = (Object.keys(budget) as (keyof Budget)[]).filter((k) => counts[k] > budget[k]).map((k) => `${k} ${counts[k]}/${budget[k]}`);
-    const def = getLocation(this.services.state.locationId);
     return { location: def.id, interior: def.kind === 'interior', fps: Math.round(this.game.loop.actualFps), quality: QUALITY.level, counts, over, far: people.length - near, budgetScale: this.street?.budget ?? 1 };
   }
   private ambience: Ambience | null = null;
@@ -535,6 +536,8 @@ export class WorldScene extends Phaser.Scene {
     this.crowd = place && profile ? new Crowd(def, place, profile) : null;
     const streetProfile = streetProfileFor(def.id);
     this.street = streetProfile ? new StreetLife(def, streetProfile) : null;
+    // El presupuesto de la calidad (config/budgets.ts) es un tope de verdad, no sólo una medida.
+    if (this.street) this.street.ceiling = BUDGETS[QUALITY.level].agents;
     // Un carterista de la calle (systems/Pickpocket) va a por el jugador: se lleva efectivo, nunca más de lo que lleva.
     if (this.street) {
       this.street.pickpocket.onRobbed = ({ amount, noticed }): void => {
@@ -561,7 +564,7 @@ export class WorldScene extends Phaser.Scene {
     const hourNow = (): number => this.services.state.hour + this.services.state.minute / 60;
     // La basura de la calle: se rehace con la escena (StreetLife.populate), así que al volver no queda nada de la otra vez.
     this.litterView = this.street ? new LitterView(this, this.street.litter) : null;
-    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street, hourNow));
+    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street, hourNow, (x, y) => isStandable(def, x, y)));
     // Lo que pasa en sitios escondidos algunas noches (data/streetEvents.ts): su corro es gente como la de la calle.
     this.streetEvents = STREET_EVENTS.filter((e) => e.location === def.id).map((e) => new StreetEventView(this, def, e, weather));
     this.crowdViews.push(...this.streetEvents.map((e) => e.crowd));
