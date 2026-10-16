@@ -243,6 +243,9 @@ body {
   font-family: var(--ui-mono);
   font-size: 13px;
   line-height: 1.5;
+  /* Listas largas (el tablón del barrio, un catálogo grande): se desplazan dentro del panel, no fuera de pantalla. */
+  max-height: min(52vh, 380px);
+  overflow-y: auto;
 }
 
 .menu__item {
@@ -1034,7 +1037,8 @@ body.has-touch .dialogue__choices li {
 /* ------------------------------------------------------------------ móvil */
 
 /* El botón, debajo del del mapa y del mismo material; con lo que hay sin leer en una pastilla. */
-#phone-button {
+#phone-button,
+#sound-button {
   position: absolute;
   top: 54px;
   right: 14px;
@@ -1053,10 +1057,21 @@ body.has-touch .dialogue__choices li {
 }
 
 #phone-button:hover,
+#sound-button:hover,
+#sound-button:focus-visible,
 #phone-button:focus-visible,
 #phone-button.is-active {
   border-color: var(--accent);
   outline: none;
+}
+
+/* El volumen del ambiente (audio/CityAudio), bajo el del móvil; apagado, más tenue. */
+#sound-button {
+  top: 94px;
+}
+
+#sound-button.is-muted {
+  color: rgba(232, 227, 218, 0.55);
 }
 
 .phone-button__badge,
@@ -1426,6 +1441,13 @@ body.has-touch .dialogue__choices li {
 @media (max-width: 520px), (max-height: 480px) {
   #phone-button {
     top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  #sound-button {
+    top: calc(max(10px, env(safe-area-inset-top)) + 104px);
     right: max(10px, env(safe-area-inset-right));
     min-width: 44px;
     min-height: 44px;

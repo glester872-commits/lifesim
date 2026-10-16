@@ -104,6 +104,8 @@ const PROPS: readonly PropPlacement[] = [
   ...many('street-lamp-art', [[4, 31], [17, 31], [28, 31], [39, 31], [49, 31], [9, 22], [33, 22]]),
   ...many('ad-panel', [[24, 22], [52, 22]]),
   at('poster-column', 17, 22),
+  // El tablón del barrio (systems/Boards): junto al metro, fuera de los caminos de la gente.
+  at('notice-board', 3, 15),
 ];
 
 // ---------------------------------------------------------------- puntos

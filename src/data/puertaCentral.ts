@@ -113,6 +113,8 @@ const PROPS: readonly PropPlacement[] = [
   ...many('cafe-table', [[8, 27], [12, 27]]),
   ...many('chair-up', [[8, 28], [12, 28]]),
   at('parasol', 10, 27),
+  // El tablón del barrio (systems/Boards): junto al metro, fuera de los caminos de la gente.
+  at('notice-board', 8, 20),
 ];
 
 // ---------------------------------------------------------------- puntos

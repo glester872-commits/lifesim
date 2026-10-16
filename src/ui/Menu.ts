@@ -132,5 +132,7 @@ export class Menu {
         return li;
       }),
     );
+    // En una lista que se desplaza, la marcada siempre a la vista (W/S por debajo del borde).
+    this.listEl.children[this.selected]?.scrollIntoView({ block: 'nearest' });
   }
 }

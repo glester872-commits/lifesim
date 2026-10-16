@@ -199,6 +199,8 @@ export type PropKind =
   | 'food-stall'
   | 'scarf-stand'
   | 'flag-pole'
+  // El tablón del barrio: se consulta con E (systems/Boards)
+  | 'notice-board'
   | 'floodlight';
 
 export interface PropPlacement {

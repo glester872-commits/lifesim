@@ -9,6 +9,8 @@ import { findPoint, pointsOfKind, route, worldRoute } from './systems/Navigation
 import { zoneActivity, zoneAt } from './systems/Zones';
 import { DEBUG } from './config/debug';
 import { QUALITY, setQuality, type QualityLevel } from './config/quality';
+import type { AudioLevel } from './config/audio';
+import { CityAudio } from './audio/CityAudio';
 import { placeInfo, placesOfType } from './systems/Places';
 import { forceWeather, weatherAt } from './systems/Weather';
 import { dateOf, dayOfDate, formatDate, SEASON_LABEL } from './systems/Calendar';
@@ -91,6 +93,7 @@ const services: Services = {
   map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen || phone.isOpen),
   input: new PlayerInput(),
   phone,
+  audio: new CityAudio(requireEl('#sound-button') as HTMLButtonElement),
 };
 
 // La paleta vive en TypeScript; el CSS la consume desde aquí para no duplicarla.
@@ -561,6 +564,11 @@ social: {
           world.scene.restart({ locationId: state.locationId, position: { x: state.position.x, y: state.position.y }, facing: state.facing });
         }
         return { ...QUALITY };
+      },
+      // Sonido de ambiente (audio/CityAudio): lifesim.audio('off'|'low'|'medium'|'high') cambia el volumen; sin nada, dice cómo suena.
+      audio: (level?: AudioLevel) => {
+        if (level) services.audio.setLevel(level);
+        return services.audio.stats();
       },
       pointsOfKind,
       route,

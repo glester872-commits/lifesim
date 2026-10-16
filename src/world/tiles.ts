@@ -1,4 +1,5 @@
 import type { PropKind } from '../types/game';
+import type { Layer } from '../systems/Soundscape';
 
 export interface TileDef {
   key: string;
@@ -83,6 +84,10 @@ export interface PropDef {
    * tira menos al suelo (systems/Litter). `attach: 'post'` va colgada de una farola, en el mismo tile (systems/Dressing).
    */
   waste?: { name: string; lines: readonly string[]; attach?: 'post' };
+  /** Tablón del barrio: con E abre lo que hay cerca y cuándo (systems/Boards, scenes/Menus.openBoard). */
+  board?: true;
+  /** Lo que se oye cerca (systems/Soundscape): su capa y cuánto (0–1). La fuente, agua; nada más que lo diga aquí. */
+  sound?: { layer: Layer; level: number };
   /** Cuelga del techo: no pisa el suelo (ni colisiona ni hace sombra) y pasa por encima de la gente. */
   overhead?: true;
   /**
@@ -138,7 +143,7 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'cafe-table': { key: 'prop-cafe-table', tilesHigh: 1 },
   turnstile: { key: 'prop-turnstile', tilesHigh: 1 },
   // La fuente se apoya sobre agua (sólida): colisiona entera aunque el prop sólo cierre su base.
-  fountain: { key: 'prop-fountain', tilesHigh: 2, tilesWide: 3, ambient: 'spray' },
+  fountain: { key: 'prop-fountain', tilesHigh: 2, tilesWide: 3, ambient: 'spray', sound: { layer: 'water', level: 0.9 } },
   kiosk: { key: 'prop-kiosk', tilesHigh: 2, tilesWide: 2 },
   'bus-stop': { key: 'prop-bus-stop', tilesHigh: 2, tilesWide: 3 },
   // Coches aparcados: tres tiles de largo, como los que circulan (data/vehicles.ts); el techo asoma por la fila de arriba.
@@ -289,6 +294,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'food-stall': { key: 'prop-food-stall', tilesHigh: 2, tilesWide: 2, shadow: [28, 4] },
   'scarf-stand': { key: 'prop-scarf-stand', tilesHigh: 2, tilesWide: 2, shadow: [26, 4] },
   'flag-pole': { key: 'prop-flag-pole', tilesHigh: 4, shadow: [6, 2], cast: 20, post: true },
+  // Tablón del barrio: un panel de corcho con tejadillo sobre un solo poste; pasa quien quiera por los lados.
+  'notice-board': { key: 'prop-notice-board', tilesHigh: 3, shadow: [8, 2], post: true, board: true },
   floodlight: { key: 'prop-floodlight', tilesHigh: 4, shadow: [10, 3], cast: 24, light: { dy: 58, cool: true } },
 };
 

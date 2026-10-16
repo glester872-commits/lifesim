@@ -119,6 +119,8 @@ const PROPS: readonly PropPlacement[] = [
   // Armarios de la luz contra las fachadas.
   at('utility-box', 37, 8),
   at('utility-box', 36, 17),
+  // El tablón del barrio (systems/Boards): junto al metro, fuera de los caminos de la gente.
+  at('notice-board', 1, 20),
 ];
 
 // ---------------------------------------------------------------- puntos

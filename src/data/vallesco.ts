@@ -613,7 +613,8 @@ function widen(def: LocationDef): LocationDef {
 }
 
 const WIDENED = widen(BASE);
-const WIDE: LocationDef = { ...WIDENED, props: [...WIDENED.props, ...MEDIAN] };
+// El tablón del barrio (systems/Boards), en coordenadas ya ensanchadas: en la plaza del metro, fuera de los caminos.
+const WIDE: LocationDef = { ...WIDENED, props: [...WIDENED.props, ...MEDIAN, at('notice-board', 34, 42)] };
 
 // El micromobiliario (contenedores, coches aparcados, bolardos, buzón...) sale de reglas de contexto: systems/Dressing.ts.
 export const VALLESCO: LocationDef = { ...WIDE, props: [...WIDE.props, ...dress(WIDE)] };

@@ -24,6 +24,7 @@ import { QUALITY, type QualityLevel } from '../config/quality';
 import { BUDGETS, type Budget } from '../config/budgets';
 import { Ambience } from '../world/Ambience';
 import { PROPS } from '../world/tiles';
+import { crowdLevel, metroLevel, mix, terraceEmitters, vehicleLevel, type Emitter } from '../systems/Soundscape';
 import { ClosedSigns } from '../world/ClosedSigns';
 import { Traffic } from '../systems/Traffic';
 import { withDistrictLanes } from '../systems/Districts';
@@ -146,7 +147,7 @@ export interface WorldSceneData {
 type Interactable =
   | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
-  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[] }
+  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number } }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
@@ -170,6 +171,8 @@ function shotCue(shot: Shot): string {
 
 /** Tras cambiar de escena, el fundido (TRANSITION_MS) y lo que tarda un doble toque: E / «acción» se gastan sin hacer nada. */
 const ARRIVAL_LOCK_MS = 450;
+/** Cada cuánto se recalcula lo que suena: los fundidos de audio/CityAudio rellenan lo de en medio. */
+const SOUND_EVERY_MS = 250;
 /**
  * Lo que se gasta cada frame horneando la ropa de 28 × 42 de quien aparece (world/HdCache; unos 70 ms cada aspecto):
  * en juego, poco (cabe en el frame, y quien llega por el borde se hornea antes de verse); al entrar en una escena
@@ -285,6 +288,9 @@ export class WorldScene extends Phaser.Scene {
   private ambience: Ambience | null = null;
   /** Coches, furgonetas y autobuses de la calle (TrafficDef), y quien los pinta. */
   private traffic: Traffic<VehicleType> | null = null;
+  /** Cuándo toca volver a decidir qué suena (updateSound) y las fuentes fijas de este sitio, una vez por escena. */
+  private soundAt = 0;
+  private soundSources: { fixed: Emitter[]; terraces: PlaceInfo[]; inside: PlaceInfo | null } | null = null;
   private trafficView: TrafficView | null = null;
   /** Bicis del carril bici (TrafficDef.bikes): la misma lógica de carril, otro catálogo. */
   private bikes: Traffic<BikeType> | null = null;
@@ -506,6 +512,8 @@ export class WorldScene extends Phaser.Scene {
     for (const p of def.props) {
       const waste = PROPS[p.kind].waste;
       if (waste) this.interactables.push({ kind: 'inspect', x: p.tx * TILE + ((PROPS[p.kind].tilesWide ?? 1) * TILE) / 2, y: p.ty * TILE + TILE / 2, name: waste.name, lines: waste.lines });
+      // El tablón del barrio: lo que hay cerca y cuándo, calculado al consultarlo (systems/Boards).
+      if (PROPS[p.kind].board) this.interactables.push({ kind: 'inspect', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, name: 'Tablón del barrio', lines: [], board: { tx: p.tx, ty: p.ty } });
     }
     for (const b of def.buildings ?? []) {
       if (!b.inspect || b.doorX === undefined) continue;
@@ -722,6 +730,9 @@ export class WorldScene extends Phaser.Scene {
       autosave.remove();
       this.services.metroDebug?.hide();
       this.metro?.shutdown();
+      // Lo que sonaba aquí se apaga con un fundido corto: el sitio nuevo sube lo suyo. Las capas son las mismas, no se crean otras.
+      this.services.audio.silence();
+      this.soundSources = null;
       this.litterView?.destroy();
       this.litterView = null;
       this.zoneDebug?.destroy();
@@ -735,6 +746,7 @@ export class WorldScene extends Phaser.Scene {
     this.frameStart = performance.now();
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
+    this.updateSound(time);
     // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
     pumpPeopleHD(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < HD_ENTRY_MS ? HD_BAKE_ENTRY_MS : HD_BAKE_MS);
 
@@ -1043,7 +1055,7 @@ export class WorldScene extends Phaser.Scene {
       case 'terminal': return 'Comprar';
       case 'rack': return 'Ver prenda';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
-      case 'inspect':
+      case 'inspect': return target.board ? 'Consultar' : 'Mirar';
       case 'event': return 'Mirar';
     }
   }
@@ -1930,6 +1942,47 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Id estable de cada cosa con la que se interactúa: desempata y evita que el aviso se reinicie por crearse el objeto otra vez. */
+  /**
+   * Qué suena aquí ahora (systems/Soundscape → audio/CityAudio), cuatro veces por segundo. Las fuentes salen de los
+   * datos: los props que suenan (la fuente), los lugares con anclajes en la calle (una terraza, la cola de la sala)
+   * según estén abiertos y con gente sentada o parada en ellos, el local en el que se está según su gente, los coches
+   * que pasan según su velocidad, y el metro: su andén según el tren, y la boca desde la calle.
+   */
+  private updateSound(time: number): void {
+    if (time < this.soundAt) return;
+    this.soundAt = time + SOUND_EVERY_MS;
+    const { state } = this.services;
+    const here = state.locationId;
+    if (!this.soundSources) {
+      const def = getLocation(here);
+      this.soundSources = {
+        fixed: [
+          ...def.props.flatMap((p) => {
+            const s = PROPS[p.kind].sound;
+            return s ? [{ layer: s.layer, x: p.tx + (PROPS[p.kind].tilesWide ?? 1) / 2, y: p.ty + 0.5, level: s.level }] : [];
+          }),
+          // La boca del metro se oye desde la calle, poco: el andén queda abajo.
+          ...def.portals.filter((p) => getLocation(p.to.location).metro).map((p) => ({ layer: 'metro' as const, x: p.tx + 0.5, y: p.ty + 0.5, level: 0.35 })),
+        ],
+        terraces: PLACES.map((p) => placeInfo(p.id)!).filter((p) => p.locationId === here && p.anchors?.length && p.type === 'business'),
+        inside: placeForInterior(here) ?? null,
+      };
+    }
+    const { fixed, terraces, inside } = this.soundSources;
+    const emitters: Emitter[] = [...fixed];
+    const agents = this.street?.agents ?? [];
+    for (const place of terraces) {
+      const spots = place.anchors!.map((a) => getLocation(here).points?.[a]).filter((p): p is NonNullable<typeof p> => !!p);
+      emitters.push(...terraceEmitters(spots, isOpen(place, state.day, state.hour, state.minute), agents));
+    }
+    // Dentro de un local: su gente, la que hay de verdad (Crowd), y sólo si está abierto.
+    const crowd = this.crowd?.summary;
+    if (inside && crowd) emitters.push({ layer: 'murmur', level: 0.8 * crowdLevel(crowd.open, crowd.visitors, inside.capacity) });
+    for (const v of this.traffic?.vehicles ?? []) emitters.push({ layer: 'traffic', x: v.x / TILE, y: v.row + 0.5, level: vehicleLevel(v.speed, v.cruise) });
+    if (this.metro) emitters.push({ layer: 'metro', level: metroLevel(this.metro.train.state) });
+    this.services.audio.setMix(mix({ x: this.player.x / TILE, y: this.player.y / TILE }, emitters));
+  }
+
   private idOf(item: Interactable): string {
     const where = anchor(item);
     const at = `${Math.round(where.x)},${Math.round(where.y)}`;
@@ -2074,6 +2127,7 @@ export class WorldScene extends Phaser.Scene {
         else this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
       }
     }
+    else if (target.board) this.menus.openBoard(this.services.state.locationId, target.board.tx, target.board.ty);
     else this.openDialogue(target.name, target.lines);
   }
 

@@ -120,6 +120,8 @@ const PROPS: readonly PropPlacement[] = [
   // Calle Marqués: más árboles que farolas, contra las fachadas (el paseo va por la fila de delante).
   ...many('plane-tree', [[7, 30], [31, 30], [46, 30]]),
   ...many('street-lamp-art', [[1, 30], [24, 30], [36, 30]]),
+  // El tablón del barrio (systems/Boards): junto al metro, fuera de los caminos de la gente.
+  at('notice-board', 27, 25),
 ];
 
 // ---------------------------------------------------------------- puntos

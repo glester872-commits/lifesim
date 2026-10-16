@@ -10,6 +10,7 @@ import { formatClock } from '../systems/TimeSystem';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
+import { boardAt } from '../systems/Boards';
 import { absMinute } from '../systems/Handoff';
 import { HAIRSTYLES, type Appearance } from '../data/appearance';
 import type { RackDef } from '../types/game';
@@ -288,6 +289,39 @@ export class Menus {
         `${formatClock(state.day, state.hour, state.minute)}.`,
       ]);
     });
+  }
+
+  // ------------------------------------------------------------- tablón del barrio
+
+  /**
+   * El tablón del barrio (systems/Boards): sus secciones y, dentro, cada sitio o evento con su estado. Se lee del
+   * mundo cada vez que se abre una página (el reloj está parado mientras tanto). Elegir algo enseña su horario
+   * entero abajo; «Volver» o Esc dentro de una sección vuelven al índice, y en el índice cierran.
+   */
+  openBoard(location: string, tx: number, ty: number, section = -1, selected = 0, note = ''): void {
+    const { state, menu } = this.services;
+    const board = boardAt(location, tx, ty, state);
+    const page = board.sections[section];
+    if (!page) {
+      const options: MenuOption[] = board.sections.map((s) => {
+        const open = s.entries.filter((e) => e.state === 'open' || e.state === 'active').length;
+        const detail = s.id === 'events' ? (s.entries.length ? `${s.entries.length}` : 'nada esta semana') : `${open} de ${s.entries.length} abiertos`;
+        return { label: s.title, detail };
+      });
+      options.push({ label: 'Cerrar' });
+      menu.open(board.title, board.intro, options, (i) => {
+        if (i === board.sections.length) menu.close();
+        else this.openBoard(location, tx, ty, i);
+      }, undefined, note, selected);
+      return;
+    }
+    const options: MenuOption[] = [...page.entries.map((e) => ({ label: e.label, detail: e.detail })), { label: 'Volver' }];
+    const text = page.entries.length ? (page.id === 'events' ? 'Lo de ahora primero; luego, lo anunciado para los próximos siete días.' : 'Lo abierto primero; luego, lo que abre antes.') : (page.empty ?? '');
+    const back = (): void => this.openBoard(location, tx, ty, -1, section);
+    menu.open(`${board.title} · ${page.title}`, text, options, (i) => {
+      if (i === page.entries.length) back();
+      else this.openBoard(location, tx, ty, section, i, page.entries[i].note);
+    }, back, note, selected);
   }
 
   // ------------------------------------------------------------- ropa

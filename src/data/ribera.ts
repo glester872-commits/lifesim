@@ -113,6 +113,8 @@ const PROPS: readonly PropPlacement[] = [
   ...BENCH_XS.map((x) => at('bench', x, 24)),
   at('skate-ramp', 2, 24), at('skate-box', 5, 24), at('skate-ramp', 8, 24),
   ...many('planter-box', [[11, 22], [26, 22]]),
+  // El tablón del barrio (systems/Boards): junto al metro, fuera de los caminos de la gente.
+  at('notice-board', 22, 15),
 ];
 
 // ---------------------------------------------------------------- puntos

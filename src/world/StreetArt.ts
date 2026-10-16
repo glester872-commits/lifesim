@@ -86,6 +86,35 @@ function drawStreetSign(ctx: Ctx): void {
   px(ctx, '#2f4f8f', 4, 4, 7, 1);
 }
 
+/**
+ * Tablón del barrio: marco verde municipal con tejadillo, corcho y hojas clavadas (horarios, un cartel con
+ * fecha, la cabecera azul del barrio). Sobre un solo poste, a la altura de los ojos de quien lo lee.
+ */
+function drawNoticeBoard(ctx: Ctx): void {
+  const frame = '#2f5a46';
+  const cork = '#b98a55';
+  pole(ctx, 20, 40);
+  px(ctx, shade(frame, -0.25), 0, 2, 16, 2); // tejadillo
+  px(ctx, shade(frame, 0.15), 1, 1, 14, 1);
+  px(ctx, frame, 0, 4, 16, 17);
+  px(ctx, shade(frame, 0.12), 0, 4, 1, 17);
+  px(ctx, cork, 1, 5, 14, 15);
+  for (const [x, y] of [[7, 13], [13, 8], [2, 18], [12, 19], [6, 8]]) px(ctx, shade(cork, -0.18), x, y, 1, 1);
+  // Cabecera del barrio y hojas: blanco de horario, ámbar de evento, rosa de anuncio.
+  px(ctx, '#2f4f8f', 2, 6, 12, 2);
+  px(ctx, PALETTE.white, 3, 6, 5, 1);
+  px(ctx, PALETTE.white, 2, 9, 5, 6);
+  for (let y = 10; y < 15; y += 2) px(ctx, shade(PALETTE.white, -0.45), 3, y, 3, 1);
+  px(ctx, PALETTE.amber, 8, 9, 5, 4);
+  px(ctx, shade(PALETTE.amber, -0.3), 9, 10, 3, 1);
+  px(ctx, '#e6dcc0', 8, 14, 6, 5);
+  px(ctx, shade('#e6dcc0', -0.35), 9, 16, 4, 1);
+  px(ctx, '#d0607a', 3, 16, 3, 3);
+  px(ctx, '#c0493f', 4, 9, 1, 1); // chinchetas
+  px(ctx, '#c0493f', 10, 9, 1, 1);
+  px(ctx, shade(frame, -0.2), 0, 20, 16, 1);
+}
+
 /** Armario del semáforo: gris verdoso, con rejilla y una pegatina que alguien pegó. */
 function drawUtilityBox(ctx: Ctx): void {
   const c = '#7d857a';
@@ -270,6 +299,7 @@ export function buildStreetTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-bollard', TILE, 14, drawBollard);
   make(scene, 'prop-parking-sign', TILE, 36, drawParkingSign);
   make(scene, 'prop-street-sign', TILE, 36, drawStreetSign);
+  make(scene, 'prop-notice-board', TILE, 40, drawNoticeBoard);
   make(scene, 'prop-utility-box', TILE, 22, drawUtilityBox);
   for (let v = 0; v < 2; v++) make(scene, `prop-scooter-${v}`, TILE, 18, (ctx) => drawScooter(ctx, v));
   make(scene, 'prop-ad-panel', TILE, 36, drawAdPanel);

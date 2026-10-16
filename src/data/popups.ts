@@ -33,7 +33,7 @@ export interface PopUpProp {
 
 export interface PopUpDef {
   id: string;
-  /** Para el inspector y el registro: nada de esto sale en pantalla. */
+  /** Lo que anuncia el tablón del barrio (systems/Boards); también lo usan el inspector y el registro. */
   name: string;
   location: string;
   /** Días de la semana en que puede empezar (0 lunes … 6 domingo). */
