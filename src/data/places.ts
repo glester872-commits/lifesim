@@ -188,7 +188,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-pc-plaza-6', name: 'Plaza de la Puerta 6', type: 'residence', tags: ['home'], building: 'pc-plaza-6', capacity: 12 },
   { id: 'res-pc-plaza-8', name: 'Plaza de la Puerta 8', type: 'residence', tags: ['home'], building: 'pc-plaza-8', capacity: 12 },
   { id: 'res-pc-plaza-10', name: 'Plaza de la Puerta 10', type: 'residence', tags: ['home'], building: 'pc-plaza-10', capacity: 10 },
-  { id: 'res-pc-plaza-12', name: 'Plaza de la Puerta 12', type: 'residence', tags: ['home'], building: 'pc-plaza-12', capacity: 14 },
+  // La comisaría (systems/Police): abierta siempre. Dentro, recepción: la seguridad de la zona y, si te han robado, la denuncia.
+  { id: 'pc-comisaria', name: 'Comisaría de Puerta Central', type: 'business', tags: ['police', 'civic'], building: 'pc-comisaria', capacity: 8, hours: [0, 24], why: 'Preguntar cómo está la zona a esta hora y, si te han robado en la calle, poner la denuncia.' },
   { id: 'res-pc-plaza-14', name: 'Plaza de la Puerta 14', type: 'residence', tags: ['home'], building: 'pc-plaza-14', capacity: 12 },
   // El hostal: de aquí salen turistas por la mañana y vuelven por la noche.
   { id: 'pc-hostal', name: 'Hostal Puerta Central', type: 'residence', tags: ['home', 'tourism'], building: 'pc-hostal', capacity: 24 },

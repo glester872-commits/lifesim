@@ -192,12 +192,16 @@ const orderBoth = (street: Street) => (call: PlayerCall): void => {
   assert.equal(street.service.waiterState(w.id), 'GOING_TO_TABLE');
   // Se levanta con el camarero de camino.
   assert.equal(street.stand(), 0, 'cobra una mesa sin pedir nada');
-  // Una hora de reloj: le sobra para volver (unos cinco minutos) y no cruza el fin de su turno, que lo mete dentro.
-  street.runUntil(() => false, 30_000);
+  // Hasta que se recoge (como abajo, a medias de tomar nota): libre, la mesa la puede coger enseguida gente de la calle,
+  // y eso no es que se quede pedida. Como mucho una hora de reloj: le sobra para volver y no cruza el fin de su turno.
+  street.runUntil(() => t.state === 'AVAILABLE', 30_000);
   assert.equal(t.state, 'AVAILABLE');
   assert.equal(t.party, null);
   assert.equal(t.waiter, null, 'la mesa abandonada sigue con camarero');
-  assert.ok(['IDLE', 'RETURNING', 'CHECKING_TABLES'].includes(street.service.waiterState(w.id)!), `el camarero sigue en ${street.service.waiterState(w.id)}`);
+  // Y el camarero, que iba de camino, lo deja y vuelve (como abajo).
+  const back = (): boolean => ['IDLE', 'RETURNING', 'CHECKING_TABLES'].includes(street.service.waiterState(w.id)!);
+  street.runUntil(back, 30_000);
+  assert.ok(back(), `el camarero sigue en ${street.service.waiterState(w.id)}`);
   assert.equal(street.calls.length, 0, 'el jugador oyó al camarero tras irse');
 
   // Y a medias de tomar nota: el camarero ya está en la mesa cuando se levanta.

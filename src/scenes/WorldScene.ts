@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { ARENA_CLUB, ARENA_MATCHES } from '../data/cityEvents';
 import { LOCATION_DISTRICT } from '../data/districtIdentity';
 import { kickoffLabel, matchNow, matchOn } from '../systems/Match';
+import { isPolice, patrolLines } from '../systems/Police';
+import { PLACES } from '../data/places';
 import {
   AUTOSAVE_INTERVAL_MS,
   CAMERA_LERP,
@@ -550,13 +552,15 @@ export class WorldScene extends Phaser.Scene {
     if (this.street) this.street.ceiling = BUDGETS[QUALITY.level].agents;
     // Un carterista de la calle (systems/Pickpocket) va a por el jugador: se lleva efectivo, nunca más de lo que lleva.
     if (this.street) {
-      this.street.pickpocket.onRobbed = ({ amount, noticed }): void => {
+      // Devuelve lo que de verdad se llevó: es lo que consta si se avisa a la patrulla (systems/Police).
+      this.street.pickpocket.onRobbed = ({ amount, noticed }): number => {
         const state = this.services.state;
         const took = Math.min(amount, Math.max(0, state.money));
-        if (took <= 0) return;
+        if (took <= 0) return 0;
         state.money = Math.round((state.money - took) * 100) / 100;
         // Si lo nota, lo sabe en el momento; si no, lo verá en la cartera (el dinero del HUD baja igual).
         if (noticed) this.services.dialogue.start('Tú', [`¡Eh! ¡Alguien te ha metido la mano en el bolsillo! Te faltan ${euros(took)}.`]);
+        return took;
       };
     }
     // Los personajes, primero: nadie de la gente anónima aparece sentado en su sitio.
@@ -604,6 +608,8 @@ export class WorldScene extends Phaser.Scene {
     const trafficRng = (flow: string): Rng => seededRng(hashSeed('traffic', def.id, flow, state.day, slot));
     this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx, trafficRng('cars')) : null;
     this.traffic?.populate(this.trafficClock());
+    // Las recogidas de taxi/VTC de la calle piden su coche a este tráfico (StreetLife.advanceRides, Traffic.hail).
+    if (this.street) this.street.traffic = this.traffic;
     this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour, () => weatherAt(state.day, hour()).wet) : null;
     this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx, trafficRng('bikes')) : null;
     this.bikes?.populate(this.trafficClock());
@@ -2050,8 +2056,15 @@ export class WorldScene extends Phaser.Scene {
       // Personal con algo que ofrecer (la barbera, la barra): se le pide; el resto, se charla.
       const offer = this.offerOf(target.sprite);
       const survivor = this.survivorOf(target.sprite);
+      const officer = this.officerOf(target.sprite);
       if (offer) this.menus.openOffer(offer, target.def.name);
-      else if (survivor) {
+      else if (officer) {
+        // Un agente de patrulla: saludo, cómo está la calle ahora y el robo de hoy si lo hay (systems/Police). No charla.
+        this.startTalk(target.sprite);
+        const { state } = this.services;
+        const station = PLACES.find((p) => p.tags.includes('police'))?.name;
+        this.openDialogue(target.def.name, patrolLines(state.locationId, state, Math.floor(this.absMinute()), station));
+      } else if (survivor) {
         this.startTalk(target.sprite);
         this.talkSurvivor(target.def.name, target.sprite, survivor);
       } else {
@@ -2160,6 +2173,13 @@ export class WorldScene extends Phaser.Scene {
     if (!(sprite instanceof Character)) return undefined;
     const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
     return agent?.staffRole ? identity(agent.staffRole).offers : undefined;
+  }
+
+  /** Un agente de policía de la calle (patrulla o puesto del partido, systems/Police), no personal de un local. */
+  private officerOf(sprite: Phaser.GameObjects.Sprite): boolean {
+    if (!(sprite instanceof Character)) return false;
+    const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
+    return !!agent && !agent.staffRole && isPolice(agent.role);
   }
 
   private openDialogue(speaker: string, lines: readonly string[]): void {

@@ -85,6 +85,11 @@ export interface TripRule {
   uniform?: string;
   /** No se queda en casa por el tiempo: con lluvia no baja, sube (quien pide a domicilio, quien llama a un VTC). */
   rainproof?: boolean;
+  /**
+   * Espera un taxi o un VTC en una parada de la calle (LocationDef.rides): si el destino es su punto de espera, el coche
+   * viene de verdad por el carril, para, suben y se va (StreetLife, recogidas). Si no llega, se cansa y sigue su camino.
+   */
+  ride?: 'taxi' | 'vtc';
   /** Sólo mientras está en marcha ese evento (data/popups.ts, systems/PopUps): el mercadillo, la cola, el DJ. */
   popup?: string;
   /**
@@ -159,6 +164,18 @@ const NIGHT_OUT: Ends = { tags: ['nightlife'] };
 const CARMEN_WINDOWS: Ends = { points: ['TINTA_WINDOW', 'RETALES_WINDOW', 'RECORDS_WINDOW', 'ARCHIVO_WINDOW', 'VUELTA_WINDOW', 'SUELA_WINDOW', 'NAVAJA_WINDOW', 'GAVIOTA_WINDOW'] };
 const CARMEN: Ends = { tags: ['carmen'] };
 const WINDOWS: Ends = { points: ['FASHION_WINDOW_', 'HAIR_WINDOW', 'PHARMACY_WINDOW', 'BANK_WINDOW', 'SUPER_WINDOW', 'FRUIT_WINDOW', 'LAUNDRY_WINDOW'] };
+
+/**
+ * Patrulla de policía (systems/Police): sale de la comisaría o de un borde, va a donde hay gente a esa hora (de día la
+ * plaza y el metro; de noche, el ocio), se para un rato a mirar y se va. Nunca a las calles de vecinos. Todas las de una
+ * calle comparten cupo (POLICE.patrolCap) y son las que acuden a un robo (StreetLife.dispatch).
+ */
+const patrol = (hours: readonly [number, number], stops: readonly string[], line: string, extra: Partial<TripRule> = {}): TripRule => ({
+  role: 'police-patrol', ambient: true, label: 'Patrulla de policía', line, weight: 1, hours, from: CITY, to: { points: stops }, stay: [3, 6],
+  stayState: 'WAIT', then: CITY, group: [1, 2], bond: ['coworkers'], uniform: 'uniforme-policia', pause: 0, ...extra,
+});
+/** La comisaría de Puerta Central (data/puertaCentral.ts): de ahí salen y ahí vuelven sus patrullas, o por un borde. */
+const STATION: Ends = { points: ['PC_COMISARIA_ENTRANCE'], edge: true };
 
 export const STREET_PROFILES: readonly StreetProfile[] = [
   {
@@ -260,6 +277,9 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Tras la comida, las terrazas. Siempre igual.', weight: 3, hours: [15.5, 17.5], from: CITY, to: CITY, via: ['CAFE_TERRACE_WAITER', 'RESTAURANT_TERRACE_WAITER', 'METRO_MEET_01'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Un repaso a mediodía, que con tanto bocadillo...', weight: 1.5, hours: [12.5, 14], days: 'weekday', from: CITY, to: CITY, via: ['NEWS_KIOSK', 'BUS_STOP'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Turno de noche: lo que deja la gente al irse.', weight: 2, hours: [23, 1], from: CITY, to: CITY, via: ['METRO_MEET_01', 'CAFE_TERRACE_WAITER'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      // Policía: de día la plaza y el metro; de noche, la puerta de la Órbita, el Rincón y el Gaviota.
+      patrol([8, 20], ['PLAZA_FOUNTAIN', 'METRO_MEET_'], 'Una vuelta por la plaza y el metro. Lo de siempre.'),
+      patrol([20, 3], ['CLUB_SMOKE_', 'CORNER_BAR_SMOKE_', 'GAVIOTA_SMOKE_'], 'Noche tranquila de momento. Que siga así.', { weight: 0.6 }),
       { role: 'maintenance', ambient: true, label: 'Operario de mantenimiento', line: 'La fuente pierde agua. Otra vez.', weight: 4, hours: [8.5, 17], days: 'weekday', from: CITY, to: { points: ['PLAZA_FOUNTAIN'] }, stay: [12, 30], then: CITY, uniform: 'uniforme-mantenimiento', max: 1 },
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Dos pedidos más y acabo el turno.', weight: 7, hours: [13, 15.5], from: { points: ['RESTAURANT_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cena para tres en el tercero. Sin ascensor.', weight: 9, hours: [20.5, 23.5], from: { points: ['RESTAURANT_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
@@ -352,6 +372,9 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'El paseo se lleva lo peor: latas, colillas y patos.', weight: 7, hours: [6, 9.5], from: CITY, to: CITY, via: ['rb-pr05', 'rb-pr35'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 2 },
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Después de la comida, las terrazas. Siempre igual.', weight: 3, hours: [15.5, 17.5], from: CITY, to: CITY, via: ['RB_CAFE_TERRACE_WAITER', 'RB_CASAMAR_TERRACE_WAITER', 'RB_BAR_TERRACE_WAITER'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Turno de tarde: lo que deja la gente al irse.', weight: 2, hours: [22.5, 24], from: CITY, to: CITY, via: ['RB_METRO_FRONT', 'rb-pr05'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      // Policía: de día el metro y el paseo; de noche, el paseo del río, que es donde se queda la gente.
+      patrol([8, 20], ['RB_METRO_MEET_', 'RB_VIEW_'], 'Paseo y metro. Con este tiempo, media ciudad está aquí.'),
+      patrol([20, 2], ['RB_VIEW_', 'RB_ICE_CREAM_'], 'Por la noche el paseo se anima. Nosotros, también por aquí.', { weight: 0.6 }),
       { role: 'maintenance', ambient: true, label: 'Operario de mantenimiento', line: 'Otra farola fundida. Es la tercera del mes.', weight: 4, hours: [8.5, 17], days: 'weekday', from: CITY, to: { points: ['RB_VIEW_'] }, stay: [12, 30], then: CITY, uniform: 'uniforme-mantenimiento', max: 1 },
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Una paella para el segundo. Se enfría por el camino.', weight: 7, hours: [13, 15.5], from: { points: ['RB_CASAMAR_ENTRANCE', 'RB_BAR_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cena para tres. Y el timbre no funciona.', weight: 9, hours: [20.5, 23.5], from: { points: ['RB_CASAMAR_ENTRANCE', 'RB_BAR_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
@@ -438,6 +461,9 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       // Trabajo en la calle: limpieza antes de la hora punta, y repartidores a la hora de comer y de cenar.
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'La plaza del metro antes de las siete y media. Luego, imposible.', weight: 6, hours: [6, 7.5], from: CITY, to: CITY, via: ['cr-pl-w', 'cr-pl-e', 'cr-b37'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Después de la hora punta, la avenida es un cenicero.', weight: 3, hours: [9.5, 11.5], from: CITY, to: CITY, via: ['cr-s03', 'cr-s25', 'CR_AMBAR_WINDOW'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      // Policía: de día la plaza del metro y la avenida; de noche, la puerta de los recreativos.
+      patrol([8, 20], ['CR_METRO_MEET_', 'CR_MEET_'], 'La plaza del metro en hora punta: aquí es donde más ojo hay que tener.'),
+      patrol([20, 1], ['CR_ARCADE_HANG_'], 'Por la noche, una vuelta por los recreativos. Casi siempre, nada.', { weight: 0.6 }),
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Tres pedidos, dos portales y un timbre que no va.', weight: 8, hours: [12.5, 15.5], from: { points: ['CR_PIZZA_ENTRANCE', 'CR_BURGER_ENTRANCE', 'CR_SUSHI_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cena para cuatro en el quinto. Sin ascensor, claro.', weight: 10, hours: [19.5, 23.5], from: { points: ['CR_PIZZA_ENTRANCE', 'CR_BURGER_ENTRANCE', 'CR_SUSHI_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 4 },
       // De paso, a cualquier hora, y quien vuelve tarde.
@@ -483,6 +509,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última vuelta, por la explanada.', weight: 2, hours: [20.5, 23.5], from: HOMES, to: HOMES, via: ['ar-p43', 'ar-p11'], pace: 'stroll', dog: true, pause: 0.6 },
       { role: 'passer', label: 'Alguien de paso', line: 'Perdona, voy con prisa.', weight: 2, from: CITY, to: CITY },
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'La explanada a primera hora. Un día normal, se barre en diez minutos.', weight: 5, hours: [6, 8], from: CITY, to: CITY, via: ['ar-p05', 'ar-p50', 'ar-s41'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      // Policía en un día normal: barrio tranquilo, una vuelta suelta por el metro y la explanada (el partido trae la suya).
+      patrol([9, 20], ['AR_METRO_MEET_', 'AR_PHOTO_'], 'Sin partido, esto es un pueblo. Una vuelta y listo.', { weight: 0.4 }),
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Seis pizzas a la Avenida del Estadio. Hoy no hay partido y aun así.', weight: 6, hours: [20, 23.5], from: { points: ['AR_PIZZA_ENTRANCE', 'AR_BURGER_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
 
       // ---- Día de partido, horas antes (build-up): llega la afición, los bares se llenan, salen los puestos y la policía.
@@ -563,7 +591,9 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'doorman', label: 'Portero del hotel', line: 'Bienvenidos al Gran Hotel Velaria. ¿Les ayudo con las maletas?', weight: 5, hours: [7, 24], from: { points: ['VL_HOTEL_ENTRANCE'] }, to: { points: ['VL_HOTEL_DOOR_'] }, stay: [120, 240], stayState: 'WAIT', then: { points: ['VL_HOTEL_ENTRANCE'] }, uniform: 'uniforme-hotel', max: 2 },
       // El hotel: quien llega en taxi con la maleta y quien se va a la parada.
       { role: 'hotel-guest', label: 'Huésped que llega con su maleta', line: 'El taxista me ha dado una vuelta por toda la ciudad. Gratis no ha sido.', weight: 3, hours: [11, 23], from: { points: ['VL_TAXI_'], types: ['transit'], edge: true }, to: { points: ['VL_HOTEL_ENTRANCE'] }, group: [1, 2], bond: ['couple', 'tourists', 'coworkers'] },
-      { role: 'hotel-checkout', label: 'Huésped esperando el taxi', line: 'Dijeron cinco minutos. Aquí los cinco minutos son cinco minutos.', weight: 3, hours: [7.5, 13], from: { points: ['VL_HOTEL_ENTRANCE'] }, to: { points: ['VL_TAXI_'] }, stay: [2, 6], stayState: 'WAIT', then: CITY, max: 2 },
+      { role: 'hotel-checkout', label: 'Huésped esperando el taxi', line: 'Dijeron cinco minutos. Aquí los cinco minutos son cinco minutos.', weight: 3, hours: [7.5, 13], from: { points: ['VL_HOTEL_ENTRANCE'] }, to: { points: ['VL_TAXI_'] }, stay: [2, 6], stayState: 'WAIT', then: CITY, max: 2, ride: 'taxi' },
+      // A la salida de la vinoteca, de noche: el VTC a la parada del hotel.
+      { role: 'ride-wait', ambient: true, label: 'Alguien esperando un VTC', line: 'Lo he pedido negro. Aquí todos son negros.', weight: 3, hours: [22, 1.5], from: NIGHT_OUT, to: { points: ['VL_TAXI_'] }, stay: [6, 12], stayState: 'PHONE', then: CITY, rainproof: true, group: [1, 2], bond: ['couple', 'friends'], max: 2, ride: 'vtc' },
       // Compras: llegar a las casas de lujo y salir de ellas con bolsas.
       { role: 'shopper', label: 'Alguien de compras', line: 'Sólo vengo a mirar. Eso dije la última vez.', weight: 6, hours: [10.5, 20.5], from: { types: ['residence', 'transit'], points: ['VL_HOTEL_ENTRANCE'], edge: true }, to: { tags: ['luxury'] }, group: [1, 2], bond: ['friends', 'couple', 'family'] },
       { role: 'shopper', label: 'Alguien con bolsas', line: 'Me lo he llevado puesto. Lo de antes, en la bolsa.', weight: 5, hours: [11, 21], from: { tags: ['luxury', 'shop'] }, to: { types: ['transit', 'residence'], points: ['VL_HOTEL_ENTRANCE', 'VL_TAXI_'], edge: true } },
@@ -588,6 +618,9 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última del día. Sin correr.', weight: 2, hours: [20.5, 23.5], from: HOMES, to: HOMES, via: ['vl-m24', 'vl-pl-c'], pace: 'stroll', dog: true, pause: 0.6 },
       // Trabajo en la calle: limpieza a primera hora, repartos del gourmet y de Kaizen.
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Aquí la acera se friega. Con agua y todo.', weight: 6, hours: [6, 8], from: CITY, to: CITY, via: ['vl-pl-n', 'vl-pl-s', 'vl-n29'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      // Policía: de día el metro y la plaza; de noche, la plaza, que es lo que queda abierto.
+      patrol([9, 21], ['VL_METRO_MEET_', 'VL_PLAZA_MEET_'], 'Aquí lo que más hay es turista despistado. Y algún bolso a la vista.'),
+      patrol([21, 1], ['VL_PLAZA_MEET_'], 'A estas horas Velaria duerme. Nosotros, no.', { weight: 0.4 }),
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Una cesta gourmet al ático. El ascensor es de los que tienen asiento.', weight: 4, hours: [10, 13], from: { points: ['VL_GOURMET_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Omakase para dos a domicilio. Ni lo he mirado, lo juro.', weight: 4, hours: [20, 23.5], from: { points: ['VL_KAIZEN_ENTRANCE', 'VL_GOURMET_ENTRANCE'] }, to: HOMES, uniform: 'uniforme-reparto', rainproof: true, max: 2 },
       // De paso y de vuelta.
@@ -677,7 +710,15 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'dog-walker', label: 'Alguien paseando al perro', line: 'La última vuelta, que mañana madrugo.', weight: 1.5, hours: [21.5, 23.5], from: HOMES, to: HOMES, via: ['pc-c25'], pace: 'stroll', dog: true, pause: 0.6 },
       // Trabajo en la calle: limpieza al amanecer y repartos de la pizzería y la hamburguesería.
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Aquí se barre tres veces al día. Y no da.', weight: 6, hours: [6, 9], from: CITY, to: CITY, via: ['pc-c14', 'pc-c40', 'pc-r28'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 2 },
+      // Taxi y VTC en el bordillo de la Calle de la Puerta (rides): de noche, quien sale del Burger o de la plaza; de día,
+      // el turista con bolsas o maleta que no quiere metro.
+      { role: 'ride-wait', ambient: true, label: 'Alguien esperando un VTC', line: 'Dice dos minutos. Lleva diez.', weight: 5, hours: [22, 3.5], from: NIGHT_OUT, to: { points: ['PC_RIDE_WAIT_'] }, stay: [6, 12], stayState: 'PHONE', then: CITY, rainproof: true, group: [1, 2], bond: ['friends', 'couple'], max: 2, ride: 'vtc' },
+      { role: 'ride-wait', ambient: true, label: 'Alguien esperando un taxi', line: 'Con las bolsas no me meto en el metro.', weight: 2, hours: [9, 21], from: { tags: ['tourism', 'shop'] }, to: { points: ['PC_RIDE_WAIT_'] }, stay: [6, 12], stayState: 'PHONE', then: CITY, rainproof: true, max: 1, ride: 'taxi' },
       { role: 'street-cleaner', ambient: true, label: 'Operaria de limpieza', line: 'Lo de la noche, a primera hora. Lo de la tarde, ahora.', weight: 3, hours: [15, 17], from: CITY, to: CITY, via: ['pc-c25', 'pc-r28'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      // Policía de la comisaría de la plaza: en pareja (la plaza es enorme y cabe), salen por su puerta y vuelven a ella.
+      // De día, las bocas de metro y el monumento; de noche, los corrillos de la plaza.
+      patrol([8, 21], ['PC_METRO_MEET_', 'PC_MONUMENT_VIEW_', 'PC_MEET_'], 'Mucha gente, mucho turista: aquí trabajan los carteristas. Cartera delante.', { from: STATION, then: STATION, group: [2, 2], weight: 2 }),
+      patrol([21, 3], ['PC_MEET_', 'PC_MONUMENT_VIEW_'], 'De noche la plaza sigue llena. Una vuelta cada rato.', { from: STATION, then: STATION, group: [2, 2], weight: 1.5 }),
       { role: 'courier', ambient: true, label: 'Repartidor', line: 'Cuatro pizzas al cuarto sin ascensor. Siempre es el cuarto.', weight: 4, hours: [13, 16], from: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE'] }, to: HOMES_OR_CITY, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
       { role: 'courier', ambient: true, label: 'Repartidora', line: 'Hamburguesa doble con extra de todo. Dirección: «la plaza». Ya.', weight: 5, hours: [20, 1.5], from: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE'] }, to: HOMES_OR_CITY, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
     ],

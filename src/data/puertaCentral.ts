@@ -84,7 +84,9 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('pc-plaza-6', 'Plaza de la Puerta 6', 'res-plaster', [21, 31, 7, 8], 'n', 24, { point: 'PC_PLAZA_6_ENTRANCE' }),
   b('pc-plaza-8', 'Plaza de la Puerta 8', 'res-brick', [28, 31, 7, 8], 'n', 31, { point: 'PC_PLAZA_8_ENTRANCE' }),
   b('pc-plaza-10', 'Plaza de la Puerta 10', 'res-noble', [35, 31, 7, 8], 'n', 38, { point: 'PC_PLAZA_10_ENTRANCE' }),
-  b('pc-plaza-12', 'Plaza de la Puerta 12', 'res-modern', [42, 31, 7, 8], 'n', 45, { point: 'PC_PLAZA_12_ENTRANCE' }),
+  // La comisaría del centro (ficticia: Policía de Distrito): fachada clara con la banda azul y el escudo, puerta de cristal
+  // al paseo de los portales. Recepción por dentro (data/puertaCentralVenues.ts) y de aquí salen las patrullas de la plaza.
+  b('pc-comisaria', 'Comisaría de Puerta Central', 'police', [42, 31, 7, 8], 'n', 45, { enter: into('pc-comisaria'), point: 'PC_COMISARIA_ENTRANCE' }),
   b('pc-plaza-14', 'Plaza de la Puerta 14', 'res-plaster', [49, 31, 7, 8], 'n', 52, { point: 'PC_PLAZA_14_ENTRANCE' }),
 ];
 
@@ -130,6 +132,9 @@ const POINTS: Record<string, PointDef> = {
   // Los bordes: el resto de la ciudad. Por las dos aceras de la calle y por los tres paseos de la plaza, a los dos lados.
   EDGE_PC_NW: p(0, 9, 'edge'), EDGE_PC_NE: p(W - 1, 9, 'edge'),
   EDGE_PC_SW: p(0, 15, 'edge'), EDGE_PC_SE: p(W - 1, 15, 'edge'),
+  // Taxi y VTC: se espera en el bordillo norte, pegado al carril bus-taxi (sin carril bici en medio), lejos de los dos
+  // pasos de cebra y entre farolas y árboles. El coche para justo delante (rides, abajo).
+  PC_RIDE_WAIT_01: p(24, 10, 'wait', 'down'), PC_RIDE_WAIT_02: p(38, 10, 'wait', 'down'),
   EDGE_PC_MW: p(0, 24, 'edge'), EDGE_PC_ME: p(W - 1, 24, 'edge'),
   EDGE_PC_RW: p(0, 29, 'edge'), EDGE_PC_RE: p(W - 1, 29, 'edge'),
 
@@ -191,6 +196,7 @@ const LINKS: readonly Link[] = [
   ...chain('EDGE_PC_NW', 'pc-n03', 'pc-xw-n', 'pc-n10', 'pc-n17', 'pc-n24', 'pc-n31', 'pc-n38', 'pc-n45', 'pc-xe-n', 'pc-n52', 'EDGE_PC_NE'),
   ['PC_PIZZA_ENTRANCE', 'pc-n03'], ['PC_RECUERDOS_ENTRANCE', 'pc-n10'], ['PC_MODA_ENTRANCE', 'pc-n17'], ['PC_PUERTA_9_ENTRANCE', 'pc-n24'],
   ['PC_HOSTAL_ENTRANCE', 'pc-n31'], ['PC_PUERTA_13_ENTRANCE', 'pc-n38'], ['PC_PUERTA_17_ENTRANCE', 'pc-n45'], ['PC_PUERTA_21_ENTRANCE', 'pc-n52'],
+  ['PC_RIDE_WAIT_01', 'pc-n24'], ['PC_RIDE_WAIT_02', 'pc-n38'],
   ['PC_PIZZA_WINDOW', 'pc-n03'], ['PC_RECUERDOS_WINDOW', 'pc-n10'], ['PC_MODA_WINDOW_01', 'pc-n17'], ['PC_MODA_WINDOW_02', 'pc-n17'],
   // Los dos pasos de cebra.
   ['pc-xw-n', 'pc-xw-s'], ['pc-xe-n', 'pc-xe-s'],
@@ -212,7 +218,7 @@ const LINKS: readonly Link[] = [
   ['pc-c03', 'pc-r03'], ['pc-c14', 'pc-r15'], ['pc-c19', 'pc-r21'], ['pc-c25', 'pc-r28'], ['pc-c36', 'pc-r36'], ['pc-c44', 'pc-r43'], ['pc-c52', 'pc-r53'],
   ...chain('EDGE_PC_RW', ...sorted('pc-r'), 'EDGE_PC_RE'),
   ['PC_BURGER_ENTRANCE', 'pc-r03'], ['PC_CAFE_ENTRANCE', 'pc-r10'], ['PC_PLAZA_4_ENTRANCE', 'pc-r17'], ['PC_PLAZA_6_ENTRANCE', 'pc-r24'],
-  ['PC_PLAZA_8_ENTRANCE', 'pc-r31'], ['PC_PLAZA_10_ENTRANCE', 'pc-r38'], ['PC_PLAZA_12_ENTRANCE', 'pc-r45'], ['PC_PLAZA_14_ENTRANCE', 'pc-r52'],
+  ['PC_PLAZA_8_ENTRANCE', 'pc-r31'], ['PC_PLAZA_10_ENTRANCE', 'pc-r38'], ['PC_COMISARIA_ENTRANCE', 'pc-r45'], ['PC_PLAZA_14_ENTRANCE', 'pc-r52'],
   ['PC_BENCH_03', 'pc-r03'], ['PC_BENCH_04', 'pc-r53'],
   ['PC_CAFE_TERRACE_WAITER', 'pc-r10'], ['PC_CAFE_TERRACE_01', 'pc-r10'], ['PC_CAFE_TERRACE_02', 'pc-r10'],
   ['PC_STALL_A', 'pc-c19'], ...to('PC_STALL_A_SEE_', 'pc-r17'),
@@ -252,6 +258,8 @@ const BASE: LocationDef = {
     perLane: 3,
     hourly: [[0, 6, 1], [6, 7, 2], [7, 10, 3], [10, 19, 3], [19, 22, 3], [22, 24, 2]],
   },
+  // Recogidas de taxi/VTC (systems/StreetLife): paran en el carril bus-taxi (fila 11), delante de quien espera.
+  rides: [{ wait: 'PC_RIDE_WAIT_01', lane: 11, stopTx: 24 }, { wait: 'PC_RIDE_WAIT_02', lane: 11, stopTx: 38 }],
   // La terraza del Café Central (data/streets.ts: tableService): cada mesa, su silla y el sitio de quien atiende.
   tables: [
     { id: 'PC_CAFE_TERRAZA_01', seats: ['PC_CAFE_TERRACE_01'], service: { tx: 9, ty: 28 } },

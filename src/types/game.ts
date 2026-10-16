@@ -254,6 +254,7 @@ export interface MetroDef {
 /** Aspecto de un edificio. Cada estilo tiene su fachada, su tejado y su rótulo en BuildingArt. */
 export type BuildingStyle =
   | 'home'
+  | 'police'
   | 'res-brick'
   | 'res-stone'
   | 'res-plaster'
@@ -417,6 +418,13 @@ export interface TrafficDef extends LaneFlow {
   bikes?: LaneFlow;
 }
 
+/** Una parada de taxi/VTC: dónde se espera (punto del grafo, en el bordillo) y dónde para el coche (carril y tile). */
+export interface RideStopDef {
+  wait: string;
+  lane: number;
+  stopTx: number;
+}
+
 /**
  * Un paso de peatones con semáforo sobre una calzada que va de este a oeste:
  * el rectángulo de las bandas en tiles (los peatones lo cruzan de norte a sur).
@@ -490,6 +498,11 @@ export interface LocationDef {
   /** Zona de skate de una calle: unos patinadores ruedan de un lado a otro de la franja `row`, de `tx0` a `tx1` (world/SkateParkView). */
   skate?: { tx0: number; tx1: number; row: number; riders?: number };
   traffic?: TrafficDef;
+  /**
+   * Paradas de taxi/VTC (systems/StreetLife, recogidas): quien espera lo hace en el punto `wait`, en el bordillo; el coche
+   * para en el carril `lane` (uno de traffic.lanes, pegado a esa acera, sin carril bici en medio) con el centro en `stopTx`.
+   */
+  rides?: readonly RideStopDef[];
   /** Pasos de peatones con semáforo (systems/Signals.ts): los respetan peatones, personajes y coches. */
   signals?: readonly SignalDef[];
   /** Interiores: color de la luz del local (#rrggbb), que tiñe la sala. Las lámparas se encienden siempre. */
@@ -550,6 +563,8 @@ export interface NpcLook {
   trousers?: string;
   /** Bandas reflectantes del chaleco: dos franjas horizontales en el tronco (uniforme de limpieza). */
   reflective?: string;
+  /** Placa al pecho (la policía ficticia de systems/Police): un punto de metal sobre la banda. */
+  badge?: string;
   /** Franja vertical por fuera de cada pernera (el uniforme de seguridad del metro). */
   stripe?: string;
   /** Calzado fijo al cambiar de capa; sin él, sale del id. */

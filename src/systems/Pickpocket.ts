@@ -18,8 +18,8 @@ import { eventId, type EventInfo, type Lifecycle } from './WorldEvents.ts';
  * que en el andén más lleno, con un descanso largo después de cada uno.
  *
  * Quién hace de carterista sale al azar entre quien anda por la calle: un papel del momento, nunca del aspecto, el
- * género, la ropa, el color de piel ni el origen. Quien responde: en la calle no hay vigilancia (la del metro no sale de su
- * estación); si algún día hay un puesto de calle, entra por `responders`.
+ * género, la ropa, el color de piel ni el origen. Quien responde: la patrulla de la calle (systems/Police, por `report`),
+ * la que esté cerca o una que sale de la comisaría o de un borde; la vigilancia del metro no sale de su estación.
  */
 
 const P = METRO_CONFIG.pickpocket;
@@ -75,8 +75,10 @@ export interface PickpocketHost {
   leave(thief: Person, run: boolean): boolean;
   /** Se ve su grito: lo que dice quien lo ve. */
   shout?(who: Person, text: string): void;
-  /** Quien acude a la calle, si hay (ahora, nadie). */
+  /** Quien acude a la calle: los agentes que van o están atendiendo (systems/Police, StreetLife). */
   responders?(): string[];
+  /** Alguien lo ha visto (la víctima lo nota): se avisa a quien responde, con lo que se llevó (0 si no pudo). */
+  report?(victim: Person | 'player', amount: number): void;
 }
 
 type Phase = 'APPROACH' | 'ATTEMPT' | 'FLEE' | 'LEAVE';
@@ -111,8 +113,8 @@ export class StreetPickpocket {
   private elapsed = 0;
   private tick = 0;
   private cooldownUntil = 0;
-  /** El jugador ha sido robado: la escena le quita el dinero y se lo dice. */
-  onRobbed: ((r: Robbery) => void) | null = null;
+  /** El jugador ha sido robado: la escena le quita el dinero, se lo dice y devuelve lo que de verdad se llevó. */
+  onRobbed: ((r: Robbery) => number | void) | null = null;
   /** Cuántos ha habido: intentos, robos con éxito, vistos, al jugador, rechazados y sin llegar (consola y pruebas). */
   readonly stats = { started: 0, rejected: 0, stolen: 0, noticed: 0, player: 0, aborted: 0 };
 
@@ -252,13 +254,22 @@ export class StreetPickpocket {
       inc.noticed = !inc.success || this.rng() < P.victimNotices;
       if (inc.success) this.stats.stolen++;
       if (inc.noticed) this.stats.noticed++;
+      let amount = 0;
       if (inc.victim === 'player') {
         this.stats.player++;
-        if (inc.success) this.onRobbed?.({ amount: this.cash(), noticed: inc.noticed });
-      } else if (inc.noticed) {
-        inc.victim.line = '¡Eh! ¡Me han robado!';
-        this.host.shout?.(inc.victim, '¡Eh! ¡Me han robado!');
+        if (inc.success) {
+          const cash = this.cash();
+          amount = this.onRobbed?.({ amount: cash, noticed: inc.noticed }) ?? cash;
+        }
+      } else {
+        if (inc.success) amount = this.cash();
+        if (inc.noticed) {
+          inc.victim.line = '¡Eh! ¡Me han robado!';
+          this.host.shout?.(inc.victim, '¡Eh! ¡Me han robado!');
+        }
       }
+      // Lo han visto: se avisa a la patrulla (systems/Police). Lo que no ve nadie no lo atiende nadie.
+      if (inc.noticed) this.host.report?.(inc.victim, amount);
       // Lo han visto: huye corriendo. Si no, se aleja como cualquiera.
       inc.phase = inc.noticed ? 'FLEE' : 'LEAVE';
       inc.phaseAt = this.elapsed;

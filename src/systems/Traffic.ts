@@ -38,6 +38,11 @@ export interface Vehicle<T extends MoverType = MoverType> {
   cruise: number;
   /** Frenando o parado: luces de freno encendidas. */
   braking: boolean;
+  /**
+   * Recogida (Traffic.hail): px del centro donde para a recoger a alguien. Se arrima frenando como en un semáforo, se
+   * queda parado hasta release() y sigue su carril hasta salir. Mientras, es de esa recogida y de ninguna otra.
+   */
+  stopAt?: number;
 }
 
 export interface TrafficClock {
@@ -202,6 +207,12 @@ export class Traffic<T extends MoverType = MoverType> {
       }
     }
 
+    // Recogida: se arrima a su sitio como a la línea de un semáforo y ahí se queda.
+    if (v.stopAt !== undefined) {
+      const dist = (v.stopAt - v.x) * v.dir;
+      if (dist < BRAKE_PX * 1.4) target = Math.min(target, Math.max(0, dist * APPROACH));
+    }
+
     // La distancia con el de delante, de parachoques a parachoques: un autobús ocupa lo que mide.
     const leader = this.leaderOf(v);
     if (leader) {
@@ -225,6 +236,53 @@ export class Traffic<T extends MoverType = MoverType> {
       v.x = leader.x - v.dir * (leader.type.length / 2 + half + 1);
       v.speed = Math.min(v.speed, leader.speed);
     }
+    if (v.stopAt !== undefined && (v.x - v.stopAt) * v.dir > 0) {
+      v.x = v.stopAt;
+      v.speed = 0;
+    }
+  }
+
+  // ------------------------------------------------------------ recogidas
+
+  /**
+   * Un taxi o VTC (uno de `types`) para recoger a alguien en el carril `row`, con el centro en `x` (px): el que ya viene
+   * por ese carril, libre y con sitio para frenar antes; si no hay, uno nuevo por el borde de entrada del carril, si a
+   * esta hora ese tipo puede ir por él y la entrada está despejada. Nunca aparece al lado: entra por el borde.
+   */
+  hail(row: number, x: number, types: readonly string[], clock: TrafficClock): Vehicle<T> | undefined {
+    const lane = this.def.lanes.find((l) => l.row === row);
+    if (!lane) return undefined;
+    const coming = this.inLane(lane)
+      .filter((v) => types.includes(v.type.id) && v.stopAt === undefined && (x - v.x) * v.dir > BRAKE_PX * 2)
+      .sort((a, b) => (x - a.x) * a.dir - (x - b.x) * b.dir)[0];
+    if (coming) {
+      coming.stopAt = x;
+      return coming;
+    }
+    if (!this.entryClear(lane)) return undefined;
+    const weights = vehicleWeights(this.def, this.catalog, clock.day, clock.minuteOfDay / 60, lane).filter(([t, w]) => w > 0 && types.includes(t.id));
+    if (weights.length === 0) return undefined;
+    const before = this.vehicles.length;
+    this.spawn(lane, 0, clock, true, pick(weights, this.rng));
+    if (this.vehicles.length === before) return undefined;
+    const v = this.vehicles[this.vehicles.length - 1];
+    v.stopAt = x;
+    return v;
+  }
+
+  /** Parado en su sitio de recogida (para que alguien suba: nunca con el coche en marcha). */
+  isStopped(v: Vehicle<T>): boolean {
+    return v.stopAt !== undefined && Math.abs(v.x - v.stopAt) < 1 && v.speed < 0.5;
+  }
+
+  /** Sigue en la calle (no ha salido por el borde). */
+  has(v: Vehicle<T>): boolean {
+    return this.vehicles.includes(v);
+  }
+
+  /** Ya han subido (o ya no hace falta): arranca y sigue su carril hasta salir. */
+  release(v: Vehicle<T>): void {
+    v.stopAt = undefined;
   }
 
   /** El más cercano delante en su carril. */

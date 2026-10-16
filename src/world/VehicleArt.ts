@@ -173,6 +173,12 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
   px(ctx, '#ffffff', L - 2, pr.hood + 1, 1, 1);
   px(ctx, TAIL, 1, pr.deck + 1, 2, 2);
   px(ctx, shade(TAIL, 0.35), 1, pr.deck + 1, 1, 1);
+  if (t.trim?.badge) {
+    // VTC: el distintivo de servicio, un cuadro de color con su borde en la puerta delantera.
+    const bx = Math.round((pr.wsBase - 0.1) * L);
+    px(ctx, PALETTE.outline, bx - 1, pr.belt + 1, 4, 4);
+    px(ctx, t.trim.badge, bx, pr.belt + 2, 2, 2);
+  }
   if (t.trim?.stripe) {
     // Taxi: la banda roja en diagonal sobre la puerta delantera.
     const x0 = Math.round((pr.wsBase - 0.06) * L);

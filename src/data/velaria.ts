@@ -270,6 +270,8 @@ const BASE: LocationDef = {
       rainShy: 0.8,
     },
   },
+  // La parada de taxis del Gran Hotel (VL_TAXI_*, en el bordillo): el coche para delante en el carril de taxis (fila 11).
+  rides: [{ wait: 'VL_TAXI_01', lane: 11, stopTx: 19 }, { wait: 'VL_TAXI_02', lane: 11, stopTx: 23 }],
   // La terraza del Café Aurelia (data/streets.ts: tableService): cada mesa, su silla y el sitio de quien atiende.
   tables: [
     { id: 'VL_CAFE_TERRAZA_01', seats: ['VL_CAFE_TERRACE_01'], service: { tx: 19, ty: 23 } },

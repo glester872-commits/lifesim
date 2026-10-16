@@ -342,7 +342,8 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'uniforme-clinica', cloth: '#f2f4f6', clothDark: '#d4d9de', hair: '#4a3b2f', trousers: '#f2f4f6' },
   // Distrito Arena, día de partido: policía (azul marino, chaleco con bandas reflectantes y gorra; ningún cuerpo real) y
   // el personal de seguridad del estadio (peto naranja fluorescente sobre negro).
-  { id: 'uniforme-policia', cloth: '#1f2c4a', clothDark: '#162036', hair: '#2a2430', trousers: '#1f2c4a', sleeves: '#1f2c4a', cap: '#1f2c4a', reflective: '#d8e04a', stripe: '#d8e04a' },
+  // La misma ropa la llevan la patrulla de cada barrio y la guardia de la comisaría (systems/Police), con la placa al pecho.
+  { id: 'uniforme-policia', cloth: '#1f2c4a', clothDark: '#162036', hair: '#2a2430', trousers: '#1f2c4a', sleeves: '#1f2c4a', cap: '#1f2c4a', reflective: '#d8e04a', stripe: '#d8e04a', badge: '#c9ccd2' },
   { id: 'uniforme-seguridad', cloth: '#ff8a2a', clothDark: '#d86a18', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20', reflective: '#e9ecd2' },
 ];
 

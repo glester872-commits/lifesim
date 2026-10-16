@@ -56,7 +56,8 @@ export interface VehicleType extends MoverType {
   /** Alto del sprite en px, del techo a las ruedas. */
   height: number;
   /** Lo que lo distingue: la franja del taxi, la caja del camión, la rotativa del servicio. */
-  trim?: { stripe?: string; box?: string; roof?: 'taxi' | 'beacon' | 'sign' };
+  /** `badge`: el distintivo de servicio pegado en la puerta delantera (el VTC; ficticio, sin marca). */
+  trim?: { stripe?: string; box?: string; roof?: 'taxi' | 'beacon' | 'sign'; badge?: string };
   /** Autobuses: la línea que lleva el letrero de cada variante (una por color, en orden). */
   routes?: readonly string[];
 }
@@ -114,6 +115,8 @@ export const VEHICLES: readonly VehicleType[] = [
     id: 'vtc', shape: 'sedan', length: 44, height: 19, pace: 1.05,
     colors: ['#14161a', '#22252b', '#3a3f48', '#4a4f57', '#b8bcc2'],
     colorWeight: [6, 3, 2, 1, 1],
+    // El distintivo de servicio (ficticio): un cuadro turquesa en la puerta delantera, para distinguirlo de un coche particular.
+    trim: { badge: '#3fc1b0' },
     weight: 2, gated: true, bands: { dawn: 1.4, night: 1.6, evening: 1.2 }, roads: { residential: 0.7 },
   },
   // Taxis de Madrid: blancos con la banda roja en diagonal y el piloto en el techo, sobre varias carrocerías.

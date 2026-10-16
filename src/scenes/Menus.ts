@@ -8,7 +8,9 @@ import { blocker, perform, type ActivityContext } from '../systems/Activities';
 import { destinationsFrom, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
 import type { MenuOption } from '../ui/Menu';
-import { getOffer, type OfferId } from '../data/services';
+import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
+import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
+import { absMinute } from '../systems/Handoff';
 import { HAIRSTYLES, type Appearance } from '../data/appearance';
 import type { RackDef } from '../types/game';
 import { haircut, sleeveOf, tattoo, visibleTattoos, withAppearance } from '../systems/Appearance';
@@ -222,6 +224,10 @@ export class Menus {
       this.openStore(offer.store, who, offer.minutes, note, selected);
       return;
     }
+    if (offer.kind === 'police') {
+      this.openPoliceDesk(offer, who);
+      return;
+    }
     if (offer.slot === 'tattoos') {
       this.openTattoo(offer.title, offer.greeting, who, note, selected);
       return;
@@ -253,6 +259,35 @@ export class Menus {
       this.host.persist();
       dialogue.start(who, [result.message, `${formatClock(state.day, state.hour, state.minute)}.`]);
     }, undefined, note, selected);
+  }
+
+  /**
+   * La recepción de la comisaría (systems/Police): cómo está la zona ahora (su barrio, el riesgo de esta hora y los robos
+   * que constan) y, sólo si te han robado en la calle y no lo has denunciado, la denuncia, que lleva su rato y queda
+   * registrada. Sin robo tuyo, no hay nada que denunciar y no se ofrece.
+   */
+  private openPoliceDesk(offer: Extract<ServiceOffer, { kind: 'police' }>, who: string): void {
+    const { state, menu, clock, dialogue } = this.services;
+    const now = absMinute(state.day, state.hour, state.minute);
+    const theft = reportable(now);
+    const options: MenuOption[] = [{ label: 'Cómo está la zona ahora' }];
+    if (theft) options.push({ label: `Denunciar el robo de ${euros(theft.amount)}`, detail: `${POLICE.reportMinutes} min` });
+    options.push({ label: 'Nada, gracias' });
+    menu.open(`${offer.title} · ${who}`, 'Buenas. ¿En qué te puedo ayudar?', options, (i) => {
+      menu.close();
+      if (i === 0) {
+        dialogue.start(who, deskBrief(offer.street, state, now));
+        return;
+      }
+      if (!theft || i !== 1 || !fileReport(theft.id, now)) return;
+      clock.advanceMinutes(POLICE.reportMinutes);
+      this.host.persist();
+      dialogue.start(who, [
+        `Denuncia número ${theft.id}: robo de ${euros(theft.amount)} en ${theft.zone}. Queda registrada.`,
+        theft.attended ? 'Consta también que una patrulla te atendió allí mismo.' : 'Nadie de patrulla llegó a verlo: queda sólo con lo que nos cuentas.',
+        `${formatClock(state.day, state.hour, state.minute)}.`,
+      ]);
+    });
   }
 
   // ------------------------------------------------------------- ropa

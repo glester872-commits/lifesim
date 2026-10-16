@@ -145,7 +145,13 @@ for (const ph of ['build-up', 'arrival', 'leaving'] as const) assert.ok(match[ph
 for (const ph of MATCH_PHASES) assert.equal(normal[ph].fanShare, 0, `aficionados sin partido (${ph})`);
 // Seguridad: policía y personal de los tornos sólo en día de partido.
 assert.ok(match.arrival.uniforms.has('uniforme-seguridad') && match.arrival.uniforms.has('uniforme-policia'), 'sin seguridad a la llegada');
-for (const ph of MATCH_PHASES) assert.ok(!normal[ph].uniforms.has('uniforme-policia') && !normal[ph].uniforms.has('uniforme-seguridad'), `seguridad de partido sin partido (${ph})`);
+// Sin partido no hay policía de puesto, personal de tornos ni seguridad del estadio; el uniforme de policía, si se ve,
+// es la patrulla de todos los días (systems/Police), la misma de cualquier barrio.
+for (const ph of MATCH_PHASES) {
+  const n = normal[ph];
+  assert.ok(!n.roles.has('police') && !n.roles.has('steward') && !n.uniforms.has('uniforme-seguridad'), `seguridad de partido sin partido (${ph})`);
+  if (n.uniforms.has('uniforme-policia')) assert.ok(n.roles.has('police-patrol'), `policía sin partido que no es la patrulla (${ph})`);
+}
 for (const r of ['fan-direct', 'fan-queue']) assert.ok(match.arrival.roles.has(r), `sin ${r} a la llegada`);
 for (const r of ['fan-exit', 'fan-metro-queue']) assert.ok(match.leaving.roles.has(r), `sin ${r} a la salida`);
 assert.ok([...normal.arrival.roles].every((r) => !r.startsWith('fan-')), 'viajes de partido sin partido');

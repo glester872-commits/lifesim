@@ -67,7 +67,31 @@ const PC_CAFE: LocationDef = {
   inspects: [{ tx: 1, ty: 2, name: 'Pizarra', lines: ['Desayuno de la casa: café, tostada y zumo. «Menú en inglés, francés e italiano: pídalo».'] }],
 };
 
-export const PC_INTERIORS: readonly LocationDef[] = [RECUERDOS, MODA, PC_CAFE, ...FOOD_INTERIORS.filter((l) => FOOD.has(l.id))];
+// ------------------------------------------------------------------ la comisaría
+
+/**
+ * Comisaría de Puerta Central (systems/Police): la planta de la tienda pequeña sin caja ni mostrador. La guardia, de pie
+ * delante de la mesa de recepción (le hablas: la seguridad de la zona y, si te han robado, la denuncia), sillas para
+ * esperar turno y el tablón. Se sale por donde se entra, a la plaza.
+ */
+const COMISARIA_ROOM = shopRoom({
+  id: 'pc-comisaria', name: 'Comisaría de Puerta Central', building: 'pc-comisaria', street: STREET, pre: 'PCPOLICIA', ambient: '#eef2f6',
+  props: [
+    at('info-board', 4, 1), at('poster', 7, 1), at('clock', 10, 1), ...many('plant', [[1, 1], [12, 1]]), at('desk', 11, 5),
+    ...many('chair-right', [[2, 5], [2, 6], [2, 7]]), ...many('tube-light', [[4, 4], [9, 4]]),
+  ],
+  browse: [[3, 5, 'left'], [3, 7, 'left'], [4, 2, 'up']],
+  inspects: [{ tx: 4, ty: 2, name: 'Tablón de la comisaría', lines: ['Policía de Distrito · Comisaría de Puerta Central. Abierto las 24 horas.', '«En la plaza, la cartera delante y el móvil a la vista.» «Si te roban en la calle, la denuncia se pone aquí, en recepción.»'] }],
+});
+const COMISARIA: LocationDef = {
+  ...COMISARIA_ROOM,
+  // Una recepción, no una tienda: sin mostrador ni caja. La guardia está de pie delante de su mesa (la de la pantalla), a
+  // tiro de quien llega: detrás de un mostrador quedaría fuera del alcance para hablar (INTERACT_RADIUS).
+  props: (COMISARIA_ROOM.props ?? []).filter((prop) => prop.kind !== 'register' && prop.kind !== 'counter'),
+  portals: [{ id: 'exit', tx: 7, ty: 9, label: 'Salir a la plaza', to: { location: STREET, spawn: 'pc-comisaria' } }],
+};
+
+export const PC_INTERIORS: readonly LocationDef[] = [RECUERDOS, MODA, PC_CAFE, COMISARIA, ...FOOD_INTERIORS.filter((l) => FOOD.has(l.id))];
 
 // ------------------------------------------------------------------ gente
 
@@ -87,6 +111,22 @@ export const PC_PROFILES: readonly PopulationProfile[] = [
     weekday: [-1, 0, 0, 0, 1, 2, 0], maxVisitors: 6,
     staff: [cashier('PCMODA', 'Moda Central', 'Si no te vale, tienes treinta días. Con tique.', 'uniforme-tienda', 'shop-central')],
     visitors: [customer('PCMODA', 'Vengo a por unos vaqueros. Siempre vengo a por unos vaqueros.', 2, { party: [1, 2] })],
+  },
+  {
+    // Siempre hay guardia; de día entra más gente (un trámite, una pregunta) que de madrugada.
+    place: 'pc-comisaria', bands: [[0, 8, 'VERY_LOW'], [8, 21, 'LOW'], [21, 24, 'VERY_LOW']],
+    weekday: [0, 0, 0, 0, 0, 0, 0], maxVisitors: 2,
+    staff: [{ service: 'police-officer', label: 'Agente de guardia', line: 'Buenas. ¿En qué te puedo ayudar?', look: 'uniforme-policia', points: ['PCPOLICIA_STAFF'] }],
+    visitors: [
+      {
+        role: 'complainant', label: 'Alguien esperando turno', line: 'Vengo a por un papel. Llevo media hora para un papel.', weight: 1,
+        plan: [
+          { state: 'WAIT', points: ['PCPOLICIA_BROWSE_'], minutes: [4, 10] },
+          { state: 'QUEUE', points: ['PCPOLICIA_QUEUE_'], minutes: [1, 2] },
+          { state: 'TALK', points: ['PCPOLICIA_TILL'], minutes: [3, 6] },
+        ],
+      },
+    ],
   },
   {
     place: 'pc-cafe', bands: [[7.5, 10.5, 'VERY_HIGH'], [10.5, 13, 'HIGH'], [13, 16, 'MEDIUM'], [16, 20, 'HIGH'], [20, 22.5, 'MEDIUM']],

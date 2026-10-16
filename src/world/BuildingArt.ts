@@ -19,7 +19,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone' | 'gem' | 'star' | 'frame' | 'lotus';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone' | 'gem' | 'star' | 'frame' | 'lotus' | 'shield';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -54,6 +54,9 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   home: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: shade(PALETTE.wallLit, 0.06), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'home', sign: 'house' },
   'res-brick': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.brick, shop: 'windows', upper: 'balcony', lit: PALETTE.amberDim, door: 'wood' },
   'res-stone': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: PALETTE.stone, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
+  // Comisaría (Policía de Distrito, ficticia): piedra clara, cristal con luz fría, la banda azul marino del uniforme con
+  // su filo amarillo de toldo y el escudo de rótulo. Se reconoce desde la plaza sin leer nada.
+  police: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#dfe3e6', shop: 'glass', upper: 'windows', lit: PALETTE.glassLit, door: 'glass', awning: ['#1f2c4a', '#d8e04a'], sign: 'shield' },
   'res-plaster': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.wallLit, 0.05), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood' },
   metro: { roof: PALETTE.night, roofLit: shade(PALETTE.night, 0.06), wall: PALETTE.night, shop: 'metro', upper: 'windows', lit: PALETTE.amber, door: 'stairs' },
   gym: { roof: PALETTE.roofBLit, roofLit: shade(PALETTE.roofBLit, 0.05), wall: PALETTE.metal, shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass', sign: 'dumbbell' },
@@ -1012,7 +1015,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
     sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e', bread: PALETTE.amber, phone: NEON_CYAN,
-    gem: BRASS, star: BRASS, frame: BRASS, lotus: BRASS,
+    gem: BRASS, star: BRASS, frame: BRASS, lotus: BRASS, shield: '#d8e04a',
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -1037,6 +1040,10 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     case 'basket': p(4, 7, 8, 1); p(5, 8, 6, 4); p(6, 4, 1, 3); p(9, 4, 1, 3); p(6, 4, 4, 1); break;
     case 'fork': p(5, 4, 1, 8); p(4, 4, 1, 3); p(6, 4, 1, 3); p(10, 4, 2, 4); p(10, 8, 1, 4); break;
     case 'cross': p(7, 4, 2, 8); p(4, 7, 8, 2); break;
+    // Escudo de la Policía de Distrito (ficticio): blasón azul marino con filo blanco y una estrella amarilla en el centro.
+    case 'shield': p(4, 3, 8, 1); p(4, 4, 1, 5); p(11, 4, 1, 5); p(5, 9, 1, 1); p(10, 9, 1, 1); p(6, 10, 1, 1); p(9, 10, 1, 1); p(7, 11, 2, 1);
+      px(ctx, '#1f2c4a', 5, 4, 6, 5); px(ctx, '#1f2c4a', 6, 9, 4, 1); px(ctx, '#1f2c4a', 7, 10, 2, 1);
+      px(ctx, '#d8e04a', 7, 5, 2, 3); px(ctx, '#d8e04a', 6, 6, 4, 1); break;
     case 'scissors': p(4, 4, 1, 1); p(5, 5, 1, 1); p(6, 6, 4, 1); p(10, 5, 1, 1); p(11, 4, 1, 1); p(5, 8, 2, 2); p(9, 8, 2, 2); break;
     case 'euro': p(6, 4, 4, 1); p(5, 5, 1, 6); p(6, 11, 4, 1); p(4, 7, 5, 1); p(4, 9, 5, 1); break;
     case 'apple': px(ctx, RUST, 5, 6, 6, 6); px(ctx, RUST, 4, 7, 8, 4); p(8, 4, 1, 2); px(ctx, PALETTE.leafLit, 9, 4, 2, 1); break;

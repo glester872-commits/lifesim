@@ -30,6 +30,8 @@ export interface HumanColors {
   stripe?: string;
   /** Bandas reflectantes del chaleco: dos franjas horizontales en el tronco. */
   reflective?: string;
+  /** Placa al pecho, encima de la banda (policía). */
+  badge?: string;
   /** Píxeles de brazo que tapa la manga (0–5); por debajo, piel. Sin él, todo el brazo. */
   sleeveLen?: number;
   /** Tatuajes que se ven con la ropa de hoy (systems/Appearance.ts decide cuáles): dónde y de qué tinta. */
@@ -545,6 +547,11 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, shade(c.reflective, -0.2), 10, 12 + b, 2, 1);
     px(ctx, c.reflective, 4, 15, 8, 1);
     px(ctx, shade(c.reflective, -0.2), 10, 15, 2, 1);
+  }
+  // La placa: dos píxeles de metal al pecho, entre las bandas; de espaldas no se ve.
+  if (c.badge && !back) {
+    px(ctx, c.badge, 5, 13 + b, 1, 1);
+    px(ctx, shade(c.badge, -0.25), 6, 13 + b, 1, 1);
   }
   // Bajo el brazo de la sombra, la tela se hunde: separa brazo y tronco.
   px(ctx, tone(c.clothDark, -0.2), 11, 11 + b, 1, 2);

@@ -26,7 +26,12 @@ export type ServiceOffer =
   | { kind: 'appearance'; slot: import('./appearance.ts').AppearanceSlot; title: string; greeting: string; minutes: number }
   | { kind: 'activities'; title: string; activities: readonly string[] }
   /** Una tienda de ropa (data/retail.ts): su género y sus precios, cobrados por systems/Retail.ts. */
-  | { kind: 'retail'; store: string; minutes: number };
+  | { kind: 'retail'; store: string; minutes: number }
+  /**
+   * La recepción de una comisaría (systems/Police): cómo está la zona ahora (la calle `street`, su hora y los robos que
+   * constan) y, sólo si te han robado y no lo has denunciado, la denuncia.
+   */
+  | { kind: 'police'; title: string; street: string };
 
 export const SERVICE_OFFERS = {
   haircut: { kind: 'appearance', slot: 'hair', title: 'Barbería Nati · corte', greeting: 'Siéntate. ¿Cómo lo quieres?', minutes: 30 },
@@ -56,6 +61,7 @@ export const SERVICE_OFFERS = {
   'bar-ribera': { kind: 'activities', title: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'bar-larguero': { kind: 'activities', title: 'Barra · Bar El Larguero', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'bar-grada': { kind: 'activities', title: 'Barra · Taberna La Grada', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
+  'police-desk': { kind: 'police', title: 'Comisaría de Puerta Central · recepción', street: 'puerta-central' },
 } as const satisfies Record<string, ServiceOffer>;
 
 export type OfferId = keyof typeof SERVICE_OFFERS;
@@ -85,6 +91,8 @@ export const SERVICE_ROLES = {
   'shop-worker': { label: 'Personal de tienda', line: 'Si buscas algo, dímelo.', uniform: 'uniforme-tienda', activity: 'rounds' },
   cook: { label: 'Cocina', line: 'Sale en cinco minutos.', uniform: 'uniforme-sala', activity: 'post' },
   receptionist: { label: 'Recepción', line: '¿Tienes cita?', uniform: 'uniforme-tienda', activity: 'post' },
+  // La guardia de la comisaría (systems/Police): el mismo uniforme que la patrulla de la calle.
+  'police-officer': { label: 'Agente de guardia', line: 'Buenas. ¿En qué te puedo ayudar?', uniform: 'uniforme-policia', activity: 'post', offers: 'police-desk' },
   dj: { label: 'DJ', line: '(Señala los cascos y sonríe. No te oye.)', uniform: 'dj', activity: 'post' },
   barber: { label: 'Barbería', line: 'Si tienes prisa, vuelve mañana.', uniform: 'uniforme-barbero', activity: 'serve', offers: 'haircut' },
   'tattoo-artist': { label: 'Tatuador', line: 'Si te tiembla el pulso, a mí no.', uniform: 'uniforme-tatuaje', activity: 'serve', offers: 'tattoo' },

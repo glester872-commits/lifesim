@@ -1,7 +1,9 @@
 // Sin Phaser: world/CrowdView.ts lo pinta y scripts/simulate-streets.ts lo
 // simula durante días con exactamente esta lógica.
-import { GAME_MINUTES_PER_REAL_SECOND } from '../config/constants.ts';
+import { GAME_MINUTES_PER_REAL_SECOND, TILE } from '../config/constants.ts';
 import { LEVELS, POPULATION, type Level } from '../config/population.ts';
+import type { Traffic, Vehicle } from './Traffic.ts';
+import type { RideStopDef } from '../types/game.ts';
 import { STREET_PROFILES, type Ends, type StreetPost, type StreetProfile, type TripRule } from '../data/streets.ts';
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import { PLACES } from '../data/places.ts';
@@ -17,6 +19,7 @@ import { DOG_LOOKS } from '../data/wildlife.ts';
 import { lookWeights, profileAt } from './Districts.ts';
 import { zoneAt, zonePull } from './Zones.ts';
 import { StreetPickpocket } from './Pickpocket.ts';
+import { incidentById, isPolice, POLICE, recordIncident } from './Police.ts';
 import { activePopUp, popUpCrowd } from './PopUps.ts';
 import { byPhase, matchPhase } from './Match.ts';
 import { bondMates, IDENTITIES, OUTFIT_CLASH, outfitOf, outfitsOf, paceOf, relationLine, roleAffinity } from './People.ts';
@@ -88,6 +91,30 @@ export function crowdBudget(budget: number, frameMs: number): number {
 /** Rol ambiente (TripRule.ambient): como mucho tanta gente a la vez en toda la calle, y la probabilidad de que cada decisión de la calle saque uno. */
 export const AMBIENT_CAP = 8;
 const AMBIENT_CHANCE = 0.15;
+/** El rol de las patrullas de la calle (data/streets.ts): comparten cupo (POLICE.patrolCap) y responden a los robos. */
+export const PATROL = 'police-patrol';
+
+/**
+ * Recogidas de taxi/VTC (TripRule.ride, LocationDef.rides): cuántas a la vez en la calle y cuánto se espera cada paso
+ * (ms reales). Sin coche asignado a tiempo, sin llegar o sin subir: se cancela, el coche sigue y el grupo, su camino.
+ */
+export const RIDE = { cap: 2, dispatchMs: [2_000, 5_000] as const, waitMs: 25_000, approachMs: 40_000, boardMs: 12_000, retryMs: 1_000 } as const;
+const RIDE_TYPES = { taxi: ['taxi', 'taxi-wagon', 'taxi-suv', 'taxi-hybrid'], vtc: ['vtc'] } as const;
+/** Lo que tarda cada uno en subir (ms reales): se le ve junto a la puerta y luego ya no. */
+const BOARD_MS = 600;
+
+export type RidePhase = 'WAITING' | 'APPROACHING' | 'BOARDING';
+/** Una recogida en marcha: su parada (una a la vez), quien la pidió, su coche (uno por recogida) y quiénes suben. */
+export interface Ride {
+  stop: RideStopDef;
+  kind: 'taxi' | 'vtc';
+  leader: Walker;
+  members: Walker[];
+  phase: RidePhase;
+  ms: number;
+  retry: number;
+  car?: Vehicle;
+}
 /** Donde para a barrer quien limpia: esto y toda papelera (PropDef.waste, de cualquier tipo). */
 const DIRTY: ReadonlySet<string> = new Set(['debris', 'bus-stop', 'kiosk', 'vending', 'cafe-table', 'bench', 'plaza-bench']);
 /** Cada cuánto (ms reales) la calle decide si sale alguien más. */
@@ -233,6 +260,13 @@ export interface Walker extends Agent {
   dest?: string;
   /** Hace de carterista o de víctima de un robo en curso (systems/Pickpocket): su viaje espera hasta que acabe. */
   incident?: 'thief' | 'victim';
+  /**
+   * Agente atendiendo un robo (systems/Police): va hacia la víctima (GO), se queda con ella (ATTEND) y vuelve a la
+   * comisaría o sale por un borde. Una sola respuesta a la vez; su viaje espera hasta que acabe.
+   */
+  respond?: { incident: number; victim: Walker | 'player'; phase: 'GO' | 'ATTEND'; ms: number; timer: number };
+  /** Espera un taxi/VTC o está subiendo a él (StreetLife, recogidas): su viaje lo lleva la recogida hasta que acabe. */
+  riding?: Ride;
 }
 
 /**
@@ -304,6 +338,16 @@ export class StreetLife {
   private stats: StreetStats = { level: 'VERY_LOW', target: 0, walkers: 0, staying: 0 };
   /** Ms desde que el jugador llegó: el reloj del camarero de la terraza. */
   private elapsed = 0;
+  /** Hasta cuándo (en `elapsed`) no sale otra patrulla: la última acaba de irse (POLICE.restMs). */
+  private patrolRestUntil = 0;
+  /**
+   * Los coches de esta calle (systems/Traffic), para las recogidas de taxi/VTC: la escena lo pone al crearlos. Sin él (o
+   * sin parada en la calle), quien espera un coche se cansa y sigue su camino.
+   */
+  traffic: Traffic | null = null;
+  /** Recogidas en marcha (como mucho RIDE.cap) y cómo acabaron las demás (consola y pruebas). */
+  readonly rides: Ride[] = [];
+  readonly rideStats = { started: 0, assigned: 0, boarded: 0, cancelled: 0, people: 0 };
   /** Cliente → ms en que se le atendió. */
   private readonly served = new Map<number, number>();
   private readonly signals: readonly SignalDef[];
@@ -380,6 +424,8 @@ export class StreetLife {
         }
         return true;
       },
+      responders: () => this.agents.filter((a) => a.respond).map((a) => `#${a.id}`),
+      report: (victim, amount) => this.report(victim as Walker | 'player', amount),
     });
     this.loc = loc;
     this.profile = profile;
@@ -492,6 +538,8 @@ export class StreetLife {
    */
   private handOff(a: Walker): void {
     if (!a.dest || a.kind !== 'visitor' || this.loc.points?.[a.dest]?.kind !== 'entrance') return;
+    // La patrulla que vuelve a la comisaría no entra como público: dentro ya está la guardia (data/puertaCentralVenues.ts).
+    if (isPolice(a.role)) return;
     const door = this.pointAt(a.dest);
     if (Math.hypot(a.x - door.tx, a.y - door.ty) > 1.5 || distance(door, this.player) > WITNESS_TILES) return;
     enterPlace({
@@ -606,6 +654,8 @@ export class StreetLife {
         this.advance(a, deltaMs, clock);
       }
     }
+    this.advanceResponses(deltaMs);
+    this.advanceRides(deltaMs, clock);
     // Quien sale ahora de un local por su puerta (systems/Handoff): la misma persona que entró.
     this.now = absMinute(clock.day, clock.hour, clock.minute);
     for (const h of dueOut(this.loc.id, this.now)) this.emerge(h, clock);
@@ -616,6 +666,8 @@ export class StreetLife {
         this.release(a);
         this.watch.forget(a.id);
         this.agents.splice(i, 1);
+        // Una patrulla que se va: la siguiente, dentro de un rato (POLICE.restMs).
+        if (a.role === PATROL) this.patrolRestUntil = this.elapsed + POLICE.restMs;
       }
     }
   }
@@ -708,8 +760,9 @@ export class StreetLife {
     }
     a.moving = false;
     if (a.vanish) return;
-    // En un robo: llegar al final del camino no es irse (systems/Pickpocket decide cuándo).
-    if (a.incident) return;
+    // En un robo (o atendiéndolo), o esperando un coche: llegar al final del camino no es irse (systems/Pickpocket,
+    // advanceResponses, advanceRides).
+    if (a.incident || a.respond || a.riding) return;
     if (a.leader) {
       this.followLeader(a, clock);
       return;
@@ -743,6 +796,129 @@ export class StreetLife {
     if (facing) a.dir = facing;
     const [lo, hi] = a.rule!.stay ?? [3, 10];
     a.timer = between(this.rng, lo, hi) * MS_PER_GAME_MINUTE;
+    // Espera un taxi/VTC en su parada: empieza la recogida (si cabe en el cupo; si no, espera un rato y se va, como antes).
+    const stop = a.rule!.ride ? this.loc.rides?.find((r) => r.wait === a.stayPoint) : undefined;
+    if (stop && this.rides.length < RIDE.cap && !this.rides.some((r) => r.stop === stop)) {
+      // Lo pide al llegar: la app tarda unos segundos en asignarle coche (RIDE.dispatchMs) y mientras, espera con el móvil.
+      const ride: Ride = { stop, kind: a.rule!.ride!, leader: a, members: [], phase: 'WAITING', ms: 0, retry: between(this.rng, ...RIDE.dispatchMs) };
+      a.riding = ride;
+      this.rides.push(ride);
+      this.rideStats.started++;
+    }
+  }
+
+  // ------------------------------------------------- taxi y VTC (LocationDef.rides)
+
+  /**
+   * Cada recogida: WAITING (en la parada, pidiendo coche hasta que lo hay) → APPROACHING (el coche viene por su carril y
+   * para delante: Traffic.hail) → BOARDING (con el coche ya parado, cada uno va a un sitio del bordillo junto a él y sube)
+   * → el coche arranca y sale por su carril. Con un límite en cada paso; si se pasa, se cancela.
+   */
+  private advanceRides(deltaMs: number, clock: Clock): void {
+    for (const r of [...this.rides]) {
+      r.ms += deltaMs;
+      const lost = !this.agents.includes(r.leader) || r.leader.riding !== r;
+      if (r.phase === 'WAITING') {
+        if (lost || r.ms > RIDE.waitMs) {
+          this.cancelRide(r, clock);
+          continue;
+        }
+        r.retry -= deltaMs;
+        if (r.retry > 0 || !this.traffic) continue;
+        r.retry = RIDE.retryMs;
+        // Un VTC se pide primero; pasada media espera, vale el primer taxi que pase.
+        const types = r.kind === 'taxi' ? RIDE_TYPES.taxi : r.ms < RIDE.waitMs / 2 ? RIDE_TYPES.vtc : [...RIDE_TYPES.vtc, ...RIDE_TYPES.taxi];
+        const car = this.traffic.hail(r.stop.lane, (r.stop.stopTx + 0.5) * TILE, types, { day: clock.day, minuteOfDay: this.signalMinute });
+        if (!car) continue;
+        r.car = car;
+        r.phase = 'APPROACHING';
+        r.ms = 0;
+        this.rideStats.assigned++;
+        continue;
+      }
+      const car = r.car!;
+      if (r.phase === 'APPROACHING') {
+        if (lost || !this.traffic?.has(car) || r.ms > RIDE.approachMs) {
+          this.cancelRide(r, clock);
+          continue;
+        }
+        if (this.traffic.isStopped(car)) this.startBoarding(r);
+        continue;
+      }
+      // BOARDING: sube quien llega a su sitio junto al coche (desaparece dentro); nadie sube con el coche en marcha.
+      for (const m of r.members) {
+        if (!this.agents.includes(m) || m.riding !== r || m.vanish || m.path.length > 0) continue;
+        // Ya junto a la puerta: un momento para subir y desaparece dentro (sale de la calle al acabar el `delay`).
+        m.vanish = true;
+        m.leader = undefined;
+        m.delay = BOARD_MS;
+        m.dir = r.stop.lane > Math.round(m.y) ? 'down' : 'up';
+        this.release(m);
+        this.rideStats.people++;
+      }
+      // Quien sigue en la acera con esta recogida: subiendo (aún se le ve) o de camino a su sitio.
+      const inside = r.members.filter((m) => this.agents.includes(m) && m.riding === r);
+      const pending = inside.filter((m) => !m.vanish);
+      if (inside.length === 0) {
+        this.traffic?.release(car);
+        this.rides.splice(this.rides.indexOf(r), 1);
+        this.rideStats.boarded++;
+      } else if (pending.length > 0 && (r.ms > RIDE.boardMs || !this.traffic?.has(car))) {
+        // No llega a subir (atasco, alguien en medio): el coche se va con quien haya subido y el resto sigue a pie.
+        for (const m of pending) this.walkAway(m);
+        this.traffic?.release(car);
+        this.rides.splice(this.rides.indexOf(r), 1);
+        this.rideStats.cancelled++;
+      }
+    }
+  }
+
+  /** El coche ya está parado delante: cada uno del grupo, a un sitio libre del bordillo junto al coche. */
+  private startBoarding(r: Ride): void {
+    const { lane, stopTx } = r.stop;
+    const curb = [lane - 1, lane + 1].find((ty) => isWalkable(this.loc, stopTx, ty) && !this.onRoadway({ tx: stopTx, ty }));
+    r.members = [r.leader, ...this.companions(r.leader)].filter((m) => this.agents.includes(m));
+    const taken = new Set<string>();
+    for (const m of r.members) {
+      m.riding = r;
+      const spot = curb === undefined ? undefined : [0, -1, 1].map((dx) => ({ tx: stopTx + dx, ty: curb })).find((t) => !taken.has(tileKey(t)) && isWalkable(this.loc, t.tx, t.ty) && this.standable(t));
+      const here = { tx: Math.round(m.x), ty: Math.round(m.y) };
+      const path = spot ? (here.tx === spot.tx && here.ty === spot.ty ? [] : this.detour(here, spot)) : null;
+      if (!spot || !path) {
+        // Sin sitio o sin camino por la acera hasta el coche: éste no sube (sigue a pie); los demás, sí.
+        this.walkAway(m);
+        continue;
+      }
+      taken.add(tileKey(spot));
+      this.release(m);
+      Object.assign(m, { staying: false, settled: false, timer: 0, delay: 0, state: 'WALK', path, face: undefined });
+    }
+    r.members = r.members.filter((m) => m.riding === r);
+    r.phase = 'BOARDING';
+    r.ms = 0;
+  }
+
+  /** Se cancela la recogida: el coche (si lo había) sigue su carril y el grupo continúa su camino de siempre. */
+  private cancelRide(r: Ride, clock: Clock): void {
+    if (r.car) this.traffic?.release(r.car);
+    this.rides.splice(this.rides.indexOf(r), 1);
+    this.rideStats.cancelled++;
+    const a = r.leader;
+    if (!this.agents.includes(a) || a.riding !== r) return;
+    a.riding = undefined;
+    if (a.staying && a.stayPoint) this.moveOn(a, clock);
+    else this.walkAway(a);
+  }
+
+  /** Sale de la recogida y se va andando por el borde más cercano (como quien deja una parada). */
+  private walkAway(m: Walker): void {
+    m.riding = undefined;
+    m.leader = undefined;
+    this.release(m);
+    const here = { tx: Math.round(m.x), ty: Math.round(m.y) };
+    const edge = this.nearestEdge(here);
+    Object.assign(m, { staying: false, settled: false, timer: 0, delay: 0, state: 'WALK', vanish: true });
+    m.path = (edge && this.detour(here, this.pointAt(edge))) || [];
   }
 
   /**
@@ -1224,6 +1400,125 @@ export class StreetLife {
     return best;
   }
 
+  // ------------------------------------------------------- policía (systems/Police)
+
+  /** Agentes de patrulla en la calle ahora (el cupo compartido de todas las reglas de patrulla). */
+  private patrols(): number {
+    return this.agents.filter((a) => a.role === PATROL).length;
+  }
+
+  /** Quien está atendiendo un robo ahora (consola y pruebas). */
+  get responding(): readonly Walker[] {
+    return this.agents.filter((a) => a.respond);
+  }
+
+  /** La puerta de la comisaría, si está en esta calle: un lugar con la etiqueta 'police' (data/places.ts). */
+  private stationDoor(): string | undefined {
+    return this.places.find((p) => p.tags.includes('police'))?.entrances.find((id) => this.graph.has(id));
+  }
+
+  private victimTile(victim: Walker | 'player'): TilePoint {
+    return victim === 'player' ? { tx: Math.round(this.player.tx), ty: Math.round(this.player.ty) } : { tx: Math.round(victim.x), ty: Math.round(victim.y) };
+  }
+
+  /** Alguien ha visto un robo (systems/Pickpocket.report): se apunta (systems/Police) y se manda a quien pueda ir. */
+  private report(victim: Walker | 'player', amount: number): void {
+    const at = this.victimTile(victim);
+    const rec = recordIncident({
+      location: this.loc.id, zone: zoneAt(this.loc.id, at.tx, at.ty)?.name ?? this.loc.name, at: this.now,
+      victim: victim === 'player' ? 'player' : 'npc', amount,
+    });
+    this.dispatch(victim, rec.id);
+  }
+
+  /**
+   * Va el agente libre más cercano (con su pareja, si va en pareja); si no hay ninguno en la calle y el cupo lo permite,
+   * sale uno de la comisaría (si está en esta calle) o del borde más cercano. Un aviso nunca recibe dos respuestas y un
+   * agente nunca lleva dos avisos. False si no puede ir nadie.
+   */
+  dispatch(victim: Walker | 'player', incident: number): boolean {
+    if (this.agents.some((a) => a.respond?.incident === incident)) return false;
+    const at = this.victimTile(victim);
+    const d = (a: Walker): number => Math.hypot(a.x - at.tx, a.y - at.ty);
+    const free = this.agents.filter((a) => a.kind === 'visitor' && isPolice(a.role) && !a.respond && !a.leader).sort((p, q) => d(p) - d(q));
+    const lead = free[0] ?? this.callPatrol(at);
+    if (!lead) return false;
+    let sent = 0;
+    for (const o of [lead, ...this.companions(lead)]) {
+      const path = this.detour({ tx: Math.round(o.x), ty: Math.round(o.y) }, this.sideTile(at) ?? at);
+      if (!path) continue;
+      // Deja lo que hacía (su parada, su ronda): su viaje espera hasta que acabe (Walker.respond).
+      this.release(o);
+      Object.assign(o, { leader: undefined, staying: false, settled: false, timer: 0, delay: 0, vanish: false, dest: undefined, pauseAt: -1, state: 'WALK', path });
+      o.respond = { incident, victim, phase: 'GO', ms: 0, timer: 0 };
+      sent++;
+    }
+    return sent > 0;
+  }
+
+  /** Una patrulla que sale a atender: de la puerta de la comisaría o del borde más cercano, dentro del cupo. */
+  private callPatrol(at: TilePoint): Walker | undefined {
+    const rule = this.profile.trips.find((r) => r.role === PATROL);
+    if (!rule || this.patrols() >= POLICE.patrolCap || this.agents.length >= this.ceiling) return undefined;
+    const from = this.stationDoor() ?? this.nearestEdge(at);
+    return from ? this.newWalker(rule, this.pointAt(from), []) : undefined;
+  }
+
+  /** Va, atiende y vuelve. Si la víctima ya no está o no llega a tiempo, lo deja: nadie se queda enganchado a un aviso. */
+  private advanceResponses(deltaMs: number): void {
+    for (const a of this.agents) {
+      const r = a.respond;
+      if (!r || a.talking) continue;
+      r.ms += deltaMs;
+      const gone = r.victim !== 'player' && !this.agents.includes(r.victim);
+      if (r.phase === 'ATTEND') {
+        r.timer -= deltaMs;
+        if (r.timer <= 0 || gone) this.endResponse(a);
+        continue;
+      }
+      if (gone || r.ms > POLICE.reachMs) {
+        this.endResponse(a);
+        continue;
+      }
+      if (a.path.length > 0) continue;
+      const at = this.victimTile(r.victim);
+      const here = { tx: Math.round(a.x), ty: Math.round(a.y) };
+      if (Math.hypot(a.x - at.tx, a.y - at.ty) > 2.5) {
+        // La víctima se ha movido: otra vez hacia ella.
+        const path = this.detour(here, this.sideTile(at) ?? at);
+        if (path && path.length > 0) a.path = path;
+        else this.endResponse(a);
+        continue;
+      }
+      r.phase = 'ATTEND';
+      r.timer = POLICE.attendMs;
+      a.state = 'TALK';
+      a.dir = facingTo(here, at);
+      a.line = 'Tranquilidad. ¿Qué ha pasado? Lo apuntamos ahora mismo.';
+      const rec = incidentById(r.incident);
+      if (rec && !rec.attended) {
+        rec.attended = true;
+        // La víctima se queda un momento con el agente y ya cuenta otra cosa.
+        if (r.victim !== 'player') {
+          r.victim.line = 'Ya se lo he contado a la policía. Han tomado nota.';
+          r.victim.delay = Math.max(r.victim.delay, POLICE.attendMs);
+        }
+      }
+    }
+  }
+
+  /** Acaba (o se cancela) la respuesta: vuelve a la comisaría si está en esta calle, o sale por el borde más cercano. */
+  private endResponse(a: Walker): void {
+    a.respond = undefined;
+    a.line = a.rule?.line ?? a.line;
+    a.state = 'WALK';
+    const here = { tx: Math.round(a.x), ty: Math.round(a.y) };
+    const back = this.stationDoor() ?? this.nearestEdge(here);
+    a.vanish = true;
+    a.dest = back;
+    a.path = (back && this.detour(here, this.pointAt(back))) || [];
+  }
+
   // -------------------------------------------------------------- viajes
 
   /** Sale alguien (o un grupo) a hacer un viaje que tenga sentido ahora. Midway: ya iba de camino. */
@@ -1249,7 +1544,9 @@ export class StreetLife {
     // Un sitio para estar con dueño (de camino o sentado) no se vuelve a elegir, ni en el mismo fotograma.
     if (stays && (this.seats.has(to) || this.claimed.has(to))) return;
     const [gLo, gHi] = rule.group ?? [1, 1];
-    const size = Math.max(1, Math.min(gLo + Math.floor(this.rng() * (gHi - gLo + 1)), target - this.walkers().length));
+    // La patrulla, dentro del cupo compartido (POLICE.patrolCap): una pareja sólo si caben los dos.
+    const patrolRoom = rule.role === PATROL ? POLICE.patrolCap - this.patrols() : Infinity;
+    const size = Math.max(1, Math.min(gLo + Math.floor(this.rng() * (gHi - gLo + 1)), target - this.walkers().length, patrolRoom));
 
     // A mitad de viaje: parados ya en su sitio, o en un tramo del camino.
     let path = full.slice(1);
@@ -1411,6 +1708,10 @@ export class StreetLife {
       if (rule.rhythms && !rule.rhythms.includes(rhythm)) continue;
       // Tope por tipo: el escaparate o la boca del metro no se llenan de golpe.
       if (rule.max && this.agents.filter((a) => a.rule === rule && !a.leader).length >= rule.max) continue;
+      // Taxi/VTC: con las recogidas en su cupo (RIDE.cap), nadie más sale a esperar uno.
+      if (rule.ride && this.rides.length >= RIDE.cap) continue;
+      // Patrullas: un cupo para todas las reglas de patrulla de la calle a la vez (systems/Police).
+      if (rule.role === PATROL && (this.patrols() + (rule.group?.[0] ?? 1) > POLICE.patrolCap || this.elapsed < this.patrolRestUntil)) continue;
       // Un viaje pesa lo que su regla por lo que tiran sus extremos: a una discoteca vacía no va nadie.
       const from = this.candidates(rule.from, clock, false);
       if (fromPoint && !from.some((c) => c.id === fromPoint)) continue;
@@ -1563,6 +1864,11 @@ export class StreetLife {
     // Quien espera un semáforo que no cambia deja de esperarlo.
     a.hold = undefined;
     a.waitAt = undefined;
+    // Atascado del todo atendiendo un robo o esperando un coche: lo deja (el peldaño se lo lleva como a cualquiera).
+    if (level >= 3) {
+      a.respond = undefined;
+      a.riding = undefined;
+    }
     if (level === 1 && dest) {
       const path = this.detour(here, dest);
       if (path) a.path = path;

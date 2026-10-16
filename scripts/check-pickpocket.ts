@@ -86,7 +86,9 @@ function street(day: number, hour: number, seed: number, who = player): { life: 
 function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phases: string[]; robbed: Robbery[] } {
   const s = street(SAT, 19, seed);
   const robbed: Robbery[] = [];
-  s.life.pickpocket.onRobbed = (r) => robbed.push(r);
+  s.life.pickpocket.onRobbed = (r) => {
+    robbed.push(r);
+  };
   // Se espera a que haya un grupo de verdad (una oleada del metro, una cola): la regla es la misma que sin forzar.
   let r = { ok: false, reason: '' };
   for (let wait = 0; wait < 300 && !r.ok; wait++) {
