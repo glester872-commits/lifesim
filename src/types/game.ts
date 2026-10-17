@@ -504,6 +504,11 @@ export interface LocationDef {
    * partido de ahora, y quien carga una partida dentro sin derecho a estar sale a la calle.
    */
   venue?: string;
+  /**
+   * Un campo de fútbol donde se juega el partido del calendario (systems/MatchPlay, world/MatchView): el rectángulo en
+   * tiles del césped que se ve desde la grada. Ahí se pintan los jugadores, el balón y el marcador.
+   */
+  pitch?: { tx: number; ty: number; w: number; h: number };
   /** Percheros de una tienda de ropa donde se ve, se prueba y se compra. */
   racks?: readonly RackDef[];
   /** Zona de skate de una calle: unos patinadores ruedan de un lado a otro de la franja `row`, de `tx0` a `tx1` (world/SkateParkView). */

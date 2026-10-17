@@ -333,6 +333,61 @@ body {
   display: none;
 }
 
+/* ------------------------------------------------------------ marcador del estadio (world/MatchView) */
+
+#match-board {
+  position: absolute;
+  /* Abajo, sobre la grada: arriba taparía el césped que encuadra la cámara. */
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 6px 12px 7px;
+  border: 2px solid rgba(232, 227, 218, 0.14);
+  background: rgba(14, 15, 22, 0.88);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9);
+  text-align: center;
+}
+
+#match-board[hidden] {
+  display: none;
+}
+
+.match-board__row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: center;
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.match-board__team {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  /* La camiseta del equipo como raya bajo el nombre: se distinguen sin escudos. */
+  border-bottom: 3px solid var(--kit);
+}
+
+.match-board__score {
+  min-width: 48px;
+  font-size: 16px;
+  color: var(--amber);
+}
+
+.match-board__clock {
+  min-width: 56px;
+  font-size: 12px;
+  color: rgba(232, 227, 218, 0.75);
+}
+
+.match-board__note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--white);
+}
+
 /* ------------------------------------------------------------ megafonía */
 
 #announce {

@@ -72,6 +72,8 @@ export const STADIUM: LocationDef = {
   props: PROPS,
   ambient: '#eef3f6',
   venue: 'estadio-halcon',
+  // El partido se juega en el césped de arriba (y 0–6, sin la franja de banda): systems/MatchPlay y world/MatchView.
+  pitch: { tx: 1, ty: 0, w: 22, h: 6.5 },
   portals: [{ id: 'exit', tx: 12, ty: 22, label: 'Salir a la explanada', to: { location: 'arena', spawn: 'ar-estadio' } }],
   spawns: { entry: { tx: 12, ty: 21, facing: 'up' } },
   npcs: [],

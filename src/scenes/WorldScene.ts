@@ -78,6 +78,9 @@ import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker 
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
 import { closedLines, isOpen, placeForInterior, placeInfo, placeOfPoint, type PlaceInfo } from '../systems/Places';
 import { admit, heldSeat, mayStay, venueOf } from '../systems/Tickets';
+import { nextMoment, stateAt } from '../systems/MatchPlay';
+import { MatchView } from '../world/MatchView';
+import type { MenuOption } from '../ui/Menu';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
 import type { AmbientPlacement, Placement } from '../entities/Character';
 import { stopAtStation } from '../systems/Transit';
@@ -292,6 +295,10 @@ export class WorldScene extends Phaser.Scene {
   /** Cuándo toca volver a decidir qué suena (updateSound) y las fuentes fijas de este sitio, una vez por escena. */
   private soundAt = 0;
   private soundSources: { fixed: Emitter[]; terraces: PlaceInfo[]; inside: PlaceInfo | null } | null = null;
+  /** El partido que se ve en el césped de aquí (LocationDef.pitch), si lo hay. */
+  private matchView: MatchView | null = null;
+  /** La cámara está encuadrando el campo desde la grada (frameMatch). */
+  private matchFramed = false;
   private trafficView: TrafficView | null = null;
   /** Bicis del carril bici (TrafficDef.bikes): la misma lógica de carril, otro catálogo. */
   private bikes: Traffic<BikeType> | null = null;
@@ -425,6 +432,8 @@ export class WorldScene extends Phaser.Scene {
     const def = getLocation(data.locationId);
     pruneRiderTextures(this);
     const built = buildLocation(this, def);
+    // Donde hay un campo, el partido del calendario jugándose en él (systems/MatchPlay): el mismo se mire o no.
+    this.matchView = def.pitch ? new MatchView(this, def.pitch) : null;
 
     this.leaving = false;
     this.activeTarget = null;
@@ -604,6 +613,7 @@ export class WorldScene extends Phaser.Scene {
       return zone;
     });
     this.watching = false;
+    this.matchFramed = false;
     const now = this.clockNow();
     this.wildlife = this.street ? new WildlifeView(this, def, this.street, now.day, now.hour + now.minute / 60, this.playerTile()) : null;
     this.crowdTargets = new WeakMap();
@@ -734,6 +744,8 @@ export class WorldScene extends Phaser.Scene {
       // Lo que sonaba aquí se apaga con un fundido corto: el sitio nuevo sube lo suyo. Las capas son las mismas, no se crean otras.
       this.services.audio.silence();
       this.soundSources = null;
+      this.matchView?.destroy();
+      this.matchView = null;
       this.litterView?.destroy();
       this.litterView = null;
       this.zoneDebug?.destroy();
@@ -748,6 +760,7 @@ export class WorldScene extends Phaser.Scene {
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
     this.updateSound(time);
+    this.matchView?.update(this.absMinute(), time);
     // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
     pumpPeopleHD(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < HD_ENTRY_MS ? HD_BAKE_ENTRY_MS : HD_BAKE_MS);
 
@@ -1555,28 +1568,108 @@ export class WorldScene extends Phaser.Scene {
     }
     this.player.seatedFrame(time, look, service?.playerEating ?? false);
 
-    const target = this.nearestInteractable();
+    // Viendo un partido (LocationDef.pitch): E abre el partido, no el asiento de al lado; con la gente se sigue hablando.
+    const watching = this.matchOn();
+    // Desde la grada la cámara mira al césped (si no, desde las filas de atrás sólo se ve la banda); al acabar, vuelve.
+    if (watching !== this.matchFramed) this.frameMatch(watching);
+    const near = this.nearestInteractable();
+    const target = watching && near?.kind !== 'npc' ? null : near;
     this.updatePrompt(target);
     if (!target) {
-      // A la mesa, qué pasa con lo tuyo; si no, sólo cómo levantarse.
+      // A la mesa, qué pasa con lo tuyo; viendo el partido, sus opciones; si no, sólo cómo levantarse.
       const status = this.dining ? this.tableService?.playerStatus() : null;
-      this.services.hint.show(status ? `${status} · E: opciones · Esc: levantarse` : 'Levantarse');
+      this.services.hint.show(status ? `${status} · E: opciones · Esc: levantarse` : watching ? 'Viendo el partido · E: opciones · Esc: levantarse' : 'Levantarse');
       this.prompt.setPosition(this.player.x, this.player.y - PLAYER_H - 8).setVisible(true);
     }
     // Esc levanta: en el móvil, «Volver» hace lo mismo (el botón de acción puede estar ocupado hablando con alguien).
-    this.services.input.setContext({ action: target ? this.actionLabel(target) : this.dining ? 'Opciones' : 'Levantarse', back: true, busy: false });
+    this.services.input.setContext({ action: target ? this.actionLabel(target) : this.dining || watching ? 'Opciones' : 'Levantarse', back: true, busy: false });
     // Si algo abrió un diálogo o un menú en este mismo frame (un aviso del andén), la pulsación se gasta sin hacer nada: no se abren dos a la vez.
     const free = !this.services.dialogue.isOpen && !this.services.menu.isOpen && this.time.now >= this.readyAt;
     if (this.pressedAny(['interact'])) {
       if (!free) return;
       if (target) this.interact(target);
       else if (this.dining && service) this.tableOptions(service);
+      else if (watching) this.matchOptions();
       else this.standUp();
     } else if (this.pressedAny(['cancel', 'cancelAlt'])) {
       if (free) this.standUp();
     } else if (this.pressedAny(['bag'])) {
       if (free) this.menus.openBag();
     }
+  }
+
+  /** Si aquí se juega un partido y aún no ha acabado (del calentamiento al final): lo que se ve desde la grada. */
+  private matchOn(): boolean {
+    if (!this.matchView) return false;
+    const abs = this.absMinute();
+    const tl = this.matchView.timeline(abs);
+    return !!tl && nextMoment(tl, abs) !== null && abs >= tl.kickoff - 90;
+  }
+
+  /**
+   * Sentado viendo el partido: seguir mirando, levantarse o pasar el rato hasta el próximo momento (el saque, la
+   * próxima ocasión, la segunda parte o el final; nunca más allá). El tiempo avanza por el reloj de siempre
+   * (TimeSystem.advanceMinutes, como dormir o el metro), así que la ciudad y el calendario avanzan con él; el ritmo
+   * del reloj no cambia. Se puede volver a elegir entre un momento y el siguiente, o irse.
+   */
+  private matchOptions(): void {
+    const { clock, menu, dialogue } = this.services;
+    if (dialogue.isOpen || menu.isOpen || !this.matchView) return;
+    const abs = this.absMinute();
+    const tl = this.matchView.timeline(abs);
+    if (!tl) return;
+    const s = stateAt(tl, abs);
+    const next = nextMoment(tl, abs);
+    const options: MenuOption[] = [
+      next ? { label: `Ver hasta ${next.what}`, detail: `+${next.minutes} min` } : { label: 'Ver hasta el próximo momento', disabled: 'El partido ha terminado.' },
+      { label: 'Seguir mirando' },
+      { label: 'Levantarse' },
+    ];
+    const title = `${ARENA_CLUB.short} ${s.score[0]} – ${s.score[1]} ${tl.match.rival} · ${s.clock}`;
+    menu.open(title, 'Pasar el rato adelanta el reloj, como cualquier rato: lo que pase mientras, pasa igual.', options, (i) => {
+      menu.close();
+      // El reloj sigue corriendo con el menú abierto: el salto se calcula al elegir, no al abrir, o se pasaría de largo.
+      const jump = i === 0 ? nextMoment(tl, this.absMinute()) : null;
+      if (jump) {
+        // Lo mismo que cuando se pasa el rato en cualquier sitio: el reloj del mundo, y se guarda.
+        clock.advanceMinutes(jump.minutes);
+        this.persist();
+      } else if (i === 2) this.standUp();
+    });
+  }
+
+  /**
+   * Encuadra el campo (LocationDef.pitch) desde el asiento, con el mismo followOffset que `watch`: el centro del
+   * césped, sin que el jugador salga por abajo. `false` devuelve la cámara a su sitio.
+   */
+  private frameMatch(on: boolean): void {
+    const pitch = getLocation(this.services.state.locationId).pitch;
+    this.matchFramed = on && !!pitch;
+    const cam = this.cameras.main;
+    this.tweens.killTweensOf(cam.followOffset);
+    if (!this.matchFramed || !pitch) {
+      this.tweens.add({ targets: cam.followOffset, x: 0, y: CAMERA_LOOK_UP, duration: 350, ease: 'Sine.easeOut' });
+      return;
+    }
+    const cx = (pitch.tx + pitch.w / 2) * TILE;
+    const cy = Math.max((pitch.ty + pitch.h / 2) * TILE, this.player.y - cam.height / cam.zoom / 2 + PLAYER_H);
+    this.tweens.add({ targets: cam.followOffset, x: this.player.x - cx, y: this.player.y - cy, duration: 600, ease: 'Sine.easeInOut' });
+  }
+
+  /** Desarrollo (lifesim.match): el partido de aquí, su estado, el coste de pintarlo y esconderlo para medir. */
+  debugMatch(hide?: boolean): object | null {
+    if (!this.matchView) return null;
+    if (hide !== undefined) this.matchView.setHidden(hide);
+    const abs = this.absMinute();
+    const tl = this.matchView.timeline(abs);
+    const s = tl ? stateAt(tl, abs) : null;
+    return {
+      ...this.matchView.stats,
+      fixture: tl ? `${tl.match.day} ${tl.match.rival}` : null,
+      stage: s?.stage, clock: s?.clock, score: s?.score, final: tl?.final,
+      moments: tl?.moments.map((m) => `${m.minute} ${m.side} ${m.pattern.id}${m.goal ? ' GOL' : ''}`),
+      next: tl ? nextMoment(tl, abs) : null,
+    };
   }
 
   /**
@@ -1895,6 +1988,7 @@ export class WorldScene extends Phaser.Scene {
     this.services.hint.hide();
     // Levantarse de la mesa sin haber pagado es dejar el dinero encima: se cobra lo pedido.
     this.leaveTable();
+    if (this.matchFramed) this.frameMatch(false);
     this.player.standTo(on.from.x, on.from.y, () => {
       if (on.seat.id.startsWith('metro:')) this.metro?.freeSeat(Number(on.seat.id.slice(6)));
       this.seatedOn = null;

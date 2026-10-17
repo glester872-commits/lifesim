@@ -792,6 +792,9 @@ social: {
         status: () => (game.scene.getScene('World') as WorldSceneType).debugTerrace(),
         goto: (seat: string) => (game.scene.getScene('World') as WorldSceneType).debugTerraceGoto(seat),
       },
+      // El partido del estadio (systems/MatchPlay, world/MatchView): lifesim.match() da el estado, los momentos y el coste
+      // de pintarlo; lifesim.match(true) esconde los jugadores (para medir el estadio sin partido) y (false) los vuelve a poner.
+      match: (hide?: boolean) => (game.scene.getScene('World') as WorldSceneType).debugMatch(hide),
     },
   });
 }
