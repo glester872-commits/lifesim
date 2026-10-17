@@ -49,6 +49,8 @@ export const SEATS: Partial<Record<PropKind, SeatDef>> = {
   stool: { name: 'Taburete', lift: 4, idle: ['rest', 'phone', 'talk'] },
   'barber-chair': { name: 'Sillón', facing: 'up', idle: ['rest'] },
   'tattoo-chair': { name: 'Camilla', facing: 'up', idle: ['rest'] },
+  // La grada: se mira al campo.
+  'stadium-seat': { name: 'Asiento', facing: 'up', idle: ['watch', 'talk', 'phone'] },
 };
 
 /** El mueble para sentarse que ocupa ese tile, si alguno. */

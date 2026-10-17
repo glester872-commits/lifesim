@@ -201,6 +201,8 @@ export type PropKind =
   | 'flag-pole'
   // El tablón del barrio: se consulta con E (systems/Boards)
   | 'notice-board'
+  // la grada del estadio: asiento abatible de plástico (data/stadium.ts)
+  | 'stadium-seat'
   | 'floodlight';
 
 export interface PropPlacement {
@@ -378,6 +380,8 @@ export interface InspectDef {
   ty: number;
   name: string;
   lines: readonly string[];
+  /** Taquilla de ese recinto (data/stadium.ts VENUES): con E se ve el partido, el precio y se compra la entrada. */
+  venue?: string;
 }
 
 /**
@@ -495,6 +499,11 @@ export interface LocationDef {
   /** Grafo de peatones: tramos rectos y libres entre dos puntos. */
   links?: readonly (readonly [string, string])[];
   inspects?: readonly InspectDef[];
+  /**
+   * Recinto con entrada (data/stadium.ts VENUES, systems/Tickets): su puerta sólo deja pasar con la entrada del
+   * partido de ahora, y quien carga una partida dentro sin derecho a estar sale a la calle.
+   */
+  venue?: string;
   /** Percheros de una tienda de ropa donde se ve, se prueba y se compra. */
   racks?: readonly RackDef[];
   /** Zona de skate de una calle: unos patinadores ruedan de un lado a otro de la franja `row`, de `tx0` a `tx1` (world/SkateParkView). */
@@ -661,6 +670,8 @@ export interface GameStateData {
   stories?: import('../systems/Story.ts').StoryState;
   /** El móvil (systems/Phone): mensajes, sin leer, respuestas pendientes y planes. Opcional: una partida anterior carga con el móvil vacío. */
   phone?: import('../systems/Phone.ts').PhoneState;
+  /** Entradas de partido (systems/Tickets): de qué partido, su asiento y si ya ha pasado por la puerta. Opcional: una partida anterior carga sin entradas. */
+  tickets?: import('../systems/Tickets.ts').Ticket[];
 }
 
 export interface SaveFile {

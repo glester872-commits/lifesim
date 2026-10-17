@@ -11,6 +11,7 @@ import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
 import { boardAt } from '../systems/Boards';
+import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
 import { absMinute } from '../systems/Handoff';
 import { HAIRSTYLES, type Appearance } from '../data/appearance';
 import type { RackDef } from '../types/game';
@@ -292,6 +293,53 @@ export class Menus {
   }
 
   // ------------------------------------------------------------- tablón del barrio
+
+  /**
+   * La taquilla de un recinto (systems/Tickets): el partido que se vende, cuándo abren las puertas, hasta cuándo se
+   * entra, por qué puerta y el precio. Comprar pide confirmar con el precio delante; pagar cobra y emite la entrada a
+   * la vez y se guarda. Con entrada, la enseña; cerrada, agotada o sin partido, lo dice (y no deja comprar).
+   */
+  openTickets(venueId: string, note = ''): void {
+    const { state, menu } = this.services;
+    const venue = venueOf(venueId);
+    if (!venue) return;
+    const title = `Taquillas · ${venue.name}`;
+    const o = offer(venue, state.tickets, state);
+    if (o.kind === 'none') {
+      menu.open(title, `No hay partidos en casa en los próximos ${venue.horizon} días. La taquilla abre cuando hay partido a la vista.`, [{ label: 'Cerrar' }], () => menu.close(), undefined, note);
+      return;
+    }
+    const info = fixtureLine(venue, o.fixture, state.day);
+    if (o.kind === 'owned') {
+      menu.open(title, `${info} Tu entrada: ${ticketLine(o.ticket, state.day)}`, [{ label: 'Cerrar' }], () => menu.close(), undefined, note);
+      return;
+    }
+    const label = `Entrada general · ${venue.sector}`;
+    const buy: MenuOption =
+      o.kind === 'closed' ? { label, detail: euros(venue.price), disabled: `La taquilla está cerrada. Abre ${o.opens}.` }
+      : o.kind === 'sold-out' ? { label, detail: 'agotadas', disabled: 'Entradas agotadas para este partido.' }
+      : { label: `${label} · fila ${o.row}, asiento ${o.seat}`, detail: euros(o.price), disabled: state.money + 1e-9 < o.price ? `No te llega: cuesta ${euros(o.price)} y llevas ${euros(state.money)}.` : undefined };
+    const status = o.kind === 'closed' ? `Taquilla cerrada: abre ${o.opens}.` : o.kind === 'sold-out' ? 'Entradas agotadas.' : `Quedan ${o.left} entradas de ${venue.capacity}. Llevas ${euros(state.money)}.`;
+    menu.open(title, `${info} ${status}`, [buy, { label: 'Cerrar' }], (i) => {
+      if (i !== 0 || o.kind !== 'on-sale') {
+        menu.close();
+        return;
+      }
+      menu.open(`${title} · Confirmar`, `${venue.sector}, fila ${o.row}, asiento ${o.seat}, para el ${venue.home} – ${o.fixture.rival}. Se paga ahora: ${euros(o.price)}.`, [{ label: `Pagar ${euros(o.price)}` }, { label: 'Cancelar' }], (j) => {
+        if (j !== 0) {
+          this.openTickets(venueId, 'No has comprado nada.');
+          return;
+        }
+        // Todo o nada: el cobro y la entrada salen del mismo resultado y se guardan juntos.
+        const r = buyTicket(venue, state.money, state.tickets, state);
+        if (r.ok) {
+          state.setTickets(r.tickets, r.money);
+          this.host.persist();
+        }
+        this.openTickets(venueId, r.message);
+      }, () => this.openTickets(venueId, 'No has comprado nada.'));
+    }, undefined, note);
+  }
 
   /**
    * El tablón del barrio (systems/Boards): sus secciones y, dentro, cada sitio o evento con su estado. Se lee del

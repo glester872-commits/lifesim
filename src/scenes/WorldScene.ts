@@ -77,6 +77,7 @@ import { Crowd, profileFor, type Clock } from '../systems/Crowd';
 import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
 import { closedLines, isOpen, placeForInterior, placeInfo, placeOfPoint, type PlaceInfo } from '../systems/Places';
+import { admit, heldSeat, mayStay, venueOf } from '../systems/Tickets';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
 import type { AmbientPlacement, Placement } from '../entities/Character';
 import { stopAtStation } from '../systems/Transit';
@@ -147,7 +148,7 @@ export interface WorldSceneData {
 type Interactable =
   | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
-  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number } }
+  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
@@ -506,7 +507,7 @@ export class WorldScene extends Phaser.Scene {
 
     // Cosas que se miran: carteles sueltos y las puertas de los locales sin interior.
     for (const item of def.inspects ?? []) {
-      this.interactables.push({ kind: 'inspect', x: item.tx * TILE + TILE / 2, y: item.ty * TILE + TILE / 2, name: item.name, lines: item.lines });
+      this.interactables.push({ kind: 'inspect', x: item.tx * TILE + TILE / 2, y: item.ty * TILE + TILE / 2, name: item.name, lines: item.lines, venue: item.venue });
     }
     // Las papeleras (PropDef.waste), de cualquier tipo: se miran como un cartel.
     for (const p of def.props) {
@@ -1055,7 +1056,7 @@ export class WorldScene extends Phaser.Scene {
       case 'terminal': return 'Comprar';
       case 'rack': return 'Ver prenda';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
-      case 'inspect': return target.board ? 'Consultar' : 'Mirar';
+      case 'inspect': return target.board || target.venue ? 'Consultar' : 'Mirar';
       case 'event': return 'Mirar';
     }
   }
@@ -1106,6 +1107,9 @@ export class WorldScene extends Phaser.Scene {
     // El puesto de quien entrena es suyo: la gente del gimnasio no lo coge (y quien estuviera, ya se ha ido).
     if (this.workout) claimed.add(this.workout.point);
     if (this.court) claimed.add(this.court.point);
+    // En un recinto con entrada, el asiento de la entrada del jugador (systems/Tickets): nadie de la grada lo coge.
+    const ticketSeat = this.ticketSeat();
+    if (ticketSeat) claimed.add(ticketSeat);
     this.crowd?.claim(claimed);
     this.street?.claim(claimed);
   }
@@ -1828,9 +1832,17 @@ export class WorldScene extends Phaser.Scene {
     this.workout = null;
   }
 
+  /** El asiento de la entrada del jugador en este recinto, mientras vale (systems/Tickets.heldSeat). */
+  private ticketSeat(): string | undefined {
+    const venue = venueOf(getLocation(this.services.state.locationId).venue);
+    return venue ? heldSeat(venue, this.services.state.tickets, this.services.state) : undefined;
+  }
+
   /** Si alguien tiene ese asiento: la gente del local o de la calle (va o está), un personaje con nombre o, en el andén, un pasajero. */
   private seatTaken(seat: Seat): boolean {
     if (seat.id.startsWith('metro:')) return this.metro?.isSeatTaken(Number(seat.id.slice(6))) ?? true;
+    // El asiento de su entrada es suyo: apartado para él, nunca ocupado por otro.
+    if (seat.id === this.ticketSeat()) return false;
     // Una mesa con servicio es de un grupo hasta que se va y la recogen.
     const table = this.serviceFor(seat.id)?.tableOf(seat.id);
     if (table && (table.party !== null || table.state !== 'AVAILABLE')) return true;
@@ -2128,6 +2140,7 @@ export class WorldScene extends Phaser.Scene {
       }
     }
     else if (target.board) this.menus.openBoard(this.services.state.locationId, target.board.tx, target.board.ty);
+    else if (target.venue) this.menus.openTickets(target.venue);
     else this.openDialogue(target.name, target.lines);
   }
 
@@ -2939,6 +2952,33 @@ export class WorldScene extends Phaser.Scene {
       this.openDialogue(closed.name, closedLines(closed, day, hour, minute));
       return;
     }
+    // Un recinto con entrada (data/stadium.ts): la puerta mira la entrada del partido de ahora (systems/Tickets). Sin
+    // derecho a pasar, se dice por qué y se queda fuera; con él, se pasa al elegirlo, y sólo entonces cuenta como usada.
+    const venue = venueOf(getLocation(portal.to.location).venue);
+    if (venue) {
+      const { state, dialogue } = this.services;
+      const gate = admit(venue, state.tickets, state);
+      if (!gate.ok) {
+        this.openDialogue(venue.gate, gate.lines);
+        return;
+      }
+      dialogue.ask(venue.gate, gate.lines, ['Pasar', 'Ahora no'], (i) => {
+        if (i !== 0) return;
+        const now = admit(venue, state.tickets, state);
+        if (!now.ok) {
+          this.openDialogue(venue.gate, now.lines);
+          return;
+        }
+        state.setTickets(now.tickets);
+        this.passThrough(portal);
+      }, 1);
+      return;
+    }
+    this.passThrough(portal);
+  }
+
+  /** Cruza la puerta: el rato que lleva, la vuelta por la misma puerta por la que se entró y el cambio de sitio. */
+  private passThrough(portal: PortalDef): void {
     if (portal.minutes) this.services.clock.advanceMinutes(portal.minutes);
     const here = this.services.state.locationId;
     const via = this.cameIn;
@@ -3046,6 +3086,17 @@ export class WorldScene extends Phaser.Scene {
    * salir (closedPlace sólo cierra la entrada). El personal y la gente se van solos por sus turnos (Crowd).
    */
   private closingTick(): void {
+    // Un recinto con entrada (el estadio): cuando se acaba el derecho a estar dentro, se avisa una vez; salir, siempre.
+    const venue = venueOf(getLocation(this.services.state.locationId).venue);
+    if (venue) {
+      const stay = mayStay(venue, this.services.state.tickets, this.services.state);
+      if (this.roomOpen && !stay) {
+        if (this.services.dialogue.isOpen || this.services.menu.isOpen) return;
+        this.openDialogue(venue.name, ['El estadio cierra: el partido ha terminado y se desaloja. La salida, por la Puerta 3.']);
+      }
+      this.roomOpen = stay;
+      return;
+    }
     const place = placeForInterior(this.services.state.locationId);
     if (place?.type !== 'business') return;
     const { day, hour, minute } = this.services.state;

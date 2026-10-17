@@ -6,6 +6,7 @@ import { START_FITNESS, type Fitness } from '../systems/Fitness';
 import { createSocialProfile, type SocialProfile, type SocialState } from '../systems/Social';
 import { createStory, type NamedStory, type StoryState } from '../systems/Story';
 import { createPhone, type PhoneNews, type PhoneState } from '../systems/Phone';
+import type { Ticket } from '../systems/Tickets';
 
 /**
  * Estado central de la partida.
@@ -64,6 +65,9 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** El móvil (systems/Phone): hilos, planes y respuestas pendientes. */
   private _phone: PhoneState;
+
+  /** Entradas de partido (systems/Tickets). */
+  private _tickets: Ticket[];
 
   constructor(
     initial: GameStateData,
@@ -137,6 +141,26 @@ export class GameState extends Phaser.Events.EventEmitter {
       );
 
     this._phone = structuredClone(initial.phone ?? createPhone());
+
+    this._tickets = structuredClone(initial.tickets ?? []);
+  }
+
+  // ================================================================
+  // ENTRADAS (systems/Tickets)
+  // ================================================================
+
+  /** Las entradas de partido del jugador (copia). */
+  get tickets(): Ticket[] {
+    return structuredClone(this._tickets);
+  }
+
+  /**
+   * Cobra y emite de una vez (systems/Tickets.buyTicket) o marca una entrada como usada: el dinero y las entradas
+   * cambian juntos, así que ningún guardado queda con el cobro sin la entrada ni al revés.
+   */
+  setTickets(tickets: readonly Ticket[], money = this._money): void {
+    this._tickets = structuredClone([...tickets]);
+    this.money = money;
   }
 
   // ================================================================
@@ -535,6 +559,8 @@ export class GameState extends Phaser.Events.EventEmitter {
         ),
 
       phone: structuredClone(this._phone),
+
+      tickets: structuredClone(this._tickets),
     };
   }
 }

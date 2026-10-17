@@ -16,8 +16,9 @@ import { dress } from '../systems/Dressing.ts';
  *   y 29–31 acera sur, ancha: la gente de los bares sale a la puerta con la caña
  *   y 32–39 los bajos del barrio: deportes, la tienda oficial, hamburguesas, dos bares, pizzería, café y portales
  *
- * El estadio no tiene interior todavía: el edificio tiene su puerta y sus puntos (AR_GATE_*), y quien entra
- * desaparece en el torno. Cuando haya interior, la puerta principal lleva `enter` y nada más cambia.
+ * La gente de la calle entra por cualquiera de los cinco tornos (AR_GATE_*) y desaparece. El jugador entra por la
+ * Puerta 3, la de la tribuna (data/stadium.ts), con la entrada del partido que vende la taquilla (systems/Tickets): la
+ * puerta del edificio lleva `enter` como cualquier local, y el interior dice que es un recinto con entrada (`venue`).
  */
 const W = 56;
 const H = 40;
@@ -67,7 +68,7 @@ const MAIN_GATE = 3;
 
 const BUILDINGS: readonly BuildingDef[] = [
   // El estadio: la fachada de la tribuna da a la explanada; su puerta es la Puerta 3.
-  b('ar-estadio', 'Estadio del Halcón', 'stadium', [6, 0, 44, 16], 's', ARENA_GATES[MAIN_GATE - 1], { floors: 2, point: `AR_GATE_${MAIN_GATE}` }),
+  b('ar-estadio', 'Estadio del Halcón', 'stadium', [6, 0, 44, 16], 's', ARENA_GATES[MAIN_GATE - 1], { floors: 2, enter: into('ar-estadio'), point: `AR_GATE_${MAIN_GATE}` }),
   b('ar-metro', 'Metro · Arena', 'metro', [0, 17, 5, 4], 's', 2, { enter: into('arena-station'), point: 'AR_METRO_ENTRANCE' }),
   // La acera sur: los bajos del barrio, todos mirando a la avenida y al estadio.
   b('ar-res-1', 'Avenida del Estadio 1', 'res-brick', [0, 32, 5, 8], 'n', 2, { point: 'AR_RES_1_ENTRANCE' }),
@@ -242,8 +243,9 @@ const BASE: LocationDef = {
     { id: 'arena-este', tx: 40, ty: 24, w: 3, h: 5, offset: 7_000 },
   ],
   inspects: [
-    { tx: 52, ty: 18, name: 'Taquillas', lines: ['«Taquillas del Estadio del Halcón. Día de partido: abren cuatro horas antes del saque.» Un folio pegado debajo: «Abonados, por la Puerta 3».'] },
-    { tx: 27, ty: 15, name: 'Puerta 3 · Tribuna', lines: ['Una placa de bronce: «Estadio del Halcón. CD Halcones del Arena». Encima, un halcón turquesa con las alas abiertas.'] },
+    // La taquilla: el partido que se vende, el precio y la entrada (systems/Tickets, scenes/Menus.openTickets).
+    { tx: 52, ty: 18, name: 'Taquillas', lines: ['Taquillas del Estadio del Halcón: el próximo partido en casa, su precio y la entrada, con fila y asiento.'], venue: 'estadio-halcon' },
+    { tx: 25, ty: 15, name: 'Puerta 3 · Tribuna', lines: ['Una placa de bronce: «Estadio del Halcón. CD Halcones del Arena». Encima, un halcón turquesa con las alas abiertas.'] },
     { tx: 6, ty: 18, name: 'Plano del barrio', lines: ['Distrito Arena: el estadio, la explanada y la Avenida del Estadio. Puertas 1 a 5, de oeste a este. Alguien ha escrito «aquí se canta» en la 1.'] },
     { tx: 46, ty: 20, name: 'Kiosco', lines: ['Bufandas, la revista del club y pipas. En la portada, el once de la temporada con los brazos cruzados.'] },
   ],

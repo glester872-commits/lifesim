@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import { ARENA_CLUB } from '../data/cityEvents';
-import { make, px, shade, type Ctx } from './paint';
+import { make, px, shade, sprinkle, type Ctx } from './paint';
 
 /**
  * El mobiliario del Distrito Arena (data/arena.ts): taquilla, puesto de comida, puesto de bufandas, mástil con la
@@ -105,10 +105,84 @@ function drawFloodlight(ctx: Ctx): void {
   px(ctx, shade(PALETTE.iron, 0.2), 1, 2, 14, 1);
 }
 
+// ------------------------------------------------------------------ el estadio por dentro (data/stadium.ts)
+
+const STAND = '#a9afb3';
+const TURF = '#3f8a4a';
+const TURF_LIT = '#4a9a55';
+
+/** Césped a franjas de corte: media tile clara, media oscura; de lado a lado del campo se leen como franjas. */
+function drawPitch(ctx: Ctx, v: number): void {
+  px(ctx, TURF_LIT, 0, 0, TILE, TILE / 2);
+  px(ctx, TURF, 0, TILE / 2, TILE, TILE / 2);
+  sprinkle(ctx, shade(TURF_LIT, 0.05), TILE, TILE / 2, 31 + v, 6);
+  sprinkle(ctx, shade(TURF, -0.05), TILE, TILE, 47 + v, 6);
+}
+
+/** La banda: el césped con la línea blanca, y un borde de césped oscuro hasta las vallas. */
+function drawPitchLine(ctx: Ctx): void {
+  drawPitch(ctx, 0);
+  px(ctx, PALETTE.white, 0, 9, TILE, 2);
+  px(ctx, '#2f6a3a', 0, 13, TILE, 3);
+}
+
+/** Valla de publicidad: el canto de arriba y la cara que mira a la grada, a paneles turquesa y naranja. */
+function drawAdBoard(ctx: Ctx, v: number): void {
+  const face = v === 0 ? TEAL : ORANGE;
+  const text = v === 0 ? ORANGE : PALETTE.white;
+  px(ctx, shade(face, -0.35), 0, 0, TILE, 4);
+  px(ctx, face, 0, 4, TILE, 10);
+  px(ctx, shade(face, 0.12), 0, 4, TILE, 1);
+  // Las letras del anunciante: bloques que no se leen.
+  for (let x = 2; x < TILE - 2; x += 4) px(ctx, text, x, 7, 3, 4);
+  px(ctx, shade(face, -0.3), 0, 14, TILE, 2);
+}
+
+/** Escalón de la grada: hormigón con el canto del escalón y su sombra. */
+function drawStandStep(ctx: Ctx, v: number): void {
+  px(ctx, STAND, 0, 0, TILE, TILE);
+  sprinkle(ctx, shade(STAND, -0.05), TILE, TILE, 61 + v, 9);
+  px(ctx, shade(STAND, 0.08), 0, 0, TILE, 1);
+  px(ctx, shade(STAND, -0.22), 0, TILE - 2, TILE, 2);
+}
+
+/** La escalera de la grada: peldaños cortos con su banda amarilla de seguridad en el borde. */
+function drawStandStairs(ctx: Ctx): void {
+  px(ctx, shade(STAND, -0.04), 0, 0, TILE, TILE);
+  for (let y = 0; y < TILE; y += 4) {
+    px(ctx, '#d9b23a', 0, y, TILE, 1);
+    px(ctx, shade(STAND, -0.2), 0, y + 3, TILE, 1);
+  }
+}
+
+/** Asiento abatible bajado: el asiento y su soporte (el respaldo es la capa de delante). */
+function drawStadiumSeat(ctx: Ctx): void {
+  px(ctx, shade(TEAL, -0.25), 3, 6, 10, 5);
+  px(ctx, TEAL, 3, 6, 10, 4);
+  px(ctx, shade(TEAL, 0.15), 3, 6, 10, 1);
+  px(ctx, PALETTE.metal, 7, 11, 2, 3);
+}
+
+/** El respaldo, delante de la espalda de quien se sienta mirando al campo. */
+function drawStadiumSeatFront(ctx: Ctx): void {
+  px(ctx, TEAL, 3, 3, 10, 5);
+  px(ctx, shade(TEAL, 0.15), 3, 3, 10, 1);
+  px(ctx, shade(TEAL, -0.25), 3, 7, 10, 1);
+}
+
 export function buildArenaTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-ticket-booth', TILE * 2, TILE * 2, drawTicketBooth);
   make(scene, 'prop-food-stall', TILE * 2, TILE * 2, drawFoodStall);
   make(scene, 'prop-scarf-stand', TILE * 2, TILE * 2, drawScarfStand);
   make(scene, 'prop-flag-pole', TILE, TILE * 4, drawFlagPole);
   make(scene, 'prop-floodlight', TILE, TILE * 4, drawFloodlight);
+  for (let v = 0; v < 2; v++) {
+    make(scene, `tile-pitch-${v}`, TILE, TILE, (ctx) => drawPitch(ctx, v));
+    make(scene, `tile-ad-board-${v}`, TILE, TILE, (ctx) => drawAdBoard(ctx, v));
+    make(scene, `tile-stand-step-${v}`, TILE, TILE, (ctx) => drawStandStep(ctx, v));
+  }
+  make(scene, 'tile-pitch-line-0', TILE, TILE, drawPitchLine);
+  make(scene, 'tile-stand-stairs-0', TILE, TILE, drawStandStairs);
+  make(scene, 'prop-stadium-seat', TILE, TILE, drawStadiumSeat);
+  make(scene, 'prop-stadium-seat-front', TILE, TILE, drawStadiumSeatFront);
 }

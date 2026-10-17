@@ -204,9 +204,9 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-ar-1', name: 'Avenida del Estadio 1', type: 'residence', tags: ['home'], building: 'ar-res-1', capacity: 14 },
   { id: 'res-ar-2', name: 'Avenida del Estadio 21', type: 'residence', tags: ['home'], building: 'ar-res-2', capacity: 12 },
   { id: 'res-ar-3', name: 'Avenida del Estadio 25', type: 'residence', tags: ['home'], building: 'ar-res-3', capacity: 16 },
-  // El estadio: sin interior aún. Es un lugar público como una plaza: se llega a sus cinco tornos (la gente entra y
-  // desaparece). Cuando tenga interior, pasa a ser el lugar del edificio con su `enter`. Sin horario: manda systems/Match.
-  { id: 'ar-estadio', name: 'Estadio del Halcón', type: 'public', tags: ['sport', 'stadium'], anchors: ['AR_GATE_1', 'AR_GATE_2', 'AR_GATE_3', 'AR_GATE_4', 'AR_GATE_5'], capacity: 400 },
+  // El estadio: un lugar público con sus cinco tornos (la gente de la calle entra y desaparece). Por la Puerta 3 se
+  // entra a la Tribuna (data/stadium.ts) con entrada del partido (systems/Tickets). Sin horario: manda systems/Match.
+  { id: 'ar-estadio', name: 'Estadio del Halcón', type: 'public', tags: ['sport', 'stadium'], building: 'ar-estadio', anchors: ['AR_GATE_1', 'AR_GATE_2', 'AR_GATE_3', 'AR_GATE_4', 'AR_GATE_5'], capacity: 400 },
   { id: 'ar-deportes', name: 'Deportes Arena', type: 'business', tags: ['shop', 'sport', WORK], building: 'ar-deportes', capacity: 6, hours: [10, 21], days: [0, 1, 2, 3, 4, 5], why: 'Chándal, camisetas técnicas y zapatillas: ropa de deporte que te llevas puesta.' },
   // Abre todos los días hasta tarde: el fin de semana es cuando hay partido.
   { id: 'ar-oficial', name: 'Tienda Oficial Halcones', type: 'business', tags: ['shop', 'sport', 'stadium', WORK], building: 'ar-oficial', capacity: 8, hours: [10, 21.5], why: 'Las camisetas y la sudadera del club: te las llevas puestas.' },

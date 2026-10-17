@@ -48,6 +48,13 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   T: { key: 'tile-tactile', solid: false, variants: 1 },
   // Tierra (solares, alcorques grandes, caminos de parque sin pavimentar): la pinta world/Surfaces.
   d: { key: 'tile-dirt', solid: false, variants: 1 },
+  // El estadio por dentro (data/stadium.ts, world/ArenaArt): el césped y su línea de banda, que no se pisan; las
+  // vallas de publicidad entre campo y grada; el escalón de la grada y la escalera, por donde se camina.
+  G: { key: 'tile-pitch', solid: true, variants: 2 },
+  J: { key: 'tile-pitch-line', solid: true, variants: 1 },
+  A: { key: 'tile-ad-board', solid: true, variants: 2 },
+  O: { key: 'tile-stand-step', solid: false, variants: 2 },
+  Y: { key: 'tile-stand-stairs', solid: false, variants: 1 },
 };
 
 export interface PropDef {
@@ -119,6 +126,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   bench: { key: 'prop-bench', tilesHigh: 1, mount: true },
   'bench-up': { key: 'prop-bench-up', tilesHigh: 1, mount: true, front: 'prop-bench-up-front' },
   'chair-up': { key: 'prop-chair-up', tilesHigh: 1, mount: true, front: 'prop-chair-up-front' },
+  // Asiento abatible de la grada (data/stadium.ts): se sienta mirando al campo, con el respaldo por delante de la espalda.
+  'stadium-seat': { key: 'prop-stadium-seat', tilesHigh: 1, mount: true, front: 'prop-stadium-seat-front' },
   'chair-down': { key: 'prop-chair-down', tilesHigh: 2, mount: true },
   'chair-left': { key: 'prop-chair-left', tilesHigh: 2, mount: true },
   'chair-right': { key: 'prop-chair-right', tilesHigh: 2, mount: true },

@@ -113,7 +113,8 @@ export function auditVenues(locationId: string): VenueRow[] {
       exitReturnsHere,
       pathsOk: unreachable.length === 0,
       unreachable,
-      hours: place && !residence ? hoursLabel(place) : '—',
+      // Un recinto con entrada (el estadio) no tiene horario de semana: abre con cada partido (systems/Tickets).
+      hours: interior?.venue ? 'según el partido' : place && !residence ? hoursLabel(place) : '—',
       population: !!place && !!profileFor(place.id),
       problems,
     };
@@ -124,7 +125,7 @@ export function auditVenues(locationId: string): VenueRow[] {
     if (!row.interiorSpawnOk) problems.push('la entrada del interior no es pisable');
     if (!row.exitReturnsHere) problems.push('la salida no devuelve a esta puerta');
     if (!row.pathsOk) problems.push(`no se llega a pie a: ${unreachable.join(', ')}`);
-    if (!residence && !place?.hours) problems.push('sin horario');
+    if (!residence && !place?.hours && !interior?.venue) problems.push('sin horario');
     if (interiorId && !residence && !row.population) problems.push('sin perfil de gente (data/population.ts)');
     rows.push(row);
   }

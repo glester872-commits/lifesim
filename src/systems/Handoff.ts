@@ -2,6 +2,7 @@
 // scripts/check-handoff.ts.
 import { placeInfo, type PlaceInfo } from './Places.ts';
 import { profileFor } from './Crowd.ts';
+import { getLocation } from './LocationSystem.ts';
 
 /**
  * Quien entra por una puerta delante del jugador sigue existiendo dentro.
@@ -76,6 +77,9 @@ export const absMinute = (day: number, hour: number, minute: number): number => 
 export function handoffPlace(placeId: string | undefined): PlaceInfo | undefined {
   const place = placeId ? placeInfo(placeId) : undefined;
   if (!place?.interior) return undefined;
+  // Un recinto con entrada (el estadio) tiene su propio público (data/stadium.ts): quien cruza sus tornos desde la
+  // calle desaparece como siempre; si entrara aquí, saldría a media parte, con la estancia de un local cualquiera.
+  if (getLocation(place.interior).venue) return undefined;
   return place.type === 'transit' || profileFor(place.id) ? place : undefined;
 }
 

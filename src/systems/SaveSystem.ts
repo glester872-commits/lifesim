@@ -7,7 +7,8 @@ import { GARMENT_IDS, getGarment } from '../data/retail.ts';
 import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
 import { parseFitness, START_FITNESS } from './Fitness.ts';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations.ts';
-import { hasLocation, safePosition } from './LocationSystem.ts';
+import { getLocation, hasLocation, safePosition } from './LocationSystem.ts';
+import { mayStay, parseTickets, venueOf } from './Tickets.ts';
 import { parseSocialState } from './Social.ts';
 import { parseStories } from './Story.ts';
 import { createPhone, parsePhone } from './Phone.ts';
@@ -53,6 +54,7 @@ export function createInitialState(): GameStateData {
     social: {},
     stories: {},
     phone: createPhone(),
+    tickets: [],
   };
 }
 
@@ -67,6 +69,13 @@ export function restore(loaded: GameStateData | null): GameStateData {
   if (!hasLocation(loaded.locationId)) {
     const fresh = createInitialState();
     return { ...loaded, locationId: fresh.locationId, position: fresh.position, facing: fresh.facing };
+  }
+  // Dentro de un recinto con entrada (el estadio) sin derecho a estar (cerrado, partido acabado, sin entrada usada):
+  // se aparece en su salida, a la calle. Nada más cambia: ni el dinero ni las entradas.
+  const venue = venueOf(getLocation(loaded.locationId).venue);
+  if (venue && !mayStay(venue, loaded.tickets ?? [], loaded)) {
+    const spawn = getLocation(venue.exit.location).spawns[venue.exit.spawn];
+    if (spawn) return { ...loaded, locationId: venue.exit.location, position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE }, facing: spawn.facing };
   }
   return { ...loaded, position: safePosition(loaded.locationId, loaded.position, START_SPAWN) };
 }
@@ -308,6 +317,8 @@ function parseState(value: unknown): GameStateData | null {
     stories: parseStories(s.stories),
     // Una partida anterior al móvil carga con el móvil vacío.
     phone: parsePhone(s.phone),
+    // Una partida anterior a las entradas del estadio carga sin ninguna.
+    tickets: parseTickets(s.tickets),
   };
 }
 

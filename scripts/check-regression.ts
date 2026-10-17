@@ -109,6 +109,8 @@ const full: GameStateData = {
   social: {},
   stories: {},
   phone: { threads: {}, plans: [] },
+  // Una entrada del estadio (systems/Tickets), ya usada: vuelve igual, con su partido y su asiento.
+  tickets: [{ fixture: 'estadio-halcon:13', venue: 'estadio-halcon', day: 13, kickoff: 1110, rival: 'Unión Cantera', sector: 'Tribuna', row: 2, seat: 9, point: 'ESTADIO_SEAT_F2_09', price: 25, admitted: true }],
 };
 assert.ok(save.save(full));
 assert.deepEqual(save.load(), full, 'el guardado no vuelve igual');

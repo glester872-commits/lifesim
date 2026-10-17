@@ -6,6 +6,7 @@ import { cashier, customer, shopRoom } from './cuatroRiosVenues.ts';
 import { FOOD_INTERIORS } from './foodInteriors.ts';
 import { FOOD_VENUE_PROFILES } from './foodVenues.ts';
 import { rebased } from './velariaVenues.ts';
+import { STADIUM, STADIUM_PROFILE } from './stadium.ts';
 
 /**
  * Los locales del Distrito Arena (data/arena.ts) por dentro, con los cimientos de siempre: la tienda de deportes y la
@@ -63,7 +64,7 @@ const CAFE: LocationDef = {
   inspects: [{ tx: 1, ty: 2, name: 'Pizarra', lines: ['«Café y tostada, 2,80». Debajo, con otra tiza: «Hoy juegan los Halcones: abrimos una hora antes».'] }],
 };
 
-export const AR_INTERIORS: readonly LocationDef[] = [DEPORTES, OFICIAL, CAFE, ...FOOD_INTERIORS.filter((l) => FOOD.has(l.id))];
+export const AR_INTERIORS: readonly LocationDef[] = [DEPORTES, OFICIAL, CAFE, ...FOOD_INTERIORS.filter((l) => FOOD.has(l.id)), STADIUM];
 
 // ------------------------------------------------------------------ gente
 
@@ -97,6 +98,7 @@ function barProfile(place: string, pre: string, offers: OfferId, line: string, m
 }
 
 export const AR_PROFILES: readonly PopulationProfile[] = [
+  STADIUM_PROFILE,
   {
     place: 'ar-deportes', bands: [[10, 13, 'LOW'], [13, 17, 'LOW'], [17, 20.5, 'MEDIUM'], [20.5, 21, 'LOW']],
     weekday: [0, 0, 0, 0, 0, 1, -4], maxVisitors: 5,
