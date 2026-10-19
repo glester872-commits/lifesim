@@ -17,7 +17,7 @@ import {
   TILE,
   TRANSITION_MS,
 } from '../config/constants';
-import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, TilePoint, Vec2 } from '../types/game';
+import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, TerminalDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { allLocations, doorRow, getLocation, getSpawn, isStandable, spawnToWorld } from '../systems/LocationSystem';
 import { QUALITY, type QualityLevel } from '../config/quality';
@@ -73,26 +73,31 @@ import { offCamera, settleNamed, type StuckWatch } from '../systems/Recovery';
 import { pickTarget, wallBetween, type Candidate as PickCandidate } from '../systems/Interaction';
 import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
-import { Crowd, profileFor, type Clock } from '../systems/Crowd';
+import { Crowd, profileFor, type Agent, type Clock } from '../systems/Crowd';
 import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
 import { closedLines, isOpen, placeForInterior, placeInfo, placeOfPoint, type PlaceInfo } from '../systems/Places';
 import { admit, heldSeat, mayStay, venueOf } from '../systems/Tickets';
-import { nextMoment, stateAt } from '../systems/MatchPlay';
+import { fixtureAt, nextMoment, stageAt, stateAt, timelineOf, type Timeline } from '../systems/MatchPlay';
+import { fanLine, fanMoment, kioskService, reactionTopic } from '../systems/Concourse';
+import { FAN_TURNS, type FanTopic } from '../data/concourse';
 import { MatchView } from '../world/MatchView';
+import { chantAt, spectatorPose, standCues, standMood, supporterOf, type Chant, type StandMood } from '../systems/StandLife';
+import { FULLTIME_EXIT, HALFTIME_ERRAND } from '../data/standLife';
+import { StandView } from '../world/StandView';
 import type { MenuOption } from '../ui/Menu';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
 import type { AmbientPlacement, Placement } from '../entities/Character';
 import { stopAtStation } from '../systems/Transit';
 import { Menus } from './Menus';
-import { CrowdView } from '../world/CrowdView';
+import { CrowdView, type StandHook } from '../world/CrowdView';
 import { LitterView } from '../world/LitterView';
 import { ServiceView } from '../world/ServiceView';
 import type { PlayerCall, TableService } from '../systems/TableService';
 import { say, type MenuItem, type MoreOption } from '../data/menus';
 import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
-import { characterLook, umbrellaFor } from '../world/WeatherLooks';
+import { awayFanLook, characterLook, umbrellaFor } from '../world/WeatherLooks';
 import { hashSeed, seededRng, type Rng } from '../systems/MetroDaily';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
@@ -152,7 +157,7 @@ type Interactable =
   | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
-  | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string }
+  | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
@@ -299,6 +304,19 @@ export class WorldScene extends Phaser.Scene {
   private matchView: MatchView | null = null;
   /** La cámara está encuadrando el campo desde la grada (frameMatch). */
   private matchFramed = false;
+  /** El resto del estadio por los lados (world/StandView), donde hay partido. */
+  private standView: StandView | null = null;
+  /** El humor de la grada en este fotograma (systems/StandLife), una vez para todos; null sin partido. */
+  private standNow: { tl: Timeline; mood: StandMood; chant: Chant | null } | null = null;
+  /** El último minuto mirado (standCues: cada aviso una vez) y el descanso cuyo recado ya se hizo. */
+  private standLast: number | null = null;
+  private errandFor = '';
+  /** El saque del partido cuya salida en oleada ya se ha dado, el último t visto y el final pendiente de preguntar. */
+  private exitFor = -1;
+  private standLastT = -Infinity;
+  private fulltimeAsk: Timeline | null = null;
+  /** prefers-reduced-motion: la grada reacciona igual, pero quieta. */
+  private reducedMotion = false;
   private trafficView: TrafficView | null = null;
   /** Bicis del carril bici (TrafficDef.bikes): la misma lógica de carril, otro catálogo. */
   private bikes: Traffic<BikeType> | null = null;
@@ -394,6 +412,8 @@ export class WorldScene extends Phaser.Scene {
   private readonly chatLog = new ChatLog();
   /** Cierra ya la charla de calle en curso (Esc o Q), sin pasar por ninguna respuesta. Sólo mientras hay una. */
   private chatEnd: (() => void) | null = null;
+  /** Lo último que se ha oído en la grada (talkSpectator): dos al lado no dicen la misma frase seguida. */
+  private fanRecent: string[] = [];
   /**
    * Lo que el jugador está entrenando ahora (systems/Fitness): el puesto es suyo desde que lo elige hasta que baja
    * de él (para la gente, `claimed`), aunque se corte antes. `releasing`: ya acabó y está bajando.
@@ -434,6 +454,15 @@ export class WorldScene extends Phaser.Scene {
     const built = buildLocation(this, def);
     // Donde hay un campo, el partido del calendario jugándose en él (systems/MatchPlay): el mismo se mire o no.
     this.matchView = def.pitch ? new MatchView(this, def.pitch) : null;
+    this.reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    this.standView = def.pitch ? new StandView(this, built.widthPx, this.reducedMotion) : null;
+    // Llegar (o recargar) no repite avisos ni recados: se empieza a contar desde ahora.
+    this.standNow = null;
+    this.standLast = null;
+    this.errandFor = '';
+    this.exitFor = -1;
+    this.standLastT = -Infinity;
+    this.fulltimeAsk = null;
 
     this.leaving = false;
     this.activeTarget = null;
@@ -535,7 +564,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se compra: máquinas y mostradores, cada uno con su catálogo.
     for (const t of def.terminals ?? []) {
-      this.interactables.push({ kind: 'terminal', x: t.tx * TILE + TILE / 2, y: t.ty * TILE + TILE / 2, name: t.name, catalog: t.catalog, place: t.place });
+      this.interactables.push({ kind: 'terminal', x: t.tx * TILE + TILE / 2, y: t.ty * TILE + TILE / 2, name: t.name, catalog: t.catalog, place: t.place, serves: t.serves, staff: t.staff });
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
@@ -596,7 +625,9 @@ export class WorldScene extends Phaser.Scene {
     const hourNow = (): number => this.services.state.hour + this.services.state.minute / 60;
     // La basura de la calle: se rehace con la escena (StreetLife.populate), así que al volver no queda nada de la otra vez.
     this.litterView = this.street ? new LitterView(this, this.street.litter) : null;
-    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street, hourNow, (x, y) => isStandable(def, x, y)));
+    // Donde se juega un partido, la gente del local es la grada: reacciona a lo que pasa en el campo (systems/StandLife).
+    const stand = this.matchView ? this.standHook() : null;
+    this.crowdViews = [this.crowd, this.street].filter((c) => c !== null).map((c) => new CrowdView(this, c, weather, c === this.street, hourNow, (x, y) => isStandable(def, x, y), c === this.crowd ? stand : null));
     // Lo que pasa en sitios escondidos algunas noches (data/streetEvents.ts): su corro es gente como la de la calle.
     this.streetEvents = STREET_EVENTS.filter((e) => e.location === def.id).map((e) => new StreetEventView(this, def, e, weather));
     this.crowdViews.push(...this.streetEvents.map((e) => e.crowd));
@@ -682,9 +713,12 @@ export class WorldScene extends Phaser.Scene {
 
     state.locationId = def.id;
     clock.setPaused(false);
-    // En el barrio del estadio, el día de partido se anuncia al llegar (systems/Match): rival y hora del saque.
+    // En el barrio del estadio, el día de partido se anuncia al llegar (systems/Match): rival y hora del saque; empezado,
+    // el marcador de ese momento (systems/MatchPlay, el mismo que en la grada); acabado, el resultado.
     const game = LOCATION_DISTRICT[def.id] === ARENA_MATCHES.district ? (matchNow(state) ?? matchOn(state.day)) : null;
-    this.services.place.show(game ? `${def.name} · hoy ${ARENA_CLUB.short} – ${game.rival}, ${kickoffLabel(game.kickoff)}` : def.name);
+    const live = game ? stateAt(timelineOf(game), this.absMinute()) : null;
+    const score = live && live.stage !== 'pre' && game ? `${ARENA_CLUB.short} ${live.score[0]} – ${live.score[1]} ${game.rival}` : '';
+    this.services.place.show(!game ? def.name : !score ? `${def.name} · hoy ${ARENA_CLUB.short} – ${game.rival}, ${kickoffLabel(game.kickoff)}` : live!.stage === 'full' ? `${def.name} · final: ${score}` : `${def.name} · ${score} (${live!.clock})`);
 
     // Hablar no para el mundo: sólo a quien atiende, que vuelve a lo suyo al despedirse.
     const onDialogueClose = (): void => {
@@ -746,6 +780,8 @@ export class WorldScene extends Phaser.Scene {
       this.soundSources = null;
       this.matchView?.destroy();
       this.matchView = null;
+      this.standView = null;
+      this.standNow = null;
       this.litterView?.destroy();
       this.litterView = null;
       this.zoneDebug?.destroy();
@@ -761,6 +797,7 @@ export class WorldScene extends Phaser.Scene {
     input.beginFrame();
     this.updateSound(time);
     this.matchView?.update(this.absMinute(), time);
+    this.updateStand(time);
     // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
     pumpPeopleHD(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < HD_ENTRY_MS ? HD_BAKE_ENTRY_MS : HD_BAKE_MS);
 
@@ -1572,6 +1609,7 @@ export class WorldScene extends Phaser.Scene {
     const watching = this.matchOn();
     // Desde la grada la cámara mira al césped (si no, desde las filas de atrás sólo se ve la banda); al acabar, vuelve.
     if (watching !== this.matchFramed) this.frameMatch(watching);
+    else if (this.matchFramed) this.followBall();
     const near = this.nearestInteractable();
     const target = watching && near?.kind !== 'npc' ? null : near;
     this.updatePrompt(target);
@@ -1604,6 +1642,87 @@ export class WorldScene extends Phaser.Scene {
     const abs = this.absMinute();
     const tl = this.matchView.timeline(abs);
     return !!tl && nextMoment(tl, abs) !== null && abs >= tl.kickoff - 90;
+  }
+
+  /**
+   * La grada a la hora del mundo (systems/StandLife): el humor de todos, una vez por fotograma; los fondos
+   * (world/StandView); lo que suena y se lee al pasar cada cosa (silbatos, ocasiones, goles, cánticos), una vez cada
+   * una y nunca al llegar; y el recado del descanso, si se ve empezar.
+   */
+  private updateStand(time: number): void {
+    if (!this.matchView || !this.standView) return;
+    const abs = this.absMinute();
+    const tl = this.matchView.timeline(abs);
+    if (!tl) {
+      this.standNow = null;
+      this.standLast = abs;
+      this.standView.update({ kind: 'off', side: null, strength: 0, since: 0, id: 'off' }, null, '', time);
+      return;
+    }
+    const t = abs - tl.kickoff;
+    const before = this.standNow?.mood.id;
+    const mood = standMood(tl, t);
+    const chant = chantAt(tl, t);
+    this.standNow = { tl, mood, chant };
+    this.standView.update(mood, chant, tl.match.rival, time);
+    for (const cue of standCues(tl, this.standLast, abs)) {
+      this.services.audio.cue(cue.kind);
+      if (cue.text) this.matchView.say(cue.text);
+    }
+    this.standLast = abs;
+    // El descanso empieza mirando (no al llegar ni al recargar): unos pocos bajan al vestíbulo y luego vuelven.
+    const halftime = mood.kind === 'break' && mood.id.endsWith(':half');
+    if (halftime && before !== undefined && before !== mood.id && mood.since < HALFTIME_ERRAND.window && this.errandFor !== mood.id && this.crowd) {
+      this.errandFor = mood.id;
+      const [lo, hi] = HALFTIME_ERRAND.count;
+      const n = lo + Math.floor(seededRng(hashSeed('halftime', mood.id))() * (hi - lo + 1));
+      this.crowd.errand(n, HALFTIME_ERRAND.from, { state: 'WAIT', points: HALFTIME_ERRAND.points, minutes: HALFTIME_ERRAND.minutes }, { state: 'WATCH', points: [HALFTIME_ERRAND.from], minutes: HALFTIME_ERRAND.back });
+    }
+    // El pitido final: la mayoría se levanta en oleada hacia la puerta, una vez por partido (se vea o se llegue después).
+    // Si se ve pitar, se pregunta si quedarse un rato o salir con la gente; con algo abierto, en cuanto se cierre.
+    if (stageAt(t) === 'full' && this.crowd && this.exitFor !== tl.kickoff) {
+      this.exitFor = tl.kickoff;
+      const leaders = this.crowd.agents.filter((a) => a.kind === 'visitor' && !a.leader && a.point?.startsWith(FULLTIME_EXIT.from)).length;
+      this.crowd.disperse(Math.ceil(leaders * FULLTIME_EXIT.share), FULLTIME_EXIT.from, FULLTIME_EXIT.stagger);
+      if (before !== undefined && stageAt(this.standLastT) !== 'full') this.fulltimeAsk = tl;
+    }
+    this.standLastT = t;
+    if (this.fulltimeAsk && !this.services.dialogue.isOpen && !this.services.menu.isOpen) this.offerFulltime(this.fulltimeAsk);
+  }
+
+  /** Al pitido final, visto desde dentro: quedarse un rato (hasta el cierre) o levantarse y salir andando con la gente. */
+  private offerFulltime(tl: Timeline): void {
+    this.fulltimeAsk = null;
+    const s = stateAt(tl, this.absMinute());
+    const venue = venueOf(getLocation(this.services.state.locationId).venue);
+    const closes = venue ? ` El estadio cierra a las ${kickoffLabel((tl.kickoff + venue.closes) % 1440)}.` : '';
+    this.services.dialogue.ask(`Final · ${ARENA_CLUB.short} ${s.score[0]} – ${s.score[1]} ${tl.match.rival}`, ['Pitido final. La gente empieza a recoger y a bajar hacia la salida.'], ['Quedarse un rato', 'Salir con la gente'], (i) => {
+      if (i === 0) {
+        this.openDialogue('Grada', [`Te quedas un rato ${this.player.isSeated ? 'en tu asiento' : 'en la grada'}.${closes}`]);
+        return;
+      }
+      this.standUp();
+      this.openDialogue('Grada', ['Escalera abajo y por la puerta del vestíbulo. Fuera, la explanada se llena y el metro del Arena va hasta arriba un buen rato.']);
+    });
+  }
+
+  /** Lo que la grada le pide a la gente del local (world/CrowdView): cómo reacciona quien mira y con qué camiseta viene. */
+  private standHook(): StandHook {
+    return {
+      react: (a, time) => {
+        const s = this.standNow;
+        if (!s || a.kind !== 'visitor' || a.state !== 'WATCH' || !a.point?.startsWith(HALFTIME_ERRAND.from)) return undefined;
+        const pose = spectatorPose(s.mood, supporterOf(a.id, !!a.fan), a.id, time, this.reducedMotion, s.chant);
+        if (pose === null) return undefined;
+        return { frame: { step: { name: 'grada', ms: [0, 0], sitPose: pose }, key: `grada-${pose}`, t: 0 }, start: 0 };
+      },
+      dress: (a) => {
+        if (supporterOf(a.id, !!a.fan) !== 'away') return undefined;
+        const tl = this.matchView?.timeline(this.absMinute());
+        const look = tl ? awayFanLook(a.id, tl.match.rival) : null;
+        return look ? { look, line: `Venimos con el ${tl!.match.rival}. Aquí se nos oye, ¿eh?` } : undefined;
+      },
+    };
   }
 
   /**
@@ -1656,6 +1775,21 @@ export class WorldScene extends Phaser.Scene {
     this.tweens.add({ targets: cam.followOffset, x: this.player.x - cx, y: this.player.y - cy, duration: 600, ease: 'Sine.easeInOut' });
   }
 
+  /**
+   * Con la pantalla más estrecha que el campo (un móvil de pie), el encuadre de la grada se desliza despacio hacia el
+   * balón sin salirse del césped: la jugada no se va por un lado. Si cabe entero, no se mueve.
+   */
+  private followBall(): void {
+    const pitch = getLocation(this.services.state.locationId).pitch;
+    const cam = this.cameras.main;
+    const viewW = cam.width / cam.zoom;
+    const ball = this.matchView?.ballX ?? null;
+    if (!pitch || ball === null || viewW >= pitch.w * TILE || this.tweens.isTweening(cam.followOffset)) return;
+    const cx = Phaser.Math.Clamp(ball, pitch.tx * TILE + viewW / 2, (pitch.tx + pitch.w) * TILE - viewW / 2);
+    const k = Math.min(1, this.game.loop.delta / 700);
+    cam.followOffset.x += (this.player.x - cx - cam.followOffset.x) * k;
+  }
+
   /** Desarrollo (lifesim.match): el partido de aquí, su estado, el coste de pintarlo y esconderlo para medir. */
   debugMatch(hide?: boolean): object | null {
     if (!this.matchView) return null;
@@ -1669,6 +1803,26 @@ export class WorldScene extends Phaser.Scene {
       stage: s?.stage, clock: s?.clock, score: s?.score, final: tl?.final,
       moments: tl?.moments.map((m) => `${m.minute} ${m.side} ${m.pattern.id}${m.goal ? ' GOL' : ''}`),
       next: tl ? nextMoment(tl, abs) : null,
+      stand: this.standStats(),
+    };
+  }
+
+  /** La grada ahora (lifesim.match().stand): humor, cuántos hay sentados, cuántos reaccionan y lo que pinta el resto. */
+  private standStats(): object | null {
+    const s = this.standNow;
+    const agents = this.crowd?.agents ?? [];
+    const seated = agents.filter((a) => a.kind === 'visitor' && a.state === 'WATCH' && !a.moving && a.point?.startsWith(HALFTIME_ERRAND.from));
+    const now = this.time.now;
+    return {
+      mood: s ? `${s.mood.kind} ${s.mood.side ?? ''} ${s.mood.strength.toFixed(2)}`.trim() : 'off',
+      id: s?.mood.id ?? null,
+      chant: s?.chant?.line ?? null,
+      agents: agents.length,
+      seated: seated.length,
+      reacting: s ? seated.filter((a) => spectatorPose(s.mood, supporterOf(a.id, !!a.fan), a.id, now, this.reducedMotion, s.chant) !== null).length : 0,
+      away: agents.filter((a) => supporterOf(a.id, !!a.fan) === 'away').length,
+      concourse: agents.filter((a) => a.point?.startsWith(HALFTIME_ERRAND.points[0])).length,
+      decor: this.standView ? { objects: this.standView.objects, frame: this.standView.shown } : null,
     };
   }
 
@@ -2148,7 +2302,7 @@ export class WorldScene extends Phaser.Scene {
     // (la gente sin nombre sólo se anuncia con «Hablar», en el botón).
     const toll =
       target.kind === 'portal' ? describePortal(target.portal) + (this.closedPlace(target.portal) ? ' · cerrado' : '')
-      : target.kind === 'terminal' || target.kind === 'spot' ? target.name + (this.shutFor(target) ? ' · cerrado' : '')
+      : target.kind === 'terminal' || target.kind === 'spot' ? target.name + (this.shutFor(target) || (target.kind === 'terminal' && this.stallClosed(target)) ? ' · cerrado' : '')
       : target.kind === 'inspect' ? target.name
       : target.kind === 'rack' ? target.rack.name
       : target.kind === 'event' ? target.view.def.name
@@ -2197,6 +2351,14 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.player.halt();
+    // Un puesto que atiende a ratos del partido (el quiosco del estadio): cerrado, dice por qué y cuándo abre; abierto,
+    // se compra con el partido en marcha (menú en vivo) y deja de cobrar si cierra con el menú abierto.
+    if (target.kind === 'terminal' && target.serves) {
+      const closed = this.stallClosed(target);
+      if (closed) this.openDialogue(target.name, closed);
+      else this.menus.openCatalog(target.name, target.catalog, '', 0, undefined, { closed: () => this.stallClosed(target)?.[0] ?? null });
+      return;
+    }
     // Negocio cerrado (con el jugador aún dentro, o el mostrador de la calle): ni se compra ni se pide nada nuevo.
     const shut = this.shutFor(target);
     if (shut) {
@@ -2226,6 +2388,9 @@ export class WorldScene extends Phaser.Scene {
       } else if (survivor) {
         this.startTalk(target.sprite);
         this.talkSurvivor(target.def.name, target.sprite, survivor);
+      } else if (this.spectatorOf(target.sprite)) {
+        this.startTalk(target.sprite);
+        this.talkSpectator(target.def.name, target.sprite, this.spectatorOf(target.sprite)!);
       } else {
         const talk = this.conversationWith(target.sprite);
         this.startTalk(target.sprite);
@@ -3173,6 +3338,74 @@ export class WorldScene extends Phaser.Scene {
     const place = target.kind === 'terminal' && target.place ? placeInfo(target.place) : placeForInterior(this.services.state.locationId);
     const { day, hour, minute } = this.services.state;
     return place?.type === 'business' && !isOpen(place, day, hour, minute) ? place : undefined;
+  }
+
+  /**
+   * Quien ha venido a ver el partido que se juega aquí (gente anónima del local, nunca un personaje con nombre ni el
+   * personal): con el partido en curso o recién acabado, se habla de él.
+   */
+  private spectatorOf(sprite: Phaser.GameObjects.Sprite): Agent | undefined {
+    if (!this.matchView || !(sprite instanceof Character) || !fixtureAt(this.absMinute())) return undefined;
+    const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
+    return agent?.kind === 'visitor' && !agent.npc ? agent : undefined;
+  }
+
+  /**
+   * Charla en la grada (systems/Concourse, data/concourse.ts): de lo que pasa en el partido ahora, desde el lado de quien
+   * habla, sin repetir lo que ya le ha dicho (la memoria de charla de siempre, ChatLog, que se olvida al salir). Se puede
+   * animar, celebrar si hay algo que celebrar, seguir hablando unas vueltas o despedirse. Cada vuelta mira el partido
+   * otra vez: si entra un gol a mitad de charla, se habla del gol. Nada de esto suma relación ni se guarda.
+   */
+  private talkSpectator(name: string, sprite: Phaser.GameObjects.Sprite, agent: Agent): void {
+    const { dialogue } = this.services;
+    const who = supporterOf(agent.id, !!agent.fan);
+    const heard = this.chatLog.mem(`c:${this.services.state.locationId}:${agent.id}`).lines;
+    const line = (topic?: FanTopic): string => {
+      const abs = this.absMinute();
+      const tl = fixtureAt(abs);
+      if (!tl) return agent.line;
+      const m = fanMoment(tl, abs, who);
+      const l = fanLine(topic ?? m.topic, m, who, agent.id, heard, this.fanRecent);
+      heard.push(l.id);
+      if (heard.length > 40) heard.shift();
+      this.fanRecent.push(l.id);
+      if (this.fanRecent.length > 6) this.fanRecent.shift();
+      return l.text;
+    };
+    let turns = 0;
+    const step = (text: string): void => {
+      const abs = this.absMinute();
+      const tl = fixtureAt(abs);
+      const m = tl ? fanMoment(tl, abs, who) : null;
+      const options = [
+        ...(m?.cheer ? [{ id: 'cheer', label: 'Animar' }] : []),
+        ...(m?.celebrate ? [{ id: 'celebrate', label: 'Celebrar' }] : []),
+        ...(turns < FAN_TURNS ? [{ id: 'talk', label: 'Hablar del partido' }] : []),
+        { id: 'bye', label: 'Despedirse' },
+      ] as const;
+      dialogue.ask(name, [text], options.map((o) => o.label), (i) => {
+        this.startTalk(sprite);
+        const id = options[i].id;
+        turns++;
+        if (id === 'bye') dialogue.start(name, [line('bye')]);
+        else step(id === 'talk' ? line() : line(reactionTopic(id as 'cheer' | 'celebrate', who)));
+      });
+      this.chatEnd = () => dialogue.close();
+    };
+    step(line());
+  }
+
+  /**
+   * Por qué no atiende ahora un puesto que va con el partido (TerminalDef.serves: systems/Concourse.kioskService) o
+   * que no tiene a nadie detrás (TerminalDef.staff), o null si atiende.
+   */
+  private stallClosed(t: Extract<Interactable, { kind: 'terminal' }>): string[] | null {
+    if (!t.serves) return null;
+    const abs = this.absMinute();
+    const service = kioskService(t.serves, fixtureAt(abs), abs);
+    if (!service.open) return service.lines;
+    const staffed = !t.staff || (this.crowd?.agents ?? []).some((a) => a.kind === 'staff' && !a.moving && !a.leaving && a.point?.startsWith(t.staff!));
+    return staffed ? null : ['No hay nadie detrás del mostrador ahora mismo. Vuelve en un momento.'];
   }
 
   /**

@@ -128,6 +128,11 @@ export class MatchView {
     return { objects: this.objects, updates: this.cost.n, avgMs: this.cost.n ? this.cost.total / this.cost.n : 0, maxMs: this.cost.max, hidden: this.hidden };
   }
 
+  /** Dónde va el balón (px de mundo), o null si no está en juego: la cámara de la grada lo sigue en pantallas estrechas. */
+  get ballX(): number | null {
+    return this.ball.visible ? this.ball.x : null;
+  }
+
   /** Para medir el coste: sin muñecos ni marcador (el estadio, igual). */
   setHidden(hidden: boolean): void {
     this.hidden = hidden;
@@ -245,7 +250,8 @@ export class MatchView {
     if (goals.length) this.say(`Mientras tanto: ${goals.map((m) => `gol de ${this.teamName(m.side, tl)} (${m.minute})`).join(', ')}.`);
   }
 
-  private say(text: string): void {
+  /** Una línea bajo el marcador unos segundos (también los silbatos y los cánticos de la grada: WorldScene). */
+  say(text: string): void {
     this.note = text;
     this.noteUntil = this.scene.time.now + NOTE_MS;
     this.markAt = 0;

@@ -2,6 +2,7 @@ import type { LocationDef, PointDef, PropPlacement } from '../types/game.ts';
 import type { PopulationProfile } from './population.ts';
 import { ARENA_CLUB, ARENA_MATCHES } from './cityEvents.ts';
 import { at, many, p } from './interiors.ts';
+import { KIOSK_WINDOWS } from './concourse.ts';
 
 /**
  * El Estadio del Halcón por dentro (data/arena.ts, la fachada; systems/Tickets, las reglas de la entrada). No es el
@@ -62,6 +63,8 @@ const PROPS: readonly PropPlacement[] = [
   ...SEAT_ROWS.flatMap((y) => SEAT_COLS.map((x) => at('stadium-seat', x, y))),
   ...many('bin', [[3, 19], [20, 19]]),
   ...many('ad-panel', [[6, 18], [17, 18]]),
+  // El quiosco, a la derecha de la escalera: se llega bajando y se vuelve a subir sin cruzar la salida.
+  at('kiosk-counter', 15, 19),
 ];
 
 export const STADIUM: LocationDef = {
@@ -77,12 +80,22 @@ export const STADIUM: LocationDef = {
   portals: [{ id: 'exit', tx: 12, ty: 22, label: 'Salir a la explanada', to: { location: 'arena', spawn: 'ar-estadio' } }],
   spawns: { entry: { tx: 12, ty: 21, facing: 'up' } },
   npcs: [],
+  // Atiende antes del saque y en el descanso del partido de aquí (data/concourse.ts), con alguien detrás.
+  terminals: [{ tx: 15, ty: 19, name: 'Quiosco · Tribuna', catalog: 'stadium-kiosk', serves: KIOSK_WINDOWS, staff: 'ESTADIO_KIOSK_' }],
   inspects: [
     { tx: 14, ty: 17, name: 'Acceso a grada', lines: ['«Tribuna · Filas 1 a 3». La fila y el asiento vienen en la entrada; los números van de izquierda a derecha mirando al campo.'] },
   ],
   points: {
     ESTADIO_EXIT: p(12, 21, 'exit', 'up'),
     ESTADIO_STEWARD_01: p(10, 19, 'work', 'down'),
+    ESTADIO_KIOSK_01: p(15, 18, 'work', 'down'),
+    // El vestíbulo en el descanso (data/standLife.ts HALFTIME_ERRAND): a los lados, lejos del paso de la escalera a la puerta.
+    ESTADIO_CONCOURSE_01: p(4, 20, 'wait', 'right'),
+    ESTADIO_CONCOURSE_02: p(6, 20, 'wait', 'left'),
+    ESTADIO_CONCOURSE_03: p(8, 20, 'wait', 'up'),
+    ESTADIO_CONCOURSE_04: p(15, 20, 'wait', 'up'),
+    ESTADIO_CONCOURSE_05: p(17, 20, 'wait', 'right'),
+    ESTADIO_CONCOURSE_06: p(19, 20, 'wait', 'left'),
     ...SEAT_POINTS,
   },
 };
@@ -152,10 +165,13 @@ export const STADIUM_PROFILE: PopulationProfile = {
   bands: [],
   weekday: [0, 0, 0, 0, 0, 0, 0],
   match: { arrival: 2, live: 3, leaving: 1, after: -1 },
+  // Se entra con las puertas y hasta el pitido final; luego sólo se sale (FULLTIME_EXIT y el plan de cada cual).
+  entry: ['arrival', 'live'],
   fans: 0.85,
   maxVisitors: 20,
   staff: [
     { service: 'security', label: 'Acomodador', line: 'Fila y asiento, en tu entrada. Se sube por la escalera del centro.', points: ['ESTADIO_STEWARD_'] },
+    { service: 'cashier', label: 'Quiosquera', line: 'Antes del partido y en el descanso. Con la pelota rodando, aquí no se despacha.', points: ['ESTADIO_KIOSK_'] },
   ],
   visitors: [
     { role: 'fan', label: 'Aficionado', line: '¡Hoy se gana, ya verás!', weight: 3, party: [1, 3], plan: [{ state: 'WATCH', points: ['ESTADIO_SEAT_'], minutes: [90, 140] }] },

@@ -197,6 +197,8 @@ export type PropKind =
   // Distrito Arena (world/ArenaArt): taquilla, puesto de comida, puesto de bufandas, mástil con la bandera del club y torre de focos.
   | 'ticket-booth'
   | 'food-stall'
+  // El quiosco del vestíbulo del estadio: un mostrador de dos tiles con quien atiende detrás (data/stadium.ts).
+  | 'kiosk-counter'
   | 'scarf-stand'
   | 'flag-pole'
   // El tablón del barrio: se consulta con E (systems/Boards)
@@ -356,6 +358,13 @@ export interface TerminalDef {
   catalog: string;
   /** Lugar (data/places.ts) cuyo horario manda, si el mostrador está en la calle; dentro manda el del interior. */
   place?: string;
+  /**
+   * Atiende sólo en estos ratos del partido que se juega aquí ([desde, hasta) en minutos desde el saque:
+   * systems/Concourse.kioskService), y no en el horario del sitio. El quiosco del estadio.
+   */
+  serves?: readonly (readonly [number, number])[];
+  /** Prefijo del punto de quien atiende: sin nadie en su sitio, no se vende. */
+  staff?: string;
 }
 
 /**

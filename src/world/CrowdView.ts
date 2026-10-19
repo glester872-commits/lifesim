@@ -3,7 +3,7 @@ import type { Agent } from '../systems/Crowd';
 import { Character, activityAt } from '../entities/Character';
 import { atTable, seatAt } from '../systems/Seating';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
-import type { NpcDef } from '../types/game';
+import type { NpcDef, NpcLook } from '../types/game';
 import type { Weather } from '../systems/Weather';
 import { dressedLook, fanLook, gymLook, umbrellaFor } from './WeatherLooks';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards, gestureSet } from '../systems/AmbientActions';
@@ -13,6 +13,17 @@ import type { Belonging } from '../data/streetSurvival';
 import { belongingKey, blanketOf, buildSurvivalTextures, sleeperTexture } from './SurvivalArt';
 import { actKey, buildActTextures } from './StreetActArt';
 import { trolleyAt } from '../systems/StreetLife';
+
+/**
+ * La grada en día de partido (WorldScene con systems/StandLife): cómo reacciona quien está sentado mirando y con qué
+ * camiseta viene quien anima al rival. Sin ella, la gente del local hace lo de siempre.
+ */
+export interface StandHook {
+  /** El gesto de reacción de quien ya está en su asiento (o undefined: lo de siempre). */
+  react(a: Agent, time: number): AmbientPlacement | undefined;
+  /** Su ropa y lo que dice, si no es la de siempre (quien viene con el rival). */
+  dress(a: Agent): { look: NpcLook; line: string } | undefined;
+}
 
 /** Margen en px alrededor de la cámara dentro del cual la gente ya tiene sprite. */
 const MARGIN = 96;
@@ -54,16 +65,19 @@ export class CrowdView {
   /** Quién tiene derecho a gesto ahora (GESTURE_BUDGET); null si cabe todo el mundo. */
   private gestures: ReadonlySet<number> | null = null;
   private gesturesAt = -Infinity;
+  /** La grada, si este sitio la tiene (WorldScene la pone donde se juega un partido): desde el primer sprite. */
+  private readonly stand: StandHook | null;
 
   /** Tile pisable del sitio (el carrito de limpieza no se pinta atravesando nada: StreetLife.trolleyAt). */
   private readonly free: (tx: number, ty: number) => boolean;
 
-  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean, hour?: () => number, free: (tx: number, ty: number) => boolean = () => true) {
+  constructor(scene: Phaser.Scene, crowd: { readonly agents: readonly Agent[] }, weather: () => Weather, outdoor: boolean, hour?: () => number, free: (tx: number, ty: number) => boolean = () => true, stand: StandHook | null = null) {
     this.scene = scene;
     this.free = free;
     this.crowd = crowd;
     this.weather = weather;
     this.outdoor = outdoor;
+    this.stand = stand;
     this.ambient = hour ? new AmbientDirector(hour) : null;
     this.sync(0);
   }
@@ -107,8 +121,9 @@ export class CrowdView {
       let sprite = this.sprites.get(a.id);
       if (!sprite) {
         sprite = this.pool.pop();
-        if (sprite) sprite.reuse(defOf(a, w), a.id);
-        else sprite = new Character(this.scene, defOf(a, w), a.id);
+        const def = defOf(a, w, this.stand?.dress(a));
+        if (sprite) sprite.reuse(def, a.id);
+        else sprite = new Character(this.scene, def, a.id);
         this.sprites.set(a.id, sprite);
         if (a.sport) this.sportOn.add(a.id);
         else this.sportOn.delete(a.id);
@@ -137,8 +152,10 @@ export class CrowdView {
       sprite.umbrella = this.outdoor && !a.staffRole ? umbrellaFor(a.id, w, sprite.def.id.endsWith('~hood')) : null;
       // Lejos del centro de la cámara en una plaza llena: sin gesto (y al volver, elige otro a mitad).
       const gesture = !this.gestures || this.gestures.has(a.id);
-      if (!gesture) this.ambient?.forget(a.id);
-      const ambient = gesture ? this.ambientOf(a, activity, time) : undefined;
+      // En la grada, lo que pasa en el campo manda sobre el gesto de ambiente; al acabar, elige otro.
+      const reaction = settled ? this.stand?.react(a, time) : undefined;
+      if (!gesture || reaction) this.ambient?.forget(a.id);
+      const ambient = reaction ?? (gesture ? this.ambientOf(a, activity, time) : undefined);
       // La estatua viviente: de bronce y subida a su peana mientras actúa.
       const statue = a.act?.kind === 'statue' && settled && a.state === 'PERFORM';
       if (statue) sprite.setTint(STATUE_TINT);
@@ -310,8 +327,9 @@ function streetActivity(a: Agent): ReturnType<typeof activityAt> {
  * Personal con nombre: su personaje; personal anónimo: su uniforme; clientes y
  * gente de la calle: una cara de la lista, vestida para el tiempo que hace.
  */
-function defOf(a: Agent, w: Weather): NpcDef {
+function defOf(a: Agent, w: Weather, dressed?: { look: NpcLook; line: string }): NpcDef {
   if (a.npc) return getNpc(a.npc);
+  if (dressed) return { ...dressed.look, name: a.label, lines: [dressed.line] };
   const uniform = a.uniform ? UNIFORM_LOOKS.find((l) => l.id === a.uniform) : undefined;
   const base = PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
   // Quien viene de la calle (systems/Handoff) trae su semilla de ropa: el mismo abrigo dentro que fuera.

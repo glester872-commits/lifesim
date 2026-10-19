@@ -102,6 +102,11 @@ export interface PopulationProfile {
    * después, medio vacío mientras se juega si no tiene tele; la tienda oficial, a reventar antes del saque).
    */
   match?: Partial<Record<import('./cityEvents.ts').MatchPhase, number>>;
+  /**
+   * Sólo en estas fases del partido entra gente nueva (la grada: hasta el pitido final); fuera de ellas, quien está se
+   * va a su ritmo y nadie más cruza la puerta. Sin él, se entra siempre que el local esté abierto.
+   */
+  entry?: readonly import('./cityEvents.ts').MatchPhase[];
   /** En día de partido, la parte de la clientela que viene con la camiseta y la bufanda del equipo (0–1). */
   fans?: number;
 }

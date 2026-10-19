@@ -353,6 +353,11 @@ body {
   display: none;
 }
 
+/* Con una charla o un menú abierto (el quiosco, hablar en la grada), el marcador se aparta: no tapa sus opciones. */
+#overlay:has(#dialogue.is-open, #menu.is-open) #match-board {
+  visibility: hidden;
+}
+
 .match-board__row {
   display: flex;
   gap: 10px;
@@ -1023,6 +1028,11 @@ body {
 body.has-touch #dialogue,
 body.has-touch #hint {
   bottom: calc(max(25px, calc(env(safe-area-inset-bottom) + 10px)) + clamp(64px, 18vmin, 84px) + 40px);
+}
+
+/* El marcador del estadio, por encima de los botones y del aviso de abajo: no tapa «Volver» ni «Elegir». */
+body.has-touch #match-board {
+  bottom: calc(max(25px, calc(env(safe-area-inset-bottom) + 10px)) + clamp(64px, 18vmin, 84px) + 84px);
 }
 
 body.has-touch #announce {

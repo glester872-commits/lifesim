@@ -256,6 +256,37 @@ export class Crowd {
       }
     }
   }
+
+  /**
+   * Un recado a mitad de visita (el descanso del partido: WorldScene con data/standLife.ts HALFTIME_ERRAND): hasta
+   * `count` de los que están quietos en un punto de `from` (cada uno con su grupo detrás) van a `step` y luego vuelven a
+   * algo como lo de antes. Por los caminos de siempre; quien no encuentra sitio, se queda. Devuelve cuántos van.
+   */
+  errand(count: number, from: string, step: PlanStep, back: PlanStep): number {
+    const ready = this.agents.filter((a) => a.kind === 'visitor' && !a.leader && !a.leaving && !a.leaveSoon && !a.talking && a.path.length === 0 && a.point?.startsWith(from));
+    const going = ready.map((a) => ({ a, r: this.rng() })).sort((x, y) => x.r - y.r).slice(0, count).map((x) => x.a);
+    for (const a of going) {
+      a.plan = [step, back, ...a.plan];
+      // Nadie se levanta a la vez: cada uno a los pocos segundos.
+      a.timer = between(this.rng, 300, 4_000);
+    }
+    return going.length;
+  }
+
+  /**
+   * Una salida en oleada (el pitido final: WorldScene con data/standLife.ts FULLTIME_EXIT): hasta `count` de los que
+   * están en un punto de `from` (con su grupo detrás) se levantan, cada uno a su ritmo dentro de `stagger` ms, y salen
+   * por la puerta. El resto se va como siempre, por su plan. Devuelve cuántos se van.
+   */
+  disperse(count: number, from: string, stagger: readonly [number, number]): number {
+    const ready = this.agents.filter((a) => a.kind === 'visitor' && !a.leader && !a.leaving && !a.leaveSoon && !a.talking && a.point?.startsWith(from));
+    const going = ready.map((a) => ({ a, r: this.rng() })).sort((x, y) => x.r - y.r).slice(0, count).map((x) => x.a);
+    for (const a of going) {
+      a.leaveSoon = true;
+      a.timer = Math.min(a.timer, between(this.rng, ...stagger));
+    }
+    return going.length;
+  }
   private claimed: ReadonlySet<string> = new Set();
   /** Ms desde que el jugador entró: el reloj del personal que sirve mesas. */
   private elapsed = 0;
@@ -367,7 +398,10 @@ export class Crowd {
   /** Acerca la ocupación al objetivo poco a poco: nadie aparece ni desaparece de golpe. */
   private reconcile(clock: Clock, player: TilePoint): void {
     const level = levelAt(this.place, this.profile, clock);
+    const phase = this.profile.entry ? matchPhase(clock) : null;
     const doorClear = this.distance(this.door, player) >= POPULATION.doorClearance && !this.agents.some((a) => !a.leaving && this.atDoor(a));
+    // La grada (profile.entry): pasado el pitido final ya no entra nadie nuevo; quien está, se va a su ritmo.
+    const admits = doorClear && (!this.profile.entry || (!!phase && this.profile.entry.includes(phase)));
 
     // Personal: el que toca entra por la puerta; el que ya no toca, se va.
     for (const role of this.profile.staff) {
@@ -397,11 +431,11 @@ export class Crowd {
     const changes = Math.min(Math.abs(diff), Math.abs(diff) > 4 ? POPULATION.maxChangesPerTick : 1);
     // Por la puerta entra una persona cada vez: primero el resto de un grupo que ya está dentro.
     const party = this.agents.find((a) => (a.pendingParty ?? 0) > 0 && !a.leaving && !a.leaveSoon);
-    if (party && doorClear && this.agents.length < this.place.capacity) {
+    if (party && admits && this.agents.length < this.place.capacity) {
       party.pendingParty!--;
       const mate = this.newAgent('visitor', party.role, party.label, party.line, this.door);
       mate.leader = party;
-    } else if (diff > 0 && doorClear && this.agents.length < this.place.capacity) {
+    } else if (diff > 0 && admits && this.agents.length < this.place.capacity) {
       const role = this.pickRole(clock);
       if (role) this.enterVisitor(role, diff);
     } else if (diff < 0) {

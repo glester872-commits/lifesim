@@ -52,14 +52,19 @@ export class Menus {
 
   // ------------------------------------------------------------- comprar
 
-  /** Máquina, barra o taquilla: el catálogo dice qué hay; Commerce, si se puede. */
-  openCatalog(title: string, catalogId: string, note = '', selected = 0, onClose?: () => void): void {
+  /**
+   * Máquina, barra o taquilla: el catálogo dice qué hay; Commerce, si se puede. Un puesto que atiende sólo a ratos (el
+   * quiosco del estadio) pasa `stall`: el menú es «en vivo» (el mundo y el partido siguen mientras se elige) y, si deja
+   * de atender con el menú abierto, ya no cobra.
+   */
+  openCatalog(title: string, catalogId: string, note = '', selected = 0, onClose?: () => void, stall?: { closed: () => string | null }): void {
     const { state, menu } = this.services;
     const catalog = getCatalog(catalogId);
     const wallet = state.wallet;
+    const shut = stall?.closed() ?? null;
     const options: MenuOption[] = catalog.products.map((p) => {
       const trial = purchase(wallet, p);
-      return { label: p.label, detail: euros(p.price), disabled: trial.ok ? undefined : trial.message };
+      return { label: p.label, detail: euros(p.price), disabled: shut ?? (trial.ok ? undefined : trial.message) };
     });
     options.push({ label: 'Salir' });
     menu.open(
@@ -72,16 +77,22 @@ export class Menus {
           onClose?.();
           return;
         }
+        const closed = stall?.closed() ?? null;
+        if (closed) {
+          this.openCatalog(title, catalogId, closed, i, onClose, stall);
+          return;
+        }
         const result = purchase(state.wallet, catalog.products[i]);
         if (result.ok) {
           state.wallet = result.wallet;
           this.host.persist();
         }
-        this.openCatalog(title, catalogId, result.message, i, onClose);
+        this.openCatalog(title, catalogId, result.message, i, onClose, stall);
       },
       onClose,
-      note,
+      shut ?? note,
       selected,
+      !!stall,
     );
   }
 

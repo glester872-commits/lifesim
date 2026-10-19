@@ -301,6 +301,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Distrito Arena (world/ArenaArt): taquilla y puestos de la explanada, mástil y torre de focos (luz fría, alta).
   'ticket-booth': { key: 'prop-ticket-booth', tilesHigh: 2, tilesWide: 2, shadow: [28, 4] },
   'food-stall': { key: 'prop-food-stall', tilesHigh: 2, tilesWide: 2, shadow: [28, 4] },
+  // De un tile de alto: quien atiende, de pie detrás, asoma por encima.
+  'kiosk-counter': { key: 'prop-kiosk-counter', tilesHigh: 1, tilesWide: 2, shadow: [30, 3] },
   'scarf-stand': { key: 'prop-scarf-stand', tilesHigh: 2, tilesWide: 2, shadow: [26, 4] },
   'flag-pole': { key: 'prop-flag-pole', tilesHigh: 4, shadow: [6, 2], cast: 20, post: true },
   // Tablón del barrio: un panel de corcho con tejadillo sobre un solo poste; pasa quien quiera por los lados.

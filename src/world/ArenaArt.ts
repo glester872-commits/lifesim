@@ -170,9 +170,40 @@ function drawStadiumSeatFront(ctx: Ctx): void {
   px(ctx, shade(TEAL, -0.25), 3, 7, 10, 1);
 }
 
+/**
+ * El mostrador del quiosco del vestíbulo: la encimera clara con lo que se vende encima (botellas de agua, bocadillos
+ * envueltos, una bolsa de patatas) y el frente turquesa con la franja naranja y el cartel de precios.
+ */
+function drawKioskCounter(ctx: Ctx): void {
+  const w = TILE * 2;
+  px(ctx, PALETTE.ink, 1, 14, w - 2, 2);
+  px(ctx, '#e9e4da', 0, 2, w, 4);
+  px(ctx, PALETTE.white, 0, 2, w, 1);
+  // Encima: dos botellas, dos bocadillos y una bolsa.
+  for (const x of [3, 6]) {
+    px(ctx, '#8fd0e8', x, 0, 2, 4);
+    px(ctx, '#2f6fb0', x, 0, 2, 1);
+  }
+  for (const x of [11, 16]) {
+    px(ctx, '#d8b27a', x, 3, 4, 2);
+    px(ctx, '#f2ece0', x + 1, 3, 2, 1);
+  }
+  px(ctx, '#e0a92e', 23, 1, 4, 4);
+  px(ctx, '#b0302a', 24, 2, 2, 1);
+  // El frente.
+  px(ctx, TEAL, 0, 6, w, 8);
+  px(ctx, shade(TEAL, 0.14), 0, 6, w, 1);
+  px(ctx, ORANGE, 0, 9, w, 1);
+  px(ctx, shade(TEAL, -0.22), 0, 13, w, 1);
+  // El cartel de precios, en el centro: renglones que no se leen.
+  px(ctx, PALETTE.white, 12, 7, 8, 5);
+  for (let y = 8; y < 12; y += 2) px(ctx, PALETTE.ink, 13, y, 6, 1);
+}
+
 export function buildArenaTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-ticket-booth', TILE * 2, TILE * 2, drawTicketBooth);
   make(scene, 'prop-food-stall', TILE * 2, TILE * 2, drawFoodStall);
+  make(scene, 'prop-kiosk-counter', TILE * 2, TILE, drawKioskCounter);
   make(scene, 'prop-scarf-stand', TILE * 2, TILE * 2, drawScarfStand);
   make(scene, 'prop-flag-pole', TILE, TILE * 4, drawFlagPole);
   make(scene, 'prop-floodlight', TILE, TILE * 4, drawFloodlight);

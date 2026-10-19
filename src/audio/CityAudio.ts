@@ -1,5 +1,6 @@
 import { AUDIO_GAIN, AUDIO_LABEL, AUDIO_LEVELS, loadAudioLevel, saveAudioLevel, type AudioLevel } from '../config/audio';
 import { LAYERS, SILENT, type Layer, type Mix } from '../systems/Soundscape';
+import type { CueKind } from '../systems/StandLife';
 
 /**
  * El único sonido del juego: cuatro capas de ambiente (agua, murmullo, tráfico, metro) sintetizadas con Web Audio a
@@ -40,6 +41,8 @@ export class CityAudio {
   private target: Mix = { ...SILENT };
   private gesture = false;
   private readonly button: HTMLButtonElement | null;
+  /** Los avisos del estadio (cue): el murmullo que sube, el silbato y la voz del cántico, con sus nodos fijos. */
+  private cues: { crowd: GainNode; crowdTone: BiquadFilterNode; whistle: GainNode; chant: GainNode; voice: OscillatorNode } | null = null;
 
   constructor(button: HTMLButtonElement | null) {
     this.button = button;
@@ -92,6 +95,67 @@ export class CityAudio {
   /** Al irse de un sitio: todo a cero, rápido pero sin chasquido. El sitio nuevo sube lo suyo. */
   silence(): void {
     this.setMix(SILENT, QUICK);
+    // Lo del estadio que quedara sonando (un rugido, un cántico), también fuera.
+    if (this.ctx && this.cues) for (const g of [this.cues.crowd, this.cues.whistle, this.cues.chant]) {
+      g.gain.cancelScheduledValues(this.ctx.currentTime);
+      g.gain.setTargetAtTime(0, this.ctx.currentTime, QUICK);
+    }
+  }
+
+  /**
+   * Un aviso del estadio (systems/StandLife.standCues): el silbato, el rugido de una ocasión o de un gol, el lamento
+   * del gol en contra, el «uy» y un cántico corto. Sintetizado sobre los mismos nodos de siempre (CUES, montados una
+   * vez): no crea nada nuevo, no suena con el sonido apagado ni antes del primer gesto, y lo importante también se lee
+   * en el marcador.
+   */
+  cue(kind: CueKind): void {
+    const ctx = this.ctx;
+    const c = this.cues;
+    if (!ctx || !c || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    const env = (g: GainNode, points: readonly [number, number][]): void => {
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      for (const [t, v] of points) g.gain.linearRampToValueAtTime(v, now + t);
+    };
+    const crowd = (freq: number, points: readonly [number, number][]): void => {
+      c.crowdTone.frequency.setTargetAtTime(freq, now, 0.08);
+      env(c.crowd, points);
+    };
+    switch (kind) {
+      case 'chance': return crowd(650, [[0.8, 0.35], [2.2, 0.3], [3.4, 0]]);
+      case 'goal-home': return crowd(760, [[0.25, 1], [2.8, 0.85], [6, 0]]);
+      case 'goal-away': return crowd(330, [[0.3, 0.45], [1.6, 0.25], [3, 0]]);
+      case 'miss': return crowd(420, [[0.12, 0.55], [0.9, 0]]);
+      case 'chant': {
+        // «Hal-co-nes», dos veces: tres golpes de voz con su altura, una pausa y otra vez.
+        c.chant.gain.cancelScheduledValues(now);
+        c.chant.gain.setValueAtTime(0, now);
+        const notes = [196, 220, 247];
+        for (let rep = 0; rep < 2; rep++) for (let i = 0; i < 3; i++) {
+          const t = now + rep * 1.3 + i * 0.32;
+          c.voice.frequency.setValueAtTime(notes[i], t);
+          c.chant.gain.setValueAtTime(0, t);
+          c.chant.gain.linearRampToValueAtTime(0.5, t + 0.05);
+          c.chant.gain.linearRampToValueAtTime(0, t + 0.26);
+        }
+        return;
+      }
+      default: {
+        // El silbato: uno al empezar cada parte, dos al descanso, tres al final.
+        const blasts = kind === 'whistle-half' ? 2 : kind === 'whistle-final' ? 3 : 1;
+        c.whistle.gain.cancelScheduledValues(now);
+        c.whistle.gain.setValueAtTime(0, now);
+        for (let i = 0; i < blasts; i++) {
+          const t = now + i * 0.55;
+          const long = i === blasts - 1 ? 0.6 : 0.3;
+          c.whistle.gain.setValueAtTime(0, t);
+          c.whistle.gain.linearRampToValueAtTime(0.32, t + 0.02);
+          c.whistle.gain.setValueAtTime(0.32, t + long);
+          c.whistle.gain.linearRampToValueAtTime(0, t + long + 0.04);
+        }
+      }
+    }
   }
 
   stats(): AudioStats {
@@ -169,5 +233,25 @@ export class CityAudio {
     const hum = count(new OscillatorNode(ctx, { frequency: 50 }));
     hum.connect(count(new GainNode(ctx, { gain: 0.08 }))).connect(metro);
     hum.start();
+
+    // Estadio (cue): la grada que ruge o se lamenta (el ruido en la banda de la voz, más agudo o más grave), el
+    // silbato (un tono alto con su trino) y el cántico (una voz grave y el ruido de muchas a la vez). Callados hasta
+    // que algo pasa en el campo.
+    const crowd = count(new GainNode(ctx, { gain: 0 }));
+    const crowdTone = filter('bandpass', 650, 0.6);
+    source(0.25).connect(crowdTone).connect(filter('lowpass', 2400)).connect(crowd).connect(this.master!);
+    const whistle = count(new GainNode(ctx, { gain: 0 }));
+    const pea = count(new GainNode(ctx, { gain: 0.7 }));
+    const tone = count(new OscillatorNode(ctx, { frequency: 2900 }));
+    tone.connect(pea).connect(whistle).connect(this.master!);
+    sway(pea, 26, 0.3);
+    tone.start();
+    const chant = count(new GainNode(ctx, { gain: 0 }));
+    const voice = count(new OscillatorNode(ctx, { type: 'sawtooth', frequency: 196 }));
+    voice.connect(count(new GainNode(ctx, { gain: 0.25 }))).connect(filter('lowpass', 900)).connect(chant);
+    source(0.75).connect(filter('bandpass', 520, 2)).connect(count(new GainNode(ctx, { gain: 1.6 }))).connect(chant);
+    chant.connect(this.master!);
+    voice.start();
+    this.cues = { crowd, crowdTone, whistle, chant, voice };
   }
 }

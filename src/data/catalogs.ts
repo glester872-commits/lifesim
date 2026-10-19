@@ -113,6 +113,12 @@ export const CATALOGS: readonly Catalog[] = [
       { id: 'transport-20', label: 'Recargar €20', price: 20, effect: { card: 'transport', load: 20 } },
     ],
   },
+  {
+    // El quiosco del vestíbulo del estadio (data/stadium.ts): lo de siempre, a precio de estadio. Sin alcohol.
+    id: 'stadium-kiosk',
+    greeting: 'Quiosco de la Tribuna. Rápido, que se va a llenar.',
+    products: [item('water', 'Agua', 2), item('sandwich', 'Sándwich', 4.5), item('chips', 'Bolsa de patatas', 2), item('cola', 'Refresco de cola', 2.5)],
+  },
   // El mostrador de para llevar de cada pizzería, hamburguesería y sushi (data/foodVenues.ts).
   ...FOOD_VENUE_CATALOGS,
 ];
