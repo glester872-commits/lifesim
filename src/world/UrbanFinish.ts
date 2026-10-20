@@ -1,10 +1,8 @@
 import type Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
-import { getVehicle } from '../data/vehicles';
 import type { LocationDef } from '../types/game';
 import { make, px, shade, type Ctx } from './paint';
 import { drawMetroHero, drawTotemSign, HERO_H, HERO_W } from './UrbanArt';
-import { drawVehicle } from './VehicleArt';
 
 /**
  * HD-03, acabado urbano de la manzana piloto (LocationDef.pilot). Las mismas
@@ -15,8 +13,8 @@ import { drawVehicle } from './VehicleArt';
  * madera, granito, plástico) y contacto con el suelo. Ni brillo añadido ni más
  * objetos: cada textura es la versión `-hd03` de una que ya existe, y sólo se
  * usa dentro de la manzana. El suelo va en world/Surfaces, los árboles en
- * world/Vegetation, los coches en world/VehicleArt y los semáforos en
- * world/SignalView.
+ * world/Vegetation y los semáforos en world/SignalView. Los turismos (en
+ * marcha y aparcados) llevan el acabado en todo el mapa: world/VehicleArt.
  */
 
 type Rect = NonNullable<LocationDef['pilot']>;
@@ -28,9 +26,16 @@ export function inPilot(pilot: Rect | undefined, tx: number, ty: number): boolea
 
 /** La textura de una pieza en ese tile: dentro de la manzana, su versión `-hd03` si la hay. */
 export function pilotKey(scene: Phaser.Scene, def: LocationDef, key: string, tx: number, ty: number): string {
+  if (!inPilot(def.pilot, tx, ty)) return key;
+  // Si la pieza tiene variantes con acabado (`-hd03-0`…), cada sitio la suya, siempre la misma.
+  const variant = `${key}-hd03-${(tx * 7 + ty * 13) % BUSH_VARIANTS}`;
+  if (scene.textures.exists(variant)) return variant;
   const fine = `${key}-hd03`;
-  return inPilot(def.pilot, tx, ty) && scene.textures.exists(fine) ? fine : key;
+  return scene.textures.exists(fine) ? fine : key;
 }
+
+/** Arbustos con acabado: tres formas, para que dos vecinos no sean el mismo. */
+const BUSH_VARIANTS = 3;
 
 const IRON = PALETTE.iron;
 const IRON_LIT = shade(IRON, 0.16);
@@ -153,6 +158,18 @@ function drawLampFine(ctx: Ctx): void {
   px(ctx, IRON, 5, 8, 6, 1);
   px(ctx, IRON_LIT, 5, 8, 2, 1);
   px(ctx, IRON, 6, 9, 4, 1);
+}
+
+/**
+ * Los paños de un farol encendidos (world/Lighting los pone encima de la noche): sólo el cristal, en los mismos
+ * píxeles que la versión de día. El paño de la izquierda más claro, la bombilla blanca, la carpintería apagada.
+ */
+function lanternLit(ctx: Ctx, panes: readonly (readonly [number, number, number, number])[], bulbs: readonly (readonly [number, number])[]): void {
+  panes.forEach(([x, y, w, h], i) => {
+    px(ctx, i === 0 ? '#ffe6b0' : '#f2c886', x, y, w, h);
+    px(ctx, i === 0 ? '#fff4d6' : '#ffe0a8', x, y, w, 1);
+  });
+  for (const [x, y] of bulbs) px(ctx, '#fffaf0', x, y, 1, 2);
 }
 
 // ----------------------------------------------------------------- bancos
@@ -458,18 +475,33 @@ function drawFlowerBedFine(ctx: Ctx): void {
   px(ctx, shade(GRANITE, -0.3), 1, 14, w - 2, 1);
 }
 
-/** Arbusto (16 × 16): matas con la cara al sol arriba a la izquierda y la panza en sombra; el borde casi limpio. */
-function drawBushFine(ctx: Ctx): void {
-  for (let y = 2; y < TILE; y++) {
+/**
+ * Arbusto (16 × 16), en tres formas: dos o tres lóbulos de mata con la cara al sol arriba a la izquierda y la
+ * panza en sombra, el borde casi limpio; uno florecido de blanco, otro de rosa y otro sólo verde.
+ */
+const BUSH_SHAPES: readonly { lobes: readonly (readonly [number, number, number, number])[]; flowers: readonly (readonly [number, number, string])[] }[] = [
+  { lobes: [[8, 9.5, 7, 6]], flowers: [[5, 6, PALETTE.white]] },
+  { lobes: [[5.5, 10.5, 5, 4.5], [10.5, 9, 5, 5.5]], flowers: [[4, 8, '#e06a8a'], [11, 6, '#e06a8a']] },
+  { lobes: [[4.5, 11, 4, 4], [8.5, 8.5, 5, 5.5], [12, 11.5, 3.5, 3.5]], flowers: [] },
+];
+function drawBushFine(ctx: Ctx, v: number): void {
+  const shape = BUSH_SHAPES[v];
+  for (let y = 1; y < TILE; y++) {
     for (let x = 0; x < TILE; x++) {
-      const dx = (x + 0.5 - 8) / 7;
-      const dy = (y + 0.5 - 9.5) / 6;
-      const d = dx * dx + dy * dy;
-      if (d > 1 || (d > 0.8 && hash(x, y, 83) < 0.3)) continue;
-      px(ctx, leafTone(LEAVES, dx * 0.55 + dy * 0.85 + (y >= 13 ? 0.4 : 0), x, y, 89), x, y);
+      let best: readonly [number, number, number, number] | null = null;
+      let bd = 2;
+      for (const l of shape.lobes) {
+        const d = ((x + 0.5 - l[0]) / l[2]) ** 2 + ((y + 0.5 - l[1]) / l[3]) ** 2;
+        // El de delante (más abajo) manda donde se solapan.
+        if (d <= 1 && (!best || l[1] > best[1] || d < bd)) { best = l; bd = d; }
+      }
+      if (!best || (bd > 0.8 && hash(x, y, 83 + v) < 0.3)) continue;
+      const dx = (x + 0.5 - best[0]) / best[2];
+      const dy = (y + 0.5 - best[1]) / best[3];
+      px(ctx, leafTone(LEAVES, dx * 0.55 + dy * 0.85 + (y >= 13 ? 0.4 : 0), x, y, 89 + v), x, y);
     }
   }
-  flowers(ctx, [[5, 6, PALETTE.white]]);
+  flowers(ctx, shape.flowers);
 }
 
 // ------------------------------------------------------------ calcomanías
@@ -544,20 +576,11 @@ function drawMetroHeroFine(ctx: Ctx): void {
   }
 }
 
-// ---------------------------------------------------------------- coches
-
-/** Coche aparcado con el acabado de los turismos (world/VehicleArt): el mismo encuadre de 3 × 2 tiles. */
-function drawParkedFine(ctx: Ctx, id: string, color: number): void {
-  const t = getVehicle(id);
-  ctx.save();
-  ctx.translate(Math.round((TILE * 3 - t.length) / 2), TILE * 2 - t.height);
-  drawVehicle(ctx, t, t.colors[color], 0, true);
-  ctx.restore();
-}
-
 export function buildUrbanFinishTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-street-lamp-hd03', TILE, 56, drawStreetLampFine);
   make(scene, 'prop-lamp-hd03', TILE, TILE * 2, drawLampFine);
+  make(scene, 'glow-prop-street-lamp-hd03', TILE, 56, (ctx) => lanternLit(ctx, [[5, 4, 3, 7], [9, 4, 3, 7]], [[7, 7], [9, 7]]));
+  make(scene, 'glow-prop-lamp-hd03', TILE, TILE * 2, (ctx) => lanternLit(ctx, [[6, 4, 2, 4], [9, 4, 1, 4]], [[7, 5], [9, 5]]));
   make(scene, 'prop-plaza-bench-hd03', TILE * 2, 24, drawPlazaBenchFine);
   make(scene, 'prop-bench-hd03', TILE, TILE, drawBenchFine);
   make(scene, 'prop-bin-hd03', TILE, TILE, drawBinFine);
@@ -568,11 +591,8 @@ export function buildUrbanFinishTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-bike-rack-hd03', TILE * 2, 20, drawBikeRackFine);
   make(scene, 'prop-planter-box-hd03', TILE * 2, 24, drawPlanterBoxFine);
   make(scene, 'prop-flower-bed-hd03', TILE * 2, TILE, drawFlowerBedFine);
-  make(scene, 'prop-bush-hd03', TILE, TILE, drawBushFine);
+  for (let v = 0; v < BUSH_VARIANTS; v++) make(scene, `prop-bush-hd03-${v}`, TILE, TILE, (ctx) => drawBushFine(ctx, v));
   make(scene, 'prop-drain-hd03', TILE, TILE, drawDrainFine);
   make(scene, 'prop-manhole-hd03', TILE, TILE, drawManholeFine);
   make(scene, 'bs-metro-hero-hd03', HERO_W, HERO_H, drawMetroHeroFine);
-  for (const [key, id, color] of [['prop-car', 'sedan', 0], ['prop-car-b', 'sedan', 1], ['prop-car-c', 'compact', 1], ['prop-car-taxi', 'taxi', 0]] as const) {
-    make(scene, `${key}-hd03`, TILE * 3, TILE * 2, (ctx) => drawParkedFine(ctx, id, color));
-  }
 }

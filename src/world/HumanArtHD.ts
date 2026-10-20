@@ -117,6 +117,71 @@ function partsHD(facing: Facing, pose: Pose, c: HumanColors): Uint8Array {
   return parts;
 }
 
+/**
+ * HD-03, escala coherente (prueba con world/TextureFactory.FINE_PEOPLE): la persona a 16 × 24 y a escala 1, la misma
+ * densidad de píxel que el mundo. Un píxel de arte es un píxel de mundo: nítido a cualquier zoom entero (el de
+ * 28 × 42 a escala 16/28 no lo es a ninguno). Sobre el dibujo de siempre (cara, pelo, silueta y proporciones
+ * idénticas), la ropa de verdad (world/Garments) a ese tamaño y un contorno selectivo: el borde toma un tono hondo
+ * del color que encierra, más claro arriba a la izquierda (la luz del noroeste) y más oscuro abajo a la derecha.
+ */
+export function drawPersonFine(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors): void {
+  const W = 16;
+  const H = 24;
+  ctx.clearRect(0, 0, W, H);
+  drawHuman(ctx, facing, pose, c);
+  const img = ctx.getImageData(0, 0, W, H);
+  const d = img.data;
+  if (premium && c.outfit) {
+    const a = oldPixels(facing, pose, markerColors(c));
+    const parts = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) parts[i] = partOf(a[i * 4], a[i * 4 + 1], a[i * 4 + 2], a[i * 4 + 3]);
+    // Lo que la prenda abulta, a este tamaño, ensancha a la persona (la capucha y las mangas llegan al borde de la
+    // celda): la ropa va dentro de la silueta de siempre y las proporciones no cambian.
+    const before = d.slice();
+    dress(d, parts, W, H, facing, c, c.outfit);
+    for (let i = 0; i < W * H * 4; i += 4) if (before[i + 3] < 255) d.set(before.subarray(i, i + 4), i);
+  }
+  selectiveOutline(d, W, H);
+  ctx.putImageData(img, 0, 0);
+}
+
+function selectiveOutline(d: Uint8ClampedArray, W: number, H: number): void {
+  const o = rgb(PALETTE.outline);
+  const solid = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < H && d[(y * W + x) * 4 + 3] > 0;
+  const body = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < W && y < H && d[(y * W + x) * 4 + 3] === 255;
+  const isLine = (i: number): boolean => d[i + 3] > 0 && d[i + 3] < 255;
+  // Lo que la ropa abulta cruzó el contorno: se cierra por fuera.
+  const close: number[] = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!solid(x, y) && (body(x - 1, y) || body(x + 1, y) || body(x, y - 1) || body(x, y + 1))) close.push((y * W + x) * 4);
+  for (const i of close) {
+    d[i] = o[0];
+    d[i + 1] = o[1];
+    d[i + 2] = o[2];
+    d[i + 3] = 235;
+  }
+  // Cada píxel de contorno, del color de lo que tiene dentro.
+  const out: [number, number, number, number][] = [];
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      if (!isLine(i)) continue;
+      const n = [[x - 1, y], [x, y - 1], [x + 1, y], [x, y + 1]].find(([a, b]) => body(a, b));
+      if (!n) continue;
+      const j = (n[1] * W + n[0]) * 4;
+      // Con la persona a la derecha o debajo, es el canto de arriba o de la izquierda: el que da al sol.
+      const lit = (body(x + 1, y) || body(x, y + 1)) && !(body(x - 1, y) || body(x, y - 1));
+      const k = lit ? 0.62 : 0.8;
+      out.push([i, d[j] + (o[0] - d[j]) * k, d[j + 1] + (o[1] - d[j + 1]) * k, d[j + 2] + (o[2] - d[j + 2]) * k]);
+    }
+  }
+  for (const [i, r, g, b] of out) {
+    d[i] = r;
+    d[i + 1] = g;
+    d[i + 2] = b;
+    d[i + 3] = 255;
+  }
+}
+
 /** Ropa de verdad (world/Garments) o la de siempre pulida: el interruptor de desarrollo lifesim.clothes(). */
 let premium = true;
 export const setPremium = (on: boolean): void => {

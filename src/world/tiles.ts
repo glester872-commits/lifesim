@@ -135,7 +135,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Restaurante: mesa con mantel (lo que se pide lo pone world/ServiceView encima) y fogones de dos tiles.
   'dining-table': { key: 'prop-dining-table', tilesHigh: 1 },
   stove: { key: 'prop-stove', tilesHigh: 2, tilesWide: 2 },
-  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 18 }, shadow: [8, 3], post: true },
+  // HD-03: el centro del farol (antes 18: la luz caía 9 px por debajo, en el fuste).
+  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 27 }, shadow: [8, 3], post: true },
   sign: { key: 'prop-sign', tilesHigh: 2, post: true },
   planter: { key: 'prop-planter', tilesHigh: 1 },
   bed: { key: 'prop-bed', tilesHigh: 2 },
@@ -216,9 +217,10 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'bed-tree': { key: 'prop-bed-tree', tilesHigh: 5, variants: 3, shadow: [30, 5], cast: 16, castBlob: [48, 16] },
   'flower-bed': { key: 'prop-flower-bed', tilesHigh: 1, tilesWide: 2, shadow: [30, 4] },
   'plaza-bench': { key: 'prop-plaza-bench', tilesHigh: 2, tilesWide: 2, shadow: [30, 5], mount: true },
-  'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22, post: true },
+  // HD-03: el centro de la linterna (antes 46, 3 px por debajo).
+  'street-lamp': { key: 'prop-street-lamp', tilesHigh: 4, light: { dy: 49, pool: [60, 28] }, shadow: [8, 3], cast: 22, post: true },
   // La farola de la Calle del Carmen: la misma, con pegatinas y un cartel pegado en el fuste.
-  'street-lamp-art': { key: 'prop-street-lamp-art', tilesHigh: 4, light: { dy: 46, pool: [60, 28] }, shadow: [8, 3], cast: 22, post: true },
+  'street-lamp-art': { key: 'prop-street-lamp-art', tilesHigh: 4, light: { dy: 49, pool: [60, 28] }, shadow: [8, 3], cast: 22, post: true },
   'bike-rack': { key: 'prop-bike-rack', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'planter-box': { key: 'prop-planter-box', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'metro-totem': { key: 'prop-metro-totem', tilesHigh: 3, shadow: [8, 3], cast: 18, emissive: 'glow-metro-totem' },

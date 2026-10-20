@@ -23,7 +23,7 @@ import { contactOnCooldown, contactReadiness, contactState, relationshipState } 
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { CyclistView } from './world/CyclistView';
-import { HD_SCALE, hdCompare } from './world/HumanArtHD';
+import { hdCompare } from './world/HumanArtHD';
 import { RIDER_SCALE, riderTexture } from './world/CyclistArt';
 import { sleeperTexture } from './world/SurvivalArt';
 import { BIKES } from './data/bikes';
@@ -697,7 +697,7 @@ social: {
           scaleShown.push(img, t);
           x += img.displayWidth + 8;
         };
-        put(humanKey('player', 'right', 0), undefined, HD_SCALE, 'peatón');
+        put(humanKey('player', 'right', 0), undefined, 1, 'peatón');
         put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'skate')!, color: 0, helmet: false, pack: false }), 0, RIDER_SCALE, 'tabla');
         put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES.find((b) => b.frame === 'scooter')!, color: 0, helmet: true, pack: false }), 0, RIDER_SCALE, 'patinete');
         put(riderTexture(world, { look: PASSENGER_LOOKS[0], bike: BIKES[0], color: 0, helmet: true, pack: false }), 0, RIDER_SCALE, 'bici');
@@ -744,7 +744,7 @@ social: {
           preparePersonHD(id);
           put(label, personTexture(id), personFrame(id, 'down'), personScale(id));
         };
-        put('jugador', humanKey('player', 'down', 0), undefined, HD_SCALE);
+        put('jugador', humanKey('player', 'down', 0), undefined, 1);
         person('anónimo', PASSENGER_LOOKS[0].id);
         person('anónimo HD', HD_PERSON ?? PASSENGER_LOOKS[0].id);
         person('con nombre', 'sara');

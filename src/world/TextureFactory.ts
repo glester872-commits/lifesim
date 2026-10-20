@@ -16,7 +16,7 @@ import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
 import { buildPopUpTextures } from './PopUpArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
-import { drawPlayerHD, HD_H, HD_SCALE, HD_W, setPremium } from './HumanArtHD';
+import { drawPersonFine, drawPlayerHD, HD_H, HD_SCALE, HD_W, setPremium } from './HumanArtHD';
 import { HdCache, type HdBackend } from './HdCache';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
@@ -522,7 +522,7 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
       for (const pose of POSES) {
         const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;
         const ctx = tex.getContext();
-        drawPlayerHD(ctx, facing, pose, colors);
+        drawPersonFine(ctx, facing, pose, colors);
         tex.refresh();
       }
     }
@@ -547,7 +547,8 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
     for (const pose of POSES) {
       const frame = atlas.get(personFrame(id, facing, pose));
       c.clearRect(0, 0, PLAYER_W, PLAYER_H);
-      drawHuman(c, facing, pose, colors);
+      if (FINE_PEOPLE.has(id)) drawPersonFine(c, facing, pose, colors);
+      else drawHuman(c, facing, pose, colors);
       ctx.clearRect(frame.cutX, frame.cutY, PLAYER_W, PLAYER_H);
       ctx.drawImage(cell, frame.cutX, frame.cutY);
     }
@@ -582,6 +583,12 @@ const HD_LOOKS: ReadonlyMap<string, NpcLook> = new Map(
 );
 /** El primero con ropa de verdad que sale a la calle (lo usa lifesim.scaleCompare). */
 export const HD_PERSON = PASSENGER_LOOKS.find((l) => l.outfit)?.id;
+/**
+ * HD-03, prueba de escala coherente: el jugador y dos NPC (Sara, sin ropa nueva, y el primer vecino con ella) se
+ * dibujan a 16 × 24 y escala 1 con world/HumanArtHD.drawPersonFine, en vez de 28 × 42 a escala 16/28. Los demás,
+ * como siempre. Ni rutinas, ni diálogos, ni el cuerpo de colisión cambian: sólo el dibujo y su escala.
+ */
+export const FINE_PEOPLE: ReadonlySet<string> = new Set(['player', 'sara', ...(HD_PERSON ? [HD_PERSON] : [])]);
 const hdKey = (id: string): string => `person-hd:${id}`;
 const HD_ROW_W = FACINGS.length * POSES.length * HD_W;
 /** Lo que se guarda, como mucho, de lo que ya nadie muestra (unos 45 aspectos). Lo que se ve no se tira nunca. */
@@ -633,8 +640,9 @@ export const personScale = (id: string): number => (hdCache.ready(id) ? HD_SCALE
  */
 export function showPerson(prev: string | null, next: string | null): string | null {
   if (prev === next) return next;
-  if (next && HD_LOOKS.has(next)) hdCache.acquire(next);
-  if (prev && HD_LOOKS.has(prev)) hdCache.release(prev);
+  // HD-03: quien está en la prueba de escala coherente se queda en el atlas de 16 × 24 (FINE_PEOPLE).
+  if (next && HD_LOOKS.has(next) && !FINE_PEOPLE.has(next)) hdCache.acquire(next);
+  if (prev && HD_LOOKS.has(prev) && !FINE_PEOPLE.has(prev)) hdCache.release(prev);
   return next;
 }
 
@@ -643,7 +651,7 @@ export const pumpPeopleHD = (budgetMs: number): number => (hdGame ? hdCache.pump
 
 /** Desarrollo (lifesim.hdCompare, lifesim.lineup): lo deja hecho ya, retenido hasta recargar. */
 export function preparePersonHD(id: string): void {
-  if (!HD_LOOKS.has(id) || !hdGame) return;
+  if (!HD_LOOKS.has(id) || !hdGame || FINE_PEOPLE.has(id)) return;
   hdCache.acquire(id);
   hdCache.finish(id);
 }
@@ -681,7 +689,8 @@ function buildPeople(scene: Phaser.Scene): void {
     FACINGS.forEach((facing, f) =>
       POSES.forEach((pose, i) => {
         c.clearRect(0, 0, PLAYER_W, PLAYER_H);
-        drawHuman(c, facing, pose, colors);
+        if (FINE_PEOPLE.has(look.id)) drawPersonFine(c, facing, pose, colors);
+        else drawHuman(c, facing, pose, colors);
         const x = Math.floor(row / perColumn) * rowW + (f * POSES.length + i) * PLAYER_W;
         const y = (row % perColumn) * PLAYER_H;
         ctx.drawImage(cell, x, y);
@@ -771,8 +780,8 @@ export function buildTextures(scene: Phaser.Scene): void {
 
   for (const facing of FACINGS) {
     for (const pose of POSES) {
-      // A 28 × 42 (world/HumanArtHD); entities/Player lo pone a la escala del mundo.
-      make(scene, humanKey('player', facing, pose), HD_W, HD_H, (ctx) => drawPlayerHD(ctx, facing, pose, PLAYER_COLORS));
+      // HD-03: a 16 × 24 y escala 1, la densidad del mundo (FINE_PEOPLE; antes 28 × 42 a escala 16/28).
+      make(scene, humanKey('player', facing, pose), PLAYER_W, PLAYER_H, (ctx) => drawPersonFine(ctx, facing, pose, PLAYER_COLORS));
     }
   }
 

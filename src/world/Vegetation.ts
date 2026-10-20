@@ -222,8 +222,8 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0, fine = false): 
     px(ctx, tones[6], x, y, 2, 1);
     px(ctx, tones[5], x - 1, y + 1, 2, 1);
   }
-  // Algún hueco por el que se ve rama.
-  for (let i = 0; i < 3; i++) {
+  // Algún hueco por el que se ve rama (HD-03: más, la copa respira).
+  for (let i = 0; i < (fine ? 6 : 3); i++) {
     const c = clusters[Math.floor(rnd() * clusters.length)];
     const x = Math.round(c.x + c.r * 0.2);
     const y = Math.round(c.y + c.r * 0.55);

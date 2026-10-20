@@ -46,16 +46,28 @@
     <option value="olmo-night">Calle del Olmo y parque · 22:30</option>
     <option value="avenue-day">Avenida, paso de cebra este · 14:00</option>
     <option value="mobile-plaza">Móvil emulado 390 × 844 @2 · 14:00</option>
+    <option value="carmen-dusk">Calle del Carmen, escaparates · 20:15 (fases)</option>
+    <option value="carmen-night">Calle del Carmen · 22:30 (fases)</option>
+    <option value="lineup-z4">Personajes en fila · zoom 4 (fases)</option>
+    <option value="lineup-z8">Personajes en fila · zoom 8 (fases)</option>
   </select></label>
   <label>Izquierda <select id="a"></select></label>
   <label>Derecha <select id="b"></select></label>
   <label>Zoom <select id="zoom"><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option></select></label>
 </div>
 <div class="stage" id="stage">
-  <img class="a" id="ia" alt=""><img class="b" id="ib" alt="">
+  <img class="a" id="ia" src="/__shots/aud-original-plaza-day.png" alt="Captura de la versión de la izquierda"><img class="b" id="ib" src="/__shots/aud-hd03-plaza-day.png" alt="Captura de la versión de la derecha">
   <div class="bar" id="bar"></div><span class="tag l" id="tl"></span><span class="tag r" id="tr"></span>
 </div>
 <p class="hint">Arrastra para mover el corte. Con zoom, la rueda o arrastrar con mayúsculas desplaza el encuadre. La manzana piloto de HD-03 va de x 22 a 57 y de y 35 a 59 (en tiles); en la escena de la avenida se ve su borde a la derecha del paso.</p>
+
+<h2>Vídeos (fases 1–5)</h2>
+<p class="hint">Grabaciones reales de la pantalla, 1280 × 720, zoom 4, 8 s de juego avanzado a mano a 60 pasos por segundo (el bucle del juego parado: así la cámara y la hora no se mueven). Izquierda, HD-03 antes de las fases; derecha, después. Tráfico de la avenida a las 14:00 y plazuela del metro a las 22:30. El HUD sale porque es la página real.</p>
+<div class="controls"><label>Vídeo <select id="vid"><option value="avenue-day">Avenida con tráfico · 14:00</option><option value="plaza-night">Plazuela del metro · 22:30</option></select></label><button id="play">Reproducir los dos</button></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+  <figure style="margin:0"><video id="va" controls muted playsinline style="width:100%;image-rendering:pixelated;background:#000"></video><figcaption class="hint">Antes (d5601f4)</figcaption></figure>
+  <figure style="margin:0"><video id="vb" controls muted playsinline style="width:100%;image-rendering:pixelated;background:#000"></video><figcaption class="hint">Después (fases 1–5)</figcaption></figure>
+</div>
 
 <h2>Métricas de imagen (verificadas)</h2>
 <p class="hint">Calculadas sobre la parte de cada captura que cae dentro de la manzana piloto, muestreando un punto por píxel de mundo (bloque de 4 × 4). <b>Fuera de rejilla</b>: % de bloques de 4 × 4 que no son de un solo color (mixels, filtrado o escalado no entero; cuanto menos, mejor). <b>Detalle</b>: diferencia media de luminancia entre píxeles de mundo vecinos. <b>Repetición</b>: parecido de la imagen consigo misma desplazada un tile frente a otros desplazamientos (1 = ninguna periodicidad de tile; por debajo de 1, se repite).</p>
@@ -69,7 +81,9 @@
 <div class="tablewrap"><table id="func"></table></div>
 </main>
 <script>
-const VERS = [['original', 'Original'], ['hd01', 'HD-01'], ['hd02', 'HD-02'], ['hd03', 'HD-03']];
+const VERS = [['original', 'Original'], ['hd01', 'HD-01'], ['hd02', 'HD-02'], ['hd03', 'HD-03'], ['p0', 'HD-03 antes de las fases (d5601f4)'], ['p5', 'HD-03 fases 1–5']];
+// Escenas que sólo se capturaron en la ronda de fases (antes y después).
+const PHASE_ONLY = new Set(['carmen-dusk', 'carmen-night', 'lineup-z4', 'lineup-z8']);
 const $ = (id) => document.getElementById(id);
 for (const s of ['a', 'b']) VERS.forEach(([v, n]) => $(s).add(new Option(n, v)));
 $('a').value = 'original'; $('b').value = 'hd03';
@@ -77,7 +91,8 @@ let cut = 0.5, zoom = 1, ox = 0, oy = 0;
 const src = (v, s) => `/__shots/aud-${v}-${s}.png`;
 function load() {
   const s = $('scene').value, mobile = s === 'mobile-plaza';
-  for (const sel of ['a', 'b']) if (mobile && !['original', 'hd03'].includes($(sel).value)) $(sel).value = sel === 'a' ? 'original' : 'hd03';
+  for (const sel of ['a', 'b']) if (mobile && !['original', 'hd03', 'p5'].includes($(sel).value)) $(sel).value = sel === 'a' ? 'original' : 'hd03';
+  if (PHASE_ONLY.has(s)) { $('a').value = 'p0'; $('b').value = 'p5'; }
   $('ia').src = src($('a').value, s); $('ib').src = src($('b').value, s);
   $('tl').textContent = $('a').selectedOptions[0].text; $('tr').textContent = $('b').selectedOptions[0].text;
   $('stage').style.aspectRatio = mobile ? '390 / 844' : '16 / 9';
@@ -106,6 +121,10 @@ $('zoom').addEventListener('change', () => { const r = $('stage').getBoundingCli
 ['scene', 'a', 'b'].forEach((id) => $(id).addEventListener('change', load));
 addEventListener('resize', draw);
 load();
+const loadVid = () => { $('va').src = `shots/vid-p0-${$('vid').value}.mp4`; $('vb').src = `shots/vid-p5-${$('vid').value}.mp4`; };
+$('vid').addEventListener('change', loadVid);
+$('play').addEventListener('click', () => { for (const id of ['va', 'vb']) { $(id).currentTime = 0; $(id).play(); } });
+loadVid();
 
 const fmt = (x) => String(x).replace('.', ',');
 const get = (f) => fetch('/__shots/' + f).then((r) => (r.ok ? r.json() : null)).catch(() => null);

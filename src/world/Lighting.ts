@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config/constants';
 import type { BuildingDef, LocationDef } from '../types/game';
 import type { GameState } from '../state/GameState';
-import { PROPS } from './tiles';
+import { PROPS, propKey } from './tiles';
 import type { GlowSpot, WindowSpot } from './BuildingArt';
 import { make } from './paint';
 import { isOpen, placeForInterior, placesOfType, type PlaceInfo } from '../systems/Places';
@@ -15,6 +15,7 @@ import { QUALITY } from '../config/quality';
 import { windowKind, windowRank } from './Detail';
 import { LAMP_LIGHT } from './LampShadows';
 import { LAYER } from './Layers';
+import { inPilot } from './UrbanFinish';
 
 /** Canal a canal: `a` por `b` (0xffffff no cambia nada). */
 function multiply(a: number, b: number): number {
@@ -214,6 +215,14 @@ interface LightSource {
  */
 const WARM = 0xffc27a;
 const COOL = 0xa8d4ff;
+
+/**
+ * HD-03, paleta de la noche (en los sitios con LocationDef.pilot: por ahora, Vallesco). Una familia por fuente:
+ * el cielo azul violeta (NIGHT); la farola, blanco cálido; la casa, ámbar, un paso más naranja y más bajo que la
+ * farola (se distingue quién alumbra); la tele y lo de neón, frío; el escaparate, el color de su local templado por
+ * la farola. Nada blanco puro salvo el filo de la tira de luz.
+ */
+const NIGHT_PALETTE = { lamp: 0xffc98a, lampHalo: 0xffd49a, home: 0xe09848, homeDim: 0xa86a30, tv: 0x8fb4e8 } as const;
 const LIGHT_MASK = 'fx-lightmask';
 const MASK_SIZE = 64;
 
@@ -304,6 +313,9 @@ interface Caster {
   blob?: readonly [number, number];
 }
 
+/** Siluetas de las texturas de la calle (alfa), entre visitas: las texturas son del juego y no cambian. */
+const SILHOUETTES = new Map<string, ImageData | null>();
+
 export class Lighting {
   private readonly shade: Phaser.GameObjects.Rectangle;
   /** Farolas y lámparas: su linterna, encendida de noche (dentro, siempre que el local esté abierto). */
@@ -358,6 +370,20 @@ export class Lighting {
   private readonly scene: Phaser.Scene;
   /** Pie y cabeza de cada edificio en px, y si mira al norte: hasta dónde llega la luz de sus huecos del bajo. */
   private readonly footOf = new Map<string, { top: number; bottom: number; north: boolean }>();
+  /** HD-03: la noche nueva (NIGHT_PALETTE, escaparates por dentro, faroles encendidos) donde hay manzana piloto. */
+  private readonly fine: boolean;
+  /**
+   * HD-03: los píxeles de mundo tapados por algo alto de la calle (copas, farolas, señales), sacados de la silueta
+   * de su textura. La luz de una ventana es aditiva y va por encima de todo: sin esto, el escaparate se pintaba
+   * encima de la copa del árbol que tiene delante.
+   */
+  private occluded: Uint8Array | null = null;
+  /**
+   * HD-03: la luz de las ventanas horneada en una textura cada vez que cambia (relight), en vez de repintar cada
+   * frame los miles de rectángulos de la capa: de noche, en Vallesco, eran casi 29 000 órdenes y 1,2 ms por frame.
+   */
+  private windowsBaked: Phaser.GameObjects.RenderTexture | null = null;
+  private maskW = 0;
 
   constructor(scene: Phaser.Scene, def: LocationDef, built: { widthPx: number; heightPx: number; windows: readonly WindowSpot[]; glows: readonly GlowSpot[] }, state: GameState) {
     const { widthPx, heightPx } = built;
@@ -366,6 +392,7 @@ export class Lighting {
     this.scene = scene;
     for (const b of def.buildings ?? []) this.footOf.set(b.id, { top: b.ty * TILE, bottom: (b.ty + b.h) * TILE, north: b.front === 'n' });
     this.indoor = def.kind === 'interior';
+    this.fine = !!def.pilot && !this.indoor;
     this.ambient = def.ambient ? Number.parseInt(def.ambient.slice(1), 16) : 0xffffff;
     this.room = placeForInterior(def.id);
     this.windowSpots = built.windows;
@@ -390,7 +417,7 @@ export class Lighting {
       if (prop.cast) this.casters.push({ x: x - 2, y: (p.ty + 1) * TILE - 3, w: 4, h: 2, height: prop.cast, blob: prop.castBlob });
       if (!prop.light) continue;
       const y = (p.ty + 1) * TILE - prop.light.dy;
-      const tint = prop.light.cool ? 0x9fd8ff : 0xf0b46a;
+      const tint = prop.light.cool ? 0x9fd8ff : this.fine ? NIGHT_PALETTE.lampHalo : 0xf0b46a;
       // Con charco, el halo es sólo el brillo de la linterna: la luz de verdad está en el suelo.
       // Fuera pasa lo mismo sin charco: el mapa de luz alumbra el suelo; un halo entero sería un círculo amarillo.
       // HD-03: fuera, el halo a su tamaño exacto (antes, el de 56 px escalado a 0,6 o 0,45, con anillos irregulares).
@@ -398,6 +425,11 @@ export class Lighting {
       const light = scene.add.image(Math.round(x), Math.round(y), outdoorHalo ?? 'fx-light').setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
       if (!outdoorHalo && prop.light.pool) light.setScale(0.6);
       this.lights.push(light.setTint(tint));
+      // HD-03: en la manzana piloto, los paños del farol encendidos píxel a píxel (world/UrbanFinish), encima de la noche.
+      const lit = `glow-${prop.key}-hd03`;
+      if (!this.indoor && inPilot(def.pilot, p.tx, p.ty) && scene.textures.exists(lit)) {
+        this.emissives.push({ img: scene.add.image(x, (p.ty + 1) * TILE, lit).setOrigin(0.5, 1).setDepth(LAYER.emissive) });
+      }
       const baseY = (p.ty + 1) * TILE - 3;
       if (!this.indoor) {
         // Fuera, la luz del suelo la pone el mapa de luz: devuelve el color a lo que ilumina, gente incluida.
@@ -412,7 +444,7 @@ export class Lighting {
         const s = prop.light.cool ? 0.6 : strength;
         // Una farola en capas (config/quality.ts): primero lo que alcanza a la fachada de al lado, a la altura
         // de la linterna; luego el charco; encima, el núcleo casi blanco al pie. Sin halos gigantes: todo en el suelo y el muro.
-        if (QUALITY.layeredLamps && prop.light.pool) this.fixedSources.push({ x, y: y + 10, w: w * 0.8, h: h * 1.5, color, strength: s * 0.32 });
+        if (QUALITY.layeredLamps && prop.light.pool) this.fixedSources.push({ x, y: y + 10, w: w * 0.8, h: h * 1.5, color, strength: s * (this.fine ? 0.42 : 0.32) });
         this.fixedSources.push({ x, y: baseY, w, h, color, strength: s });
         if (QUALITY.layeredLamps && prop.light.pool) this.fixedSources.push({ x, y: baseY - 1, w: w * 0.36, h: h * 0.34, color: mix(color, 0xffffff, 0.4), strength: Math.min(1, s * 1.05) });
       } else if (prop.light.pool) {
@@ -446,6 +478,12 @@ export class Lighting {
       }
     }
 
+    if (this.fine) {
+      this.buildOcclusion(scene, def, widthPx, heightPx);
+      this.windowsBaked = scene.add.renderTexture(0, 0, widthPx, heightPx).setOrigin(0, 0).setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+      // La capa de siempre sólo sirve de pincel: se pinta en la textura con su alfa, no en pantalla.
+      this.windows.setBlendMode(Phaser.BlendModes.NORMAL).setVisible(false);
+    }
     if (!this.indoor) {
       for (const b of def.buildings ?? []) {
         if (b.style === 'metro') continue;
@@ -551,7 +589,8 @@ export class Lighting {
       if (!lit) return;
       // El local abierto se ve de lejos: su color, más fuerte que una casa.
       const [body, top, pool] = w.shop ? [0.7, 0.45, 0.6] : [0.5, 0.3, 0.35];
-      if (w.shop) {
+      if (w.shop && this.fine) this.shopWindow(g, w, i);
+      else if (w.shop) {
         g.fillStyle(w.tone, body).fillRect(w.x, w.y, w.w, w.h);
         g.fillStyle(0xffffff, top).fillRect(w.x, w.y, w.w, 1);
       } else this.homeWindow(g, w, i);
@@ -574,7 +613,12 @@ export class Lighting {
       sources.push({ x, y, w: 46, h: 28, color: pane ? mix(warm, pane.tone, 0.7) : warm, strength: 0.7 });
     }
     this.dynamicSources = sources;
-    this.windows.setAlpha(night).setVisible(night > 0.05);
+    if (this.windowsBaked) {
+      this.windows.setVisible(true);
+      this.windowsBaked.clear().draw(this.windows);
+      this.windows.setVisible(false);
+    }
+    this.windowLayer.setAlpha(night).setVisible(night > 0.05);
     // Con el suelo mojado, cada luz fuerte se repite debajo en una raya vertical: el reflejo, falso y barato.
     const r = this.reflections?.clear();
     if (r && QUALITY.reflections && wet > 0.15 && night > 0.05) {
@@ -594,7 +638,7 @@ export class Lighting {
    */
   private homeWindow(g: Phaser.GameObjects.Graphics, w: WindowSpot, i: number): void {
     const kind = windowKind(i);
-    const color = kind === 'tv' ? 0x7fa8d8 : kind === 'dim' ? 0xa86a30 : 0xd08a3a;
+    const color = this.fine ? (kind === 'tv' ? NIGHT_PALETTE.tv : kind === 'dim' ? NIGHT_PALETTE.homeDim : NIGHT_PALETTE.home) : kind === 'tv' ? 0x7fa8d8 : kind === 'dim' ? 0xa86a30 : 0xd08a3a;
     const alpha = kind === 'dim' ? 0.34 : kind === 'tv' ? 0.42 : 0.5;
     // HD-03: la luz es de dentro. El muro de fuera no se ilumina (antes, un marco tenue alrededor del hueco);
     // la carpintería (parteluz y travesaño) queda a contraluz, el dintel deja en penumbra la parte de arriba y
@@ -602,14 +646,16 @@ export class Lighting {
     const big = w.w >= 6 && w.h >= 8;
     const mull = big ? w.x + Math.floor(w.w / 2) - 1 : -99;
     const transom = big ? w.y + Math.floor(w.h / 3) : -99;
-    g.fillStyle(color, alpha * 0.4).fillRect(w.x - 1, w.y + w.h, w.w + 2, 1);
+    this.fill(g, color, alpha * 0.4, w.x - 1, w.y + w.h, w.w + 2, 1);
     const someone = w.h >= 8 && w.w >= 4 && windowRank(i * 13 + 5) < 0.14;
     const cx = w.x + Math.floor(w.w / 2);
     const span = (y: number, a: number, x0: number, x1: number): void => {
       if (x1 <= x0) return;
       // El parteluz no deja pasar la luz: dos tramos, uno a cada lado.
-      if (x0 < mull && x1 > mull + 2) g.fillStyle(color, a).fillRect(x0, y, mull - x0, 1).fillRect(mull + 2, y, x1 - mull - 2, 1);
-      else g.fillStyle(color, a).fillRect(x0, y, x1 - x0, 1);
+      if (x0 < mull && x1 > mull + 2) {
+        this.fill(g, color, a, x0, y, mull - x0, 1);
+        this.fill(g, color, a, mull + 2, y, x1 - mull - 2, 1);
+      } else this.fill(g, color, a, x0, y, x1 - x0, 1);
     };
     for (let y = w.y; y < w.y + w.h; y++) {
       if (y === transom) continue;
@@ -629,10 +675,107 @@ export class Lighting {
     }
     if (kind === 'curtain') {
       // Cortinas recogidas a los lados: la tela deja pasar menos luz.
-      g.fillStyle(0x6a3a24, 0.35).fillRect(w.x, w.y, 1, w.h).fillRect(w.x + w.w - 1, w.y, 1, w.h);
+      this.fill(g, 0x6a3a24, 0.35, w.x, w.y, 1, w.h);
+      this.fill(g, 0x6a3a24, 0.35, w.x + w.w - 1, w.y, 1, w.h);
     }
-    g.fillStyle(kind === 'tv' ? 0xc8e0ff : 0xf0c070, 0.3).fillRect(w.x, w.y, w.w, 1);
+    this.fill(g, kind === 'tv' ? 0xc8e0ff : 0xf0c070, 0.3, w.x, w.y, w.w, 1);
     if (kind === 'tv') this.screens.push({ x: w.x, y: w.y, w: w.w, h: w.h, seed: i });
+  }
+
+  /**
+   * HD-03: un escaparate encendido, visto desde fuera. La tira de luz arriba; el fondo del local en tres escalones
+   * que bajan hacia el suelo (luz de techo); la carpintería, un montante cada 12 px que no deja pasar la luz; y
+   * abajo el género contra el cristal: bultos que tapan la luz del mostrador. Por bandas, no por píxel: pocos
+   * rectángulos aunque haya muchos locales abiertos.
+   */
+  private shopWindow(g: Phaser.GameObjects.Graphics, w: WindowSpot, i: number): void {
+    const color = mix(w.tone, NIGHT_PALETTE.lamp, 0.25);
+    const panes: [number, number][] = [];
+    let x0 = w.x;
+    if (w.w > 14) for (let x = w.x + 11; x < w.x + w.w - 2; x += 12) { panes.push([x0, x]); x0 = x + 1; }
+    panes.push([x0, w.x + w.w]);
+    const band = (y0: number, y1: number, a: number, skip?: (x: number) => boolean): void => {
+      if (y1 <= y0) return;
+      for (const [a0, a1] of panes) {
+        let s = a0;
+        for (let x = a0; x <= a1; x++) {
+          if (x < a1 && !skip?.(x)) continue;
+          if (x > s) this.fill(g, color, a, s, y0, x - s, y1 - y0);
+          s = x + 1;
+        }
+      }
+    };
+    const h = w.h;
+    const t1 = w.y + 1 + Math.round((h - 1) / 3);
+    const t2 = w.y + 1 + Math.round(((h - 1) * 2) / 3);
+    const gy = w.y + h - Math.min(3, Math.max(1, Math.floor(h / 4)));
+    this.fill(g, 0xffffff, 0.45, w.x, w.y, w.w, 1);
+    band(w.y + 1, t1, 0.8);
+    band(t1, t2, 0.68);
+    band(t2, gy, 0.56);
+    band(gy, w.y + h, 0.56, h >= 6 ? (x) => windowRank(i * 31 + (x >> 2)) < 0.4 : undefined);
+  }
+
+  /** Lo que se ve de la luz de las ventanas: la textura horneada (HD-03) o la capa de siempre. */
+  private get windowLayer(): Phaser.GameObjects.RenderTexture | Phaser.GameObjects.Graphics {
+    return this.windowsBaked ?? this.windows;
+  }
+
+  /** La silueta de cada pieza alta de la calle, al píxel, en la máscara de oclusión (una vez, al montar el sitio). */
+  private buildOcclusion(scene: Phaser.Scene, def: LocationDef, widthPx: number, heightPx: number): void {
+    const mask = new Uint8Array(widthPx * heightPx);
+    const alpha = SILHOUETTES;
+    // Sólo cuenta lo que tapa alguna ventana: el resto de la calle no se mira (antes, 90 ms al montar Vallesco).
+    const hits = (l: number, t: number, r: number, b: number): boolean => this.windowSpots.some((w) => w.x < r && w.x + w.w + 1 > l && w.y < b && w.y + w.h + 1 > t);
+    for (const p of def.props) {
+      const prop = PROPS[p.kind];
+      if (prop.flat || prop.overhead || prop.tilesHigh < 2) continue;
+      const pw = (prop.tilesWide ?? 1) * TILE;
+      const top = (p.ty + 1 - prop.tilesHigh) * TILE - TILE * 2;
+      if (!hits(p.tx * TILE - TILE * 2, top, p.tx * TILE + pw + TILE * 2, (p.ty + 1) * TILE)) continue;
+      // La silueta de la versión con acabado y la de siempre es la misma (mismo tamaño y mismo pie).
+      const key = propKey(prop, p.tx, p.ty);
+      let data = alpha.get(key);
+      if (data === undefined) {
+        const tex = scene.textures.exists(key) ? scene.textures.get(key) : null;
+        data = tex instanceof Phaser.Textures.CanvasTexture ? tex.getContext().getImageData(0, 0, tex.width, tex.height) : null;
+        alpha.set(key, data);
+      }
+      if (!data) continue;
+      const x0 = Math.round(p.tx * TILE + ((prop.tilesWide ?? 1) * TILE) / 2 - data.width / 2);
+      const y0 = (p.ty + 1) * TILE - data.height;
+      for (let y = 0; y < data.height; y++) {
+        const wy = y0 + y;
+        if (wy < 0 || wy >= heightPx) continue;
+        for (let x = 0; x < data.width; x++) {
+          const wx = x0 + x;
+          if (wx >= 0 && wx < widthPx && data.data[(y * data.width + x) * 4 + 3] >= 128) mask[wy * widthPx + wx] = 1;
+        }
+      }
+    }
+    this.occluded = mask;
+    this.maskW = widthPx;
+  }
+
+  /** Un rectángulo de luz de ventana. Con la máscara (HD-03), parte las filas donde algo de la calle lo tapa. */
+  private fill(g: Phaser.GameObjects.Graphics, color: number, a: number, x: number, y: number, w: number, h: number): void {
+    g.fillStyle(color, a);
+    const m = this.occluded;
+    const W = this.maskW;
+    let hit = false;
+    if (m) for (let yy = y; yy < y + h && !hit; yy++) for (let xx = x; xx < x + w; xx++) if (m[yy * W + xx]) { hit = true; break; }
+    if (!hit) {
+      g.fillRect(x, y, w, h);
+      return;
+    }
+    for (let yy = y; yy < y + h; yy++) {
+      let s = x;
+      for (let xx = x; xx <= x + w; xx++) {
+        if (xx < x + w && !m![yy * W + xx]) continue;
+        if (xx > s) g.fillRect(s, yy, xx - s, 1);
+        s = xx + 1;
+      }
+    }
   }
 
   /** Las sombras del sol en coordenadas del mundo: la barrida de cada huella hacia donde cae la sombra. */
@@ -719,7 +862,7 @@ export class Lighting {
       this.shade.setFillStyle(open ? this.ambient : mix(this.ambient, 0x2c3050, 0.62));
       for (const light of this.lights) light.setAlpha(0.5).setVisible(open);
       for (const e of this.emissives) e.img.setAlpha(1).setVisible(open);
-      this.windows.setVisible(false);
+      this.windowLayer.setVisible(false);
       LAMP_LIGHT.night = 0;
       LAMP_LIGHT.sky = 0xffffff;
       return;
@@ -741,7 +884,7 @@ export class Lighting {
       this.relight(night, homes, wet);
       this.paintLightmap(sky, night, sun, wet);
     }
-    this.windows.setAlpha(night).setVisible(night > 0.05);
+    this.windowLayer.setAlpha(night).setVisible(night > 0.05);
     for (const light of this.lights) light.setAlpha(night).setVisible(night > 0.05);
     this.night = night;
     LAMP_LIGHT.night = night;

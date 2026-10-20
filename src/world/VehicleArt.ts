@@ -42,7 +42,7 @@ interface Paint {
   L: number;
   H: number;
   body: string;
-  /** Acabado HD-03 de la manzana piloto: sólo cambia cómo se pinta, no el tamaño ni dónde van las luces. */
+  /** Acabado HD-03 (el estándar de los turismos): sólo cambia cómo se pinta, no el tamaño ni dónde van las luces. */
   fine?: boolean;
 }
 
@@ -443,7 +443,7 @@ function outline(ctx: Ctx, w: number, h: number): void {
 }
 
 /** Dibuja el tipo con esa carrocería (y, si lleva letrero, esa línea) y devuelve dónde quedan sus luces. */
-export function drawVehicle(ctx: Ctx, t: VehicleType, body: string, variant = 0, fine = false): VehicleLamps {
+export function drawVehicle(ctx: Ctx, t: VehicleType, body: string, variant = 0, fine = true): VehicleLamps {
   const p: Paint = { ctx, L: t.length, H: t.height, body, fine };
   const route = t.routes?.[variant % t.routes.length] ?? '';
   const profile = PROFILES[t.shape];
@@ -459,14 +459,16 @@ export function drawVehicle(ctx: Ctx, t: VehicleType, body: string, variant = 0,
   ctx.globalCompositeOperation = 'destination-over';
   px(ctx, SHADOW, 3, p.H - 3, p.L - 4, 2);
   px(ctx, SHADOW_SOFT, 0, p.H - 4, p.L + 1, 4);
+  // HD-03: la penumbra se corre un píxel al sureste (la luz viene del noroeste) y el borde se funde en un tono más.
+  if (fine) px(ctx, SHADOW_SOFT, 2, p.H - 1, p.L - 1, 1);
   ctx.restore();
   return lamps;
 }
 
 const LAMPS = new Map<string, VehicleLamps>();
 
-export function vehicleKey(t: VehicleType, color: number, fine = false): string {
-  return `veh-${t.id}-${color}${fine && PROFILES[t.shape] ? '-hd03' : ''}`;
+export function vehicleKey(t: VehicleType, color: number): string {
+  return `veh-${t.id}-${color}`;
 }
 
 /** Luces del tipo; las fija buildVehicleTextures. */
@@ -479,8 +481,6 @@ export function lampsOf(t: VehicleType): VehicleLamps {
 export function buildVehicleTextures(scene: Phaser.Scene): void {
   for (const t of VEHICLES) {
     t.colors.forEach((c, i) => make(scene, vehicleKey(t, i), t.length, t.height, (ctx) => LAMPS.set(t.id, drawVehicle(ctx, t, c, i))));
-    // HD-03: los turismos con el acabado de la manzana piloto (world/TrafficView los cambia dentro de ella).
-    if (PROFILES[t.shape]) t.colors.forEach((c, i) => make(scene, vehicleKey(t, i, true), t.length, t.height, (ctx) => drawVehicle(ctx, t, c, i, true)));
   }
   // Luces encendidas: van encima de la sombra de la noche.
   make(scene, 'veh-head', 1, 2, (ctx) => px(ctx, '#fff6d8', 0, 0, 1, 2));

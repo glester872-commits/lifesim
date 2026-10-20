@@ -849,23 +849,32 @@ function grass({ ctx, cells, at, fine }: Paint): void {
  * tres briznas con su raíz oscura y la punta al sol, más en las manchas claras
  * (hierba más alta) que en las oscuras.
  */
-function grassFine(ctx: Ctx, tx: number, ty: number, tones: readonly string[]): void {
+function grassFine(ctx: Ctx, tx: number, ty: number, base: readonly string[]): void {
   const X = tx * TILE;
   const Y = ty * TILE;
+  // Siete tonos (los cinco de siempre, uno más hondo y uno más claro) y, encima, las calvas secas: manchas
+  // amplias que tiran a paja. Dos escalas de mancha y la seca, todas de baja frecuencia: varía sin ruido.
+  const tones = [shade(PALETTE.grassDark, -0.07), ...base, shade(PALETTE.grassLit, 0.04)];
+  const DRY = '#9a9a52';
   for (let by = 0; by < TILE; by += 2) {
     for (let bx = 0; bx < TILE; bx += 2) {
-      const b = batch(X + bx, Y + by, 44, 31) * 1.5 + batch(X + bx, Y + by, 13, 37) * 0.55;
-      px(ctx, tones[Math.max(0, Math.min(4, Math.round(2 + b)))], X + bx, Y + by, 2, 2);
+      const b = batch(X + bx, Y + by, 44, 31) * 1.9 + batch(X + bx, Y + by, 13, 37) * 0.7;
+      let c = tones[Math.max(0, Math.min(6, Math.round(3 + b)))];
+      const dry = batch(X + bx, Y + by, 70, 41);
+      if (dry > 0.42) c = mix(c, DRY, dry > 0.62 ? 0.3 : 0.16);
+      px(ctx, c, X + bx, Y + by, 2, 2);
     }
   }
-  for (let k = 0; k < 8; k++) {
+  for (let k = 0; k < 10; k++) {
     const r = (n: number): number => hash(tx * 8 + k, ty, n + 1051);
     const x = X + 1 + Math.floor(r(1) * 13);
     const y = Y + 3 + Math.floor(r(2) * 11);
     const b = batch(x, y, 44, 31);
     if (b < -0.3 && r(4) < 0.5) continue;
-    const root = tones[Math.max(0, Math.round(1 + b))];
-    const tip = tones[Math.min(4, Math.round(3.4 + b))];
+    const root = tones[Math.max(0, Math.round(1.5 + b * 1.4))];
+    const tip = tones[Math.min(6, Math.round(4.6 + b * 1.4))];
+    // En las manchas claras la hierba está más alta: la brizna del centro crece un píxel.
+    if (b > 0.25) px(ctx, tip, x + 1, y - 3, 1, 1);
     px(ctx, root, x, y, 3, 1);
     px(ctx, root, x + 1, y - 1, 1, 1);
     px(ctx, tip, x, y - 1, 1, 1);
