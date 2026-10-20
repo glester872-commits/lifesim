@@ -1,0 +1,106 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LIFE//SIM · revisión visual</title>
+<style>
+:root{--bg:#11151c;--panel:#181d25;--fg:#e8e3da;--muted:#a8b2bb;--btn:#252b33;--line:#4a535d;--accent:#6fd0c6;--warn:#e0b45a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+header{padding:16px;border-bottom:1px solid var(--line)}h1{font-size:18px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 8px}
+.wrap{max-width:1132px;margin:0 auto;padding:0 16px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.bar label{color:var(--muted);font-size:13px}
+button,select{padding:7px 12px;background:var(--btn);color:inherit;border:1px solid var(--line);border-radius:4px;font:inherit;font-size:14px;cursor:pointer}
+button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.view{position:relative;width:100%;aspect-ratio:1100/680;background:#000;overflow:hidden;touch-action:none;cursor:grab}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.tag{position:absolute;top:8px;padding:2px 8px;background:#000b;font-size:12px;border-radius:3px;pointer-events:none}
+.hint{color:var(--muted);font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right}th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+.tablewrap{overflow-x:auto}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 16px}
+.card h3{margin:0 0 6px;font-size:15px}ul{margin:6px 0;padding-left:20px}li{margin:3px 0}
+.warn{color:var(--warn)}code{font-size:13px}kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:12px}
+</style>
+<header class="wrap"><h1>LIFE//SIM · revisión visual: Original · HD-01 · HD-02</h1>
+<div class="hint">Capturas reales del juego en marcha, tomadas del lienzo WebGL de cada versión servida por separado. Mismo iframe 1100 × 680, zoom 2,5, semilla 103, día 6 a las 14:00 (noche: 22:00), sin lluvia y la misma secuencia de pasos de 16 ms con el reloj en pausa. Nada está retocado ni generado.</div></header>
+<main class="wrap">
+<div class="bar"><label for="scene">Escena</label><select id="scene">
+<option value="street">Fachadas y azoteas: calle residencial</option>
+<option value="park">Árboles, aceras y sombras: parque y acera sur</option>
+<option value="door">Entrada: delante del portal</option>
+<option value="interior">Entrada: dentro de casa</option>
+<option value="exit">Salida: de vuelta en la calle</option>
+<option value="night">Noche con ventanas iluminadas (22:00)</option></select>
+<label for="va">Izquierda</label><select id="va"><option value="original">Original (4232cda)</option><option value="hd01">HD-01 (respaldo)</option><option value="hd02">HD-02 (actual)</option></select>
+<label for="vb">Derecha</label><select id="vb"><option value="original">Original (4232cda)</option><option value="hd01">HD-01 (respaldo)</option><option value="hd02" selected>HD-02 (actual)</option></select></div>
+<div class="bar"><button data-mode="a">Izquierda completa</button><button data-mode="b">Derecha completa</button><button data-mode="slide" aria-pressed="true">Deslizador</button><button data-mode="diff">Mapa de diferencias</button>
+<span style="flex:1"></span><button id="zout" aria-label="Alejar">−</button><span id="zlabel" style="min-width:48px;text-align:center">1×</span><button id="zin" aria-label="Acercar">+</button><button id="zreset">Encuadre completo</button>
+<select id="preset" aria-label="Ir a un detalle"><option value="">Ir a un detalle…</option><option value="560,300,4">Ventanas y balcones del portal</option><option value="900,330,4">Sillería y portal de madera</option><option value="560,130,3">Azotea y pretil</option><option value="430,520,4">Árbol de la acera</option><option value="480,420,4">Bordillo y paso de cebra</option></select></div>
+<div class="view" id="view"><canvas id="cv" width="1100" height="680"></canvas><span class="tag" id="ta" style="left:8px"></span><span class="tag" id="tb" style="right:8px"></span></div>
+<p class="hint">Deslizador: arrastra la línea (o pulsa <kbd>←</kbd>/<kbd>→</kbd>). Zoom: rueda del ratón o +/−; arrastra fuera de la línea para desplazarte. <kbd>Espacio</kbd> alterna izquierda y derecha completas. El mapa de diferencias pinta en magenta cada píxel que cambia (blanco = igual). <span id="diffpct"></span></p>
+
+<h2>Rendimiento</h2>
+<p class="hint">Medido en la misma máquina y el mismo navegador, con la pestaña visible y una versión cada vez, en dos pasadas por versión. Los FPS están limitados por la pantalla (60 Hz), así que el dato que discrimina es el coste de CPU por frame (update + render con el bucle parado, 180 frames). «Carga» es desde abrir el iframe hasta que la escena está lista en el servidor de desarrollo de Vite: incluye compilar módulos y 180 pasos del arnés, y no es la carga del juego compilado. «Calle» es la transición casa → calle, que hornea el barrio entero.</p>
+<div class="tablewrap"><table id="perf"><thead><tr><th>Versión</th><th>FPS (6 s)</th><th>Frame p95 (ms)</th><th>CPU/frame mediana</th><th>CPU/frame p95</th><th>Carga mediana (ms)</th><th>Casa (ms)</th><th>Calle (ms)</th><th>Texturas</th><th>MiB est.</th></tr></thead><tbody></tbody></table></div>
+<p class="hint">Conclusión: no se observa coste de HD-02. Las diferencias entre versiones caben dentro de la variación entre pasadas de una misma versión: el p95 de CPU de HD-02 salió en 5,7 ms en la primera pasada y en 1,2 ms en la segunda. HD-01 tarda algo más en cargar (≈ +1 s de mediana) porque pasa un filtro por <code>getImageData</code> sobre cada textura que hornea. HD-02 tiene una textura más (2.324 frente a 2.323, +0,5 MiB estimados), con el mismo tamaño en todas las texturas compartidas.</p>
+
+<h2>Qué cambió en cada versión</h2>
+<div class="cols">
+<div class="card"><h3>HD-01 (respaldo <code>design/hd01/backup</code>)</h3><ul>
+<li>Filtro de relieve al hornear: ±5–10 por canal en las uniones que ya existían (fachadas, mobiliario, coches, metro, estadio).</li>
+<li>Mapa de sombras en calidad high con muestreo <code>NEAREST</code>: sombras escalonadas en vez de suavizadas (se nota sobre todo de noche).</li>
+<li>No cambia ninguna forma: a tamaño de juego apenas se distingue del original (compáralo con el deslizador).</li></ul></div>
+<div class="card"><h3>HD-02 (actual)</h3><ul>
+<li><b>Fachadas</b> (solo estilos residenciales): sillería en piedra, revoco con almohadillado en el bajo, ladrillo; ventanas con recercado, dintel con clave, alféizar volado con sombra, carpintería y sombra del dintel en el vidrio; impostas con vuelo, zócalo de sillares, balcones de forja con losa y maceta, portal con cuarterones en relieve y escalón.</li>
+<li><b>Azotea:</b> baldosa de 16 px, pretil más grueso y sombra arrojada hacia el sureste.</li>
+<li><b>Árboles:</b> hoja en matas de 2 × 2, terminador de luz claro, canto al sol al noroeste y cierre en sombra al sureste.</li>
+<li><b>Suelo y sombras:</b> juntas de acera y plaza más marcadas; bordillo con canto, cara y sombra en la cuneta; sombras de contacto más hondas y desplazadas hacia el sureste.</li></ul></div>
+<div class="card"><h3>Qué mejoró</h3><ul>
+<li>Los materiales se distinguen sin ampliar: piedra, revoco, madera, forja y vidrio.</li>
+<li>Las fachadas tienen planos: cada hueco tiene fondo y cada vuelo, su sombra.</li>
+<li>Los árboles se leen como volumen y no como ruido verde.</li>
+<li>Las ventanas iluminadas siguen encendiéndose justo en su vidrio (ver Noche).</li>
+<li>Entrar y salir de casa funciona igual; la posición y el encuadre son idénticos en las tres versiones.</li></ul></div>
+<div class="card"><h3>Problemas visuales pendientes</h3><ul>
+<li>Sin tratar: cubierta de teja (vinoteca), locales comerciales, coches, césped, grava, bancos, farolas y boca de metro. Al lado de las fachadas nuevas se ven más planos.</li>
+<li>Árboles, aceras, bordillos y sombras de contacto son piezas compartidas: ya cambian en todo el juego (por eso el interior también difiere en algunos píxeles de sombra).</li>
+<li>El almohadillado del bajo y la sillería son regulares: en fachadas muy largas podría pedir algo de variación.</li>
+<li>Las manchas de intemperie de la azotea se leen algo como sombras de nubes.</li>
+<li class="warn">Entre capturas hay una deriva de 1–3 px en dos o tres peatones (simulación de la multitud); no es efecto del acabado.</li></ul></div>
+</div>
+<p class="hint">Fuentes: Original = <code>git archive HEAD</code> (4232cda); HD-01 = ese mismo árbol más <code>hd01-tracked.patch</code>, <code>MaterialFinish.ts</code> y <code>check-material-finish.ts</code> del respaldo; HD-02 = el repositorio actual, sin tocar. Cada versión se sirvió en su propio puerto (5201, 5202 y 5203). Sin commit, push ni despliegue.</p>
+</main>
+<script>
+const PERF={original:[{fps:59.9,fp95:16.9,cm:.8,cp95:1.1,load:[9253,9231,11770,9536],home:[30.3,30.8,29],street:[604,611.8,481.6],tex:2323,mib:81.4},{fps:58.3,fp95:16.9,cm:.7,cp95:1.1,load:[9236,9351,8928,9567],home:[73.7,32.1,34],street:[640.7,748.2,603.6],tex:2323,mib:81.4}],
+hd01:[{fps:59.9,fp95:16.9,cm:.7,cp95:1.1,load:[10609,10417,12471,10461],home:[74.2,35.6,29.4],street:[663.5,647.4,604.7],tex:2323,mib:81.4},{fps:59.3,fp95:16.9,cm:1,cp95:1.4,load:[11043,10894,10371,11738],home:[72.6,32.6,32.2],street:[628.8,560.7,650],tex:2323,mib:81.4}],
+hd02:[{fps:59.9,fp95:16.9,cm:.7,cp95:5.7,load:[9187,9941,10452,9798],home:[71.5,29.6,28.3],street:[452.8,447.3,499.5],tex:2324,mib:81.9},{fps:59.9,fp95:16.9,cm:.7,cp95:1.2,load:[9415,9592,11006,10030],home:[63.3,34.6,30.4],street:[546.2,564.4,527.6],tex:2324,mib:81.9}]};
+const NAMES={original:'Original (4232cda)',hd01:'HD-01 (respaldo)',hd02:'HD-02 (actual)'};
+const med=a=>{const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
+const tb=document.querySelector('#perf tbody');
+for(const v of ['original','hd01','hd02'])PERF[v].forEach((r,i)=>{const tr=document.createElement('tr');tr.innerHTML=`<td>${NAMES[v]} · pasada ${i+1}</td><td>${r.fps}</td><td>${r.fp95}</td><td>${r.cm}</td><td>${r.cp95}</td><td>${Math.round(med(r.load))}</td><td>${Math.round(med(r.home))}</td><td>${Math.round(med(r.street))}</td><td>${r.tex}</td><td>${r.mib}</td>`;tb.append(tr)});
+const $=s=>document.querySelector(s),cv=$('#cv'),cx=cv.getContext('2d'),view=$('#view');
+let A=null,B=null,D=null,mode='slide',split=.5,zoom=1,ox=0,oy=0;
+const load=src=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>j(src);i.src=src});
+async function refresh(){const s=$('#scene').value;[A,B]=await Promise.all([load(`/__shots/${$('#va').value}-${s}.png`),load(`/__shots/${$('#vb').value}-${s}.png`)]);
+ $('#ta').textContent=NAMES[$('#va').value];$('#tb').textContent=NAMES[$('#vb').value];
+ const c=document.createElement('canvas');c.width=1100;c.height=680;const g=c.getContext('2d');g.drawImage(A,0,0);const a=g.getImageData(0,0,1100,680);g.drawImage(B,0,0);const b=g.getImageData(0,0,1100,680);
+ const d=g.createImageData(1100,680);let n=0;for(let i=0;i<a.data.length;i+=4){const ch=Math.abs(a.data[i]-b.data[i])+Math.abs(a.data[i+1]-b.data[i+1])+Math.abs(a.data[i+2]-b.data[i+2]);if(ch>6)n++;const k=Math.min(1,ch/120);d.data[i]=255;d.data[i+1]=Math.round(255*(1-k));d.data[i+2]=255;d.data[i+3]=255}
+ g.putImageData(d,0,0);D=c;$('#diffpct').textContent=`Píxeles distintos en esta pareja: ${(n/(1100*680)*100).toFixed(1)} %.`;draw()}
+function clamp(){const vw=1100/zoom,vh=680/zoom;ox=Math.max(0,Math.min(1100-vw,ox));oy=Math.max(0,Math.min(680-vh,oy))}
+function draw(){if(!A)return;clamp();cx.imageSmoothingEnabled=false;cx.setTransform(zoom,0,0,zoom,-ox*zoom,-oy*zoom);cx.fillStyle='#000';cx.fillRect(0,0,1100,680);
+ const L=mode==='b'?B:mode==='diff'?D:A;cx.drawImage(L,0,0);
+ if(mode==='slide'){const sx=ox+split*1100/zoom;cx.save();cx.beginPath();cx.rect(sx,0,1100,680);cx.clip();cx.drawImage(B,0,0);cx.restore();cx.setTransform(1,0,0,1,0,0);cx.fillStyle='#e8e3da';cx.fillRect(Math.round(split*1100)-1,0,2,680);cx.beginPath();cx.arc(split*1100,340,12,0,7);cx.fill();cx.fillStyle='#11151c';cx.font='bold 14px system-ui';cx.textAlign='center';cx.fillText('⇆',split*1100,345)}
+ cx.setTransform(1,0,0,1,0,0);$('#zlabel').textContent=(Math.round(zoom*10)/10)+'×';$('#ta').hidden=mode==='b'||mode==='diff';$('#tb').hidden=mode==='a'||mode==='diff'}
+function setMode(m){mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));draw()}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+const toCanvas=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)/r.width*1100,(e.clientY-r.top)/r.height*680]};
+function zoomAt(f,px,py){const wx=ox+px/zoom,wy=oy+py/zoom;zoom=Math.max(1,Math.min(8,zoom*f));ox=wx-px/zoom;oy=wy-py/zoom;draw()}
+$('#zin').onclick=()=>zoomAt(1.5,550,340);$('#zout').onclick=()=>zoomAt(1/1.5,550,340);$('#zreset').onclick=()=>{zoom=1;ox=oy=0;draw()};
+$('#preset').onchange=e=>{if(!e.target.value)return;const[x,y,z]=e.target.value.split(',').map(Number);zoom=z;ox=x-550/z;oy=y-340/z;draw();e.target.value=''};
+view.addEventListener('wheel',e=>{e.preventDefault();const[x,y]=toCanvas(e);zoomAt(e.deltaY<0?1.25:0.8,x,y)},{passive:false});
+let drag=null;view.addEventListener('pointerdown',e=>{view.setPointerCapture(e.pointerId);const[x,y]=toCanvas(e);drag={x,y,ox,oy,line:mode==='slide'&&Math.abs(x-split*1100)<24};view.style.cursor=drag.line?'ew-resize':'grabbing'});
+view.addEventListener('pointermove',e=>{if(!drag)return;const[x,y]=toCanvas(e);if(drag.line)split=Math.max(0,Math.min(1,x/1100));else{ox=drag.ox-(x-drag.x)/zoom;oy=drag.oy-(y-drag.y)/zoom}draw()});
+view.addEventListener('pointerup',()=>{drag=null;view.style.cursor='grab'});
+addEventListener('keydown',e=>{if(e.target.tagName==='SELECT')return;if(e.code==='Space'){e.preventDefault();setMode(mode==='b'?'a':'b')}else if(e.code==='ArrowLeft'&&mode==='slide'){split=Math.max(0,split-.02);draw()}else if(e.code==='ArrowRight'&&mode==='slide'){split=Math.min(1,split+.02);draw()}});
+['#scene','#va','#vb'].forEach(s=>$(s).onchange=refresh);refresh();
+</script></html>

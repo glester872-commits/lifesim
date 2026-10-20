@@ -107,13 +107,13 @@ interface SlabStyle {
 }
 
 /** Una pieza con junta, bisel (luz arriba-izquierda) y, a veces, un accidente. */
-function slab(ctx: Ctx, x: number, y: number, sw: number, sh: number, tone: string, r: (k: number) => number, crackChance: number): void {
+function slab(ctx: Ctx, x: number, y: number, sw: number, sh: number, tone: string, r: (k: number) => number, crackChance: number, bevel = 1): void {
   // Bisel marcado: a zoom 2 un 3 % no se ve y la acera se lee como una lámina.
   px(ctx, tone, x, y, sw, sh);
-  px(ctx, shade(tone, 0.06), x, y, sw, 1);
-  px(ctx, shade(tone, 0.035), x, y, 1, sh);
-  px(ctx, shade(tone, -0.065), x, y + sh - 1, sw, 1);
-  px(ctx, shade(tone, -0.035), x + sw - 1, y + 1, 1, sh - 1);
+  px(ctx, shade(tone, 0.06 * bevel), x, y, sw, 1);
+  px(ctx, shade(tone, 0.035 * bevel), x, y, 1, sh);
+  px(ctx, shade(tone, -0.065 * bevel), x, y + sh - 1, sw, 1);
+  px(ctx, shade(tone, -0.035 * bevel), x + sw - 1, y + 1, 1, sh - 1);
   // Grano de piedra: dos o tres motas, nunca en el mismo sitio.
   for (let k = 0; k < 3; k++) px(ctx, shade(tone, k === 0 ? 0.045 : -0.045), x + 1 + Math.floor(r(10 + k) * Math.max(1, sw - 2)), y + 1 + Math.floor(r(20 + k) * Math.max(1, sh - 2)));
   const d = r(4);
@@ -150,7 +150,7 @@ function slabs(style: SlabStyle): Material['paint'] {
           const t = r(2);
           if (t < 0.14) tone = mix(tone, WARM_TINT, 0.16);
           else if (t > 0.9) tone = mix(tone, COOL_TINT, 0.14);
-          slab(ctx, x, y, len - 1, course - 1, tone, r, 0.05);
+          slab(ctx, x, y, len - 1, course - 1, tone, r, 0.05, SIDEWALK_BEVEL);
           if (style.grain) {
             // Sal y pimienta del granito: sobre todo motas oscuras, alguna clara y, rara, un brillo de mica.
             const n = Math.floor(((len - 3) * (course - 3)) / style.grain);
@@ -165,6 +165,28 @@ function slabs(style: SlabStyle): Material['paint'] {
       }
     }
   };
+}
+
+/** HD-02: la junta de la acera se lee a zoom de juego (antes, ±3–6 %). */
+const SIDEWALK_BEVEL = 1.8;
+
+/**
+ * Bordillo de granito con volumen. Al sur de la acera (la calzada debajo): canto
+ * al sol, arista y cara en sombra. Al norte (la calzada encima): la cara mira
+ * al noroeste y recibe luz. La sombra que deja en la cuneta la pinta asphalt.
+ */
+function kerbEdge(ctx: Ctx, X: number, Y: number, roadBelow: boolean, roadAbove: boolean): void {
+  if (roadBelow) {
+    px(ctx, shade(PALETTE.kerb, 0.04), X, Y + 13, TILE, 1);
+    px(ctx, shade(PALETTE.kerb, -0.04), X, Y + 14, TILE, 1);
+    px(ctx, shade(PALETTE.kerb, -0.34), X, Y + 15, TILE, 1);
+    for (let x = X + 7; x < X + TILE; x += 16) px(ctx, shade(PALETTE.kerb, -0.22), x, Y + 13, 1, 2);
+  }
+  if (roadAbove) {
+    px(ctx, shade(PALETTE.kerb, 0.1), X, Y, TILE, 1);
+    px(ctx, PALETTE.kerb, X, Y + 1, TILE, 1);
+    px(ctx, shade(PALETTE.kerb, -0.16), X, Y + 2, TILE, 1);
+  }
 }
 
 /**
@@ -195,9 +217,10 @@ function sidewalk({ ctx, cells, at, built, showcase }: Paint): void {
         // Junto al bordillo se agrieta más: pasan ruedas y raíces.
         const cx = Math.max(x, X);
         const w = Math.min(x + len, X + TILE) - cx - (x + len <= X + TILE ? 1 : 0);
-        if (w > 0) slab(ctx, cx, y, w, 7, tone, r, kerbBelow ? 0.07 : 0.035);
+        if (w > 0) slab(ctx, cx, y, w, 7, tone, r, kerbBelow ? 0.07 : 0.035, SIDEWALK_BEVEL);
       }
     }
+    kerbEdge(ctx, X, Y, kerbBelow, ROAD.has(at(tx, ty - 1)));
     // Mugre al pie de la fachada: la pared salpica y nadie friega ahí.
     if (built(tx, ty - 1)) {
       ctx.globalAlpha = 0.28;
@@ -239,12 +262,13 @@ function sidewalkV3(ctx: Ctx, cells: readonly (readonly [number, number])[], at:
           else if (r(2) > 0.94) tone = mix(tone, WARM_TINT, 0.1);
           const cx = Math.max(x, X);
           const w = Math.min(x + len, X + TILE) - cx - (x + len <= X + TILE ? 1 : 0);
-          if (w > 0) slab(ctx, cx, y, w, 7, tone, r, kerbBelow ? 0.05 : 0.025);
+          if (w > 0) slab(ctx, cx, y, w, 7, tone, r, kerbBelow ? 0.05 : 0.025, SIDEWALK_BEVEL);
         }
         x += len;
         k++;
       }
     }
+    kerbEdge(ctx, X, Y, kerbBelow, ROAD.has(at(tx, ty - 1)));
     if (built(tx, ty - 1)) {
       ctx.globalAlpha = 0.22;
       px(ctx, PALETTE.ink, X, Y, TILE, 1);
@@ -332,6 +356,14 @@ function asphalt({ ctx, cells, at }: Paint): void {
         for (let x = X + 4; x < X + 12; x += 2) px(ctx, PALETTE.ink, x, gy === Y ? Y + 2 : gy - 1, 1, 2);
         px(ctx, shade(PALETTE.iron, 0.14), X + 3, gy === Y ? Y + 1 : gy - 2, 10, 1);
       }
+    }
+    // El bordillo de la acera de arriba tapa el sol del noroeste: su sombra cae en la cuneta.
+    if (kerbAbove) {
+      ctx.globalAlpha = 0.34;
+      px(ctx, PALETTE.ink, X, Y, TILE, 1);
+      ctx.globalAlpha = 0.14;
+      px(ctx, PALETTE.ink, X, Y + 1, TILE, 2);
+      ctx.globalAlpha = 1;
     }
     // Tapa de registro: en mitad de carril, pocas y sin pisar marcas ni cunetas.
     if (LANE.has(ch) && !kerbAbove && !kerbBelow && hash(tx, ty, 77) < 0.03) {

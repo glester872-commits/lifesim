@@ -158,18 +158,26 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
     for (let x = 0; x < w; x++) {
       const f = front(x, y);
       if (f < 0) continue;
-      const edge = front(x - 1, y) < 0 || front(x + 1, y) < 0 || front(x, y - 1) < 0 || front(x, y + 1) < 0;
+      const litEdge = front(x - 1, y) < 0 || front(x, y - 1) < 0;
+      const shadeEdge = front(x + 1, y) < 0 || front(x, y + 1) < 0;
+      const edge = litEdge || shadeEdge;
       // Borde deshilachado: no un círculo limpio.
       if (edge && hash2(x, y, seed) < 0.28) continue;
       const c = clusters[f];
       const local = ((x + 0.5 - c.x) * 0.55 + (y + 0.5 - c.y) * 0.85) / c.r;
       const global = ((x - cx) / rx) * 0.3 + ((y - canopyCy) / ry) * 0.5;
-      const t = local * 0.62 + global * 0.55 + (hash2(x, y, seed + 7) - 0.5) * 0.32;
-      let i = Math.round(2.5 - t * 3);
+      // HD-02: la hoja va en matas de 2 × 2, no en píxeles sueltos; el ruido fino casi desaparece y
+      // manda la forma de cada racimo (cara al sol, terminador y cara en sombra).
+      const clump = hash2(x >> 1, y >> 1, seed + 7) - 0.5;
+      const t = local * 0.85 + global * 0.5 + clump * 0.3 + (hash2(x, y, seed + 11) - 0.5) * 0.08;
+      let i = Math.round(3 - t * 3.4);
       // Sombra de contacto: donde empieza un racimo de delante, el de detrás queda hondo.
-      if (front(x, y + 1) > f) i -= 2;
-      else if (front(x, y + 2) > f) i -= 1;
-      if (edge) i = Math.min(i, 4);
+      if (front(x, y + 1) > f) i -= 3;
+      else if (front(x, y + 2) > f) i -= 2;
+      else if (front(x, y + 3) > f) i -= 1;
+      // Canto al sol arriba a la izquierda; abajo a la derecha, la copa se cierra en sombra.
+      if (shadeEdge && !litEdge) i = Math.min(i - 1, 2);
+      else if (litEdge && !shadeEdge) i = Math.max(i, 4);
       px(ctx, tones[Math.max(0, Math.min(6, i))], x, y);
     }
   }

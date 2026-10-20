@@ -39,7 +39,15 @@ interface Look {
    * paños sin hueco: nunca tapa un escaparate ni una puerta.
    */
   wallArt?: 'mural' | 'posters';
+  /**
+   * Acabado HD-02 de las casas de vecinos: el muro dice de qué es (sillería,
+   * revoco o ladrillo) y cada hueco tiene recercado, dintel, alféizar volado y
+   * carpintería. Los demás estilos, por ahora, con el acabado de siempre.
+   */
+  mat?: WallMat;
 }
+
+type WallMat = 'ashlar' | 'stucco' | 'brick';
 
 const RUST = '#c0493f';
 const NEON_PINK = '#ff6ab8';
@@ -51,13 +59,13 @@ const [TEAL, ORANGE] = ARENA_CLUB.home;
 
 const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   // Tu portal: el único bloque con puerta verde, todo encendido y plantas en cada balcón.
-  home: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: shade(PALETTE.wallLit, 0.06), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'home', sign: 'house' },
-  'res-brick': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.brick, shop: 'windows', upper: 'balcony', lit: PALETTE.amberDim, door: 'wood' },
-  'res-stone': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: PALETTE.stone, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
+  home: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: shade(PALETTE.wallLit, 0.06), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'home', sign: 'house', mat: 'stucco' },
+  'res-brick': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.brick, shop: 'windows', upper: 'balcony', lit: PALETTE.amberDim, door: 'wood', mat: 'brick' },
+  'res-stone': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: PALETTE.stone, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood', mat: 'ashlar' },
   // Comisaría (Policía de Distrito, ficticia): piedra clara, cristal con luz fría, la banda azul marino del uniforme con
   // su filo amarillo de toldo y el escudo de rótulo. Se reconoce desde la plaza sin leer nada.
   police: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#dfe3e6', shop: 'glass', upper: 'windows', lit: PALETTE.glassLit, door: 'glass', awning: ['#1f2c4a', '#d8e04a'], sign: 'shield' },
-  'res-plaster': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.wallLit, 0.05), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood' },
+  'res-plaster': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.wallLit, 0.05), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood', mat: 'stucco' },
   metro: { roof: PALETTE.night, roofLit: shade(PALETTE.night, 0.06), wall: PALETTE.night, shop: 'metro', upper: 'windows', lit: PALETTE.amber, door: 'stairs' },
   gym: { roof: PALETTE.roofBLit, roofLit: shade(PALETTE.roofBLit, 0.05), wall: PALETTE.metal, shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass', sign: 'dumbbell' },
   cafe: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: PALETTE.wood, shop: 'windows', upper: 'windows', lit: PALETTE.amber, door: 'glass', awning: [PALETTE.amberDim, PALETTE.white], sign: 'cup' },
@@ -255,7 +263,26 @@ function drawRoofArea(ctx: Ctx, look: Look, style: BuildingStyle, tone: number, 
     }
   } else {
     // Azotea: losas de 8 px con tanda y matiz, manchas de agua y algún parche de tela asfáltica.
-    for (let y = 0; y < h; y += 8) {
+    // HD-02 (casas de vecinos): baldosa de azotea limpia, con bisel claro y llaga honda, sin grano de ruido.
+    if (look.mat) for (let y = -4; y < h; y += 16) {
+      // Baldosa de azotea de 16 px (a 8 px se leía como alicatado; a matajunta, como ladrillo).
+      for (let x = -6; x < w; x += 16) {
+        const r = (k: number): number => noise(seed + x, y, k);
+        let t = shade(base, 0.05 + weather(x, y) * 1.7 + (r(1) - 0.5) * 0.03);
+        if (r(2) < 0.06) t = mix(t, '#b9a58a', 0.16); // baldosa repuesta, más nueva
+        const x0 = Math.max(0, x);
+        const y0 = Math.max(0, y);
+        const pw = Math.min(w, x + 16) - x0;
+        const ph = Math.min(h, y + 16) - y0;
+        px(ctx, shade(t, -0.08), x0, y0, pw, ph);
+        px(ctx, t, x0, y0, pw - 1, ph - 1);
+        if (y >= 0) px(ctx, shade(t, 0.045), x0, y0, pw - 1, 1);
+        if (x >= 0) px(ctx, shade(t, 0.03), x0, y0, 1, ph - 1);
+        // Árido de la baldosa: unas pocas motas, nunca una rejilla.
+        for (let k = 0; k < 4; k++) px(ctx, shade(t, k % 2 ? 0.04 : -0.05), x + 1 + Math.floor(r(10 + k) * 13), y + 1 + Math.floor(r(20 + k) * 13));
+      }
+    }
+    else for (let y = 0; y < h; y += 8) {
       for (let x = 0; x < w; x += 8) {
         const r = (k: number): number => noise(seed + x, y, k);
         // Más intemperie que en la teja: la azotea es grande y plana, y sin manchas amplias se lee como una rejilla.
@@ -302,13 +329,32 @@ function drawRoofArea(ctx: Ctx, look: Look, style: BuildingStyle, tone: number, 
     px(ctx, PALETTE.metal, dx + 2, h - 8, 1, 2);
     if (style !== 'metro') {
       // La albardilla del pretil tira sombra hacia dentro: más al norte y al oeste (luz del noroeste).
-      for (let d = 0; d < 4; d++) {
+      // En las casas de vecinos, el pretil es más alto y su sombra se lee de verdad.
+      if (look.mat) {
+        [0.4, 0.32, 0.24, 0.16, 0.09, 0.04].forEach((a, d) => {
+          ctx.globalAlpha = a;
+          px(ctx, PALETTE.ink, 4, 4 + d, w - 8, 1);
+          px(ctx, PALETTE.ink, 4 + d, 4 + d + 1, 1, h - 9 - d);
+        });
+        ctx.globalAlpha = 1;
+        // Las caras interiores de los pretiles del este y del sur miran al sol.
+        px(ctx, shade(PALETTE.stoneLit, 0.1), w - 5, 5, 1, h - 9);
+        if (capSouth) px(ctx, shade(PALETTE.stoneLit, 0.1), 5, h - 5, w - 10, 1);
+      }
+      for (let d = 0; d < (look.mat ? 0 : 4); d++) {
         ctx.globalAlpha = 0.22 - d * 0.05;
         px(ctx, PALETTE.ink, 3, 3 + d, w - 6, 1);
         px(ctx, PALETTE.ink, 3 + d, 3, 1, h - 6);
       }
       ctx.globalAlpha = 1;
       const stone = shade(PALETTE.stoneLit, 0.02);
+      if (look.mat) {
+        px(ctx, stone, 0, 0, w, 4);
+        px(ctx, stone, 0, 0, 4, h);
+        px(ctx, shade(stone, -0.1), w - 4, 0, 4, h);
+        px(ctx, shade(stone, -0.3), 4, 4, w - 8, 1);
+        px(ctx, shade(stone, -0.22), 4, 4, 1, h - 8);
+      }
       px(ctx, stone, 0, 0, w, 3);
       px(ctx, stone, 0, 0, 3, h);
       px(ctx, shade(stone, -0.1), w - 3, 0, 3, h);
@@ -359,7 +405,12 @@ function drawAwning(ctx: Ctx, look: Look, y = 0, tall = false): void {
  * Lo común a cada planta alta de fachada al sur: el paño, la imposta que la
  * separa de la de arriba (luz arriba, sombra debajo) y el muro con su grano.
  */
-function storeyWall(ctx: Ctx, wall: string, seed: number): void {
+function storeyWall(ctx: Ctx, wall: string, seed: number, mat?: WallMat, ground = false): void {
+  if (mat) {
+    wallFace(ctx, wall, mat, STOREY, ground);
+    stringCourse(ctx, wall);
+    return;
+  }
   px(ctx, wall, 0, 0, TILE, STOREY);
   sprinkle(ctx, shade(wall, 0.045), TILE, STOREY, seed, 9);
   px(ctx, shade(wall, 0.12), 0, 0, TILE, 1);
@@ -383,6 +434,245 @@ function windowHole(ctx: Ctx, wall: string, lit: string, x: number, y: number, w
   px(ctx, shade(wall, -0.2), x - 2, y + h + 2, w + 4, 1);
 }
 
+// ------------------------------------------- HD-02 · casas de vecinos
+
+/** Sombra arrojada en el color de siempre: el volumen se lee por su sombra, no por un filtro. */
+function ink(ctx: Ctx, alpha: number, x: number, y: number, w: number, h: number): void {
+  ctx.globalAlpha = alpha;
+  px(ctx, PALETTE.ink, x, y, w, h);
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * El muro según su material, de 16 de ancho: el aparejo se repite cada 16 px,
+ * así que dos tiles vecinos casan sin junta falsa. El tono de cada sillar sale
+ * de su hilada y de su paridad, no del tile: el sillar que cruza la junta del
+ * tile tiene el mismo color a los dos lados.
+ *  - sillería: hiladas de 4 px, sillares de 8 a matajunta, canto de luz arriba
+ *    y llaga en sombra;
+ *  - revoco: liso arriba; en planta baja, almohadillado (llagas horizontales);
+ *  - ladrillo: soga de 4 × 2 con tendel claro de mortero.
+ */
+function wallFace(ctx: Ctx, wall: string, mat: WallMat, h: number, ground: boolean): void {
+  px(ctx, wall, 0, 0, TILE, h);
+  if (mat === 'ashlar') {
+    for (let y = 0, row = 0; y < h; y += 4, row++) {
+      const off = row % 2 ? 4 : 0;
+      for (let x = -off; x < TILE; x += 8) {
+        const k = ((x + off) / 8) % 2;
+        const tone = shade(wall, [0.02, -0.025, 0.035, -0.01][(row * 2 + k) % 4]);
+        const x0 = Math.max(0, x);
+        const x1 = Math.min(TILE, x + 8);
+        px(ctx, tone, x0, y, x1 - x0, 3);
+        px(ctx, shade(tone, 0.07), x0, y, x1 - x0, 1);
+        px(ctx, shade(wall, -0.16), x0, y + 3, x1 - x0, 1);
+        if (x + 7 < TILE && x + 7 >= 0) px(ctx, shade(wall, -0.14), x + 7, y, 1, 3);
+      }
+    }
+  } else if (mat === 'brick') {
+    for (let y = 0, row = 0; y < h; y += 3, row++) {
+      const off = row % 2 ? 2 : 0;
+      for (let x = -off; x < TILE; x += 4) {
+        const tone = shade(wall, [0.03, -0.03, 0.0, -0.05, 0.05][(row + (x + off) / 4) % 5]);
+        const x0 = Math.max(0, x);
+        px(ctx, tone, x0, y, Math.min(TILE, x + 3) - x0, 2);
+        px(ctx, shade(tone, 0.06), x0, y, Math.min(TILE, x + 3) - x0, 1);
+      }
+      px(ctx, shade(PALETTE.stoneLit, -0.08), 0, y + 2, TILE, 1);
+      for (let x = -off + 3; x < TILE; x += 4) if (x >= 0) px(ctx, shade(PALETTE.stoneLit, -0.14), x, y, 1, 2);
+    }
+  } else if (ground) {
+    // Almohadillado del bajo: cada 4 px una llaga en sombra con su canto de luz debajo.
+    for (let y = 6; y < h - 6; y += 4) {
+      px(ctx, shade(wall, -0.13), 0, y, TILE, 1);
+      px(ctx, shade(wall, 0.06), 0, y + 1, TILE, 1);
+    }
+  } else {
+    // Revoco liso: el material se lee por contraste con el almohadillado del bajo y el recercado.
+  }
+}
+
+/** Imposta con vuelo: canto al sol, cara, y la sombra que deja en el muro de abajo. */
+function stringCourse(ctx: Ctx, wall: string): void {
+  const band = shade(mix(wall, PALETTE.stoneLit, 0.5), 0.04);
+  px(ctx, shade(band, 0.12), 0, 0, TILE, 1);
+  px(ctx, band, 0, 1, TILE, 1);
+  px(ctx, shade(band, -0.2), 0, 2, TILE, 1);
+  ink(ctx, 0.28, 0, 3, TILE, 1);
+  ink(ctx, 0.12, 0, 4, TILE, 1);
+}
+
+/** Recercado de piedra clara: más claro que el muro, para que el hueco se lea como hueco. */
+const trimOf = (look: Look): string => (look.mat === 'brick' ? shade(PALETTE.stoneLit, 0.04) : shade(mix(look.wall, PALETTE.stoneLit, 0.45), 0.07));
+
+/**
+ * Ventana con profundidad. El cristal queda donde estaba (Lighting y Detail lo
+ * buscan ahí); todo lo nuevo va alrededor: recercado con su jamba al sol y la
+ * otra en sombra, dintel volado con clave, alféizar con su sombra en el muro y,
+ * dentro, la sombra del dintel y de la jamba izquierda sobre el vidrio (luz del
+ * noroeste). Carpintería con parteluz y travesaño.
+ */
+function windowFine(ctx: Ctx, look: Look, x: number, y: number, w: number, h: number, on: boolean, sill = true, blind = 0): void {
+  const trim = trimOf(look);
+  // Carpintería que contraste con su recercado: blanca en la piedra gris, madera oscura en el revoco y el ladrillo.
+  const frame = look.mat === 'ashlar' ? '#e9e3d6' : '#5a4634';
+  // Recercado y dintel.
+  px(ctx, trim, x - 2, y - 1, w + 4, h + 1);
+  px(ctx, shade(trim, 0.09), x - 2, y - 1, 1, h + 1);
+  px(ctx, shade(trim, -0.16), x + w + 1, y - 1, 1, h + 1);
+  px(ctx, shade(trim, 0.05), x - 3, y - 4, w + 6, 3);
+  px(ctx, shade(trim, 0.16), x - 3, y - 4, w + 6, 1);
+  px(ctx, shade(trim, -0.2), x - 3, y - 2, w + 6, 1);
+  ink(ctx, 0.22, x - 2, y - 1, w + 5, 1);
+  // Clave del dintel, dentro de su canto (no asoma por encima).
+  px(ctx, shade(trim, 0.2), x + Math.floor(w / 2) - 1, y - 4, 2, 2);
+  px(ctx, shade(trim, -0.1), x + Math.floor(w / 2), y - 3, 1, 1);
+  // Vidrio: hondo, y el cielo reflejado en dos rayas en diagonal.
+  const glassTone = on ? shade(look.lit, -0.32) : shade(PALETTE.glass, -0.1);
+  px(ctx, glassTone, x, y, w, h);
+  if (on) {
+    px(ctx, shade(look.lit, -0.12), x + 1, y + 2, w - 2, h - 3);
+    px(ctx, look.lit, x + 1, y + h - 4, w - 2, 3);
+  } else {
+    const sky = mix(glassTone, PALETTE.glassLit, 0.4);
+    for (let i = 0; i < Math.min(w, h - 3); i++) {
+      px(ctx, sky, x + i, y + h - 2 - i * 2, 1, 2);
+      if (i < w - 2) px(ctx, mix(glassTone, PALETTE.glassLit, 0.2), x + i + 2, y + h - 2 - i * 2, 1, 2);
+    }
+  }
+  // Carpintería: marco, parteluz y travesaño a un tercio.
+  const tr = y + Math.floor(h / 3);
+  px(ctx, frame, x, y, w, 1);
+  px(ctx, frame, x, y, 1, h);
+  px(ctx, frame, x + w - 1, y, 1, h);
+  px(ctx, frame, x, y + h - 1, w, 1);
+  px(ctx, frame, x + Math.floor(w / 2) - 1, y, 1, h);
+  px(ctx, frame, x, tr, w, 1);
+  px(ctx, shade(frame, -0.25), x + Math.floor(w / 2), y + 1, 1, h - 1);
+  if (blind > 0) {
+    // Persiana enrollable bajada a su manera: lamas con canto de luz y su borde inferior en sombra.
+    const slat = '#cdbb9c';
+    px(ctx, slat, x, y, w, blind);
+    for (let yy = y + 1; yy < y + blind; yy += 2) px(ctx, shade(slat, -0.16), x, yy, w, 1);
+    px(ctx, shade(slat, -0.3), x, y + blind, w, 1);
+  }
+  // El dintel y la jamba izquierda tapan el sol: sombra dentro del hueco.
+  ink(ctx, 0.42, x, y, w, 2);
+  ink(ctx, 0.18, x, y + 2, w, 1);
+  ink(ctx, 0.3, x, y + 2, 1, h - 2);
+  // La jamba derecha, de cara al oeste, recibe luz en su canto interior.
+  px(ctx, shade(trim, 0.14), x + w, y + 1, 1, h - 1);
+  if (!sill) return;
+  // Alféizar volado: canto al sol, frente, y su sombra en el muro.
+  px(ctx, shade(trim, 0.2), x - 3, y + h, w + 6, 1);
+  px(ctx, shade(trim, -0.08), x - 3, y + h + 1, w + 6, 1);
+  ink(ctx, 0.34, x - 2, y + h + 2, w + 5, 1);
+  ink(ctx, 0.14, x - 1, y + h + 3, w + 4, 1);
+}
+
+/** Zócalo de sillares de piedra: canto biselado arriba, llagas cada 8 px y el pie contra la acera. */
+function plinthFine(ctx: Ctx, h: number): void {
+  const stone = shade(PALETTE.stone, -0.08);
+  px(ctx, stone, 0, h - 6, TILE, 6);
+  px(ctx, shade(stone, 0.16), 0, h - 6, TILE, 1);
+  px(ctx, shade(stone, 0.06), 0, h - 5, TILE, 1);
+  px(ctx, shade(stone, -0.12), 0, h - 3, TILE, 1);
+  for (const x of [7, 15]) px(ctx, shade(stone, -0.18), x, h - 5, 1, 4);
+  px(ctx, shade(stone, -0.28), 0, h - 1, TILE, 1);
+}
+
+/**
+ * Balcón volado bajo la ventana (16 × 32, el hueco entre y = 7 y 23): la losa
+ * con su canto, la sombra que deja en el muro de abajo, la barandilla de forja
+ * con su sombra corrida sobre el vidrio y una maceta detrás de los barrotes.
+ */
+function balconyFine(ctx: Ctx, seed: number): void {
+  const slab = shade(PALETTE.stoneLit, 0.02);
+  const iron = PALETTE.iron;
+  ink(ctx, 0.42, 0, 27, TILE, 1);
+  ink(ctx, 0.22, 0, 28, TILE, 1);
+  ink(ctx, 0.09, 0, 29, TILE, 1);
+  // Maceta detrás de la barandilla.
+  const mx = seed % 2 ? 10 : 2;
+  const pot = '#a8553a';
+  px(ctx, pot, mx, 20, 4, 4);
+  px(ctx, shade(pot, 0.14), mx, 20, 4, 1);
+  px(ctx, shade(pot, -0.2), mx + 3, 21, 1, 3);
+  px(ctx, '#2e4d25', mx - 1, 16, 6, 4);
+  px(ctx, '#4f7a38', mx - 1, 15, 4, 3);
+  px(ctx, '#7fa94f', mx, 15, 2, 1);
+  px(ctx, '#658f42', mx + 2, 17, 2, 1);
+  // Sombra de la barandilla sobre lo que tiene detrás.
+  ink(ctx, 0.3, 1, 18, TILE - 1, 1);
+  for (let x = 1; x < TILE; x += 2) ink(ctx, 0.26, x + 1, 19, 1, 5);
+  // Barandilla: pasamanos con su brillo, barrotes y pletina de abajo.
+  px(ctx, shade(iron, 0.4), 0, 16, TILE, 1);
+  px(ctx, iron, 0, 17, TILE, 1);
+  for (let x = 0; x < TILE; x += 2) px(ctx, iron, x, 18, 1, 6);
+  px(ctx, iron, 0, 23, TILE, 1);
+  // Losa: canto al sol, frente y vuelo.
+  px(ctx, shade(slab, 0.14), 0, 24, TILE, 1);
+  px(ctx, slab, 0, 25, TILE, 1);
+  px(ctx, shade(slab, -0.24), 0, 26, TILE, 1);
+}
+
+/**
+ * Portal de madera con recercado de piedra: jambas y dintel con clave, montante
+ * de cristal con su reja, hoja de cuarterones en relieve (canto de luz arriba y
+ * a la izquierda), la sombra del dintel dentro del hueco y un escalón de piedra.
+ * La última fila sigue siendo acera: se entra caminando.
+ */
+function doorFine(ctx: Ctx, look: Look): void {
+  const H = STOREY;
+  const trim = trimOf(look);
+  const leaf = look.door === 'home' ? '#3f6f78' : PALETTE.wood;
+  px(ctx, trim, 1, 3, 14, H - 3);
+  px(ctx, shade(trim, 0.12), 1, 3, 1, H - 3);
+  px(ctx, shade(trim, -0.18), 14, 3, 1, H - 3);
+  px(ctx, shade(trim, 0.06), 0, 1, TILE, 3);
+  px(ctx, shade(trim, 0.18), 0, 1, TILE, 1);
+  px(ctx, shade(trim, -0.22), 0, 3, TILE, 1);
+  px(ctx, shade(trim, 0.22), 7, 0, 2, 4);
+  // Hueco, montante y su reja.
+  px(ctx, PALETTE.woodDark, 3, 5, 10, H - 8);
+  px(ctx, shade(PALETTE.amber, -0.3), 4, 5, 8, 4);
+  px(ctx, PALETTE.amber, 4, 7, 8, 2);
+  for (const x of [6, 9]) px(ctx, PALETTE.woodDark, x, 5, 1, 4);
+  // Hoja de dos batientes con cuarterones en relieve.
+  px(ctx, leaf, 3, 10, 10, H - 13);
+  px(ctx, shade(leaf, 0.1), 3, 10, 10, 1);
+  for (const y of [12, 20]) {
+    for (const x of [4, 9]) {
+      px(ctx, shade(leaf, -0.05), x, y, 3, 6);
+      px(ctx, shade(leaf, 0.16), x, y, 3, 1);
+      px(ctx, shade(leaf, 0.09), x, y, 1, 6);
+      px(ctx, shade(leaf, -0.24), x, y + 5, 3, 1);
+      px(ctx, shade(leaf, -0.17), x + 2, y + 1, 1, 5);
+    }
+  }
+  px(ctx, shade(leaf, -0.3), 8, 10, 1, H - 13);
+  px(ctx, BRASS, 10, 18, 1, 2);
+  px(ctx, shade(BRASS, 0.3), 10, 18, 1, 1);
+  // El dintel y la jamba izquierda dejan el hueco en sombra.
+  ink(ctx, 0.45, 3, 5, 10, 1);
+  ink(ctx, 0.22, 3, 6, 10, 1);
+  ink(ctx, 0.3, 3, 6, 1, H - 9);
+  // Escalón de piedra y, delante, la acera.
+  px(ctx, shade(PALETTE.stone, 0.12), 1, H - 3, 14, 1);
+  px(ctx, shade(PALETTE.stone, -0.14), 1, H - 2, 14, 1);
+  px(ctx, PALETTE.pavement, 0, H - 1, TILE, 1);
+  if (look.door === 'home') {
+    // Dos macetas a los lados del portal, con su sombra.
+    for (const x of [0, 14]) {
+      ink(ctx, 0.3, x + 1, H - 2, 2, 1);
+      px(ctx, '#a8553a', x, H - 6, 2, 4);
+      px(ctx, shade('#a8553a', 0.14), x, H - 6, 2, 1);
+      px(ctx, '#3d6430', x, H - 10, 2, 4);
+      px(ctx, '#7fa94f', x, H - 10, 1, 1);
+    }
+  }
+}
+
 /**
  * Planta baja de una fachada al sur, 16 × 32: la imposta arriba, el zócalo de
  * piedra abajo y, en medio, el hueco que dice qué es el local: ventana con
@@ -390,15 +680,30 @@ function windowHole(ctx: Ctx, wall: string, lit: string, x: number, y: number, w
  */
 function drawGround(ctx: Ctx, look: Look, variant: number): void {
   const H = STOREY;
-  storeyWall(ctx, look.wall, 61 + variant);
-  // Zócalo de piedra: aguanta los golpes de la acera.
-  px(ctx, shade(PALETTE.stone, -0.1), 0, H - 4, TILE, 4);
-  px(ctx, shade(PALETTE.stone, 0.05), 0, H - 4, TILE, 1);
-  px(ctx, shade(PALETTE.stone, -0.22), 0, H - 1, TILE, 1);
+  storeyWall(ctx, look.wall, 61 + variant, look.mat, true);
+  if (look.mat) plinthFine(ctx, H);
+  else {
+    // Zócalo de piedra: aguanta los golpes de la acera.
+    px(ctx, shade(PALETTE.stone, -0.1), 0, H - 4, TILE, 4);
+    px(ctx, shade(PALETTE.stone, 0.05), 0, H - 4, TILE, 1);
+    px(ctx, shade(PALETTE.stone, -0.22), 0, H - 1, TILE, 1);
+  }
   const dark = variant === 2;
   switch (look.shop) {
     case 'windows':
       if (variant === 0) break;
+      if (look.mat) {
+        windowFine(ctx, look, 4, 10, 8, 14, !dark);
+        // Reja de forja: barrotes con su canto de luz y la sombra que dejan en el vidrio.
+        for (const x of [5, 8, 10]) {
+          ink(ctx, 0.3, x + 1, 11, 1, 13);
+          px(ctx, PALETTE.iron, x, 10, 1, 14);
+        }
+        px(ctx, PALETTE.iron, 3, 12, 10, 1);
+        px(ctx, PALETTE.iron, 3, 21, 10, 1);
+        px(ctx, shade(PALETTE.iron, 0.3), 3, 12, 10, 1);
+        break;
+      }
       windowHole(ctx, look.wall, look.lit, 4, 10, 8, 14, !dark);
       // Reja de planta baja: tres barrotes.
       for (const x of [5, 8, 10]) px(ctx, PALETTE.iron, x, 10, 1, 14);
@@ -467,7 +772,7 @@ function drawGround(ctx: Ctx, look: Look, variant: number): void {
  */
 function drawUpperTall(ctx: Ctx, look: Look, variant: number, seed: number): void {
   const H = STOREY;
-  storeyWall(ctx, look.wall, 31 + variant + seed * 7);
+  storeyWall(ctx, look.wall, 31 + variant + seed * 7, look.mat);
   const lit = variant === 1;
   switch (look.upper) {
     case 'glass':
@@ -494,6 +799,12 @@ function drawUpperTall(ctx: Ctx, look: Look, variant: number, seed: number): voi
         }
         return;
       }
+      if (look.mat) {
+        const balcony = look.upper === 'balcony' && variant === 2;
+        windowFine(ctx, look, 4, 7, 8, 16, lit, !balcony, [3, 6, 9, 5][seed % 4]);
+        if (balcony) balconyFine(ctx, seed);
+        return;
+      }
       windowHole(ctx, look.wall, look.lit, 4, 7, 8, 16, lit);
       // Persiana enrollable, bajada un tanto distinto en cada ventana; y su cajón.
       const blind = [3, 6, 9, 5][seed % 4];
@@ -517,7 +828,11 @@ function drawUpperTall(ctx: Ctx, look: Look, variant: number, seed: number): voi
 /** Puerta de planta baja, 16 × 32: 26 px de hoja (más alta que quien entra), montante encima y umbral de acera. */
 function drawDoorTall(ctx: Ctx, look: Look, open: boolean): void {
   const H = STOREY;
-  storeyWall(ctx, look.wall, 71);
+  storeyWall(ctx, look.wall, 71, look.mat, true);
+  if (look.mat && !open && (look.door === 'wood' || look.door === 'home')) {
+    doorFine(ctx, look);
+    return;
+  }
   px(ctx, shade(look.wall, -0.2), 1, 4, 14, H - 4);
   if (open) {
     px(ctx, PALETTE.ink, 2, 5, 12, H - 5);

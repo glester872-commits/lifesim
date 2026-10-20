@@ -169,8 +169,9 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
   // desvanece en cuatro filas (oclusión ambiental: no depende del sol, que va aparte en Lighting).
   for (const b of def.buildings ?? []) {
     const y = (b.ty + b.h) * TILE;
-    g.fillStyle(SHADOW, 0.3).fillRect(b.tx * TILE, y, b.w * TILE, 1);
-    [0.16, 0.11, 0.07, 0.035].forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(b.tx * TILE, y + 1 + i, b.w * TILE, 1));
+    // HD-02: el pie del muro asienta el edificio (antes 0,30 → 0,04 y no se leía a zoom de juego).
+    g.fillStyle(SHADOW, 0.42).fillRect(b.tx * TILE, y, b.w * TILE, 1);
+    [0.26, 0.17, 0.1, 0.05].forEach((a, i) => g.fillStyle(SHADOW, a).fillRect(b.tx * TILE + 1, y + 1 + i, b.w * TILE, 1));
   }
 
   for (const p of def.props) {
@@ -181,14 +182,15 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
     // Lo alto echa además la sombra del sol, que cambia con la hora: la pinta Lighting.
     // Aquí sólo el contacto con el suelo, que no depende del sol.
     // Bajo una copa siempre hay penumbra, haga sol o no: el árbol no parece pegado encima del suelo.
-    if (prop.castBlob) g.fillStyle(SHADOW, 0.1).fillEllipse(p.tx * TILE + width / 2, (p.ty + 1) * TILE - 5, prop.castBlob[0] * 0.75, prop.castBlob[1] * 0.8);
+    if (prop.castBlob) g.fillStyle(SHADOW, 0.16).fillEllipse(p.tx * TILE + width / 2, (p.ty + 1) * TILE - 5, prop.castBlob[0] * 0.75, prop.castBlob[1] * 0.8);
     const [w, h] = prop.shadow ?? [width - 4, 4];
     const cx = p.tx * TILE + width / 2 + (prop.shadow ? 2 : 0);
     const cy = (p.ty + 1) * TILE - 2;
     // Penumbra abierta y núcleo de oclusión pegado a la base: el borde se funde en vez de cortar.
-    g.fillStyle(SHADOW, 0.12).fillEllipse(cx, cy, w + 4, h + 2);
-    g.fillStyle(SHADOW, 0.18).fillEllipse(cx, cy, w, h);
-    g.fillStyle(SHADOW, 0.16).fillEllipse(cx, cy - 1, Math.max(2, w - 6), Math.max(1, h - 2));
+    // HD-02: más honda y corrida un píxel al sureste, del lado contrario a la luz del noroeste.
+    g.fillStyle(SHADOW, 0.14).fillEllipse(cx + 2, cy + 1, w + 5, h + 3);
+    g.fillStyle(SHADOW, 0.24).fillEllipse(cx + 1, cy, w, h);
+    g.fillStyle(SHADOW, 0.26).fillEllipse(cx, cy - 1, Math.max(2, w - 6), Math.max(1, h - 2));
   }
 
   rt.draw(g);

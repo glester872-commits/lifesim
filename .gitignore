@@ -30,3 +30,7 @@ dist-ssr
 
 # Tool caches
 .impeccable/hook.cache.json
+# Evidencias locales de revisión visual (capturas reales; no son arte del juego)
+design/hd02/evidence/
+design/hd02/review/shots/
+design/hd03/shots/

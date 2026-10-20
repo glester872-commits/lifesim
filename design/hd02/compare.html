@@ -1,0 +1,42 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LIFE//SIM · HD-02 antes y después</title>
+<style>
+:root{--bg:#11151c;--fg:#e8e3da;--muted:#a8b2bb;--btn:#252b33;--line:#626d78;--accent:#6fd0c6}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif}
+header{display:flex;align-items:center;gap:10px;padding:14px 16px;flex-wrap:wrap}
+button{padding:8px 14px;background:var(--btn);color:inherit;border:1px solid var(--line);border-radius:4px;cursor:pointer;font:inherit}
+button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.stage{position:relative;width:1100px;max-width:calc(100% - 32px);aspect-ratio:1100/680;margin:0 auto;overflow:hidden;user-select:none}
+.stage img{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+#after{clip-path:inset(0 0 0 50%)}
+.line{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--fg);pointer-events:none}
+.tag{position:absolute;top:8px;padding:2px 8px;background:#000a;font-size:12px;border-radius:3px}
+#tagB{left:8px}#tagA{right:8px}
+.slider{display:flex;gap:10px;align-items:center;justify-content:center;margin:12px 16px}
+input[type=range]{width:min(520px,70vw)}
+p{max-width:1100px;margin:12px auto;padding:0 16px;color:var(--muted);font-size:13px}
+kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px}
+</style>
+<header><b>LIFE//SIM · HD-02 · Calle residencial</b>
+<button id="mOrig" aria-pressed="false">Original completo</button>
+<button id="mNew" aria-pressed="false">Versión mejorada completa</button>
+<button id="mSlide" aria-pressed="true">Comparación con deslizador</button>
+<a href="/?quality=high" target="_blank" style="color:var(--accent)">Jugar la vista previa</a></header>
+<div class="stage" id="stage"><img id="before" alt="Original (4232cda)"><img id="after" alt="Versión mejorada HD-02"><span class="line" id="line"></span><span class="tag" id="tagB">Original</span><span class="tag" id="tagA">Mejorada</span></div>
+<div class="slider" id="sliderRow"><span>Original</span><input id="split" type="range" min="0" max="100" value="50" aria-label="Posición del deslizador"><span>Mejorada</span></div>
+<p>Capturas reales del juego, a tamaño de juego (1100 × 680, zoom 2,5): mismo encuadre, día 6 a las 14:00, sin lluvia, semilla 103 y la misma secuencia de pasos con el reloj en pausa. <kbd>Espacio</kbd> alterna original y mejorada. También puedes arrastrar sobre la imagen. Vista previa local, sin commit.</p>
+<script>
+const $=s=>document.querySelector(s),b=$('#before'),a=$('#after'),line=$('#line'),r=$('#split');
+b.src='/__hd01/before-residential-high-1100.png';a.src='/__hd01/after-residential-high-1100.png';
+let mode='slide';
+function set(p){a.style.clipPath='inset(0 0 0 '+p+'%)';line.style.left=p+'%';r.value=p}
+function setMode(m){mode=m;for(const[id,k]of[['#mOrig','orig'],['#mNew','new'],['#mSlide','slide']])$(id).setAttribute('aria-pressed',k===m);
+ const s=m==='slide';line.hidden=!s;$('#sliderRow').style.visibility=s?'visible':'hidden';$('#tagB').hidden=m==='new';$('#tagA').hidden=m==='orig';
+ if(m==='orig')a.style.clipPath='inset(0 0 0 100%)';else if(m==='new')a.style.clipPath='inset(0 0 0 0)';else set(+r.value)}
+$('#mOrig').onclick=()=>setMode('orig');$('#mNew').onclick=()=>setMode('new');$('#mSlide').onclick=()=>setMode('slide');
+r.oninput=()=>set(+r.value);
+const stage=$('#stage');const drag=e=>{if(mode!=='slide'||!(e.buttons&1))return;const q=stage.getBoundingClientRect();set(Math.max(0,Math.min(100,(e.clientX-q.left)/q.width*100)))};
+stage.addEventListener('pointerdown',e=>{stage.setPointerCapture(e.pointerId);drag(e)});stage.addEventListener('pointermove',drag);
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();setMode(mode==='new'?'orig':'new')}});
+setMode('slide');
+</script></html>

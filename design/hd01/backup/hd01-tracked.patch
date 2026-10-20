@@ -1,0 +1,251 @@
+diff --git a/README.md b/README.md
+index d7a0663..7219bb8 100644
+--- a/README.md
++++ b/README.md
+@@ -885,3 +885,15 @@ Sara, pedir contacto y proponer por Mensajes. Ordenador de casa para mejoras;
+ cama para descansar. Teclado y opciones táctiles ejecutan las mismas acciones.
+ 
+ Recorrido registrado, pruebas y límites: [VERIFICATION-WEEK.md](VERIFICATION-WEEK.md).
++
++
++## Vista previa gráfica HD-01 (local, sin publicar)
++
++Las fábricas compartidas refinan las uniones de piedra, madera y metal dentro de
++las texturas existentes, sin cambiar tamaños, alfa, mapas ni personajes. El mapa
++de sombras nativo de calidad high mantiene el muestreo de pixel art; los halos
++suaves y los perfiles low/medium se conservan. No hay recursos de imagen nuevos.
++
++El contrato, cobertura, capturas, mediciones y límites están en
++[design/hd01/VERIFICATION.md](design/hd01/VERIFICATION.md). La comparación es una
++herramienta local separada de la interfaz del juego.
+diff --git a/package.json b/package.json
+index ea49368..33a5c8b 100644
+--- a/package.json
++++ b/package.json
+@@ -7,7 +7,7 @@
+     "dev": "vite",
+     "build": "tsc && vite build",
+     "preview": "vite preview",
+-    "check": "node scripts/check-world.ts && node scripts/check-regression.ts && node scripts/check-save-torture.ts && node scripts/check-recovery.ts && node scripts/check-sidewalks.ts && node scripts/check-ribera.ts && node scripts/check-ribera-venues.ts && node scripts/check-velaria.ts && node scripts/check-cuatro-rios.ts && node scripts/check-puerta-central.ts && node scripts/check-arena.ts && node scripts/check-navigation.ts && node scripts/check-world-integration.ts && node scripts/check-food-venues.ts && node scripts/check-bar.ts && node scripts/check-basketball.ts && node scripts/check-districts.ts && node scripts/check-zones.ts && node scripts/check-population.ts && node scripts/check-carmen.ts && node scripts/check-seats.ts && node scripts/check-terrace.ts && node scripts/check-venues.ts && node scripts/check-gym.ts && node scripts/check-chat.ts && node scripts/check-story.ts && node scripts/check-arcs.ts && node scripts/check-phone.ts && node scripts/check-contact.ts && node scripts/check-fitness.ts && node scripts/check-street-events.ts && node scripts/check-handoff.ts && node scripts/check-pickpocket.ts && node scripts/check-police.ts && node scripts/check-crowd-variety.ts && node scripts/check-npc-diversity.ts && node scripts/check-hd-cache.ts && node scripts/check-day-variation.ts && node scripts/check-district-identity.ts && node scripts/check-alley-deals.ts && node scripts/check-event-lifecycle.ts && node scripts/check-cross-system.ts && node scripts/check-ambient.ts && node scripts/check-ambient-roles.ts && node scripts/check-litter.ts && node scripts/check-input.ts && node scripts/check-interaction.ts && node scripts/check-calendar.ts && node scripts/check-map.ts && node scripts/check-weather.ts && node scripts/check-weather-looks.ts && node scripts/check-characters.ts && node scripts/check-schedules.ts && node scripts/check-shading.ts && node scripts/check-garments.ts && node scripts/check-economy.ts && node scripts/check-jobs.ts && node scripts/check-household.ts && node scripts/check-study.ts && node scripts/check-housing.ts && node scripts/check-agenda.ts && node scripts/check-week.ts && node scripts/simulate-budget.ts && node scripts/check-places.ts && node scripts/check-scale.ts && node scripts/simulate-population.ts && node scripts/simulate-streets.ts && node scripts/check-street-survival.ts && node scripts/check-wildlife.ts && node scripts/check-signals.ts && node scripts/check-traffic.ts && node scripts/check-rides.ts && node scripts/check-boards.ts && node scripts/check-soundscape.ts && node scripts/check-stadium.ts && node scripts/check-match-play.ts && node scripts/check-stand-life.ts && node scripts/check-concourse.ts && node scripts/check-attendance.ts && node scripts/check-vehicle-variety.ts && node scripts/check-scooters.ts && node scripts/check-metro.ts && node scripts/simulate-metro-days.ts 28 && node scripts/simulate-metro-events.ts",
++    "check": "node scripts/check-world.ts && node scripts/check-regression.ts && node scripts/check-save-torture.ts && node scripts/check-recovery.ts && node scripts/check-sidewalks.ts && node scripts/check-ribera.ts && node scripts/check-ribera-venues.ts && node scripts/check-velaria.ts && node scripts/check-cuatro-rios.ts && node scripts/check-puerta-central.ts && node scripts/check-arena.ts && node scripts/check-navigation.ts && node scripts/check-world-integration.ts && node scripts/check-food-venues.ts && node scripts/check-bar.ts && node scripts/check-basketball.ts && node scripts/check-districts.ts && node scripts/check-zones.ts && node scripts/check-population.ts && node scripts/check-carmen.ts && node scripts/check-seats.ts && node scripts/check-terrace.ts && node scripts/check-venues.ts && node scripts/check-gym.ts && node scripts/check-chat.ts && node scripts/check-story.ts && node scripts/check-arcs.ts && node scripts/check-phone.ts && node scripts/check-contact.ts && node scripts/check-fitness.ts && node scripts/check-street-events.ts && node scripts/check-handoff.ts && node scripts/check-pickpocket.ts && node scripts/check-police.ts && node scripts/check-crowd-variety.ts && node scripts/check-npc-diversity.ts && node scripts/check-hd-cache.ts && node scripts/check-day-variation.ts && node scripts/check-district-identity.ts && node scripts/check-alley-deals.ts && node scripts/check-event-lifecycle.ts && node scripts/check-cross-system.ts && node scripts/check-ambient.ts && node scripts/check-ambient-roles.ts && node scripts/check-litter.ts && node scripts/check-input.ts && node scripts/check-interaction.ts && node scripts/check-calendar.ts && node scripts/check-map.ts && node scripts/check-weather.ts && node scripts/check-weather-looks.ts && node scripts/check-characters.ts && node scripts/check-schedules.ts && node scripts/check-shading.ts && node scripts/check-material-finish.ts && node scripts/check-garments.ts && node scripts/check-economy.ts && node scripts/check-jobs.ts && node scripts/check-household.ts && node scripts/check-study.ts && node scripts/check-housing.ts && node scripts/check-agenda.ts && node scripts/check-week.ts && node scripts/simulate-budget.ts && node scripts/check-places.ts && node scripts/check-scale.ts && node scripts/simulate-population.ts && node scripts/simulate-streets.ts && node scripts/check-street-survival.ts && node scripts/check-wildlife.ts && node scripts/check-signals.ts && node scripts/check-traffic.ts && node scripts/check-rides.ts && node scripts/check-boards.ts && node scripts/check-soundscape.ts && node scripts/check-stadium.ts && node scripts/check-match-play.ts && node scripts/check-stand-life.ts && node scripts/check-concourse.ts && node scripts/check-attendance.ts && node scripts/check-vehicle-variety.ts && node scripts/check-scooters.ts && node scripts/check-metro.ts && node scripts/simulate-metro-days.ts 28 && node scripts/simulate-metro-events.ts",
+     "test:regression": "node scripts/regression.ts",
+     "simulate": "node scripts/simulate-metro-days.ts",
+     "simulate:events": "node scripts/simulate-metro-events.ts",
+diff --git a/src/world/ArenaArt.ts b/src/world/ArenaArt.ts
+index b62b78b..ee32e28 100644
+--- a/src/world/ArenaArt.ts
++++ b/src/world/ArenaArt.ts
+@@ -206,14 +206,14 @@ export function buildArenaTextures(scene: Phaser.Scene): void {
+   make(scene, 'prop-kiosk-counter', TILE * 2, TILE, drawKioskCounter);
+   make(scene, 'prop-scarf-stand', TILE * 2, TILE * 2, drawScarfStand);
+   make(scene, 'prop-flag-pole', TILE, TILE * 4, drawFlagPole);
+-  make(scene, 'prop-floodlight', TILE, TILE * 4, drawFloodlight);
++  make(scene, 'prop-floodlight', TILE, TILE * 4, drawFloodlight, 'metal');
+   for (let v = 0; v < 2; v++) {
+     make(scene, `tile-pitch-${v}`, TILE, TILE, (ctx) => drawPitch(ctx, v));
+     make(scene, `tile-ad-board-${v}`, TILE, TILE, (ctx) => drawAdBoard(ctx, v));
+-    make(scene, `tile-stand-step-${v}`, TILE, TILE, (ctx) => drawStandStep(ctx, v));
++    make(scene, `tile-stand-step-${v}`, TILE, TILE, (ctx) => drawStandStep(ctx, v), 'masonry');
+   }
+   make(scene, 'tile-pitch-line-0', TILE, TILE, drawPitchLine);
+   make(scene, 'tile-stand-stairs-0', TILE, TILE, drawStandStairs);
+-  make(scene, 'prop-stadium-seat', TILE, TILE, drawStadiumSeat);
+-  make(scene, 'prop-stadium-seat-front', TILE, TILE, drawStadiumSeatFront);
++  make(scene, 'prop-stadium-seat', TILE, TILE, drawStadiumSeat, 'metal');
++  make(scene, 'prop-stadium-seat-front', TILE, TILE, drawStadiumSeatFront, 'metal');
+ }
+diff --git a/src/world/BuildingArt.ts b/src/world/BuildingArt.ts
+index e9faff3..999be73 100644
+--- a/src/world/BuildingArt.ts
++++ b/src/world/BuildingArt.ts
+@@ -1223,19 +1223,19 @@ export function buildBuildingTextures(scene: Phaser.Scene): void {
+       const look = toned(style, t);
+       const k = tk(t);
+       for (let v = 0; v < 3; v++) {
+-        make(scene, `bs-${style}-front-${v}${k}`, TILE, TILE, (ctx) => drawFront(ctx, look, v));
++        make(scene, `bs-${style}-front-${v}${k}`, TILE, TILE, (ctx) => drawFront(ctx, look, v), 'masonry');
+         // Fachadas al sur, a escala: una planta son dos tiles. Las altas, con cuatro persianas distintas.
+-        make(scene, `bs-${style}-front-${v}-t${k}`, TILE, STOREY, (ctx) => drawGround(ctx, look, v));
+-        for (let s = 0; s < 4; s++) make(scene, `bs-${style}-upper-${v}-${s}-t${k}`, TILE, STOREY, (ctx) => drawUpperTall(ctx, look, v, s));
++        make(scene, `bs-${style}-front-${v}-t${k}`, TILE, STOREY, (ctx) => drawGround(ctx, look, v), 'masonry');
++        for (let s = 0; s < 4; s++) make(scene, `bs-${style}-upper-${v}-${s}-t${k}`, TILE, STOREY, (ctx) => drawUpperTall(ctx, look, v, s), 'masonry');
+       }
+-      for (let v = 0; v < 4; v++) make(scene, `bs-${style}-back-${v}${k}`, TILE, STOREY, (ctx) => drawBack(ctx, look, v));
+-      make(scene, `bs-${style}-door${k}`, TILE, TILE, (ctx) => drawDoor(ctx, look));
+-      make(scene, `bs-${style}-door-t${k}`, TILE, STOREY, (ctx) => drawDoorTall(ctx, look, false));
++      for (let v = 0; v < 4; v++) make(scene, `bs-${style}-back-${v}${k}`, TILE, STOREY, (ctx) => drawBack(ctx, look, v), 'masonry');
++      make(scene, `bs-${style}-door${k}`, TILE, TILE, (ctx) => drawDoor(ctx, look), 'masonry');
++      make(scene, `bs-${style}-door-t${k}`, TILE, STOREY, (ctx) => drawDoorTall(ctx, look, false), 'masonry');
+     }
+     const look = LOOKS[style];
+     if (look.door === 'glass') {
+-      make(scene, `bs-${style}-door-open`, TILE, TILE, (ctx) => drawDoorOpen(ctx, look));
+-      make(scene, `bs-${style}-door-open-t`, TILE, STOREY, (ctx) => drawDoorTall(ctx, look, true));
++      make(scene, `bs-${style}-door-open`, TILE, TILE, (ctx) => drawDoorOpen(ctx, look), 'masonry');
++      make(scene, `bs-${style}-door-open-t`, TILE, STOREY, (ctx) => drawDoorTall(ctx, look, true), 'masonry');
+     }
+     if (look.awning) for (let k = 0; k < 3; k++) make(scene, `bs-awn-${style}-${k}`, TILE, 10, (ctx) => drawAwningStyle(ctx, look, k));
+   }
+diff --git a/src/world/Lighting.ts b/src/world/Lighting.ts
+index fad0905..21cba1e 100644
+--- a/src/world/Lighting.ts
++++ b/src/world/Lighting.ts
+@@ -395,7 +395,9 @@ export class Lighting {
+         .setScale(this.lm)
+         .setDepth(DEPTH)
+         .setBlendMode(Phaser.BlendModes.MULTIPLY);
+-      this.lightmap.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
++      // A resolución nativa, conservar el escalón del pixel art en oclusión y sombras.
++      // A media resolución se mantiene la interpolación anterior; los halos siguen suaves.
++      this.lightmap.texture.setFilter(this.lm === 1 ? Phaser.Textures.FilterMode.NEAREST : Phaser.Textures.FilterMode.LINEAR);
+       this.roofBrush = new Phaser.GameObjects.Rectangle(scene, 0, 0, 1, 1, 0xffffff).setOrigin(0, 0);
+       // Las sombras se dibujan en coordenadas del mundo y se reducen al mapa de luz al pintarlas.
+       this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / this.lm);
+diff --git a/src/world/PropArt.ts b/src/world/PropArt.ts
+index 9737b89..1330725 100644
+--- a/src/world/PropArt.ts
++++ b/src/world/PropArt.ts
+@@ -908,10 +908,10 @@ export function buildPropTextures(scene: Phaser.Scene): void {
+   make(scene, 'prop-dj-booth', TILE * 3, TILE, drawDjBooth);
+   make(scene, 'prop-speaker', TILE, TILE * 2, drawSpeaker);
+   make(scene, 'prop-bottles', TILE * 2, TILE, drawBottles);
+-  make(scene, 'prop-wine-rack', TILE, TILE * 2, drawWineRack);
+-  make(scene, 'prop-barber-chair', TILE, TILE * 2, drawBarberChair);
++  make(scene, 'prop-wine-rack', TILE, TILE * 2, drawWineRack, 'wood');
++  make(scene, 'prop-barber-chair', TILE, TILE * 2, drawBarberChair, 'metal');
+   make(scene, 'prop-tattoo-chair', TILE, TILE * 2, drawTattooChair);
+-  make(scene, 'prop-tattoo-cart', TILE, TILE * 2, drawTattooCart);
++  make(scene, 'prop-tattoo-cart', TILE, TILE * 2, drawTattooCart, 'metal');
+   make(scene, 'prop-flash-wall', TILE * 2, TILE, drawFlashWall);
+   make(scene, 'prop-sneaker-wall', TILE * 2, TILE, drawSneakerWall);
+   make(scene, 'prop-bargain-bin', TILE * 2, TILE, drawBargainBin);
+@@ -936,18 +936,18 @@ export function buildPropTextures(scene: Phaser.Scene): void {
+   make(scene, 'prop-menu-board', TILE, TILE, drawMenuBoard);
+   make(scene, 'prop-hoop', TILE, TILE * 2, drawHoop);
+ 
+-  make(scene, 'prop-wardrobe', TILE, TILE * 2, drawWardrobe);
+-  make(scene, 'prop-sofa', TILE * 2, TILE, drawSofa);
++  make(scene, 'prop-wardrobe', TILE, TILE * 2, drawWardrobe, 'wood');
++  make(scene, 'prop-sofa', TILE * 2, TILE, drawSofa, 'wood');
+   make(scene, 'prop-tv', TILE * 2, TILE, drawTv);
+-  make(scene, 'prop-weight-bench', TILE, TILE, drawWeightBench);
+-  make(scene, 'prop-lockers', TILE * 2, TILE * 2, drawLockers);
+-  make(scene, 'prop-clothes-rack', TILE * 2, TILE * 2, drawClothesRack);
++  make(scene, 'prop-weight-bench', TILE, TILE, drawWeightBench, 'metal');
++  make(scene, 'prop-lockers', TILE * 2, TILE * 2, drawLockers, 'metal');
++  make(scene, 'prop-clothes-rack', TILE * 2, TILE * 2, drawClothesRack, 'metal');
+   make(scene, 'prop-mannequin', TILE, TILE * 2, drawMannequin);
+   make(scene, 'prop-fitting-room', TILE, TILE * 2, drawFittingRoom);
+   make(scene, 'prop-register', TILE, TILE, drawRegister);
+-  make(scene, 'prop-fridge', TILE, TILE * 2, drawFridge);
++  make(scene, 'prop-fridge', TILE, TILE * 2, drawFridge, 'metal');
+   make(scene, 'prop-gondola', TILE, TILE, drawGondola);
+-  make(scene, 'prop-cooler', TILE, TILE * 2, drawCooler);
+-  make(scene, 'prop-meeting-table', TILE * 3, TILE, drawMeetingTable);
++  make(scene, 'prop-cooler', TILE, TILE * 2, drawCooler, 'metal');
++  make(scene, 'prop-meeting-table', TILE * 3, TILE, drawMeetingTable, 'wood');
+   make(scene, 'fx-spray', 8, 7, drawSpray);
+ }
+diff --git a/src/world/TextureFactory.ts b/src/world/TextureFactory.ts
+index 85549f7..68660c9 100644
+--- a/src/world/TextureFactory.ts
++++ b/src/world/TextureFactory.ts
+@@ -749,16 +749,16 @@ export function buildTextures(scene: Phaser.Scene): void {
+   tile('tile-door-0', drawDoor);
+ 
+   make(scene, 'prop-bush', TILE, TILE, drawBush);
+-  make(scene, 'prop-bench', TILE, TILE, drawBench);
++  make(scene, 'prop-bench', TILE, TILE, drawBench, 'wood');
+   make(scene, 'prop-lamp', TILE, TILE * 2, drawLamp);
+   make(scene, 'prop-sign', TILE, TILE * 2, drawSign);
+   make(scene, 'prop-planter', TILE, TILE, drawPlanter);
+-  make(scene, 'prop-bed', TILE, TILE * 2, drawBed);
+-  make(scene, 'prop-desk', TILE, TILE, drawDesk);
+-  make(scene, 'prop-shelf', TILE, TILE * 2, drawShelf);
++  make(scene, 'prop-bed', TILE, TILE * 2, drawBed, 'wood');
++  make(scene, 'prop-desk', TILE, TILE, drawDesk, 'wood');
++  make(scene, 'prop-shelf', TILE, TILE * 2, drawShelf, 'wood');
+   make(scene, 'prop-plant', TILE, TILE, drawPlant);
+-  make(scene, 'prop-table', TILE, TILE, drawTable);
+-  make(scene, 'prop-counter', TILE, TILE, drawCounter);
++  make(scene, 'prop-table', TILE, TILE, drawTable, 'wood');
++  make(scene, 'prop-counter', TILE, TILE, drawCounter, 'wood');
+   make(scene, 'prop-stall', TILE, TILE * 2, drawStall);
+   make(scene, 'prop-metro-sign', TILE * 3, TILE, drawMetroSign);
+   make(scene, 'prop-line-map', TILE * 3, TILE, drawLineMap);
+@@ -773,10 +773,10 @@ export function buildTextures(scene: Phaser.Scene): void {
+     }
+   }
+ 
+-  make(scene, 'prop-turnstile', TILE, TILE, drawTurnstile);
+-  make(scene, 'train-car-cab', CAR_W, CAR_H, (ctx) => drawCar(ctx, true));
+-  make(scene, 'train-car', CAR_W, CAR_H, (ctx) => drawCar(ctx, false));
+-  make(scene, 'train-door-leaf', DOOR_LEAF_W, DOOR_H, drawDoorLeaf);
++  make(scene, 'prop-turnstile', TILE, TILE, drawTurnstile, 'metal');
++  make(scene, 'train-car-cab', CAR_W, CAR_H, (ctx) => drawCar(ctx, true), 'metal');
++  make(scene, 'train-car', CAR_W, CAR_H, (ctx) => drawCar(ctx, false), 'metal');
++  make(scene, 'train-door-leaf', DOOR_LEAF_W, DOOR_H, drawDoorLeaf, 'metal');
+   make(scene, 'train-door-light', 6, 2, drawDoorLight);
+ 
+   buildPeople(scene);
+diff --git a/src/world/UrbanArt.ts b/src/world/UrbanArt.ts
+index da68c8f..81c9794 100644
+--- a/src/world/UrbanArt.ts
++++ b/src/world/UrbanArt.ts
+@@ -542,9 +542,9 @@ export function buildUrbanTextures(scene: Phaser.Scene): void {
+   make(scene, 'prop-drain', TILE, TILE, drawDrain);
+   make(scene, 'prop-leaves', TILE, TILE, drawLeaves);
+   make(scene, 'prop-plaza-bench', TILE * 2, 24, drawPlazaBench);
+-  make(scene, 'prop-street-lamp', TILE, 56, drawStreetLamp);
+-  make(scene, 'prop-street-lamp-art', TILE, 56, drawStreetLampArt);
+-  make(scene, 'prop-bike-rack', TILE * 2, 20, drawBikeRack);
++  make(scene, 'prop-street-lamp', TILE, 56, drawStreetLamp, 'metal');
++  make(scene, 'prop-street-lamp-art', TILE, 56, drawStreetLampArt, 'metal');
++  make(scene, 'prop-bike-rack', TILE * 2, 20, drawBikeRack, 'metal');
+   make(scene, 'prop-planter-box', TILE * 2, 24, drawPlanterBox);
+   make(scene, 'prop-metro-totem', TILE, 48, drawMetroTotem);
+   make(scene, 'glow-metro-totem', TILE, 48, drawMetroTotemGlow);
+diff --git a/src/world/VehicleArt.ts b/src/world/VehicleArt.ts
+index 3b909de..522e162 100644
+--- a/src/world/VehicleArt.ts
++++ b/src/world/VehicleArt.ts
+@@ -408,7 +408,7 @@ export function lampsOf(t: VehicleType): VehicleLamps {
+ 
+ export function buildVehicleTextures(scene: Phaser.Scene): void {
+   for (const t of VEHICLES) {
+-    t.colors.forEach((c, i) => make(scene, vehicleKey(t, i), t.length, t.height, (ctx) => LAMPS.set(t.id, drawVehicle(ctx, t, c, i))));
++    t.colors.forEach((c, i) => make(scene, vehicleKey(t, i), t.length, t.height, (ctx) => LAMPS.set(t.id, drawVehicle(ctx, t, c, i)), 'metal'));
+   }
+   // Luces encendidas: van encima de la sombra de la noche.
+   make(scene, 'veh-head', 1, 2, (ctx) => px(ctx, '#fff6d8', 0, 0, 1, 2));
+diff --git a/src/world/paint.ts b/src/world/paint.ts
+index 8cc2fd4..83ac090 100644
+--- a/src/world/paint.ts
++++ b/src/world/paint.ts
+@@ -1,5 +1,6 @@
+ import type Phaser from 'phaser';
+ import { PALETTE } from '../config/constants';
++import { finishMaterialPixels, type MaterialFinish } from './MaterialFinish';
+ 
+ /**
+  * Primitivas de dibujo compartidas por TextureFactory, BuildingArt y PropArt.
+@@ -44,13 +45,18 @@ export function glow(ctx: Ctx, cx: number, cy: number, radius: number, alpha: nu
+   ctx.restore();
+ }
+ 
+-export function make(scene: Phaser.Scene, key: string, w: number, h: number, draw: (ctx: Ctx) => void): void {
++export function make(scene: Phaser.Scene, key: string, w: number, h: number, draw: (ctx: Ctx) => void, finish?: MaterialFinish): void {
+   if (scene.textures.exists(key)) return;
+   const texture = scene.textures.createCanvas(key, w, h);
+   if (!texture) return;
+   const ctx = texture.getContext();
+   ctx.imageSmoothingEnabled = false;
+   draw(ctx);
++  if (finish) {
++    const pixels = ctx.getImageData(0, 0, w, h);
++    finishMaterialPixels(pixels.data, w, h, finish);
++    ctx.putImageData(pixels, 0, 0);
++  }
+   texture.refresh();
+ }
+ 
