@@ -28,6 +28,8 @@ export interface Site {
   buildings: readonly BuildingDef[];
   /** Escena de muestra (LocationDef.showcase): su acera usa la baldosa grande. */
   showcase?: { tx: number; ty: number; w: number; h: number };
+  /** HD-03, manzana piloto (LocationDef.pilot): calzada, acera, bordillo, mediana y hierba con el acabado nuevo. */
+  pilot?: { tx: number; ty: number; w: number; h: number };
 }
 
 interface Paint {
@@ -41,6 +43,8 @@ interface Paint {
   built: (tx: number, ty: number) => boolean;
   cells: readonly (readonly [number, number])[];
   showcase?: Site['showcase'];
+  /** Si la celda es de la manzana piloto (HD-03). */
+  fine: (tx: number, ty: number) => boolean;
 }
 
 interface Material {
@@ -194,12 +198,13 @@ function kerbEdge(ctx: Ctx, X: number, Y: number, roadBelow: boolean, roadAbove:
  * piezas largas; al pie de una fachada, la mugre de la pared; y de vez en
  * cuando una baldosa cambiada, más nueva que sus vecinas.
  */
-function sidewalk({ ctx, cells, at, built, showcase }: Paint): void {
+function sidewalk({ ctx, cells, at, built, showcase, fine }: Paint): void {
   const base = PALETTE.pavement;
-  const inShow = (tx: number, ty: number): boolean => !!showcase && tx >= showcase.tx && tx < showcase.tx + showcase.w && ty >= showcase.ty && ty < showcase.ty + showcase.h;
+  const inShow = (tx: number, ty: number): boolean => !fine(tx, ty) && !!showcase && tx >= showcase.tx && tx < showcase.tx + showcase.w && ty >= showcase.ty && ty < showcase.ty + showcase.h;
   sidewalkV3(ctx, cells.filter(([x, y]) => inShow(x, y)), at, built);
+  sidewalkFine(ctx, cells.filter(([x, y]) => fine(x, y)), at, built);
   for (const [tx, ty] of cells) {
-    if (inShow(tx, ty)) continue;
+    if (inShow(tx, ty) || fine(tx, ty)) continue;
     const X = tx * TILE;
     const Y = ty * TILE;
     px(ctx, shade(base, -0.15), X, Y, TILE, TILE);
@@ -279,6 +284,109 @@ function sidewalkV3(ctx: Ctx, cells: readonly (readonly [number, number])[], at:
   }
 }
 
+/**
+ * HD-03, acera de la manzana piloto: losa de 8 px de alto a matajunta, de 8 a
+ * 24 px de largo (múltiplos de 8: las juntas caen en la retícula de la losa y
+ * la acera se lee como baldosa puesta, no como ruido), cada hilada corrida a su
+ * aire. Junta entera de un píxel, bisel nítido con la luz del noroeste y tono
+ * por pieza en tandas; alguna repuesta, alguna con la esquina saltada. Al pie de
+ * la fachada, la mugre se mete en las juntas. El bordillo es kerbFine.
+ */
+function sidewalkFine(ctx: Ctx, cells: readonly (readonly [number, number])[], at: Paint['at'], built: Paint['built']): void {
+  const base = PALETTE.pavement;
+  const joint = shade(base, -0.21);
+  const LENGTHS = [16, 16, 24, 8, 16, 24, 16] as const;
+  for (const [tx, ty] of cells) {
+    const X = tx * TILE;
+    const Y = ty * TILE;
+    px(ctx, joint, X, Y, TILE, TILE);
+    const kerbBelow = ROAD.has(at(tx, ty + 1));
+    const kerbAbove = ROAD.has(at(tx, ty - 1));
+    for (let row = 0; row < 2; row++) {
+      const y = Y + row * 8;
+      const course = y / 8;
+      let x = -8 * Math.floor(hash(course, 5, 941) * 3);
+      let k = 0;
+      while (x < X + TILE) {
+        const len = LENGTHS[Math.floor(hash(course, k, 947) * LENGTHS.length)];
+        if (x + len > X) {
+          const r = (n: number): number => hash(x, y, n + 953);
+          let tone = shade(base, batch(x, y, 64, 7) * 0.05 + (r(1) - 0.5) * 0.05);
+          if (r(2) < 0.025) tone = mix(shade(base, 0.06), COOL_TINT, 0.2); // losa repuesta
+          else if (r(2) > 0.93) tone = mix(tone, WARM_TINT, 0.12);
+          const cx = Math.max(x, X);
+          const w = Math.min(x + len, X + TILE) - cx - (x + len <= X + TILE ? 1 : 0);
+          if (w > 0) {
+            slab(ctx, cx, y, w, 7, tone, r, kerbBelow ? 0.05 : 0.025, 1.6);
+            // Esquina saltada: la junta se come un píxel de la arista de abajo a la derecha.
+            if (r(8) < 0.05 && x + len <= X + TILE) px(ctx, joint, cx + w - 1, y + 6);
+          }
+        }
+        x += len;
+        k++;
+      }
+    }
+    kerbFine(ctx, X, Y, kerbBelow, kerbAbove);
+    if (built(tx, ty - 1)) {
+      // Mugre al pie del muro: velo de tres filas y, sobre todo, en las juntas de la primera hilada.
+      ctx.globalAlpha = 0.24;
+      px(ctx, PALETTE.ink, X, Y, TILE, 1);
+      ctx.globalAlpha = 0.1;
+      px(ctx, PALETTE.ink, X, Y + 1, TILE, 2);
+      ctx.globalAlpha = 1;
+      for (let x = X; x < X + TILE; x++) if (hash(x, Y, 961) < 0.3) px(ctx, shade(joint, -0.12), x, Y + 7);
+    }
+  }
+}
+
+/** Juntas del bordillo: piezas de granito de 24 a 40 px, cada calle a su ritmo; no caen cada tile. */
+function kerbJoint(x: number, y: number): boolean {
+  let p = -Math.floor(hash(y, 3, 971) * 32);
+  for (let i = 0; p <= x; i++) {
+    if (p === x) return true;
+    p += 24 + 8 * Math.floor(hash(y, i, 977) * 3);
+  }
+  return false;
+}
+
+/**
+ * HD-03, bordillo de la manzana piloto. Al sur de la acera: arista al sol, canto
+ * con su grano, el morro redondeado y la cara en sombra; piezas de largo variable
+ * con su junta. Al norte, la cara que mira al noroeste: arista clara, canto y la
+ * junta con la losa. La sombra que deja en la cuneta la pinta asphalt.
+ */
+function kerbFine(ctx: Ctx, X: number, Y: number, roadBelow: boolean, roadAbove: boolean): void {
+  const k = PALETTE.kerb;
+  const grain = (y: number, tone: string): void => {
+    for (let x = X; x < X + TILE; x++) {
+      const v = hash(x, y, 983);
+      if (v < 0.12) px(ctx, shade(tone, -0.07), x, y);
+      else if (v > 0.95) px(ctx, shade(tone, 0.06), x, y);
+    }
+  };
+  if (roadBelow) {
+    px(ctx, shade(PALETTE.pavement, -0.24), X, Y + 11, TILE, 1);
+    px(ctx, shade(k, 0.12), X, Y + 12, TILE, 1);
+    px(ctx, shade(k, 0.03), X, Y + 13, TILE, 1);
+    grain(Y + 13, shade(k, 0.03));
+    px(ctx, shade(k, -0.1), X, Y + 14, TILE, 1);
+    px(ctx, shade(k, -0.36), X, Y + 15, TILE, 1);
+    for (let x = X; x < X + TILE; x++) {
+      if (!kerbJoint(x, Y + 12)) continue;
+      px(ctx, shade(k, -0.26), x, Y + 12, 1, 3);
+      px(ctx, shade(k, 0.08), x + 1, Y + 13, 1, 1);
+    }
+  }
+  if (roadAbove) {
+    px(ctx, shade(k, 0.14), X, Y, TILE, 1);
+    px(ctx, shade(k, 0.04), X, Y + 1, TILE, 1);
+    grain(Y + 1, shade(k, 0.04));
+    px(ctx, shade(k, -0.12), X, Y + 2, TILE, 1);
+    px(ctx, shade(PALETTE.pavement, -0.24), X, Y + 3, TILE, 1);
+    for (let x = X; x < X + TILE; x++) if (kerbJoint(x, Y)) px(ctx, shade(k, -0.24), x, Y, 1, 3);
+  }
+}
+
 // --------------------------------------------------------------- calzada
 
 /**
@@ -287,11 +395,15 @@ function sidewalkV3(ctx: Ctx, cells: readonly (readonly [number, number])[], at:
  * cuneta de hormigón con imbornales junto al bordillo, tapas de registro y las
  * marcas viales gastadas (línea continua, discontinua, paso de cebra).
  */
-function asphalt({ ctx, cells, at }: Paint): void {
+function asphalt({ ctx, cells, at, fine }: Paint): void {
   const base = PALETTE.asphalt;
   for (const [tx, ty] of cells) {
     const X = tx * TILE;
     const Y = ty * TILE;
+    if (fine(tx, ty)) {
+      asphaltFine(ctx, tx, ty, at(tx, ty));
+      continue;
+    }
     px(ctx, shade(base, batch(X, Y, 96, 11) * 0.022), X, Y, TILE, TILE);
     // Árido: grupitos de 1–2 px, de poco contraste, más claros en la rodada.
     for (let k = 0; k < 9; k++) {
@@ -345,9 +457,11 @@ function asphalt({ ctx, cells, at }: Paint): void {
       else for (const [y, h] of [[Y, 1], [Y + 6, 3], [Y + 14, 2]]) px(ctx, PALETTE.bikeLane, X, y, TILE, h);
       ctx.globalAlpha = 1;
     }
+    const hd = fine(tx, ty);
+    if (hd) gutterFine(ctx, at, tx, ty, kerbAbove, kerbBelow);
     // Cuneta de hormigón junto al bordillo, con su junta cada 16 px e imbornal de vez en cuando.
     for (const [yes, gy] of [[kerbAbove, Y], [kerbBelow, Y + TILE - 3]] as const) {
-      if (!yes) continue;
+      if (!yes || hd) continue;
       px(ctx, shade(PALETTE.kerb, -0.2), X, gy, TILE, 3);
       px(ctx, shade(PALETTE.kerb, -0.28), X + 7, gy, 1, 3);
       px(ctx, shade(PALETTE.kerb, -0.12), X, gy === Y ? gy : gy + 2, TILE, 1);
@@ -358,7 +472,7 @@ function asphalt({ ctx, cells, at }: Paint): void {
       }
     }
     // El bordillo de la acera de arriba tapa el sol del noroeste: su sombra cae en la cuneta.
-    if (kerbAbove) {
+    if (kerbAbove && !hd) {
       ctx.globalAlpha = 0.34;
       px(ctx, PALETTE.ink, X, Y, TILE, 1);
       ctx.globalAlpha = 0.14;
@@ -366,7 +480,8 @@ function asphalt({ ctx, cells, at }: Paint): void {
       ctx.globalAlpha = 1;
     }
     // Tapa de registro: en mitad de carril, pocas y sin pisar marcas ni cunetas.
-    if (LANE.has(ch) && !kerbAbove && !kerbBelow && hash(tx, ty, 77) < 0.03) {
+    if (LANE.has(ch) && !kerbAbove && !kerbBelow && hash(tx, ty, 77) < 0.03 && hd) manholeFine(ctx, X + 8, Y + 8);
+    else if (LANE.has(ch) && !kerbAbove && !kerbBelow && hash(tx, ty, 77) < 0.03) {
       const cx = X + 8;
       const cy = Y + 8;
       for (let y = -5; y <= 5; y++) {
@@ -383,6 +498,11 @@ function asphalt({ ctx, cells, at }: Paint): void {
       for (let yy = y; yy < y + h; yy++) {
         for (let xx = x; xx < x + w; xx++) {
           const v = hash(xx, yy, 13);
+          if (hd) {
+            // HD-03: pintura nueva, de borde limpio; asoma algún grano del árido y, rara, una mota gastada.
+            px(ctx, v < 0.035 ? shade(PALETTE.roadLine, -0.3) : v > 0.94 ? shade(PALETTE.roadLine, -0.08) : PALETTE.roadLine, xx, yy);
+            continue;
+          }
           if (v < 0.07) continue; // desconchón
           px(ctx, v > 0.9 ? shade(PALETTE.roadLine, -0.16) : v > 0.8 ? shade(PALETTE.roadLine, -0.07) : PALETTE.roadLine, xx, yy);
         }
@@ -402,11 +522,14 @@ function asphalt({ ctx, cells, at }: Paint): void {
     if (ch === 'z') {
       paint(X + 1, Y + 1, 14, 5);
       paint(X + 1, Y + 9, 14, 5);
-      // La rodada ensucia la banda por el centro del carril.
-      ctx.globalAlpha = 0.18;
-      px(ctx, PALETTE.ink, X + 1, Y + 3, 14, 1);
-      px(ctx, PALETTE.ink, X + 1, Y + 11, 14, 1);
-      ctx.globalAlpha = 1;
+      if (hd) zebraWear(ctx, X, Y);
+      else {
+        // La rodada ensucia la banda por el centro del carril.
+        ctx.globalAlpha = 0.18;
+        px(ctx, PALETTE.ink, X + 1, Y + 3, 14, 1);
+        px(ctx, PALETTE.ink, X + 1, Y + 11, 14, 1);
+        ctx.globalAlpha = 1;
+      }
     }
     if (ch === 'b') {
       // Línea continua del lado de los coches: el carril bici no se pisa.
@@ -417,6 +540,118 @@ function asphalt({ ctx, cells, at }: Paint): void {
       const glyph = tx % 12 === 5 ? BIKE_GLYPH : tx % 12 === 7 ? (kerbAbove ? ARROW_WEST : ARROW_EAST) : null;
       const top = Y + (kerbAbove ? 4 : 6);
       glyph?.forEach((row, y) => [...row].forEach((c, x) => c === 'X' && paint(X + 2 + x, top + y, 1, 1)));
+    }
+  }
+}
+
+/**
+ * HD-03, asfalto de la manzana piloto. El tono va en bloques de 4 px con dos
+ * escalas de tanda (la del reasfaltado y una más corta, muy suave): sin
+ * escalones de tile. Árido en grupitos de tres tonos y, raras, piedras claras.
+ * En los carriles, la rodada: dos bandas algo más lisas y claras donde pisan las
+ * ruedas y, entre ellas, la mancha de aceite. Encima, lo de siempre: parches,
+ * grietas, cuneta, tapas y marcas.
+ */
+function asphaltFine(ctx: Ctx, tx: number, ty: number, ch: string): void {
+  const base = PALETTE.asphalt;
+  const X = tx * TILE;
+  const Y = ty * TILE;
+  for (let by = 0; by < TILE; by += 4) {
+    for (let bx = 0; bx < TILE; bx += 4) {
+      const t = batch(X + bx, Y + by, 96, 11) * 0.022 + batch(X + bx, Y + by, 30, 17) * 0.01;
+      px(ctx, shade(base, Math.round(t / 0.006) * 0.006), X + bx, Y + by, 4, 4);
+    }
+  }
+  const lane = LANE.has(ch);
+  if (lane) {
+    // Rodada: las ruedas pulen el árido (más claro y liso) y el motor gotea en medio.
+    for (const y of [Y + 3, Y + 12]) px(ctx, shade(base, 0.014), X, y, TILE, 2);
+    for (let x = X; x < X + TILE; x++) {
+      const v = hash(x >> 1, Y, 991);
+      if (v < 0.55) px(ctx, shade(base, -0.035), x, Y + 7 + (v < 0.2 ? 1 : 0), 1, 1);
+    }
+  }
+  for (let k = 0; k < 15; k++) {
+    const r = (n: number): number => hash(tx * 16 + k, ty, n + 997);
+    const x = X + Math.floor(r(1) * 15);
+    const y = Y + Math.floor(r(2) * 15);
+    // En la rodada asoma menos árido: el neumático lo ha aplanado.
+    if (lane && (y - Y === 3 || y - Y === 4 || y - Y === 12 || y - Y === 13) && r(5) < 0.6) continue;
+    const g = r(3);
+    const c = g < 0.5 ? shade(base, 0.03) : g < 0.9 ? shade(base, -0.032) : shade(base, 0.075);
+    px(ctx, c, x, y, g < 0.9 && r(4) < 0.45 ? 2 : 1, 1);
+  }
+}
+
+/**
+ * HD-03, cuneta de la manzana piloto: losas de hormigón de 32 a 48 px con su
+ * junta, la sombra del bordillo graduada y, cada tanto (y siempre aguas arriba
+ * de un paso de cebra), un imbornal con su marco al sol, las barras y el negro
+ * de dentro; a su lado, la mancha de agua que arrastra.
+ */
+function gutterFine(ctx: Ctx, at: Paint['at'], tx: number, ty: number, kerbAbove: boolean, kerbBelow: boolean): void {
+  const X = tx * TILE;
+  const Y = ty * TILE;
+  const kerb = PALETTE.kerb;
+  for (const [yes, gy, top] of [[kerbAbove, Y, true], [kerbBelow, Y + TILE - 3, false]] as const) {
+    if (!yes) continue;
+    // Hormigón: la fila pegada al bordillo es la más honda; la de fuera, el canto con el asfalto.
+    px(ctx, shade(kerb, -0.2), X, gy, TILE, 3);
+    px(ctx, shade(kerb, -0.13), X, top ? gy + 2 : gy, TILE, 1);
+    px(ctx, shade(PALETTE.asphalt, -0.06), X, top ? gy + 3 : gy - 1, TILE, 1);
+    let p = -Math.floor(hash(gy, 7, 1009) * 40);
+    for (let i = 0; p < X + TILE; i++) {
+      if (p >= X) px(ctx, shade(kerb, -0.3), p, gy, 1, 3);
+      p += 32 + 8 * Math.floor(hash(gy, i, 1013) * 3);
+    }
+    if (top) {
+      // El bordillo de arriba tapa el sol del noroeste: su sombra se funde en tres filas.
+      ctx.globalAlpha = 0.3;
+      px(ctx, PALETTE.ink, X, Y, TILE, 1);
+      ctx.globalAlpha = 0.16;
+      px(ctx, PALETTE.ink, X, Y + 1, TILE, 1);
+      ctx.globalAlpha = 0.07;
+      px(ctx, PALETTE.ink, X, Y + 2, TILE, 1);
+      ctx.globalAlpha = 1;
+    }
+    const upstream = at(tx + 1, ty) === 'z' || at(tx - 1, ty) === 'z';
+    if (at(tx, ty) === 'z' || !(upstream || hash(tx, gy, 1019) < 0.07)) continue;
+    const iy = top ? Y + 1 : gy - 2;
+    px(ctx, shade(PALETTE.iron, -0.1), X + 2, iy, 12, 5);
+    px(ctx, PALETTE.ink, X + 3, iy + 1, 10, 3);
+    for (let x = X + 4; x < X + 13; x += 2) px(ctx, PALETTE.iron, x, iy + 1, 1, 3);
+    px(ctx, shade(PALETTE.iron, 0.2), X + 2, iy, 12, 1);
+    px(ctx, shade(PALETTE.iron, 0.12), X + 2, iy, 1, 5);
+    // El agua que llega al imbornal oscurece el asfalto de al lado.
+    ctx.globalAlpha = 0.12;
+    px(ctx, PALETTE.ink, X + 14, iy + 1, 2, 3);
+    px(ctx, PALETTE.ink, X, iy + 2, 2, 2);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** HD-03, tapa de registro: aro con la luz arriba a la izquierda, rejilla de rombos y el cerco de asfalto sellado. */
+function manholeFine(ctx: Ctx, cx: number, cy: number): void {
+  for (let y = -6; y <= 6; y++) {
+    for (let x = -6; x <= 6; x++) {
+      const d = Math.hypot(x, y);
+      if (d > 6.4) continue;
+      let c: string;
+      if (d > 5.5) c = shade(PALETTE.asphalt, -0.06);
+      else if (d > 4.5) c = x + y < -1 ? shade(PALETTE.iron, 0.22) : x + y > 1 ? shade(PALETTE.iron, -0.12) : shade(PALETTE.iron, 0.08);
+      else c = (x + y + 20) % 3 === 0 || (x - y + 20) % 3 === 0 ? shade(PALETTE.iron, -0.08) : shade(PALETTE.iron, 0.04);
+      px(ctx, c, cx + x, cy + y);
+    }
+  }
+}
+
+/** HD-03, paso de cebra: las ruedas gastan las bandas por la rodada; la mugre va en puntos, no en raya. */
+function zebraWear(ctx: Ctx, X: number, Y: number): void {
+  for (const y of [Y + 3, Y + 11]) {
+    for (let x = X + 1; x < X + 15; x++) {
+      const v = hash(x, y, 1021);
+      if (v < 0.08) px(ctx, shade(PALETTE.roadLine, -0.22), x, y);
+      else if (v < 0.22) px(ctx, shade(PALETTE.roadLine, -0.08), x, y);
     }
   }
 }
@@ -437,11 +672,15 @@ const LETTERS: Readonly<Record<string, readonly string[]>> = {
  * bajo sobre tierra, en matas. Junto a un paso de cebra, el refugio acaba en
  * morro: el bordillo dobla y el seto se recoge.
  */
-function median({ ctx, cells, at }: Paint): void {
+function median({ ctx, cells, at, fine }: Paint): void {
   const kerb = PALETTE.kerb;
   for (const [tx, ty] of cells) {
     const X = tx * TILE;
     const Y = ty * TILE;
+    if (fine(tx, ty)) {
+      medianFine(ctx, at, tx, ty);
+      continue;
+    }
     px(ctx, shade(DIRT, -0.05), X, Y, TILE, TILE);
     px(ctx, kerb, X, Y, TILE, 3);
     px(ctx, shade(kerb, 0.08), X, Y, TILE, 1);
@@ -461,6 +700,44 @@ function median({ ctx, cells, at }: Paint): void {
       px(ctx, PALETTE.grassDark, x, top + 2, w, Y + TILE - 4 - (top + 2));
       px(ctx, PALETTE.grass, x, top + 1, w, 3);
       px(ctx, PALETTE.leafLit, x + (r < 0.5 ? 0 : 1), top, Math.min(2, w), 1);
+    }
+  }
+}
+
+/**
+ * HD-03, mediana de la manzana piloto: el mismo bordillo con arista y cara, y el
+ * seto en matas redondas de 5 px con su cara al sol, su sombra al sureste y la
+ * tierra que asoma entre ellas.
+ */
+function medianFine(ctx: Ctx, at: Paint['at'], tx: number, ty: number): void {
+  const kerb = PALETTE.kerb;
+  const X = tx * TILE;
+  const Y = ty * TILE;
+  px(ctx, shade(DIRT, -0.12), X, Y, TILE, TILE);
+  px(ctx, shade(kerb, 0.12), X, Y, TILE, 1);
+  px(ctx, kerb, X, Y + 1, TILE, 2);
+  px(ctx, shade(kerb, -0.06), X, Y + TILE - 3, TILE, 1);
+  px(ctx, shade(kerb, -0.14), X, Y + TILE - 2, TILE, 1);
+  px(ctx, shade(kerb, -0.34), X, Y + TILE - 1, TILE, 1);
+  const left = at(tx - 1, ty) !== 'V';
+  const right = at(tx + 1, ty) !== 'V';
+  if (left) px(ctx, kerb, X, Y, 3, TILE - 1);
+  if (right) px(ctx, shade(kerb, -0.08), X + TILE - 3, Y, 3, TILE - 1);
+  const x0 = X + (left ? 4 : 0);
+  const x1 = X + TILE - (right ? 4 : 0);
+  const tones = [shade(PALETTE.grassDark, -0.18), PALETTE.grassDark, PALETTE.grass, PALETTE.grassLit, PALETTE.leafLit];
+  // Matas de atrás a delante: cada una pisa la sombra de la anterior.
+  for (let x = x0 - 2 - Math.floor(hash(ty, 1, 1031) * 3); x < x1; x += 4) {
+    const r = (n: number): number => hash(x, ty, n + 1033);
+    const cx = x + 2;
+    const cy = Y + 7 + Math.floor(r(1) * 2);
+    for (let y = -3; y <= 3; y++) {
+      for (let dx = -3; dx <= 3; dx++) {
+        const xx = cx + dx;
+        if (xx < x0 || xx >= x1 || dx * dx * 0.8 + y * y > 8.5) continue;
+        const t = (dx * 0.5 + y * 0.9) / 3 + (hash(xx, cy + y, 1039) - 0.5) * 0.5;
+        px(ctx, tones[Math.max(0, Math.min(4, Math.round(2.2 - t * 1.8)))], xx, cy + y);
+      }
     }
   }
 }
@@ -511,20 +788,21 @@ function cobble({ ctx, x0, y0, x1, y1 }: Paint): void {
  * Hierba en tandas de verde, briznas en matas (no una por píxel), algún
  * trébol y flores de pocas en pocas. Donde toca un camino, tierra pisada.
  */
-function grass({ ctx, cells, at }: Paint): void {
+function grass({ ctx, cells, at, fine }: Paint): void {
   const tones = [PALETTE.grassDark, shade(PALETTE.grass, -0.02), PALETTE.grass, shade(PALETTE.grass, 0.025), PALETTE.grassLit];
   for (const [tx, ty] of cells) {
     const X = tx * TILE;
     const Y = ty * TILE;
+    if (fine(tx, ty)) grassFine(ctx, tx, ty, tones);
     // Tanda por cuadrantes de 8 px: los parches no tienen forma de tile.
-    for (let q = 0; q < 4; q++) {
+    else for (let q = 0; q < 4; q++) {
       const qx = X + (q % 2) * 8;
       const qy = Y + Math.floor(q / 2) * 8;
       const b = batch(qx, qy, 44, 31);
       px(ctx, tones[Math.max(0, Math.min(4, Math.round(2 + b * 1.6)))], qx, qy, 8, 8);
     }
     // Matas: tres o cuatro briznas juntas, oscuras abajo y claras arriba.
-    for (let k = 0; k < 5; k++) {
+    for (let k = 0; k < (fine(tx, ty) ? 0 : 5); k++) {
       const r = (n: number): number => hash(tx * 8 + k, ty, n + 61);
       const x = X + Math.floor(r(1) * 14);
       const y = Y + 2 + Math.floor(r(2) * 12);
@@ -561,6 +839,38 @@ function grass({ ctx, cells, at }: Paint): void {
         }
       }
     }
+  }
+}
+
+/**
+ * HD-03, hierba de la manzana piloto: las mismas tandas de verde, pero en
+ * bloques de 2 px con dos escalas (la mancha amplia y una corta y suave): el
+ * contorno de cada mancha es orgánico y no tiene forma de cuadrante. Matas de
+ * tres briznas con su raíz oscura y la punta al sol, más en las manchas claras
+ * (hierba más alta) que en las oscuras.
+ */
+function grassFine(ctx: Ctx, tx: number, ty: number, tones: readonly string[]): void {
+  const X = tx * TILE;
+  const Y = ty * TILE;
+  for (let by = 0; by < TILE; by += 2) {
+    for (let bx = 0; bx < TILE; bx += 2) {
+      const b = batch(X + bx, Y + by, 44, 31) * 1.5 + batch(X + bx, Y + by, 13, 37) * 0.55;
+      px(ctx, tones[Math.max(0, Math.min(4, Math.round(2 + b)))], X + bx, Y + by, 2, 2);
+    }
+  }
+  for (let k = 0; k < 8; k++) {
+    const r = (n: number): number => hash(tx * 8 + k, ty, n + 1051);
+    const x = X + 1 + Math.floor(r(1) * 13);
+    const y = Y + 3 + Math.floor(r(2) * 11);
+    const b = batch(x, y, 44, 31);
+    if (b < -0.3 && r(4) < 0.5) continue;
+    const root = tones[Math.max(0, Math.round(1 + b))];
+    const tip = tones[Math.min(4, Math.round(3.4 + b))];
+    px(ctx, root, x, y, 3, 1);
+    px(ctx, root, x + 1, y - 1, 1, 1);
+    px(ctx, tip, x, y - 1, 1, 1);
+    px(ctx, tip, x + 1, y - 2, 1, 1);
+    px(ctx, tip, x + 2, y - 1, 1, 1);
   }
 }
 
@@ -710,6 +1020,8 @@ export function paintSurfaces(scene: Phaser.Scene, rt: Phaser.GameObjects.Render
   const lctx = layer.getContext('2d');
   if (!ctx || !lctx) return;
   const at = (tx: number, ty: number): string => ground[ty]?.[tx] ?? '';
+  const pilot = site.pilot;
+  const fine = (tx: number, ty: number): boolean => !!pilot && tx >= pilot.tx && tx < pilot.tx + pilot.w && ty >= pilot.ty && ty < pilot.ty + pilot.h;
   const inBuilding = new Set<string>();
   for (const b of site.buildings) for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) inBuilding.add(`${x},${y}`);
   // Muro: edificios del barrio, muros de interior y las fachadas por tile de los distritos antiguos.
@@ -733,7 +1045,7 @@ export function paintSurfaces(scene: Phaser.Scene, rt: Phaser.GameObjects.Render
     any = true;
     const box = { x0: cx0 * TILE, y0: cy0 * TILE, x1: cx1 * TILE, y1: cy1 * TILE };
     lctx.clearRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
-    m.paint({ ctx: lctx, ...box, at, built, cells, showcase: site.showcase });
+    m.paint({ ctx: lctx, ...box, at, built, cells, showcase: site.showcase, fine });
     // Sólo sus celdas pasan al lienzo final.
     ctx.save();
     ctx.beginPath();

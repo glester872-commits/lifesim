@@ -10,6 +10,7 @@ import { buildVegetationTextures } from './Vegetation';
 import { buildStreetTextures } from './StreetArt';
 import { buildArenaTextures } from './ArenaArt';
 import { buildVehicleTextures } from './VehicleArt';
+import { buildUrbanFinishTextures } from './UrbanFinish';
 import { buildWeatherTextures } from './WeatherView';
 import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
@@ -880,6 +881,8 @@ export function buildTextures(scene: Phaser.Scene): void {
   buildArenaTextures(scene);
   buildBuildingTextures(scene);
   buildVehicleTextures(scene);
+  // HD-03: las versiones con acabado de la manzana piloto (world/UrbanFinish).
+  buildUrbanFinishTextures(scene);
   buildWeatherTextures(scene);
   buildAtmosphereTextures(scene);
   buildAmbientTextures(scene);

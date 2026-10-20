@@ -1707,7 +1707,8 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
     // Boca de metro de 3 × 3 (Visual V2, world/UrbanArt): marquesina, rótulo y escalera en una pieza.
     // Boca principal de 5 × 4 (la de la plazuela de referencia): pórtico, rótulo, paneles y escalera en una pieza.
     if (b.style === 'metro' && b.w === 5 && b.h === 4) {
-      rt.batchDraw('bs-metro-hero', b.tx * TILE, b.ty * TILE);
+      // HD-03: la misma boca con el acabado de la manzana piloto (world/UrbanFinish); su brillo no cambia.
+      rt.batchDraw(b.finish === 'hd03' ? 'bs-metro-hero-hd03' : 'bs-metro-hero', b.tx * TILE, b.ty * TILE);
       glows.push({ key: 'bs-metro-hero-glow', x: b.tx * TILE, y: b.ty * TILE });
       continue;
     }

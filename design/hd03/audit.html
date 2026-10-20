@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LIFE//SIM · Auditoría HD-03</title>
+<style>
+  :root { --bg: #14131a; --panel: #1d1c25; --line: #34323f; --text: #e9e6df; --dim: #a29fa8; --ok: #7fc58a; --fix: #e2b25a; --no: #e07a6a; --accent: #8fb8e6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 10px; }
+  p.hint { color: var(--dim); margin: 4px 0 12px; max-width: 80ch; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
+  select, button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; }
+  .stage { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: #000; cursor: ew-resize; aspect-ratio: 16 / 9; touch-action: none; }
+  .stage img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; user-select: none; -webkit-user-drag: none; transform-origin: 0 0; }
+  .stage .b { clip-path: inset(0 0 0 50%); }
+  .stage .bar { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; left: 50%; pointer-events: none; box-shadow: 0 0 0 1px #0008; }
+  .tag { position: absolute; top: 8px; padding: 2px 8px; background: #000a; border-radius: 4px; font-size: 13px; pointer-events: none; }
+  .tag.l { left: 8px; } .tag.r { right: 8px; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; }
+  td.n { font-variant-numeric: tabular-nums; text-align: right; }
+  .best { color: var(--ok); font-weight: 600; }
+  .ok { color: var(--ok); } .fix { color: var(--fix); } .no { color: var(--no); }
+  code { background: var(--panel); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>LIFE//SIM · Auditoría HD-03</h1>
+<p class="hint">Capturas reales del juego (renderer.snapshot), sin retoque. Las cuatro versiones salen de su propio código: Original <code>4232cda</code>, HD-01 (main + parche HD-01), HD-02 <code>edf60ed</code> y HD-03 (<code>69403a0</code> + manzana piloto sin confirmar). Full HD, zoom 4 en todas (era también el zoom nativo de las cuatro a 1920 × 1080), la misma cámara en px de mundo y la misma hora del día 6. La gente y el tráfico no coinciden: la simulación diverge entre versiones.</p>
+
+<h2>Comparador</h2>
+<div class="controls">
+  <label>Escena <select id="scene">
+    <option value="plaza-day">Plazuela del metro · 14:00</option>
+    <option value="plaza-dusk">Plazuela del metro · 20:15</option>
+    <option value="plaza-night">Plazuela del metro · 22:30</option>
+    <option value="olmo-day">Calle del Olmo y parque · 14:00</option>
+    <option value="olmo-dusk">Calle del Olmo y parque · 20:15</option>
+    <option value="olmo-night">Calle del Olmo y parque · 22:30</option>
+    <option value="avenue-day">Avenida, paso de cebra este · 14:00</option>
+    <option value="mobile-plaza">Móvil emulado 390 × 844 @2 · 14:00</option>
+  </select></label>
+  <label>Izquierda <select id="a"></select></label>
+  <label>Derecha <select id="b"></select></label>
+  <label>Zoom <select id="zoom"><option value="1">1×</option><option value="2">2×</option><option value="3">3×</option></select></label>
+</div>
+<div class="stage" id="stage">
+  <img class="a" id="ia" alt=""><img class="b" id="ib" alt="">
+  <div class="bar" id="bar"></div><span class="tag l" id="tl"></span><span class="tag r" id="tr"></span>
+</div>
+<p class="hint">Arrastra para mover el corte. Con zoom, la rueda o arrastrar con mayúsculas desplaza el encuadre. La manzana piloto de HD-03 va de x 22 a 57 y de y 35 a 59 (en tiles); en la escena de la avenida se ve su borde a la derecha del paso.</p>
+
+<h2>Métricas de imagen (verificadas)</h2>
+<p class="hint">Calculadas sobre la parte de cada captura que cae dentro de la manzana piloto, muestreando un punto por píxel de mundo (bloque de 4 × 4). <b>Fuera de rejilla</b>: % de bloques de 4 × 4 que no son de un solo color (mixels, filtrado o escalado no entero; cuanto menos, mejor). <b>Detalle</b>: diferencia media de luminancia entre píxeles de mundo vecinos. <b>Repetición</b>: parecido de la imagen consigo misma desplazada un tile frente a otros desplazamientos (1 = ninguna periodicidad de tile; por debajo de 1, se repite).</p>
+<div class="tablewrap"><table id="metrics"></table></div>
+
+<h2>Rendimiento y memoria</h2>
+<div class="tablewrap"><table id="perf"></table></div>
+<p class="hint">Medido en este equipo, Chrome de escritorio, con el bucle del juego parado y avanzando a mano 200 frames (mediana y p95; los 15 primeros se descartan). «CPU + GPU» añade <code>gl.finish()</code> tras cada frame; da lo mismo que la CPU, así que el trabajo de la GPU no se ve con este método y el techo de FPS es una estimación. rAF: frames reales de la pantalla en 5 s (limitados a 60 Hz). Carga: desde abrir la escena hasta «lista», tres veces. Memoria JS: tras una sola carga en una pestaña nueva. Memoria de texturas: estimada (ancho × alto × 4 de cada textura), no medida en la GPU.</p>
+
+<h2>Funcionamiento (verificado, idéntico en las cuatro versiones)</h2>
+<div class="tablewrap"><table id="func"></table></div>
+</main>
+<script>
+const VERS = [['original', 'Original'], ['hd01', 'HD-01'], ['hd02', 'HD-02'], ['hd03', 'HD-03']];
+const $ = (id) => document.getElementById(id);
+for (const s of ['a', 'b']) VERS.forEach(([v, n]) => $(s).add(new Option(n, v)));
+$('a').value = 'original'; $('b').value = 'hd03';
+let cut = 0.5, zoom = 1, ox = 0, oy = 0;
+const src = (v, s) => `/__shots/aud-${v}-${s}.png`;
+function load() {
+  const s = $('scene').value, mobile = s === 'mobile-plaza';
+  for (const sel of ['a', 'b']) if (mobile && !['original', 'hd03'].includes($(sel).value)) $(sel).value = sel === 'a' ? 'original' : 'hd03';
+  $('ia').src = src($('a').value, s); $('ib').src = src($('b').value, s);
+  $('tl').textContent = $('a').selectedOptions[0].text; $('tr').textContent = $('b').selectedOptions[0].text;
+  $('stage').style.aspectRatio = mobile ? '390 / 844' : '16 / 9';
+  $('stage').style.maxWidth = mobile ? '420px' : '';
+  draw();
+}
+function draw() {
+  const st = $('stage'), w = st.clientWidth, h = st.clientHeight;
+  ox = Math.min(0, Math.max(w - w * zoom, ox)); oy = Math.min(0, Math.max(h - h * zoom, oy));
+  for (const id of ['ia', 'ib']) $(id).style.transform = `translate(${ox}px, ${oy}px) scale(${zoom})`;
+  const x = cut * w;
+  $('ib').style.clipPath = `inset(0 0 0 ${((x - ox) / (w * zoom)) * 100}%)`;
+  $('bar').style.left = x + 'px';
+}
+let drag = false, pan = null;
+$('stage').addEventListener('pointerdown', (e) => { if (e.shiftKey && zoom > 1) pan = [e.clientX - ox, e.clientY - oy]; else drag = true; $('stage').setPointerCapture(e.pointerId); move(e); });
+$('stage').addEventListener('pointermove', move);
+$('stage').addEventListener('pointerup', () => { drag = false; pan = null; });
+function move(e) {
+  const r = $('stage').getBoundingClientRect();
+  if (pan) { ox = e.clientX - pan[0]; oy = e.clientY - pan[1]; draw(); }
+  else if (drag) { cut = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); draw(); }
+}
+$('stage').addEventListener('wheel', (e) => { if (zoom === 1) return; e.preventDefault(); ox -= e.deltaX; oy -= e.deltaY; draw(); }, { passive: false });
+$('zoom').addEventListener('change', () => { const r = $('stage').getBoundingClientRect(); const old = zoom; zoom = +$('zoom').value; const cx = r.width / 2, cy = r.height / 2; ox = cx - ((cx - ox) / old) * zoom; oy = cy - ((cy - oy) / old) * zoom; draw(); });
+['scene', 'a', 'b'].forEach((id) => $(id).addEventListener('change', load));
+addEventListener('resize', draw);
+load();
+
+const fmt = (x) => String(x).replace('.', ',');
+const get = (f) => fetch('/__shots/' + f).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+(async () => {
+  const m = await get('aud-metrics.json');
+  if (m) {
+    const scenes = [...new Set(m.map((r) => r.scene))];
+    let html = '<thead><tr><th>Escena</th><th>Medida</th>' + VERS.map(([, n]) => `<th>${n}</th>`).join('') + '</tr></thead><tbody>';
+    for (const s of scenes) {
+      const rows = VERS.map(([v]) => m.find((r) => r.scene === s && r.ver === v && r.region === 'pilot'));
+      for (const [k, label, better] of [['blockNonUniform', 'Fuera de rejilla (%)', 'min'], ['edge', 'Detalle', 'max'], ['colors', 'Colores', null], ['rep16', 'Repetición', null]]) {
+        const vals = rows.map((r) => r?.[k]);
+        const best = better === 'min' ? Math.min(...vals) : better === 'max' ? Math.max(...vals) : null;
+        html += `<tr><td>${k === 'blockNonUniform' ? s : ''}</td><td>${label}</td>` + vals.map((v) => `<td class="n${v === best ? ' best' : ''}">${fmt(v)}</td>`).join('') + '</tr>';
+      }
+    }
+    $('metrics').innerHTML = html + '</tbody>';
+  }
+  const perf = await Promise.all(VERS.map(([v]) => get(`aud-${v}-perf.json`)));
+  const func = await Promise.all(VERS.map(([v]) => get(`aud-${v}-func.json`)));
+  const mob = await Promise.all(VERS.map(([v]) => get(`aud-${v}-mobile.json`)));
+  const cell = (f) => VERS.map((_, i) => `<td class="n">${f(i) ?? '—'}</td>`).join('');
+  $('perf').innerHTML = '<thead><tr><th>Medida</th>' + VERS.map(([, n]) => `<th>${n}</th>`).join('') + '</tr></thead><tbody>' + [
+    ['Frame de día, CPU (mediana · p95, ms)', (i) => perf[i] && `${fmt(perf[i].day.cpuMs.median)} · ${fmt(perf[i].day.cpuMs.p95)}`],
+    ['Frame de noche, CPU (mediana · p95, ms)', (i) => perf[i] && `${fmt(perf[i].night.cpuMs.median)} · ${fmt(perf[i].night.cpuMs.p95)}`],
+    ['Techo de FPS de noche (estimado, 1000 / mediana)', (i) => perf[i]?.night.uncappedFps],
+    ['rAF real (FPS · frames > 33 ms)', (i) => perf[i] && `${fmt(perf[i].raf.fps)} · ${perf[i].raf.over33ms}`],
+    ['Carga de la escena (ms, tres veces)', (i) => perf[i]?.pageLoadMs.join(' · ')],
+    ['Casa → calle (ms, tres veces)', (i) => perf[i]?.transitionsMs.map((t) => t.toStreet).join(' · ')],
+    ['Memoria JS tras una carga (MiB)', (i) => func[i]?.heapSingleLoadMiB && fmt(func[i].heapSingleLoadMiB)],
+    ['Texturas (número · MiB estimados)', (i) => perf[i] && `${perf[i].textures} · ${fmt(perf[i].textureMiBEstimate)}`],
+    ['Móvil emulado 390 × 844 @2: zoom · frame de noche (ms)', (i) => mob[i] && `${mob[i].zoom} · ${fmt(mob[i].night.cpuMs.median)}`],
+  ].map(([l, f]) => `<tr><td>${l}</td>${cell(f)}</tr>`).join('') + '</tbody>';
+  const yes = (b) => (b ? '<span class="ok">sí</span>' : '<span class="no">no</span>');
+  $('func').innerHTML = '<thead><tr><th>Prueba</th>' + VERS.map(([, n]) => `<th>${n}</th>`).join('') + '</tr></thead><tbody>' + [
+    ['Entrar en casa y volver a la calle', (i) => func[i] && yes(func[i].home.entered && func[i].home.backOnStreet)],
+    ['Bajar al metro', (i) => func[i] && yes(func[i].metro.entered)],
+    ['Portal de Olmo 11 ofrecido', (i) => func[i] && yes(func[i].olmo11.door === 'Olmo 11')],
+    ['Tope contra la fachada de Olmo 7 (y)', (i) => func[i]?.collisions.fachadaOlmo7.to[1]],
+    ['Tope contra la fachada de Olmo 11 (y)', (i) => func[i]?.collisions.fachadaOlmo11.to[1]],
+    ['Tope contra la farola de la plazuela (y)', (i) => func[i]?.collisions.farolaPlazuela.to[1]],
+    ['Paseo por la acera (x final)', (i) => func[i]?.collisions.aceraEste.to[0]],
+    ['NPC en la calle · se mueven en 20 s', (i) => func[i]?.npc && `${func[i].npc.agents} · ${func[i].npc.movedOf.join(' de ')}`],
+    ['NPC sobre un tile no transitable (muestras)', (i) => func[i]?.npc && `${func[i].npc.onSolidSamples[0]} de ${func[i].npc.onSolidSamples[1]}`],
+    ['NPC atascados rescatados', (i) => func[i]?.npc?.stuckRecovered],
+  ].map(([l, f]) => `<tr><td>${l}</td>${cell(f)}</tr>`).join('') + '</tbody>';
+})();
+</script>
+</body>
+</html>

@@ -4,6 +4,8 @@ import type { VehicleType } from '../data/vehicles';
 import type { Traffic, Vehicle } from '../systems/Traffic';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { lampsOf, vehicleKey } from './VehicleArt';
+import { inPilot } from './UrbanFinish';
+import type { LocationDef } from '../types/game';
 
 /** Media vuelta de la rotativa, en ms. */
 const BEACON_MS = 420;
@@ -33,9 +35,12 @@ export class TrafficView {
   private readonly pool: Parts[] = [];
   /** Cuánto de mojado está el suelo (0–1): sin él, seco. */
   private readonly wet: () => number;
+  /** HD-03: dentro de la manzana piloto, el turismo lleva su acabado (world/VehicleArt). La trayectoria no cambia. */
+  private readonly pilot: LocationDef['pilot'];
 
-  constructor(scene: Phaser.Scene, traffic: Traffic<VehicleType>, hour: () => number, wet: () => number = () => 0) {
+  constructor(scene: Phaser.Scene, traffic: Traffic<VehicleType>, hour: () => number, wet: () => number = () => 0, pilot?: LocationDef['pilot']) {
     this.scene = scene;
+    this.pilot = pilot;
     this.traffic = traffic;
     this.hour = hour;
     this.wet = wet;
@@ -63,6 +68,8 @@ export class TrafficView {
       // Un turismo cabecea al frenar; un autobús o un camión, más pesados, no se inmutan.
       const dip = v.braking && v.speed > 6 && L < 48 ? 1 : 0;
       p.body.setPosition(left, top + dip).setDepth(bottom).setVisible(true);
+      const key = vehicleKey(v.type, v.color, inPilot(this.pilot, Math.floor(v.x / TILE), v.row));
+      if (p.body.texture.key !== key) p.body.setTexture(key);
 
       // Luces: en px del sprite mirando a la derecha; hacia el oeste, en espejo.
       const lamps = lampsOf(v.type);

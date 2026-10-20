@@ -198,7 +198,7 @@ function drawPlanterBox(ctx: Ctx): void {
 }
 
 /** Tótem de metro: poste de acero y rótulo con la M; el rótulo brilla de noche. */
-function drawTotemSign(ctx: Ctx, lit: boolean): void {
+export function drawTotemSign(ctx: Ctx, lit: boolean): void {
   const face = lit ? '#fff4d8' : PALETTE.white;
   px(ctx, PALETTE.ink, 2, 1, 12, 15);
   px(ctx, LINE_BLUE, 3, 2, 10, 13);
@@ -349,8 +349,8 @@ function drawFlowerBed(ctx: Ctx): void {
 // ------------------------------------------------ boca de metro principal
 
 /** Ancho y alto de la boca principal, en px: 5 × 4 tiles (la escala de una planta de fachada). */
-const HERO_W = TILE * 5;
-const HERO_H = TILE * 4;
+export const HERO_W = TILE * 5;
+export const HERO_H = TILE * 4;
 const NAVY = '#1c2c52';
 
 /** Logo del metro: cuadrado azul con borde blanco y la M blanca. `lit` lo aclara para la noche. */
@@ -403,7 +403,7 @@ function timetable(ctx: Ctx, x: number, y: number, lit: boolean): void {
  * la boca del túnel, donde vuelve la luz de la estación. La fila de abajo, en
  * el centro, es la puerta.
  */
-function drawMetroHero(ctx: Ctx): void {
+export function drawMetroHero(ctx: Ctx): void {
   const W = HERO_W;
   const H = HERO_H;
   const stone = shade(GRANITE, -0.04);

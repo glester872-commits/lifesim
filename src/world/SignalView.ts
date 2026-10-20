@@ -5,6 +5,7 @@ import { signalAt } from '../systems/Signals';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { make, px, shade, type Ctx } from './paint';
 import { LAYER } from './Layers';
+import { inPilot } from './UrbanFinish';
 
 /**
  * Semáforos de systems/Signals.ts dibujados. Por cada paso: un semáforo de
@@ -77,7 +78,61 @@ function drawPedFigure(ctx: Ctx, walking: boolean): void {
   px(ctx, c, 5, 11, 1, 1);
 }
 
+/**
+ * HD-03, semáforo de coches de la manzana piloto (10 × 46): la caja con su canto al sol y su cara en
+ * sombra, cada foco con visera y el cristal apagado que brilla un punto (se lee vidrio, no pintura),
+ * la abrazadera y el poste en cilindro con su collarín. Los focos van donde siempre: la luz encaja.
+ */
+function drawCarPoleFine(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 3, 45, 4, 1);
+  px(ctx, shade(POLE, 0.12), 3, 42, 4, 3);
+  px(ctx, shade(POLE, 0.3), 3, 42, 4, 1);
+  px(ctx, shade(POLE, -0.3), 6, 42, 1, 3);
+  px(ctx, POLE, 4, 16, 2, 26);
+  px(ctx, shade(POLE, 0.2), 4, 16, 1, 26);
+  px(ctx, shade(POLE, -0.25), 5, 16, 1, 26);
+  px(ctx, shade(POLE, 0.1), 3, 15, 4, 1);
+  px(ctx, BOX, 1, 0, 8, 16);
+  px(ctx, shade(BOX, 0.26), 1, 0, 8, 1);
+  px(ctx, shade(BOX, 0.14), 1, 1, 1, 15);
+  px(ctx, shade(BOX, -0.4), 8, 1, 1, 15);
+  for (const [y, c] of [[1, '#4a1a1a'], [6, '#4a3a12'], [11, '#123a24']] as const) {
+    px(ctx, PALETTE.ink, 2, y, 6, 1);
+    px(ctx, shade(BOX, 0.3), 2, y, 2, 1);
+    px(ctx, c, 3, y + 1, 4, 3);
+    px(ctx, c, 4, y, 2, 1);
+    px(ctx, shade(c, 0.5), 3, y + 1, 1, 1);
+    px(ctx, shade(c, -0.3), 6, y + 3, 1, 1);
+  }
+}
+
+/** HD-03, semáforo de peatones (8 × 34): la caja con su volumen, las dos figuras apagadas que se adivinan y el pulsador en el poste. */
+function drawPedPoleFine(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 2, 33, 4, 1);
+  px(ctx, shade(POLE, 0.12), 2, 31, 4, 2);
+  px(ctx, shade(POLE, 0.3), 2, 31, 4, 1);
+  px(ctx, POLE, 3, 14, 2, 17);
+  px(ctx, shade(POLE, 0.2), 3, 14, 1, 17);
+  px(ctx, shade(POLE, -0.25), 4, 14, 1, 17);
+  // Pulsador: caja amarilla con el botón y la flecha del paso.
+  px(ctx, '#c9a94a', 2, 18, 4, 5);
+  px(ctx, shade('#c9a94a', 0.2), 2, 18, 4, 1);
+  px(ctx, shade('#c9a94a', -0.3), 5, 19, 1, 4);
+  px(ctx, PALETTE.ink, 3, 20, 2, 2);
+  px(ctx, BOX, 0, 0, 8, 14);
+  px(ctx, shade(BOX, 0.26), 0, 0, 8, 1);
+  px(ctx, shade(BOX, 0.14), 0, 1, 1, 13);
+  px(ctx, shade(BOX, -0.4), 7, 1, 1, 13);
+  px(ctx, '#2a1414', 1, 1, 6, 6);
+  px(ctx, '#12261a', 1, 7, 6, 6);
+  // Las figuras apagadas, un tono por encima de su ventanilla.
+  for (const [x, y, w, h] of [[3, 1, 2, 4], [2, 3, 4, 1], [3, 5, 2, 1]] as const) px(ctx, '#3c1c1c', x, y, w, h);
+  for (const [x, y, w, h] of [[4, 7, 2, 1], [3, 8, 2, 3], [2, 9, 1, 1], [5, 9, 1, 1], [2, 11, 1, 1], [5, 11, 1, 1]] as const) px(ctx, '#1b3a26', x, y, w, h);
+}
+
 function buildSignalTextures(scene: Phaser.Scene): void {
+  make(scene, 'sig-car-hd03', 10, 46, drawCarPoleFine);
+  make(scene, 'sig-ped-hd03', 8, 34, drawPedPoleFine);
   make(scene, 'sig-car', 10, 46, drawCarPole);
   make(scene, 'sig-car-red', 10, 46, (ctx) => drawCarLamp(ctx, 1, RED));
   make(scene, 'sig-car-amber', 10, 46, (ctx) => drawCarLamp(ctx, 6, AMBER));
@@ -127,18 +182,20 @@ export class SignalView {
         }
       }
       // Coches: a la derecha de cada sentido, antes del paso. Peatones: en cada bordillo, a un lado de las bandas.
+      // HD-03: cada poste en la manzana piloto lleva el acabado nuevo (las luces, las mismas).
+      const head = (kind: 'car' | 'ped', tx: number, ty: number, x: number, y: number): Head => this.head(scene, kind, x, y, inPilot(def.pilot, tx, ty));
       this.heads.set(sig, [
-        this.head(scene, 'car', (sig.tx - 1) * TILE + 8, south * TILE + 5),
-        this.head(scene, 'car', (sig.tx + sig.w) * TILE + 8, north * TILE + 15),
-        this.head(scene, 'ped', (sig.tx - 1) * TILE + 8, north * TILE + 14),
-        this.head(scene, 'ped', (sig.tx + sig.w) * TILE + 8, south * TILE + 6),
+        head('car', sig.tx - 1, south, (sig.tx - 1) * TILE + 8, south * TILE + 5),
+        head('car', sig.tx + sig.w, north, (sig.tx + sig.w) * TILE + 8, north * TILE + 15),
+        head('ped', sig.tx - 1, north, (sig.tx - 1) * TILE + 8, north * TILE + 14),
+        head('ped', sig.tx + sig.w, south, (sig.tx + sig.w) * TILE + 8, south * TILE + 6),
       ]);
     }
     this.update(0);
   }
 
-  private head(scene: Phaser.Scene, kind: 'car' | 'ped', x: number, y: number): Head {
-    scene.add.image(x, y, kind === 'car' ? 'sig-car' : 'sig-ped').setOrigin(0.5, 1).setDepth(y);
+  private head(scene: Phaser.Scene, kind: 'car' | 'ped', x: number, y: number, fine = false): Head {
+    scene.add.image(x, y, (kind === 'car' ? 'sig-car' : 'sig-ped') + (fine ? '-hd03' : '')).setOrigin(0.5, 1).setDepth(y);
     return {
       kind,
       x,

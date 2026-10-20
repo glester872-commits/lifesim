@@ -53,8 +53,13 @@ interface Cluster {
   r: number;
 }
 
-/** `sway`: px que se desplaza la copa (el tronco no): el fotograma de racha de viento. */
-function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
+/**
+ * `sway`: px que se desplaza la copa (el tronco no): el fotograma de racha de viento.
+ * `fine`: acabado HD-03 de la manzana piloto. El tronco es un cilindro de cuatro tonos con su
+ * corteza y el cuello de raíz al pie; la copa, con el canto al sol más limpio y la panza en sombra,
+ * se despega del tronco. La forma y el tamaño son los mismos: colisión y sombras no cambian.
+ */
+function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0, fine = false): void {
   const { w, h } = sp;
   let s = (seed * 2654435761) >>> 0 || 1;
   const rnd = (): number => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
@@ -114,10 +119,32 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
   // Canto al sol a la izquierda, sombra a la derecha: el tronco es un cilindro.
   px(ctx, BARK_LIT, tx, trunkTop, 1, footY + 2 - trunkTop);
   px(ctx, BARK_DARK, tx + tw - 2, trunkTop, 2, footY + 2 - trunkTop);
+  if (fine) {
+    // Cuatro tonos (luz, medio, núcleo, sombra honda) y el cuello de raíz que se abre al pie.
+    px(ctx, mix(BARK_LIT, BARK, 0.5), tx + 1, trunkTop, 1, footY + 2 - trunkTop);
+    px(ctx, shade(BARK_DARK, -0.18), tx + tw - 1, trunkTop, 1, footY + 2 - trunkTop);
+    px(ctx, BARK_LIT, tx - 1, footY - 1, 1, 3);
+    px(ctx, BARK_DARK, tx + tw, footY - 1, 1, 3);
+    px(ctx, shade(BARK_DARK, -0.25), tx + tw, footY + 1, 2, 1);
+    if (sp.foot === 'soil') {
+      // Corteza de fisuras: trazos verticales cortos, nunca dos a la misma altura. Con su propio
+      // generador: el del árbol sigue igual y la copa sale idéntica a la de siempre.
+      let q = (seed * 69069 + 11) >>> 0 || 1;
+      const qrnd = (): number => (q = (Math.imul(q, 1664525) + 1013904223) >>> 0) / 4294967296;
+      for (let y = trunkTop + 4; y < footY - 2; y += 3 + Math.floor(qrnd() * 3)) px(ctx, BARK_DARK, tx + 1 + Math.floor(qrnd() * Math.max(1, tw - 3)), y, 1, 2 + Math.floor(qrnd() * 2));
+    }
+  }
   for (let y = trunkTop + 3; y < footY - 1; y += 4 + Math.floor(rnd() * 3)) px(ctx, BARK_LIT, tx + Math.floor(rnd() * (tw - 2)), y, 2, 2);
-  // La copa echa su sombra sobre lo alto del tronco.
-  ctx.globalAlpha = 0.35;
-  px(ctx, PALETTE.ink, tx, trunkTop, tw, 3);
+  // La copa echa su sombra sobre lo alto del tronco (HD-03: más honda y fundida en cuatro filas).
+  if (fine) {
+    [0.5, 0.36, 0.22, 0.1].forEach((a, i) => {
+      ctx.globalAlpha = a;
+      px(ctx, PALETTE.ink, tx - (i === 0 ? 1 : 0), trunkTop + i, tw + (i === 0 ? 2 : 0), 1);
+    });
+  } else {
+    ctx.globalAlpha = 0.35;
+    px(ctx, PALETTE.ink, tx, trunkTop, tw, 3);
+  }
   ctx.globalAlpha = 1;
   for (const dir of [-1, 1]) {
     let bx = cx;
@@ -160,8 +187,8 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
       const litEdge = front(x - 1, y) < 0 || front(x, y - 1) < 0;
       const shadeEdge = front(x + 1, y) < 0 || front(x, y + 1) < 0;
       const edge = litEdge || shadeEdge;
-      // Borde deshilachado: no un círculo limpio.
-      if (edge && hash2(x, y, seed) < 0.28) continue;
+      // Borde deshilachado: no un círculo limpio (HD-03: menos, la silueta se lee entera).
+      if (edge && hash2(x, y, seed) < (fine ? 0.16 : 0.28)) continue;
       const c = clusters[f];
       const local = ((x + 0.5 - c.x) * 0.55 + (y + 0.5 - c.y) * 0.85) / c.r;
       const global = ((x - cx) / rx) * 0.3 + ((y - canopyCy) / ry) * 0.5;
@@ -176,7 +203,13 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0): void {
       else if (front(x, y + 3) > f) i -= 1;
       // Canto al sol arriba a la izquierda; abajo a la derecha, la copa se cierra en sombra.
       if (shadeEdge && !litEdge) i = Math.min(i - 1, 2);
-      else if (litEdge && !shadeEdge) i = Math.max(i, 4);
+      else if (litEdge && !shadeEdge) i = Math.max(i, fine && y < canopyCy ? 5 : 4);
+      if (fine) {
+        // La panza de la copa, en sombra: el último racimo de abajo cierra con el tono más hondo
+        // y la mitad de abajo baja un tono. Se despega del tronco y del suelo.
+        if (front(x, y + 1) < 0 && y > canopyCy) i = 0;
+        else if (y > canopyCy + ry * 0.45) i -= 1;
+      }
       px(ctx, tones[Math.max(0, Math.min(6, i))], x, y);
     }
   }
@@ -206,6 +239,9 @@ export function buildVegetationTextures(scene: Phaser.Scene): void {
       make(scene, `${sp.key}-${v}`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w));
       // La misma copa un píxel a sotavento: world/Ambience alterna los dos con las rachas.
       make(scene, `${sp.key}-${v}-gust`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 1));
+      // HD-03: la manzana piloto (LocationDef.pilot) los pone con el acabado nuevo; la racha, igual.
+      make(scene, `${sp.key}-${v}-hd03`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 0, true));
+      make(scene, `${sp.key}-${v}-hd03-gust`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 1, true));
     }
   }
 }

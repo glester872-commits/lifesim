@@ -42,7 +42,14 @@ interface Paint {
   L: number;
   H: number;
   body: string;
+  /** Acabado HD-03 de la manzana piloto: sólo cambia cómo se pinta, no el tamaño ni dónde van las luces. */
+  fine?: boolean;
 }
+
+/** HD-03: goma de ventanillas y montantes negros; el plástico de los bajos; el intermitente. */
+const SEAL = '#1d1f25';
+const TRIM = '#2a2b31';
+const AMBER_LAMP = '#e8962e';
 
 // -------------------------------------------------------------- turismos
 
@@ -97,6 +104,31 @@ function topAt(pr: CarProfile, x: number, L: number): number {
   return Math.round(y);
 }
 
+/**
+ * HD-03: rueda con flanco (un anillo algo más claro que la banda), llanta de radios con la luz arriba a
+ * la izquierda y el buje oscuro; entre radio y radio, el hueco hondo del freno.
+ */
+function wheelFine(ctx: Ctx, cx: number, cy: number, r: number): void {
+  for (let dy = -r; dy <= r; dy++) {
+    const w = Math.round(Math.sqrt(r * r - dy * dy) + 0.3);
+    px(ctx, TYRE, cx - w, cy + dy, w * 2, 1);
+  }
+  const ri = Math.max(1, r - 1);
+  for (let dy = -ri; dy <= ri; dy++) {
+    for (let dx = -ri; dx < ri; dx++) {
+      const x = dx + 0.5;
+      const d = Math.hypot(x, dy);
+      if (d > ri + 0.2) continue;
+      let c: string;
+      if (d > ri - 0.6) c = '#34333a'; // flanco
+      else if (Math.abs(x) < 0.6 || Math.abs(dy) < 0.6 || d < 0.9) c = x + dy < 0 ? shade(RIM, 0.32) : RIM; // radio
+      else c = '#202027'; // hueco del freno
+      px(ctx, c, cx + dx, cy + dy);
+    }
+  }
+  px(ctx, shade(RIM, -0.4), cx - 1, cy, 1, 1);
+}
+
 function wheel(ctx: Ctx, cx: number, cy: number, r: number): void {
   for (let dy = -r; dy <= r; dy++) {
     const w = Math.round(Math.sqrt(r * r - dy * dy) + 0.3);
@@ -121,7 +153,7 @@ function arch(ctx: Ctx, cx: number, cy: number, r: number, bottom: number): void
 }
 
 function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
-  const { ctx, L, H, body } = p;
+  const { ctx, L, H, body, fine } = p;
   // Los perfiles están medidos para 16 px de alto; uno más alto los estira en vertical (cristal y chapa a la vez).
   const k = (H - 4) / 12;
   const pr: CarProfile = { ...base, roof: Math.round(base.roof * k), belt: Math.round(base.belt * k), hood: Math.round(base.hood * k), deck: Math.round(base.deck * k) };
@@ -135,7 +167,25 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
     for (let y = top; y <= bottom; y++) {
       let c: string;
       if (y === top) c = shade(body, cabin ? 0.18 : 0.26);
-      else if (cabin && y < pr.belt) {
+      else if (fine && cabin && y < pr.belt) {
+        // HD-03: montantes negros y goma alrededor del cristal; parabrisas, ventanillas y luneta, cada uno con su luz.
+        if (!glassCol || y === top + 1 || y === pr.belt - 1) c = SEAL;
+        else {
+          const k = (y - top) / Math.max(1, pr.belt - top);
+          const ws = f >= pr.roofFront;
+          const rear = f < pr.roofRear;
+          // El parabrisas, tumbado, recoge el cielo; la ventanilla, de canto, refleja la calle; la luneta, entre medias.
+          c = ws ? (k < 0.55 ? TINT_LIT : shade(TINT_LIT, -0.14)) : rear ? (k < 0.4 ? shade(TINT_LIT, -0.08) : TINT) : k < 0.35 ? shade(TINT, 0.1) : TINT;
+          const glare = (x + y) % (ws ? 6 : 9);
+          if (glare === 0) c = shade(TINT_LIT, 0.24);
+          else if (ws && glare === 1) c = shade(TINT_LIT, 0.12);
+        }
+      } else if (fine && y === pr.belt) c = shade(body, 0.24);
+      else if (fine && y > pr.belt) {
+        // Costado en cinco tonos: el hombro al sol, la chapa, la línea de reflejo, la panza y el estribo.
+        const k = (y - pr.belt) / Math.max(1, bottom - pr.belt);
+        c = k < 0.18 ? shade(body, 0.06) : k < 0.45 ? body : k < 0.55 ? shade(body, 0.05) : k < 0.8 ? shade(body, -0.1) : shade(body, -0.24);
+      } else if (cabin && y < pr.belt) {
         if (!glassCol) c = shade(body, -0.28);
         else {
           // Cristal: más claro arriba (cielo), oscuro abajo, con dos reflejos en diagonal.
@@ -162,7 +212,11 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
   for (const dx of doorLines) {
     px(ctx, shade(body, -0.22), dx, pr.belt + 1, 1, bottom - pr.belt - 2);
     px(ctx, shade(body, 0.3), dx - 3, pr.belt + 2, 2, 1);
+    // HD-03: el tirador hace su sombra debajo.
+    if (fine) px(ctx, shade(body, -0.16), dx - 3, pr.belt + 3, 2, 1);
   }
+  // HD-03: bajos de plástico entre las ruedas.
+  if (fine) px(ctx, TRIM, 4, bottom, L - 8, 1);
   // Retrovisor en la base del parabrisas.
   const mx = Math.round(pr.wsBase * L) - 1;
   px(ctx, shade(body, -0.2), mx, pr.belt - 1, 2, 2);
@@ -173,6 +227,14 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
   px(ctx, '#ffffff', L - 2, pr.hood + 1, 1, 1);
   px(ctx, TAIL, 1, pr.deck + 1, 2, 2);
   px(ctx, shade(TAIL, 0.35), 1, pr.deck + 1, 1, 1);
+  if (fine) {
+    // HD-03: carcasa más larga con la tira de luz diurna, el intermitente debajo y el piloto con su catadióptrico.
+    px(ctx, '#2a2a30', L - 6, pr.hood + 1, 2, 1);
+    px(ctx, '#dfe9f2', L - 6, pr.hood, 3, 1);
+    px(ctx, AMBER_LAMP, L - 3, pr.hood + 3, 2, 1);
+    px(ctx, shade(TAIL, -0.3), 3, pr.deck + 1, 1, 2);
+    px(ctx, AMBER_LAMP, 1, pr.deck + 3, 2, 1);
+  }
   if (t.trim?.badge) {
     // VTC: el distintivo de servicio, un cuadro de color con su borde en la puerta delantera.
     const bx = Math.round((pr.wsBase - 0.1) * L);
@@ -189,8 +251,16 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
   const cy = H - r - 1;
   for (const q of pr.wheels) {
     const cx = Math.round(q * L);
+    if (fine) {
+      // HD-03: el borde del paso de rueda, una ceja más oscura que la chapa.
+      for (let dy = -(r + 2); dy <= 0; dy++) {
+        const w = Math.round(Math.sqrt((r + 2) ** 2 - dy * dy));
+        if (cy + dy <= bottom) px(ctx, shade(body, -0.3), cx - w, cy + dy, w * 2, 1);
+      }
+    }
     arch(ctx, cx, cy, r + 1, bottom);
-    wheel(ctx, cx, cy, r);
+    if (fine) wheelFine(ctx, cx, cy, r);
+    else wheel(ctx, cx, cy, r);
   }
   const lamps: VehicleLamps = { head: [L - 2, pr.hood + 1], tail: [1, pr.deck + 1] };
   if (t.trim?.roof !== 'taxi') return lamps;
@@ -373,8 +443,8 @@ function outline(ctx: Ctx, w: number, h: number): void {
 }
 
 /** Dibuja el tipo con esa carrocería (y, si lleva letrero, esa línea) y devuelve dónde quedan sus luces. */
-export function drawVehicle(ctx: Ctx, t: VehicleType, body: string, variant = 0): VehicleLamps {
-  const p: Paint = { ctx, L: t.length, H: t.height, body };
+export function drawVehicle(ctx: Ctx, t: VehicleType, body: string, variant = 0, fine = false): VehicleLamps {
+  const p: Paint = { ctx, L: t.length, H: t.height, body, fine };
   const route = t.routes?.[variant % t.routes.length] ?? '';
   const profile = PROFILES[t.shape];
   let lamps: VehicleLamps;
@@ -395,8 +465,8 @@ export function drawVehicle(ctx: Ctx, t: VehicleType, body: string, variant = 0)
 
 const LAMPS = new Map<string, VehicleLamps>();
 
-export function vehicleKey(t: VehicleType, color: number): string {
-  return `veh-${t.id}-${color}`;
+export function vehicleKey(t: VehicleType, color: number, fine = false): string {
+  return `veh-${t.id}-${color}${fine && PROFILES[t.shape] ? '-hd03' : ''}`;
 }
 
 /** Luces del tipo; las fija buildVehicleTextures. */
@@ -409,6 +479,8 @@ export function lampsOf(t: VehicleType): VehicleLamps {
 export function buildVehicleTextures(scene: Phaser.Scene): void {
   for (const t of VEHICLES) {
     t.colors.forEach((c, i) => make(scene, vehicleKey(t, i), t.length, t.height, (ctx) => LAMPS.set(t.id, drawVehicle(ctx, t, c, i))));
+    // HD-03: los turismos con el acabado de la manzana piloto (world/TrafficView los cambia dentro de ella).
+    if (PROFILES[t.shape]) t.colors.forEach((c, i) => make(scene, vehicleKey(t, i, true), t.length, t.height, (ctx) => drawVehicle(ctx, t, c, i, true)));
   }
   // Luces encendidas: van encima de la sombra de la noche.
   make(scene, 'veh-head', 1, 2, (ctx) => px(ctx, '#fff6d8', 0, 0, 1, 2));

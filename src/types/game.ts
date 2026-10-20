@@ -566,6 +566,12 @@ export interface LocationDef {
    */
   showcase?: { tx: number; ty: number; w: number; h: number };
   /**
+   * HD-03, manzana piloto del acabado urbano, en tiles: dentro, calzada, acera,
+   * bordillo, hierba, vegetación, mobiliario, semáforos y coches usan su versión
+   * `-hd03` (world/UrbanFinish). Fuera, todo como antes. Sin ella, nada cambia.
+   */
+  pilot?: { tx: number; ty: number; w: number; h: number };
+  /**
    * Primer plano con paralaje (world/Foreground): copas que asoman por el borde
    * de la cámara cuando se mira la escena de muestra. x, y: dónde se ven con la
    * cámara centrada en la escena (px de mundo).
