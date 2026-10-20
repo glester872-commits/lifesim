@@ -1,4 +1,5 @@
 import type { StoryDef } from '../systems/Story.ts';
+import { visitBeats, visitMessages, visitOpeners, visitPlans, type VisitText } from './visits.ts';
 
 /**
  * La historia de Ada con el jugador (systems/Story). Ada, 21, prepara oposiciones y juega al baloncesto los
@@ -13,6 +14,36 @@ import type { StoryDef } from '../systems/Story.ts';
  */
 
 const WEEKEND = [5, 6];
+
+/** La visita a tu casa (data/visits.ts): sus palabras, secas y justas. */
+const VISIT: VisitText = {
+  routine: 'plan-visita', routineStudio: 'plan-visita-estudio', sofa: 'HOME_SOFA_02', sofaStudio: 'STUDIO_SOFA_02',
+  friend: 'ada_friend', conflict: 'ada_conflict',
+  ask: ['Oye. Nunca he visto tu casa. ¿Me invitas {cuando}? Llevo yo el agua, que tú no tienes de la buena.'],
+  yes: { label: 'Claro, ven {cuando}', reply: ['Bien. {cuando} en {lugar}. Soy puntual, aviso.'] },
+  no: { label: 'Esta vez no puedo', reply: ['Vale. Ya me invitarás.'] },
+  kept: ['Hola. Está bien. Mejor de lo que pensaba.', 'Ada se sienta en el borde del sofá, mira alrededor y, poco a poco, se recuesta.'],
+  together: {
+    say: ['¿Y ahora qué? No se me da bien esto de las visitas.'],
+    tele: ['Tele. Pero sin sonido de anuncios.', 'Veis un partido de baloncesto repetido. Ada lo comenta jugada a jugada y no se equivoca en ninguna.'],
+    picar: ['Algo de picar. Cualquier cosa que no sea pasta.', 'Cocináis algo simple. Ada lo prueba con cara de examen y lo aprueba.'],
+    casa: ['Vale. Quiero ver dónde estudiarías tú.', 'Recorre la casa en silencio, y al final: «Tiene buena luz. Se nota».'],
+  },
+  notices: {
+    sofa: ['Ese sofá de lectura es lo mejor de la casa. Me quedaría a estudiar aquí.'],
+    cuadro: ['El cuadro del Carmen. Lo conozco: paso por ahí los sábados. Queda bien.'],
+    lampara: ['La lámpara de pie. Buena luz para leer. Mejor que la de la academia, desde luego.'],
+    plain: ['Se está bien aquí. Es tranquilo. Eso es raro.'],
+  },
+  next: {
+    sofa: ['Ayer me quedé pensando en ese sofá. Para leer, es lo que necesito.'],
+    cuadro: ['El cuadro de tu pared me ha hecho acordarme del Carmen. Gracias por enseñármelo.'],
+    lampara: ['La luz de tu lámpara de pie. Voy a comprarme una igual. Te lo debo.'],
+    plain: ['Lo de ayer estuvo bien. Se me hizo corto, y no suelo decir eso.'],
+    message: ['Gracias por lo de ayer. En tu casa se descansa. Cuando quieras, la mía, aunque tiene peor luz.'],
+  },
+};
+const VISIT_BEATS = visitBeats(VISIT);
 
 export const ADA_STORY: StoryDef = {
   npc: 'ada',
@@ -53,6 +84,7 @@ export const ADA_STORY: StoryDef = {
         then: { set: ['ada_event_01'], social: { friendship: 5, trust: 3, mood: 6 }, mood: 12, event: 'partido' },
       },
     },
+    ...visitPlans(VISIT),
     // El arco del examen.
     repaso: {
       routine: 'plan-repaso', point: 'PLAZA_BENCH_02', from: '19:00', until: '20:00', place: 'el banco de la plaza', outdoor: true, days: [0, 1, 2, 3, 4],
@@ -101,6 +133,7 @@ export const ADA_STORY: StoryDef = {
         },
       ],
     },
+    VISIT_BEATS.share,
     {
       id: 'disculpa', when: { flags: ['ada_changed_mind'] },
       say: ['Perdona lo de {lugar}. Tenía la cabeza en otra parte. Literalmente: en el tema 9.'],
@@ -186,10 +219,12 @@ export const ADA_STORY: StoryDef = {
         { label: 'No es lo mío', reply: ['Vale. Más canasta para mí.'], then: { set: ['ada_court_asked'], decision: ['pista', 'no'] } },
       ],
     },
+    ...VISIT_BEATS.invite,
   ],
   openers: [
     { when: { flags: ['ada_conflict', 'ada_apologized'] }, text: ['Hola. Lo del banco sigue en pie.'] },
     { when: { flags: ['ada_conflict'] }, text: ['Hola.', 'Ah. Hola.'] },
+    ...visitOpeners(VISIT),
     { when: { recent: { event: 'plan-lluvia', days: 0 } }, text: ['Vaya día. Lo de {lugar} lo pasamos; el cielo no es culpa de nadie.'] },
     { when: { planIn: 0 }, text: ['Hoy a las {hora} en {lugar}. Sigue en pie.'] },
     { when: { planIn: 1 }, text: ['Mañana a las {hora} en {lugar}, ¿no? Lo tengo apuntado.'] },
@@ -225,5 +260,6 @@ export const ADA_STORY: StoryDef = {
     { id: 'repaso', when: { ago: { event: 'repaso', days: 1 } }, text: ['Hoy en la academia me han preguntado el tema 14 y lo he clavado. Gracias por lo de ayer.'] },
     { id: 'partido', when: { ago: { event: 'partido', days: 1 } }, text: ['Tengo agujetas de ayer. Tú también, seguro. Buen partido.'] },
     { id: 'reconciliacion', when: { ago: { event: 'reconciliacion', days: 1 } }, text: ['Gracias por venir ayer. En serio.'] },
+    ...visitMessages(VISIT),
   ],
 };

@@ -1,7 +1,7 @@
 // Sin Phaser: lo usan WorldScene y scripts/check-story.ts.
 import type { Mood } from '../data/chat.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
-import { formatDate, weekIndex } from './Calendar.ts';
+import { formatDate, WEEKDAY_LABEL, weekdayOf, weekIndex } from './Calendar.ts';
 import {
   applyDelta,
   grantContact,
@@ -133,6 +133,10 @@ export interface Cond {
   decision?: readonly [string, string];
   /** Si ya tenéis vuestros números (systems/Social.contactExchanged). */
   contact?: boolean;
+  /** Vives en esa casa (data/housing.ts HOMES). */
+  home?: string;
+  /** Tienes esa mejora instalada en tu casa de ahora (data/housing.ts UPGRADES). */
+  has?: string;
 }
 
 export interface Effect {
@@ -363,6 +367,9 @@ export interface StoryNow {
   day: number;
   /** Minuto del día de reloj, 0–1439. */
   minute: number;
+  /** La casa donde vive el jugador y lo que tiene instalado (GameState.housing): lo que condiciona visitas y comentarios. */
+  home?: string;
+  owned?: readonly string[];
 }
 
 /** Si se cumple. `salt` separa las tiradas y las esperas de cosas distintas el mismo día. */
@@ -385,6 +392,8 @@ export function matches(s: NamedStory, c: Cond, profile: SocialProfile, now: Sto
   if (ago && !s.events.some((e) => e.id === ago.event && now.day - e.day === ago.days)) return false;
   if (c.decision && s.decisions[c.decision[0]] !== c.decision[1]) return false;
   if (c.contact !== undefined && profile.contactExchanged !== c.contact) return false;
+  if (c.home && now.home !== c.home) return false;
+  if (c.has && !now.owned?.includes(c.has)) return false;
   if (c.chance !== undefined && seededRng(hashSeed('story', salt, now.day))() >= c.chance) return false;
   return true;
 }
@@ -731,3 +740,32 @@ export const clockOf = (absMinute: number): { gameDay: number; minute: number } 
   gameDay: Math.floor(absMinute / DAY) + 1,
   minute: Math.floor(((absMinute % DAY) + DAY) % DAY),
 });
+
+// ================================================================
+// CANCELAR Y VER EL PLAN
+// ================================================================
+
+/** El plan quedado, dicho como lo vería el jugador: «tu piso · mañana a las 19:30» (con día de la semana si no es hoy ni mañana). */
+export function planSummary(s: NamedStory, def: StoryDef, gameDay: number): string | null {
+  if (s.plan?.status !== 'pending') return null;
+  const plan = def.plans[s.plan.id];
+  if (!plan) return null;
+  const day = s.plan.day === gameDay ? 'hoy' : s.plan.day === gameDay + 1 ? 'mañana' : `el ${WEEKDAY_LABEL[weekdayOf(s.plan.day)]}`;
+  return `${plan.place} · ${day} a las ${plan.from}`;
+}
+
+/**
+ * El jugador cancela el plan quedado (por el móvil): las mismas reglas que al cancelar un plan del móvil (systems/Phone):
+ * cuesta más cancelarlo el mismo día que con tiempo. Si el plan es de otro día, su rutina se suelta y ese día hace lo de
+ * siempre; si es de hoy, ya está en marcha y sigue. Se anota para que lo recuerde. No deja propuesta colgada.
+ */
+export function cancelStoryPlan(source: NamedStory, profile: SocialProfile, def: StoryDef, now: StoryNow): Applied | null {
+  if (source.plan?.status !== 'pending') return null;
+  const s = structuredClone(source);
+  const plan = def.plans[s.plan!.id];
+  const late = s.plan!.day === now.day;
+  s.plan = { ...s.plan!, status: 'cancelled' };
+  if (!late) delete s.routines[String(s.plan.day)];
+  noteEvent(s, 'plan-cancelado', now, plan?.place);
+  return { story: s, profile: applyDelta(profile, { ...ZERO, friendship: -1, trust: late ? -3 : -1, mood: late ? -6 : -3 }) };
+}

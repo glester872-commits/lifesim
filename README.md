@@ -431,6 +431,23 @@ ni acceso global al estado.
   con plus de €15 (fotos de producto). El móvil tiene la app Estudios. Perder una
   clase o el plazo se ve al mirar, con el reloj: recargar o dormir no repite nada.
   `npm run check` lo prueba en `check-study.ts`.
+- **Vivienda que evoluciona y visitas** — `data/housing.ts` define las dos casas (Olmo 7 y el Estudio de
+  Olmo 11, `data/studio.ts`), sus ranuras y tres mejoras (un sofá de lectura que da descanso gratis, un cuadro y una
+  lámpara de pie); `systems/Housing.ts` las reglas y `GameStateData.housing` la casa de ahora y lo comprado. En el
+  ordenador de casa (catálogo del hogar) se elige una mejora, se ve el precio y el saldo que queda y, al comprarla, se
+  cobra una vez, queda instalada en su ranura y la escena se rehace con ella puesta; no se puede comprar dos veces.
+  Los muebles son props, sitios de uso y cosas que mirar de la misma definición: de ahí salen colisiones, interacción y
+  navegación (`LocationSystem.installLocation`). Mudarse se ofrece en la puerta de la otra casa: coste (€150 o €100 de
+  vuelta), requisito (€250 o €150 libres, cartera menos lo que se debe, y ningún pago vencido), alquiler (€45 → €35) y
+  qué pasa con tus cosas: ropa, tatuajes, bolsa y dinero van contigo, lo que cabe se instala y lo que no se guarda en
+  el trastero, sin perderse, y vuelve a instalarse al regresar. Las visitas quedadas se pasan a la casa nueva. «Volver a
+  casa» sale de la vivienda guardada (`homeDoor`/`homeEntry`): al cargar una posición ocupada por un mueble o dentro de
+  una casa que ya no es la tuya, se aparece en un sitio libre al que se llega o en la puerta de la de ahora. Una partida
+  anterior conserva su piso sin cobrar ni quitar nada. Sara y Ada (`data/visits.ts`) proponen venir a tu casa (en
+  persona o por móvil, la misma propuesta una sola vez), llegan por la puerta a su hora, se sientan en el sofá y se van
+  a la suya; al hablar con ellas durante la visita reconocen lo que tienes instalado, se puede hacer algo juntos
+  (tele, picar o enseñarle la casa, que se recuerda) y al día siguiente lo comentan en persona o por móvil. Cancelar
+  por el móvil cuesta como cancelar un plan del móvil. `npm run check` lo prueba en `check-housing.ts`.
 - **Personal de servicio** — `data/services.ts`: oficios reutilizables
   (camarero, barra, caja, seguridad, gimnasio, tienda, cocina, recepción, DJ)
   con uniforme, frase y forma de trabajar: en su puesto, de ronda o sirviendo

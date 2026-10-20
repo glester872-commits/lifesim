@@ -349,6 +349,19 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('21:40', SARA_HOME, 'A casa. Qué día.'),
         ],
       },
+      ...[['plan-visita', 'HOME_SOFA_02'], ['plan-visita-estudio', 'STUDIO_SOFA_02']].map(([id, seat]): Routine => ({
+        // Va a tu casa (data/visits.ts): se sienta en el sofá y, a su hora, vuelve a la suya. Una por vivienda.
+        id,
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '12:30', point: 'CAFE_TABLE_05', lines: ['Esta tarde conozco una casa nueva. Qué nervios.'], going: ['Un café, que esta tarde voy de visita.'] },
+          inside('13:40', SARA_HOME, 'Me subo a arreglarme un poco.'),
+          { at: '19:20', point: seat, lines: ['Qué bien se está aquí. ¿Me pones algo?'], going: ['Voy a casa de alguien que me ha invitado.'] },
+          inside('22:00', SARA_HOME, 'A casa. Gracias por la tarde.'),
+        ],
+      })),
     ],
   },
   {
@@ -496,6 +509,19 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('19:20', ADA_HOME, 'A casa. Mañana más.'),
         ],
       },
+      ...[['plan-visita', 'HOME_SOFA_02'], ['plan-visita-estudio', 'STUDIO_SOFA_02']].map(([id, seat]): Routine => ({
+        // Va a tu casa (data/visits.ts): se sienta en el sofá y, a su hora, vuelve a la suya. Una por vivienda.
+        id,
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Hoy salgo pronto. Tengo una visita.'),
+          inside('13:00', ADA_HOME, 'A comer y a cambiarme.'),
+          { at: '19:20', point: seat, lines: ['Se está bien aquí. Es tranquilo.'], going: ['Voy a casa de alguien que me ha invitado.'] },
+          inside('22:00', ADA_HOME, 'A casa. Mañana, academia.'),
+        ],
+      })),
     ],
   },
 ];

@@ -81,6 +81,7 @@ function expand(raw: LocationDef): LocationDef {
 
 const EXPANDED = LOCATIONS.map(expand);
 const BY_ID = new Map(EXPANDED.map((loc) => [loc.id, loc]));
+const BASE = new Map(BY_ID);
 
 // ------------------------------------------------------------ colisiones
 
@@ -108,6 +109,23 @@ export function solidMask(loc: LocationDef, bodies = false): boolean[][] {
 }
 
 const masks = new Map<string, boolean[][]>();
+
+/**
+ * La localización tal como está en los datos, sin lo que el jugador le haya instalado (systems/Housing). Colisiones,
+ * interacciones y navegación salen de la versión instalada (`getLocation`): una sola definición para las tres.
+ */
+export function baseLocation(id: string): LocationDef {
+  const loc = BASE.get(id);
+  if (!loc) throw new Error(`Localización desconocida: ${id}`);
+  return loc;
+}
+
+/** Sustituye una localización por su variante (con muebles instalados) y olvida sus colisiones calculadas. Mismos puntos y salidas. */
+export function installLocation(def: LocationDef): void {
+  if (!BASE.has(def.id)) throw new Error(`Localización desconocida: ${def.id}`);
+  BY_ID.set(def.id, def);
+  masks.delete(def.id);
+}
 function maskOf(loc: LocationDef): boolean[][] {
   let m = masks.get(loc.id);
   if (!m) masks.set(loc.id, (m = solidMask(loc)));

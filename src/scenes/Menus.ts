@@ -32,6 +32,9 @@ import {
   hasCamera, knowledge, lessonStatus, levelName, nextSession, practice, practiceAt, practiceBlocker, practiceGain, sessionLabel, sessionNow, type Outcome as StudyOutcome, type StudyState,
 } from '../systems/Study';
 import { closedLines, isOpen, placeInfo } from '../systems/Places';
+import { UPGRADES, getHome, getUpgrade } from '../data/housing';
+import { buy, buyBlocker, fits, installAll, installedIn, move, moveBlocker, movePlans, moveSummary, quote as housingQuote, storedIn } from '../systems/Housing';
+import { owed, statusOf as billStatus, unpaid } from '../systems/Household';
 
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
 export interface MenuHost {
@@ -40,6 +43,10 @@ export interface MenuHost {
   arriveByTrain(locationId: string): void;
   /** Funde a negro al irse a un sitio sin mapa. */
   fadeOut(): void;
+  /** Vuelve a montar la casa donde estás (se ha instalado algo) sin moverte. */
+  refreshHome(): void;
+  /** Te lleva a la entrada de tu casa nueva, tras mudarte. */
+  movedHome(): void;
 }
 
 /**
@@ -524,6 +531,99 @@ export class Menus {
       if (again) return dialogue.start(name, [again]);
       this.studied(name, deliver(g, state.study, g.choices[i], this.now()), `Encargo · ${who}`);
     });
+  }
+
+  // ------------------------------------------------------------- vivienda
+
+  /**
+   * El catálogo del hogar (el ordenador de casa): mejoras con su precio y lo que hacen. Elegir una enseña el precio y
+   * el saldo que queda antes de confirmar; comprarla la instala hoy mismo y cobra una sola vez.
+   */
+  openHousing(name: string, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    const h = state.housing;
+    const again = (n = '', i = 0): void => this.openHousing(name, n, i);
+    const options: MenuOption[] = UPGRADES.map((u) => {
+      const owned = h.owned.includes(u.id);
+      const blocked = buyBlocker(h, u.id, state.money);
+      return {
+        label: `${u.name} · ${u.kind}`,
+        detail: owned ? (fits(u, h.home) ? 'instalada' : 'en el trastero') : euros(u.price),
+        disabled: blocked ?? undefined,
+      };
+    });
+    options.push({ label: 'Cerrar el catálogo' });
+    const intro = `Mejoras para ${getHome(h.home).name}. Se instalan hoy mismo en su ranura y no se pueden comprar dos veces. Saldo: ${euros(state.money)}.`;
+    menu.open(name, intro, options, (i) => {
+      if (i === UPGRADES.length) return menu.close();
+      this.confirmUpgrade(UPGRADES[i].id, name, (n) => again(n, i));
+    }, undefined, note, selected);
+  }
+
+  private confirmUpgrade(id: string, title: string, back: (n?: string) => void): void {
+    const { state, menu, dialogue } = this.services;
+    const u = getUpgrade(id);
+    menu.open(u.name, housingQuote(state.housing, id, state.money), [{ label: `Comprar e instalar (${euros(u.price)})` }, { label: 'Volver' }], (i) => {
+      if (i === 1) return back();
+      const r = buy(state.housing, id, state.money);
+      if (!r.ok) return back(r.message);
+      menu.close();
+      state.as(`Mejora · ${u.name}`, () => {
+        state.money = r.money;
+      });
+      state.setHousing(r.housing);
+      installAll(r.housing);
+      this.host.persist();
+      dialogue.start(title, [`Pedido confirmado: ${u.name}, ${euros(u.price)}. Saldo: ${euros(state.money)}.`, 'El montador la deja puesta en un momento.', `${formatClock(state.day, state.hour, state.minute)}.`]);
+      dialogue.once('close', () => this.host.refreshHome());
+    }, () => back());
+  }
+
+  /** ¿Hay algún pago vencido? Mudarse con deudas pendientes no se puede. */
+  private overdueBills(): boolean {
+    const { state } = this.services;
+    return unpaid(state.household).some((o) => ['overdue', 'late'].includes(billStatus(o, state.day)));
+  }
+
+  /**
+   * La puerta de una vivienda que no es la tuya: lo que cuesta, lo que pide y lo que pasa con tus cosas antes de
+   * decidir. Mudarse cobra la mudanza, traslada lo que cabe, guarda lo que no y te deja en la casa nueva.
+   */
+  openHomeOffer(homeId: string, note = ''): void {
+    const { state, menu, dialogue } = this.services;
+    const home = getHome(homeId);
+    const free = (): number => state.money - owed(state.household);
+    const blocked = moveBlocker(state.housing, homeId, free(), this.overdueBills());
+    const fee = home.move?.fee ?? 0;
+    menu.open(home.name, moveSummary(state.housing, homeId), [
+      { label: `Alquilarla y mudarte (${euros(fee)})`, disabled: blocked ?? undefined },
+      { label: 'Ahora no' },
+    ], (i) => {
+      if (i === 1) return menu.close();
+      const from = state.housing;
+      const r = move(from, homeId, state.money, free(), this.overdueBills());
+      if (!r.ok) return this.openHomeOffer(homeId, r.message);
+      menu.close();
+      state.as(`Mudanza · ${home.name}`, () => {
+        state.money = r.money;
+      });
+      // Las visitas ya quedadas pasan a la casa nueva (systems/Housing.movePlans).
+      const moved = movePlans(state.snapshot.stories ?? {}, from.home, homeId);
+      for (const [npc, story] of Object.entries(moved)) state.setStory(npc, story);
+      state.setHousing(r.housing);
+      installAll(r.housing);
+      this.host.persist();
+      const carried = installedIn(r.housing);
+      const parked = storedIn(r.housing);
+      const names = (ids: readonly string[]): string => ids.map((c) => getUpgrade(c).name).join(', ');
+      dialogue.start(home.name, [
+        `Mudanza hecha: ${euros(fee)}. Saldo: ${euros(state.money)}.`,
+        carried.length ? `Se han instalado contigo: ${names(carried)}.` : 'Tu ropa, tatuajes y bolsa vienen contigo.',
+        parked.length ? `No caben aquí y quedan guardadas en el trastero, sin perderse: ${names(parked)}.` : '',
+        `Alquiler: ${euros(getHome(from.home).rent)} → ${euros(home.rent)} desde el próximo periodo.`,
+      ].filter(Boolean));
+      dialogue.once('close', () => this.host.movedHome());
+    }, () => menu.close(), note);
   }
 
   // ---------------------------------------------------------- actividades

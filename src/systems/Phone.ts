@@ -389,10 +389,10 @@ export function activePlan(phone: PhoneState, npc: string, now: number): SocialP
  * y lo propio del móvil: confirmar o cancelar lo que tenéis, contestar a lo que te propone. Sin su número, nada;
  * esperando su respuesta, tampoco (no se le bombardea).
  */
-export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProfile, now: number, story?: { accept: string; decline: string }): PhoneOption[] {
+export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProfile, now: number, story?: { accept?: string; decline?: string; cancel?: boolean }): PhoneOption[] {
   if (!profile.contactExchanged || phone.threads[npc]?.pending) return [];
   // Una propuesta de su historia (systems/Story.phoneStory): se contesta aquí con sus palabras, o en persona.
-  if (story) return [{ id: 'accept-invite', label: story.accept }, { id: 'decline-invite', label: story.decline }, { id: 'bye', label: PHONE_ACTIONS.bye.label }];
+  if (story?.accept && story.decline) return [{ id: 'accept-invite', label: story.accept }, { id: 'decline-invite', label: story.decline }, { id: 'bye', label: PHONE_ACTIONS.bye.label }];
   const m = minuteOfAbs(now);
   const social = availableSocialActions(profile, {
     day: dayOfAbs(now),
@@ -409,13 +409,16 @@ export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProf
   for (const id of Object.keys(PHONE_ACTIONS) as PhoneActionId[]) {
     const s = PHONE_ACTIONS[id].social;
     if (!s || s === 'bye' || !social.includes(s)) continue;
-    if (INVITES[id] && plan) continue;
+    if (INVITES[id] && (plan || story?.cancel)) continue;
     // Una cita rechazada hace poco se recuerda: no se vuelve a pedir enseguida.
     if (id === 'propose-date' && profile.memories.some((mem) => mem.kind === 'DATE' && mem.outcome === 'negative' && dayOfAbs(now) - mem.day < 4)) continue;
     ids.push(id);
   }
   if (plan?.status === 'accepted') {
     if (!plan.confirmed) ids.push('confirm-plan');
+    ids.push('cancel-plan');
+  } else if (story?.cancel) {
+    // El plan quedado con su historia (una visita a casa): cancelarlo cuesta lo mismo que cancelar uno del móvil.
     ids.push('cancel-plan');
   }
   ids.push('bye');

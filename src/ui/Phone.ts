@@ -32,7 +32,9 @@ export interface PhoneHost {
   send(npc: string, action: PhoneActionId): void;
   read(npc: string): void;
   /** Una propuesta suya por contestar (systems/Story): con qué palabras se acepta o se dice que no. */
-  offer?(npc: string): { accept: string; decline: string } | undefined;
+  offer?(npc: string): { accept?: string; decline?: string; cancel?: boolean } | undefined;
+  /** El plan quedado con su historia (una visita a casa), dicho para la conversación: «tu piso · mañana a las 19:30». */
+  planLine?(npc: string): string | undefined;
   /** Guarda la partida ya (tras un pago). */
   persist(): void;
 }
@@ -603,6 +605,12 @@ export class PhoneScreen {
     if (plan && planState) {
       const card = el('p', 'phone__plan');
       card.append(el('b', '', planState), ` · ${PLAN_KINDS[plan.kind].name} ${whenLabel(plan.day, Math.floor(now / 1440) + 1)} a las ${plan.at} · ${placeName(plan.place)}`);
+      log.append(card);
+    }
+    const storyPlan = this.host?.planLine?.(npc);
+    if (storyPlan && !plan) {
+      const card = el('p', 'phone__plan');
+      card.append(el('b', '', 'Quedada'), ` · ${storyPlan}`);
       log.append(card);
     }
     for (const m of thread?.messages ?? []) {

@@ -15,6 +15,7 @@ import { createPhone, parsePhone } from './Phone.ts';
 import { parseJob } from './Jobs.ts';
 import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
+import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
 
 /**
  * Qué se guarda y qué no (política de lo pasajero). Se guarda lo que es del
@@ -62,6 +63,7 @@ export function createInitialState(): GameStateData {
     household: startHousehold(INITIAL_CLOCK.day),
     ledger: [],
     study: emptyStudy(),
+    housing: startHousing(),
   };
 }
 
@@ -84,7 +86,23 @@ export function restore(loaded: GameStateData | null): GameStateData {
     const spawn = getLocation(venue.exit.location).spawns[venue.exit.spawn];
     if (spawn) return { ...loaded, locationId: venue.exit.location, position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE }, facing: spawn.facing };
   }
-  return { ...loaded, position: safePosition(loaded.locationId, loaded.position, START_SPAWN) };
+  // Las mejoras instaladas cambian las colisiones: se ponen antes de mirar si la posición guardada sigue libre.
+  const housing = loaded.housing ?? startHousing();
+  installAll(housing);
+  const here = getLocation(loaded.locationId);
+  // Dentro de una vivienda que ya no es la tuya: «volver a casa» se resuelve por los datos (data/housing.ts), a la puerta de la que vives.
+  if (here.home && here.home !== housing.home) {
+    const door = homeDoor(housing);
+    const spawn = getLocation(door.location).spawns[door.spawn];
+    return { ...loaded, locationId: door.location, position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE }, facing: spawn.facing };
+  }
+  const position = safePosition(loaded.locationId, loaded.position, START_SPAWN);
+  // Un interior con la posición en un rincón al que ya no se llega (un mueble nuevo la encierra): a la entrada.
+  const entry = here.kind === 'interior' ? here.spawns.entry : undefined;
+  if (entry && !reaches(here, { tx: entry.tx, ty: entry.ty }, { tx: Math.floor(position.x / TILE), ty: Math.floor((position.y - 1) / TILE) })) {
+    return { ...loaded, position: { x: entry.tx * TILE + TILE / 2, y: entry.ty * TILE + TILE }, facing: entry.facing };
+  }
+  return { ...loaded, position };
 }
 
 /** Clave donde se aparta una partida que no se puede leer (rota o de una versión más nueva) antes de que el autoguardado la pise. */
@@ -333,6 +351,8 @@ function parseState(value: unknown): GameStateData | null {
     ledger: parseLedger(s.ledger),
     // Una partida anterior a los estudios carga sin curso ni habilidades.
     study: parseStudy(s.study),
+    // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.
+    housing: parseHousing(s.housing),
   };
 }
 

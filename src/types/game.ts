@@ -385,6 +385,8 @@ export interface SpotDef {
   wardrobe?: true;
   /** Punto de estudio (data/study.ts): practicar una habilidad aquí (scenes/Menus.ts, openStudy). */
   study?: string;
+  /** El catálogo del hogar (data/housing.ts): comprar mejoras para esta casa (scenes/Menus.ts, openHousing). */
+  housing?: true;
 }
 
 /** Algo que se puede mirar con E: un cartel, una fuente, un escaparate. */
@@ -540,6 +542,8 @@ export interface LocationDef {
   terminals?: readonly TerminalDef[];
   /** Sitios donde se hace algo que lleva un rato: la cama, la cocina, la silla de la peluquería (data/activities.ts). */
   spots?: readonly SpotDef[];
+  /** Es una vivienda del jugador (id en data/housing.ts HOMES): sólo entra quien vive ahí; a los demás se les ofrece mudarse. */
+  home?: string;
   /** Mesas con servicio (systems/TableService.ts): sus asientos y dónde se pone quien atiende. */
   tables?: readonly TableDef[];
   /** Nombres de calles y zonas para el mapa (systems/WorldMap.ts): sólo la etiqueta y dónde va; la forma sale del suelo. */
@@ -698,6 +702,8 @@ export interface GameStateData {
   ledger?: import('../systems/Household.ts').Movement[];
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
   study?: import('../systems/Study.ts').StudyState;
+  /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */
+  housing?: import('../systems/Housing.ts').HousingState;
 }
 
 export interface SaveFile {

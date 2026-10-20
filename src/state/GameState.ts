@@ -10,6 +10,7 @@ import type { Ticket } from '../systems/Tickets';
 import type { JobProgress } from '../systems/Jobs';
 import { LEDGER_SIZE, type HouseholdState, type Movement } from '../systems/Household';
 import { emptyStudy, type StudyState } from '../systems/Study';
+import { startHousing, type HousingState } from '../systems/Housing';
 
 /**
  * Estado central de la partida.
@@ -83,6 +84,9 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). */
   private _study: StudyState;
+
+  /** Vivienda activa y mejoras compradas (systems/Housing). */
+  private _housing: HousingState;
 
   /** Motivo del cambio de dinero en curso (as()). */
   private why: string | null = null;
@@ -169,6 +173,8 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._ledger = structuredClone(initial.ledger ?? []);
 
     this._study = structuredClone(initial.study ?? emptyStudy());
+
+    this._housing = structuredClone(initial.housing ?? startHousing());
   }
 
   // ================================================================
@@ -212,6 +218,20 @@ export class GameState extends Phaser.Events.EventEmitter {
       this._ledger.push({ day: this._day, hour: this._hour, minute: this._minute, label, amount: Math.round(delta * 100) / 100 });
       if (this._ledger.length > LEDGER_SIZE) this._ledger.shift();
     }
+  }
+
+  // ================================================================
+  // VIVIENDA (systems/Housing)
+  // ================================================================
+
+  get housing(): HousingState {
+    return structuredClone(this._housing);
+  }
+
+  /** Cambia la vivienda (comprar, mudarse) y avisa. Dinero y colocación se aplican aparte, antes de guardar. */
+  setHousing(h: HousingState): void {
+    this._housing = structuredClone(h);
+    this.emit('housing');
   }
 
   // ================================================================
@@ -671,6 +691,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       ledger: structuredClone(this._ledger),
 
       study: structuredClone(this._study),
+
+      housing: structuredClone(this._housing),
     };
   }
 }

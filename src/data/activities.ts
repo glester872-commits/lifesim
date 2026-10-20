@@ -99,6 +99,14 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     effects: { energy: 6 },
     lines: ['Agua caliente hasta que se empaña el espejo. Sales otra persona.', 'El calentador tarda en arrancar. Luego no hay quien te saque.'],
   },
+  // Sólo en la casa con la mejora «Sofá de lectura» (data/housing.ts): descansar sin gastar nada.
+  {
+    id: 'read-sofa',
+    name: 'Leer un rato en el sofá nuevo (45 min)',
+    minutes: 45,
+    effects: { energy: 12 },
+    lines: ['Te acurrucas con la manta y un libro que llevabas semanas empezando.', 'A la tercera página ya no estás en el salón.'],
+  },
   {
     id: 'watch-tv',
     name: 'Ver la tele (1 h)',

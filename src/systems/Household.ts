@@ -76,13 +76,13 @@ export const owed = (h: HouseholdState): number => cents(unpaid(h).reduce((s, o)
  * aplica el recargo único a lo que pasó del margen. `news` son los anunciados
  * ahora y `fined` los que acaban de recibir recargo, para contarlos una vez.
  */
-export function sync(h: HouseholdState, today: number): { household: HouseholdState; news: Obligation[]; fined: Obligation[] } {
+export function sync(h: HouseholdState, today: number, amounts: Readonly<Record<string, number>> = {}): { household: HouseholdState; news: Obligation[]; fined: Obligation[] } {
   const out: HouseholdState = structuredClone(h);
   const news: Obligation[] = [];
   const fined: Obligation[] = [];
   for (const bill of BILLS) {
     for (let k = out.generated[bill.id] ?? 0; out.since + k * bill.every <= today; k++) {
-      const o: Obligation = { bill: bill.id, period: k, due: out.since + (k + 1) * bill.every - 1, amount: bill.amount, fee: 0 };
+      const o: Obligation = { bill: bill.id, period: k, due: out.since + (k + 1) * bill.every - 1, amount: amounts[bill.id] ?? bill.amount, fee: 0 };
       out.obligations.push(o);
       out.generated[bill.id] = k + 1;
       news.push(o);

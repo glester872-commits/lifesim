@@ -1,5 +1,6 @@
 import type { StoryDef } from '../systems/Story.ts';
 import { ADA_STORY } from './adaStory.ts';
+import { visitBeats, visitMessages, visitOpeners, visitPlans, type VisitText } from './visits.ts';
 
 /**
  * La historia de Sara con el jugador (systems/Story): sus flags, los planes que propone, los microeventos que
@@ -17,6 +18,36 @@ import { ADA_STORY } from './adaStory.ts';
 
 const NOT_SUNDAY = [0, 1, 2, 3, 4, 5];
 const ANY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
+/** La visita a tu casa (data/visits.ts): sus palabras. */
+const VISIT: VisitText = {
+  routine: 'plan-visita', routineStudio: 'plan-visita-estudio', sofa: 'HOME_SOFA_02', sofaStudio: 'STUDIO_SOFA_02',
+  friend: 'sara_friend', conflict: 'sara_conflict',
+  ask: ['Oye, llevo semanas sin ver dónde vives. ¿Me enseñas tu casa {cuando}? Llevo yo algo de picar.'],
+  yes: { label: 'Claro, ven {cuando}', reply: ['¡Bien! {cuando} en {lugar}. Voy a juzgar la decoración, que lo sepas.'] },
+  no: { label: 'Esta vez no puedo', reply: ['Vale, vale. Otro día. Pero me debes una visita, ¿eh?'] },
+  kept: ['¡Hola! Qué bien, tienes ventana y todo. Déjame que lo mire todo.', 'Se descalza, se sienta en el sofá y aprueba la casa en voz alta.'],
+  together: {
+    say: ['¿Y ahora qué hacemos? Tengo toda la tarde y cero planes.'],
+    tele: ['Pues tele. Pero yo elijo.', 'Pasa por tres canales de moda y se queda en el cuarto: un concurso de costura. Hasta ahí llega la tarde.'],
+    picar: ['Pues a picar. Yo traigo el queso y tú pones los platos.', 'Acabáis comiendo del mismo plato, que fregar es de otro día.'],
+    casa: ['Vale, pero con calma. Quiero verlo todo: la ventana, el armario, lo que hay encima de la cama.', 'Hace de crítica de interiores durante veinte minutos. Con razón en la mitad.'],
+  },
+  notices: {
+    sofa: ['¿Ese sofá es nuevo? Lleva la manta y todo. Aquí me quedo a leer cuando me canse.'],
+    cuadro: ['El cuadro del mural del Carmen, ¡qué bonito! ¿Es el de la esquina de Retales?'],
+    lampara: ['La lámpara de pie da una luz buenísima. Con esto sale cualquier foto.'],
+    plain: ['Qué bien se está aquí. Se nota que es tu casa.'],
+  },
+  next: {
+    sofa: ['Sigo pensando en ese sofá con la manta. Ojalá lo tuviera yo en mi cuarto.'],
+    cuadro: ['El cuadro de tu pared se me ha quedado grabado. Tienes buen ojo.'],
+    lampara: ['Ayer, con la luz de tu lámpara, estuve a punto de hacerte una foto sin avisar.'],
+    plain: ['Lo de ayer en tu casa estuvo genial. Tienes que venir tú a la mía algún día.'],
+    message: ['Gracias por la tarde de ayer. Tu casa es de esas que te dan ganas de quedarte. Repetimos.'],
+  },
+};
+const VISIT_BEATS = visitBeats(VISIT);
 
 export const SARA_STORY: StoryDef = {
   npc: 'sara',
@@ -68,6 +99,7 @@ export const SARA_STORY: StoryDef = {
       },
       missed: { set: ['sara_conflict'], clear: ['sara_apologized', 'sara_reconciled'], social: { trust: -12, friendship: -4, mood: -12 }, mood: -24, event: 'planton' },
     },
+    ...visitPlans(VISIT),
     // El arco del lookbook.
     sesion: {
       routine: 'plan-sesion', point: 'CARMEN_PHOTO_01', from: '18:00', until: '19:30', place: 'el mural del Carmen', outdoor: true, days: NOT_SUNDAY,
@@ -128,6 +160,7 @@ export const SARA_STORY: StoryDef = {
       say: ['Perdona por cancelar lo de {lugar}. No tenía el día y no quería ir de mala gana. Te debo una.'],
       then: { clear: ['sara_changed_mind'], social: { trust: 2 }, event: 'disculpa' },
     },
+    VISIT_BEATS.share,
     {
       // Te da su número; si ya lo tienes (os lo disteis antes), no vuelve a dártelo.
       id: 'amistad', once: true, when: { minState: 'FRIEND', notFlags: ['sara_friend'], contact: false },
@@ -246,11 +279,13 @@ export const SARA_STORY: StoryDef = {
         { label: 'Espera un poco', reply: ['Ya... Igual tenéis razón. Un mes más. Otro.'], then: { set: ['sara_tattoo_asked'], decision: ['tatuaje', 'no'] } },
       ],
     },
+    ...VISIT_BEATS.invite,
   ],
   openers: [
     // Dolida: seca, y luego lo saca (beat 'reconciliar'). Si ya pediste perdón, espera a que vengas.
     { when: { flags: ['sara_conflict', 'sara_apologized'] }, text: ['Hola. Lo del Molinillo sigue en pie, ¿eh?', 'Ah, hola. Te espero en el Molinillo, como dijimos.'] },
     { when: { flags: ['sara_conflict'] }, text: ['Ah. Hola.', 'Hola. Ando liada.', 'Ah, eres tú.'] },
+    ...visitOpeners(VISIT),
     { when: { recent: { event: 'plan-lluvia', days: 0 } }, text: ['Qué rabia de lluvia. Lo de {lugar}, otro día; no es culpa de nadie.'] },
     { when: { planIn: 0 }, text: ['¡Hoy a las {hora} en {lugar}! No te olvides.', 'Lo de hoy en {lugar} sigue en pie, ¿eh? A las {hora}.'] },
     { when: { planIn: 1 }, text: ['Mañana a las {hora} en {lugar}. Lo tengo apuntado.', 'Lo de mañana en {lugar}, ¿sigue? Yo voy seguro.'] },
@@ -290,6 +325,7 @@ export const SARA_STORY: StoryDef = {
   messages: [
     { id: 'sesion', when: { ago: { event: 'sesion-fotos', days: 1 } }, text: ['Estoy editando las fotos de ayer y no me lo creo. Gracias por venir de verdad.'] },
     { id: 'reconciliacion', when: { ago: { event: 'reconciliacion', days: 1 } }, text: ['Lo de ayer en el Molinillo me sentó bien. Gracias por venir.'] },
+    ...visitMessages(VISIT),
   ],
 };
 

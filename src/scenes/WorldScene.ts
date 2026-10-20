@@ -51,6 +51,7 @@ import { getNpc, PASSENGER_LOOKS } from '../data/npcs';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
 import { STORIES } from '../data/saraStory';
+import { homeEntry, installedIn } from '../systems/Housing';
 import {
   applyEffect,
   beatAfterTalk,
@@ -65,6 +66,8 @@ import {
   offerBeat,
   openerFor,
   phoneStory,
+  planSummary,
+  cancelStoryPlan,
   presentBeat,
   routineOn,
   watchPlan,
@@ -132,7 +135,7 @@ import {
 } from '../systems/Social';
 import { NAMED_PEOPLE } from '../data/namedPeople';
 import { NAMED_VOICES } from '../data/chatNamed';
-import { INIT_SLOT, lineFor, markRead, tierOf, phoneTick, planFromTalk, postMessage, sendMessage, statusOf, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneResult } from '../systems/Phone';
+import { INIT_SLOT, activePlan, lineFor, markRead, tierOf, phoneTick, planFromTalk, postMessage, sendMessage, statusOf, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneResult } from '../systems/Phone';
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
@@ -163,7 +166,7 @@ type Interactable =
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; lines?: readonly string[] }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; housing?: true; lines?: readonly string[] }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
@@ -576,7 +579,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
-      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study });
+      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, housing: s.housing });
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
@@ -593,6 +596,8 @@ export class WorldScene extends Phaser.Scene {
       persist: () => this.persist(),
       arriveByTrain: (locationId) => this.arriveByTrain(locationId),
       fadeOut: () => this.cameras.main.fadeOut(TRANSITION_MS, 0, 0, 0),
+      refreshHome: () => this.refreshHome(),
+      movedHome: () => this.movedHome(),
     });
 
     this.physics.add.collider(this.player, built.solids);
@@ -749,7 +754,13 @@ export class WorldScene extends Phaser.Scene {
       send: (npc, action) => this.sendPhone(npc, action),
       offer: (npc) => {
         const beat = this.storyOfferFor(npc);
-        return beat?.choices ? { accept: beat.choices[0].label, decline: beat.choices[1].label } : undefined;
+        if (beat?.choices) return { accept: beat.choices[0].label, decline: beat.choices[1].label };
+        return this.storyOf(npc)?.plan?.status === 'pending' ? { cancel: true } : undefined;
+      },
+      planLine: (npc) => {
+        const story = this.storyOf(npc);
+        const def = STORIES[npc];
+        return story && def ? planSummary(story, def, this.services.state.day) ?? undefined : undefined;
       },
       read: (npc) => {
         const phone = this.services.state.phone;
@@ -1262,6 +1273,19 @@ export class WorldScene extends Phaser.Scene {
   private sendPhone(npc: string, action: PhoneActionId): void {
     const { state } = this.services;
     const now = Math.floor(this.absMinute());
+    // Cancelar por el móvil el plan quedado con su historia (una visita a casa): las mismas reglas que cancelar uno del móvil.
+    if (action === 'cancel-plan' && !activePlan(state.phone, npc, now) && this.storyOf(npc)?.plan?.status === 'pending') {
+      const profile = state.socialOf(npc);
+      const late = this.storyOf(npc)?.plan?.day === this.storyNow().day;
+      const out = cancelStoryPlan(this.storyOf(npc)!, profile, STORIES[npc], this.storyNow());
+      if (out) {
+        this.saveStory(npc, out.story, out.profile);
+        const line = lineFor(late ? 'cancel:late' : 'cancel', npc, tierOf(relationshipState(profile)), seededRng(hashSeed('story-cancel', npc, now)));
+        state.setPhone(postMessage(postMessage(state.phone, npc, 'me', 'Tengo que cancelar lo que teníamos quedado. Lo siento.', now), npc, 'them', line, now + 1), [{ npc, text: line, plan: true }]);
+        this.persistSoon();
+        return;
+      }
+    }
     // Contestar por el móvil a una propuesta de su historia es lo mismo que contestarla en persona (answerStory).
     const beat = action === 'accept-invite' || action === 'decline-invite' ? this.storyOfferFor(npc) : null;
     if (beat?.choices) {
@@ -1313,7 +1337,8 @@ export class WorldScene extends Phaser.Scene {
 
   /** Su día (empieza a las 06:00) y el minuto del reloj. */
   private storyNow(): StoryNow {
-    return { day: characterDay(this.absMinute()), minute: Math.floor(this.services.clock.minuteOfDay) };
+    const { housing } = this.services.state;
+    return { day: characterDay(this.absMinute()), minute: Math.floor(this.services.clock.minuteOfDay), home: housing.home, owned: installedIn(housing) };
   }
 
   /** Si ese día llueve por la mañana: lo que decide una rutina de lluvia o cancelar un plan de fuera. */
@@ -2447,6 +2472,7 @@ export class WorldScene extends Phaser.Scene {
     else if (target.kind === 'spot') {
       if (target.wardrobe) this.menus.openWardrobe();
       else if (target.study) this.menus.openStudy(target.study, target.name, target.lines ?? []);
+      else if (target.housing) this.menus.openHousing(target.name);
       else this.menus.openSpot(target.name, target.activities);
     }
     else if (target.kind === 'event') this.approachEvent(target.view);
@@ -3281,6 +3307,12 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    // La puerta de una vivienda que no es la tuya: se ofrece mudarse (coste, requisitos y consecuencias), no se entra.
+    const homeId = getLocation(portal.to.location).home;
+    if (homeId && homeId !== this.services.state.housing.home) {
+      this.menus.openHomeOffer(homeId);
+      return;
+    }
     // Fuera de horario, la puerta está cerrada: se dice cuándo abre y no se entra.
     const closed = this.closedPlace(portal);
     if (closed) {
@@ -3361,6 +3393,19 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.scene.restart({ locationId, position, facing });
+  }
+
+  /** Se ha instalado algo en casa: guarda y rehace la Scene en el mismo sitio, con la casa ya como queda. */
+  private refreshHome(): void {
+    const { state } = this.services;
+    this.persist();
+    this.scene.restart({ locationId: state.locationId, position: { x: state.position.x, y: state.position.y }, facing: state.facing });
+  }
+
+  /** Mudanza hecha: a la entrada de la casa nueva (la vivienda de ahora, por los datos de systems/Housing). */
+  private movedHome(): void {
+    const entry = homeEntry(this.services.state.housing);
+    this.go(entry.location, entry.spawn, false);
   }
 
   /** Cambia de localización: guarda, funde a negro y rehace la Scene a la hora que sea ya. */

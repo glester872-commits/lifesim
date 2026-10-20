@@ -15,6 +15,7 @@ import { placeInfo, placesOfType } from './systems/Places';
 import { forceWeather, weatherAt } from './systems/Weather';
 import { dateOf, dayOfDate, formatDate, onNewDay, SEASON_LABEL } from './systems/Calendar';
 import { announce, billOf, sync as syncBills } from './systems/Household';
+import { rentsOf } from './systems/Housing';
 import { euros } from './systems/Commerce';
 import { handoffs } from './systems/Handoff';
 import { MetroEventManager } from './systems/MetroEventManager';
@@ -114,7 +115,7 @@ new MobileControls(requireEl('#touch'), services.input);
 // Gastos de casa (systems/Household): cada periodo se anuncia al empezar (importe y vencimiento) y vence al
 // acabar. Se ponen al día al arrancar y en cada medianoche; repetirlo no crea nada: cada periodo, una vez.
 const syncHousehold = (): void => {
-  const r = syncBills(state.household, state.day);
+  const r = syncBills(state.household, state.day, rentsOf(state.housing));
   if (!r.news.length && !r.fined.length) return;
   state.setHousehold(r.household);
   services.save.save(state.snapshot);

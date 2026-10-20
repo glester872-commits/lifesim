@@ -1,6 +1,7 @@
 import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
 import { VALLESCO } from './vallesco.ts';
+import { STUDIO } from './studio.ts';
 import { RIBERA } from './ribera.ts';
 import { CUATRO_RIOS } from './cuatroRios.ts';
 import { CR_INTERIORS } from './cuatroRiosVenues.ts';
@@ -39,6 +40,7 @@ const HOME: LocationDef = {
   id: 'home',
   name: 'Tu piso',
   kind: 'interior',
+  home: 'olmo7',
   ground: [
     'WWWWWWWWWWWWWWWWWWWWWW',
     'WWWWWWWWWWWWWWWWWWWWWW',
@@ -109,6 +111,8 @@ const HOME: LocationDef = {
     { tx: 13, ty: 3, name: 'Armario', activities: [], wardrobe: true },
     { tx: 14, ty: 1, name: 'Espejo', activities: [], wardrobe: true },
     { tx: 3, ty: 13, name: 'Tele', activities: ['watch-tv'] },
+    // El catálogo del hogar (data/housing.ts): comprar mejoras para esta casa.
+    { tx: 16, ty: 4, name: 'Ordenador · catálogo del hogar', activities: [], housing: true },
   ],
   inspects: [
     { tx: 8, ty: 1, name: 'Espejo del baño', lines: ['Ojeras de serie. El espejo no miente, pero tampoco ayuda.'] },
@@ -563,6 +567,7 @@ const ARENA_BARS: readonly LocationDef[] = [
 export const LOCATIONS: readonly LocationDef[] = [
   VALLESCO,
   HOME,
+  STUDIO,
   CAFE,
   GYM,
   FASHION,

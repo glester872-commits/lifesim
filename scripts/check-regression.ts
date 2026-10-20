@@ -115,6 +115,8 @@ const full: GameStateData = {
   // Un contrato (systems/Jobs) con un turno cobrado y una falta: vuelve igual, sin volver a cobrar ni a contar.
   job: { job: 'decathlon', status: 'active', level: 0, from: 2, checked: 5, good: 1, strikes: 1, streak: 0, shifts: { 3: { result: 'done', score: 2, pay: 60 }, 5: { result: 'missed', score: -2, pay: 0 } } },
   // Gastos de casa (systems/Household) con un alquiler pagado y otro pendiente, una meta y un movimiento.
+  // Vivienda (systems/Housing): vive en el estudio con una mejora que cabe y otra en el trastero.
+  housing: { home: 'estudio', owned: ['cuadro-carmen', 'sofa-lectura'] },
   // Estudios (systems/Study): curso con dos clases hechas, práctica de hoy, encargo aceptado y su desbloqueo.
   study: { skills: { foto: 32 }, course: { id: 'foto-basica', enrolled: 1, lessons: [2, 4, 9, 11], attended: [0, 1], demoDay: 12, passed: 12 }, practice: { day: 12, counts: { 'foto-fuente': 1 } }, gig: { id: 'horno-escaparate', accepted: 12, deadline: 15 }, unlocks: ['gig:horno-escaparate'] },
   household: { since: 1, generated: { rent: 2, home: 1 }, obligations: [{ bill: 'rent', period: 0, due: 7, amount: 45, fee: 0, paid: 6 }, { bill: 'rent', period: 1, due: 14, amount: 45, fee: 0 }, { bill: 'home', period: 0, due: 7, amount: 10, fee: 0 }], goal: 'abrigo' },
@@ -138,7 +140,7 @@ for (const loc of allLocations()) {
   };
   for (const t of loc.terminals ?? []) (getCatalog(t.catalog), inside(t, t.name));
   for (const s of loc.spots ?? []) {
-    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)), `[${loc.id}] ${s.name} no hace nada`);
+    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)) || s.housing, `[${loc.id}] ${s.name} no hace nada`);
     s.activities.forEach(getActivity);
     inside(s, s.name);
   }

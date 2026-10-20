@@ -58,6 +58,10 @@ que existe; esto, lo que falta y por qué.
   Reme del horno no es un personaje: sólo su puerta. Sin cámara propia: la del
   centro se devuelve al entregar el encargo; después la fotografía sólo se usa en
   el plus del Decathlon. El folleto del metro (`folleto:cursos`) sigue sin efecto.
+- Vivienda (`systems/Housing.ts`): tres mejoras y dos casas; el catálogo está en el ordenador de cada casa y no hay
+  encargos con entrega ni muebles que se muevan. Cancelar el plan de una visita el mismo día no la saca de su
+  rutina (ya está en marcha: aparece y no encuentra al jugador). El alquiler nuevo se anuncia en los periodos nuevos;
+  los ya anunciados no cambian. Sólo Sara y Ada visitan: son las únicas con historia.
 
 ## Historias de Sara y Ada
 
