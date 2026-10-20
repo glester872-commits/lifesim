@@ -349,6 +349,11 @@ export interface BuildingDef {
   inspect?: readonly string[];
   /** Punto de estudio (data/study.ts) en su puerta: la ventanilla de un curso o el sitio de un encargo. Sin nada que hacer, se lee `inspect`. */
   study?: string;
+  /**
+   * Acabado de fachada y azotea pintadas en una pieza (world/ResidentialArt), en lugar de las piezas por tile del
+   * estilo. Sólo cambia el dibujo: huella, puerta, portal y huecos de cristal son los mismos. Por ahora, una casa piloto.
+   */
+  finish?: 'hd03';
 }
 
 /** Donde se compra algo con E: máquina expendedora, taquilla, mostrador. */

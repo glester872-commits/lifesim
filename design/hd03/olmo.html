@@ -1,0 +1,92 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LIFE//SIM · HD-03 · Olmo 11</title>
+<style>
+:root{--bg:#11151c;--panel:#181d25;--fg:#e8e3da;--muted:#a8b2bb;--btn:#252b33;--line:#4a535d;--accent:#6fd0c6;--warn:#e0b45a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+.wrap{max-width:1132px;margin:0 auto;padding:0 16px}header{padding:16px 0;border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 8px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.bar label{color:var(--muted);font-size:13px}
+button,select{padding:7px 12px;background:var(--btn);color:inherit;border:1px solid var(--line);border-radius:4px;font:inherit;font-size:14px;cursor:pointer}
+button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.view{position:relative;width:100%;background:#000;overflow:hidden;touch-action:none;cursor:grab;margin:0 auto}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.tag{position:absolute;top:8px;padding:2px 8px;background:#000b;font-size:12px;border-radius:3px;pointer-events:none}
+.hint{color:var(--muted);font-size:13px}kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:12px}
+.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--muted);font-weight:500}.bad{color:var(--warn)}.good{color:var(--accent)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 16px}
+.card h3{margin:0 0 6px;font-size:15px}ul{margin:6px 0;padding-left:20px}li{margin:3px 0}code{font-size:13px}
+</style>
+<div class="wrap"><header><h1>LIFE//SIM · HD-03 · edificio piloto: Olmo 11</h1>
+<div class="hint">Antes = commit <code>8c64dd3</code> (HD-03, escala entera). Después = Olmo 11 con fachada y azotea propias. Cámara fija en el mismo punto del mundo (816, 748) en las dos versiones; jugador en la misma baldosa. Capturas reales del lienzo WebGL de cada versión servida por separado, a la resolución física indicada (sin escalar), con la misma partida: semilla 103, día 6 a las 14:00, sin lluvia y la misma secuencia de pasos de 16 ms.</div></header>
+<div class="bar"><label for="res">Pantalla</label><select id="res">
+<option value="day-1080p" selected>Día · Full HD (4×)</option><option value="night-1080p">Noche · Full HD (4×)</option><option value="day-1100">Día · 1100 × 680 (3×)</option><option value="night-1100">Noche · 1100 × 680 (3×)</option></select>
+<button data-mode="a">Antes</button><button data-mode="b">Después</button><button data-mode="slide" aria-pressed="true">Deslizador</button>
+<span style="flex:1"></span><button id="zout" aria-label="Alejar">−</button><span id="zl" style="min-width:56px;text-align:center"></span><button id="zin" aria-label="Acercar">+</button>
+<button id="z1">1 px de pantalla = 1 px de imagen</button><button id="zfit">Encajar</button><button id="zp">Ver al jugador</button></div>
+<div class="view" id="view"><canvas id="cv"></canvas><span class="tag" id="ta" style="left:8px">Antes</span><span class="tag" id="tb" style="right:8px">Después</span></div>
+<p class="hint" id="meta"></p>
+<p class="hint">Arrastra la línea para comparar, arrastra fuera de ella para moverte y usa la rueda para el zoom. <kbd>Espacio</kbd> alterna antes y después. Con «1 px de pantalla = 1 px de imagen» se ve cuántos píxeles físicos ocupa cada píxel de arte: con zoom entero, todos el mismo; con 5,5 o 2,5, unos más que otros.</p>
+
+<h2>Comprobación de colisiones y acceso</h2>
+<p class="hint">Mismo resultado antes y después (scripts del arnés, partida de prueba aislada):</p>
+<ul class="hint"><li>Rejilla de paso de la huella (10 × 9) y la acera: idéntica. Solo la baldosa del portal (50, 50) es transitable.</li>
+<li>Empujar contra la fachada en las columnas 47 (ventana), 49 (ventana) y 53 (pared): el jugador se para en y = 824 en las dos versiones.</li>
+<li>Portal «Olmo 11 → studio»: se ofrece desde la acera y abre el mismo menú («ESTUDIO · OLMO 11», «1. Alquilarla y mudarte (€150)», «2. Ahora no»), que se cierra igual.</li>
+<li>De noche se encienden las mismas ventanas: los huecos de cristal (los que usan Lighting y Detail) están en el mismo sitio y en el mismo orden.</li></ul>
+<h2>Qué cambia</h2>
+<div class="cols">
+<div class="card"><h3>Fachada en una pieza</h3><ul>
+<li>La fachada se pinta entera (<code>world/ResidentialArt.ts</code>) en una textura de 160 × 64 px. Antes eran piezas de 16 × 32 px repetidas por columna. Cada sillar sale de su hilada y su posición: no hay dos tramos iguales.</li>
+<li>Bajo de piedra almohadillada sobre zócalo de granito, con humedad al pie; imposta de piedra artificial con su sombra; planta alta de sillería caliza más clara, con piezas repuestas.</li>
+<li>Huecos con recercado, dintel volado con clave, jamba al sol y en sombra, sombra del dintel en el vidrio, carpintería blanca, persianas; alféizar con su sombra y churretes; balconcillos de forja con losa; rejas voladas en el bajo.</li>
+<li>Portal con recercado, placa con el número, montante con reja, hojas de cuarterones, tiradores, hueco en sombra y escalón; la última fila sigue siendo acera.</li></ul></div>
+<div class="card"><h3>Azotea propia</h3><ul>
+<li>Baldosa a matajunta con tandas de tono, pretil con albardilla de juntas irregulares y su sombra hacia dentro (luz del noroeste) y cornisa con dentículos sobre la fachada.</li>
+<li>Junta de dilatación, dos sumideros con rejilla y cerco de suciedad, musgo en el rincón húmedo, manchas de agua tenues.</li>
+<li>Condensadora con tubo y abrazaderas, chimenea de ventilación, trampilla con churrete de óxido y antena: todos con sombra al sureste.</li></ul></div>
+<div class="card"><h3>Qué no cambia</h3><ul>
+<li>Datos del edificio (huella, puerta, portal, plantas): solo se añade <code>finish: 'hd03'</code>, que elige el dibujo.</li>
+<li>Locales comerciales, edificios especiales y el resto de casas: igual que en HD-03.</li>
+<li>Memoria: +1 textura de fachada (40 KB) y la azotea propia sustituye a la genérica.</li></ul></div>
+<div class="card"><h3>Pendiente</h3><ul>
+<li class="bad">Junto a sus vecinas (tu portal y las casas de ladrillo), Olmo 11 tiene ahora más detalle: el contraste se notará hasta extender el acabado.</li>
+<li>Los aparatos de azotea van dibujados en la textura: no se mueven ni brillan de noche.</li>
+<li>Las bajantes de pluviales siguen siendo las genéricas de <code>Detail</code>.</li></ul></div>
+</div>
+<p class="hint">Respaldo: <code>main</code> (4232cda) sin tocar; etiqueta <code>hd03-base</code> = HD-02. Sin push ni despliegue.</p>
+</div>
+<script>
+const LABELS={'day-1080p':'Día Full HD','night-1080p':'Noche Full HD','day-1100':'Día 1100','night-1100':'Noche 1100'};
+const $=s=>document.querySelector(s),cv=$('#cv'),cx=cv.getContext('2d'),view=$('#view');
+let A,B,W=1,H=1,mode='slide',split=.5,zoom=1,ox=0,oy=0,meta={};
+const img=src=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>j(src);i.src=src});
+const json=async n=>{try{return await (await fetch('/__shots/'+n+'.json')).json()}catch{return null}};
+async function table(){const rows=[];for(const k of Object.keys(LABELS))for(const v of['before','after']){const m=await json('olmo-'+v+'-'+k);if(!m)continue;meta[v+'-'+k]=m;
+ rows.push(`<tr><td>${LABELS[k]}</td><td>${v==='before'?'Antes':'Después'}</td><td class="${Number.isInteger(m.zoom)?'good':'bad'}">${m.zoom}×</td><td>${m.worldView.join(' × ')}</td><td class="${m.renderRoundPixels?'good':'bad'}">${m.renderRoundPixels?'sí':'no'}</td><td>${m.fps??'—'}</td><td>${m.frameP95??'—'}</td><td>${m.cpuMedian!=null?m.cpuMedian+' · '+m.cpuP95:'—'}</td><td>${m.loadMs}</td><td>${m.textures}</td><td>${m.textureMiB}</td><td>${m.jsHeapMiB??'—'}</td></tr>`)}
+ $('#tb2').innerHTML=rows.join('')}
+async function load(){const k=$('#res').value;[A,B]=await Promise.all([img('/__shots/olmo-before-'+k+'.png'),img('/__shots/olmo-after-'+k+'.png')]);W=A.width;H=A.height;cv.width=Math.min(1100,W);cv.height=Math.round(cv.width*H/W);
+ view.style.aspectRatio=W+'/'+H;view.style.maxWidth=(H>W?'420px':'100%');fit();const a=meta['before-'+k],b=meta['after-'+k];
+ $('#meta').textContent=a&&b?`Lienzo ${W} × ${H} px físicos. Antes: zoom ${a.zoom}×, ${a.worldView.join(' × ')} px de mundo. Después: zoom ${b.zoom}×, ${b.worldView.join(' × ')} px de mundo.`:''}
+// zoom = píxeles del lienzo de la página por píxel de imagen.
+function fit(){zoom=cv.width/W;ox=oy=0;draw()}
+function clamp(){const vw=cv.width/zoom,vh=cv.height/zoom;ox=Math.max(0,Math.min(Math.max(0,W-vw),ox));oy=Math.max(0,Math.min(Math.max(0,H-vh),oy))}
+function draw(){if(!A)return;clamp();cx.imageSmoothingEnabled=false;cx.setTransform(1,0,0,1,0,0);cx.fillStyle='#000';cx.fillRect(0,0,cv.width,cv.height);
+ cx.setTransform(zoom,0,0,zoom,-ox*zoom,-oy*zoom);cx.drawImage(mode==='b'?B:A,0,0);
+ if(mode==='slide'){const sx=ox+split*cv.width/zoom;cx.save();cx.beginPath();cx.rect(sx,0,W,H);cx.clip();cx.drawImage(B,0,0);cx.restore();cx.setTransform(1,0,0,1,0,0);
+  cx.fillStyle='#e8e3da';cx.fillRect(Math.round(split*cv.width)-1,0,2,cv.height);cx.beginPath();cx.arc(split*cv.width,cv.height/2,12,0,7);cx.fill();cx.fillStyle='#11151c';cx.font='bold 14px system-ui';cx.textAlign='center';cx.fillText('⇆',split*cv.width,cv.height/2+5)}
+ $('#zl').textContent=(zoom*W/cv.width>=1?Math.round(zoom*W/cv.width*10)/10+'×':Math.round(zoom*100)+' %');$('#ta').hidden=mode==='b';$('#tb').hidden=mode==='a'}
+function setMode(m){mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));draw()}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+const pos=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)/r.width*cv.width,(e.clientY-r.top)/r.height*cv.height]};
+function zoomAt(f,px,py){const wx=ox+px/zoom,wy=oy+py/zoom;zoom=Math.max(cv.width/W,Math.min(16,zoom*f));ox=wx-px/zoom;oy=wy-py/zoom;draw()}
+$('#zin').onclick=()=>zoomAt(1.5,cv.width/2,cv.height/2);$('#zout').onclick=()=>zoomAt(1/1.5,cv.width/2,cv.height/2);$('#zfit').onclick=fit;
+$('#z1').onclick=()=>{const r=cv.getBoundingClientRect();zoomAt((cv.width/r.width*devicePixelRatio)/zoom,cv.width/2,cv.height/2)};
+$('#zp').onclick=()=>{zoom=Math.min(16,6*cv.width/W*W/1100);ox=W/2-cv.width/zoom/2;oy=H*0.5-cv.height/zoom/2;draw()};
+view.addEventListener('wheel',e=>{e.preventDefault();const[x,y]=pos(e);zoomAt(e.deltaY<0?1.25:0.8,x,y)},{passive:false});
+let drag=null;view.addEventListener('pointerdown',e=>{view.setPointerCapture(e.pointerId);const[x,y]=pos(e);drag={x,y,ox,oy,line:mode==='slide'&&Math.abs(x-split*cv.width)<24}});
+view.addEventListener('pointermove',e=>{if(!drag)return;const[x,y]=pos(e);if(drag.line)split=Math.max(0,Math.min(1,x/cv.width));else{ox=drag.ox-(x-drag.x)/zoom;oy=drag.oy-(y-drag.y)/zoom}draw()});
+view.addEventListener('pointerup',()=>drag=null);
+addEventListener('keydown',e=>{if(e.target.tagName==='SELECT')return;if(e.code==='Space'){e.preventDefault();setMode(mode==='b'?'a':'b')}});
+$('#res').onchange=load;load();
+</script></html>

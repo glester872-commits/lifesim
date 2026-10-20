@@ -5,6 +5,7 @@ import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
 import { batch, hash as noise, mix } from './Surfaces';
 import { backRows, facadeRows, STOREY_ROWS } from '../systems/LocationSystem';
 import { ARENA_CLUB } from '../data/cityEvents';
+import { drawResidentialFacade, drawResidentialRoof, type FacadeBay } from './ResidentialArt';
 
 /** Alto de una planta de fachada al sur, en px (dos tiles): la escala del mundo (LocationSystem.STOREY_ROWS). */
 const STOREY = TILE * STOREY_ROWS;
@@ -1722,6 +1723,41 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
     const draw = (key: string, tx: number, ty: number): void => {
       rt.batchDraw(key, tx * TILE, ty * TILE);
     };
+
+    // Acabado HD-03 (world/ResidentialArt): fachada y azotea en una pieza por edificio. Los huecos de cristal
+    // se calculan igual que en el horneado por tiles, así que Lighting y Detail los encuentran donde siempre.
+    if (b.finish === 'hd03' && b.front === 's') {
+      const floors = b.floors ?? 1;
+      const groundTop = frontRow - (STOREY_ROWS - 1);
+      const bays: FacadeBay[] = [];
+      for (let i = 0; i < b.w; i++) {
+        const x = b.tx + i;
+        const r = (seed >>> (i % 16)) & 3;
+        const v = groundVariant(look, b.style, i, i === 0 || i === b.w - 1, r);
+        // En el mismo orden que el horneado por tiles (bajo y luego plantas): windowKind va por índice.
+        const ground = x === b.doorX ? 'door' : v === 0 ? 'wall' : 'window';
+        if (ground === 'window') pane(b, false, SHOP_PANE_T[look.shop], x, groundTop);
+        const upper: { window: boolean; lit: boolean; blind: number }[] = [];
+        for (let f = 1; f < floors; f++) {
+          const q = (seed >>> ((i + f * 5) % 16)) & 3;
+          const u = i % 2 === 1 ? (q & 1 ? 1 : 2) : 0;
+          upper.push({ window: u !== 0, lit: u === 1, blind: [3, 6, 9, 5][(q + i + f) % 4] });
+          if (u !== 0) pane(b, false, UPPER_PANE_T[look.upper], x, groundTop - f * STOREY_ROWS);
+        }
+        bays.push({ ground, groundLit: v === 1, upper });
+      }
+      const fh = rows * TILE;
+      const facadeKey = `bs-facade-${b.id}`;
+      make(rt.scene, facadeKey, b.w * TILE, fh, (ctx) => drawResidentialFacade(ctx, { bays, floors, wall: look.wall, lit: look.lit, seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0) }));
+      draw(facadeKey, b.tx, b.ty + b.h - rows);
+      const roofRowsHD = b.h - rows;
+      if (roofRowsHD > 0) {
+        const roofKey = `bs-roof-hd03-${b.id}`;
+        make(rt.scene, roofKey, b.w * TILE, roofRowsHD * TILE, (ctx) => drawResidentialRoof(ctx, b.w * TILE, roofRowsHD * TILE, look.roof, seed));
+        draw(roofKey, b.tx, b.ty);
+      }
+      continue;
+    }
 
     // Una manzana de vecinos larga no es un solo edificio: se parte en casas de 4 a 7 tiles, cada una con
     // su color de fachada, su tejado (teja o azotea), su cumbrera, y un cortafuegos entre ellas.
