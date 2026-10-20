@@ -3,7 +3,7 @@ import { TILE } from '../config/constants';
 import { POPUPS, type PopUpDef } from '../data/popups';
 import { visiblePopUp, type PopUpClock } from '../systems/PopUps';
 import type { LocationDef } from '../types/game';
-import { standing } from './Layers';
+import { LAYER, standing } from './Layers';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { PIECE_SIZE, pieceKey } from './PopUpArt';
 
@@ -17,7 +17,7 @@ import { PIECE_SIZE, pieceKey } from './PopUpArt';
  */
 
 /** Por encima de la sombra de la hora: la luz de un evento no la apaga la noche. */
-const LIGHT_DEPTH = 900_001;
+const LIGHT_DEPTH = LAYER.glow;
 const DJ_COLORS = [0xff5ab0, 0x5ad8ff, 0xb07aff, 0xffd05a] as const;
 
 interface Piece {

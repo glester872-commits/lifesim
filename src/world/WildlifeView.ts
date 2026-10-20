@@ -5,9 +5,10 @@ import { hashSeed, seededRng } from '../systems/MetroDaily';
 import type { StreetLife } from '../systems/StreetLife';
 import { Dogs, Pigeons, type Dog, type Pigeon } from '../systems/Wildlife';
 import { buildAnimalTextures, dogFrame, pigeonFrame } from './AnimalArt';
+import { LAYER } from './Layers';
 
 /** Palomas en vuelo: por encima de la gente y los árboles, por debajo de la luz de la hora. */
-const SKY_DEPTH = 850_000;
+const SKY_DEPTH = LAYER.sky;
 const LEASH_COLOR = 0x2a2430;
 
 interface DogSprite {

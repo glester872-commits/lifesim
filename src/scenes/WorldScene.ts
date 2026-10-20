@@ -8,11 +8,7 @@ import {
   AUTOSAVE_INTERVAL_MS,
   CAMERA_LERP,
   CAMERA_LOOK_UP,
-  CAMERA_ZOOM,
   GAME_MINUTES_PER_REAL_SECOND,
-  MAX_CAMERA_ZOOM,
-  VIEW_HEIGHT,
-  VIEW_WIDTH,
   PALETTE,
   TILE,
   TRANSITION_MS,
@@ -39,6 +35,7 @@ import { Lighting } from '../world/Lighting';
 import { MetroSystem } from '../systems/MetroSystem';
 import { METRO_CONFIG } from '../config/metro';
 import { buildLocation } from '../world/LocationBuilder';
+import { pixelZoom } from '../world/PixelScale';
 import { Player } from '../entities/Player';
 import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { STATIONS, getStation, type StationId } from '../data/stations';
@@ -144,6 +141,7 @@ import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
 import { PLAYER_H, pumpPeopleHD } from '../world/TextureFactory';
 import type { Services } from '../services';
+import { LAYER } from '../world/Layers';
 
 /** Lo que se le da a quien pide en la calle: una moneda. */
 const SURVIVOR_COIN = 0.5;
@@ -725,7 +723,7 @@ export class WorldScene extends Phaser.Scene {
     const onResize = (): void => this.fitCamera();
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
 
-    this.prompt = this.add.image(0, 0, 'ui-prompt').setDepth(1_000_000).setVisible(false);
+    this.prompt = this.add.image(0, 0, 'ui-prompt').setDepth(LAYER.prompt).setVisible(false);
 
     this.bindKeys();
 
@@ -1063,11 +1061,9 @@ export class WorldScene extends Phaser.Scene {
   private fitCamera(): void {
     const camera = this.cameras.main;
     const { width, height } = this.scale.gameSize;
-    // En vertical el encuadre gira: el lado largo de la pantalla lleva el lado
-    // largo del encuadre. Si no, un móvil de pie ve el triple de mundo y la gente sale diminuta.
-    const [long, short] = width >= height ? [width, height] : [height, width];
-    // A medios pasos: entre 3 y 4 hay un 3,5 (ver VIEW_WIDTH).
-    const zoom = Phaser.Math.Clamp(Math.round(Math.min(long / VIEW_WIDTH, short / VIEW_HEIGHT) * 2) / 2, CAMERA_ZOOM, MAX_CAMERA_ZOOM);
+    // En vertical el encuadre gira (pixelZoom): si no, un móvil de pie ve el triple de mundo y la gente sale diminuta.
+    // Escala de píxel entera (world/PixelScale): un píxel del mundo, siempre los mismos píxeles físicos.
+    const zoom = pixelZoom(width, height);
     camera.setZoom(zoom);
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);
@@ -2139,7 +2135,7 @@ export class WorldScene extends Phaser.Scene {
     const geo: Geometry = { hands: { x: feet.x + 3, y: feet.y - 13 }, rim: { x: hx, y: hy - 22 }, floor: { x: hx, y: hy }, feet };
     const session = new ShootingSession(target.spot, geo, Math.random, 0.5);
     const ball = this.add.image(geo.hands.x, geo.hands.y, 'fx-ball').setOrigin(0.5, 0.5).setVisible(false);
-    const meter = this.add.graphics().setDepth(4_000);
+    const meter = this.add.graphics().setDepth(LAYER.overhead);
     const net = this.add.graphics().setDepth(hy + 0.3).setVisible(false);
     net.lineStyle(1, 0xe8eef2, 1);
     net.lineBetween(-4, 0, -2, 6).lineBetween(4, 0, 2, 6).lineBetween(-2, 6, 2, 6).lineBetween(-4, 0, 4, 0);

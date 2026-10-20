@@ -3,6 +3,7 @@ import { TILE } from '../config/constants';
 import type { ZoneType } from '../data/zones';
 import { zoneActivity, zoneAt, zonesIn, type ZoneClock } from '../systems/Zones';
 import type { TilePoint } from '../types/game';
+import { LAYER } from './Layers';
 
 /**
  * Depuración de zonas (data/zones.ts): bordes, nombre y tipo sobre el mapa, y
@@ -31,7 +32,7 @@ export class ZoneDebugView {
 
   constructor(scene: Phaser.Scene, location: string) {
     this.location = location;
-    const g = scene.add.graphics().setDepth(1_000_000);
+    const g = scene.add.graphics().setDepth(LAYER.debug);
     this.objects.push(g);
     for (const z of zonesIn(location)) {
       g.lineStyle(1, COLOR[z.type], 0.9);
@@ -40,7 +41,7 @@ export class ZoneDebugView {
       const label = scene.add.text(r.tx * TILE + 3, r.ty * TILE + 2, `${z.name}\n${z.type}`, {
         fontFamily: 'monospace', fontSize: '7px', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
       });
-      this.objects.push(label.setDepth(1_000_001));
+      this.objects.push(label.setDepth(LAYER.debug + 1));
     }
     this.panel = document.createElement('pre');
     this.panel.style.cssText = 'position:fixed;left:8px;bottom:8px;margin:0;padding:6px 8px;background:#000a;color:#fff;font:11px monospace;z-index:50;pointer-events:none;white-space:pre';

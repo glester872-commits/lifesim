@@ -4,6 +4,7 @@ import { QUALITY } from '../config/quality';
 import type { LocationDef } from '../types/game';
 import { make, px, shade, type Ctx } from './paint';
 import { LAMP_LIGHT } from './LampShadows';
+import { LAYER } from './Layers';
 
 /**
  * Primer plano (LocationDef.foreground): copas de árbol que asoman por el
@@ -16,7 +17,7 @@ import { LAMP_LIGHT } from './LampShadows';
  */
 
 /** Por encima de todo: del mundo, de la luz de la hora y de lo que brilla (lo más cerca de la cámara). */
-const DEPTH = 900_010;
+const DEPTH = LAYER.foreground;
 const PARALLAX = 1.15;
 
 const LEAF = ['#1f3a22', '#284a2a', '#325a31', '#3f6b39'] as const;

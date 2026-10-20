@@ -14,6 +14,7 @@ import { DISTRICTS, type DistrictProfile } from '../data/districts';
 import { QUALITY } from '../config/quality';
 import { windowKind, windowRank } from './Detail';
 import { LAMP_LIGHT } from './LampShadows';
+import { LAYER } from './Layers';
 
 /** Canal a canal: `a` por `b` (0xffffff no cambia nada). */
 function multiply(a: number, b: number): number {
@@ -68,9 +69,9 @@ const SKY: readonly (readonly [number, number])[] = [
 const STROBE_COLORS = [0xff5ab0, 0x5ad8ff, 0xb07aff, 0xffd05a] as const;
 
 /** Por encima de todo lo que se ordena por Y; por debajo del indicador de E. */
-const DEPTH = 900_000;
+const DEPTH = LAYER.light;
 /** Lo que brilla por sí mismo (rótulos, semáforos): encima de la sombra de la hora. */
-export const EMISSIVE_DEPTH = DEPTH + 2;
+export const EMISSIVE_DEPTH = LAYER.emissive;
 
 function mix(a: number, b: number, k: number): number {
   const ch = (shift: number): number => Math.round(((a >> shift) & 255) + ((((b >> shift) & 255) - ((a >> shift) & 255)) * k));
@@ -311,7 +312,7 @@ export class Lighting {
       .setOrigin(0, 0)
       .setDepth(DEPTH)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
-    this.windows = scene.add.graphics().setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
+    this.windows = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
 
     for (const p of def.props) {
       const prop = PROPS[p.kind];
@@ -321,7 +322,7 @@ export class Lighting {
       if (!prop.light) continue;
       const y = (p.ty + 1) * TILE - prop.light.dy;
       const tint = prop.light.cool ? 0x9fd8ff : 0xf0b46a;
-      const light = scene.add.image(x, y, 'fx-light').setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
+      const light = scene.add.image(x, y, 'fx-light').setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
       // Con charco, el halo es sólo el brillo de la linterna: la luz de verdad está en el suelo.
       // Fuera pasa lo mismo sin charco: el mapa de luz alumbra el suelo; un halo entero sería un círculo amarillo.
       if (prop.light.pool || !this.indoor) light.setScale(prop.light.pool ? 0.6 : 0.45);
@@ -345,7 +346,7 @@ export class Lighting {
         if (QUALITY.layeredLamps && prop.light.pool) this.fixedSources.push({ x, y: baseY - 1, w: w * 0.36, h: h * 0.34, color: mix(color, 0xffffff, 0.4), strength: Math.min(1, s * 1.05) });
       } else if (prop.light.pool) {
         const [w, h] = prop.light.pool;
-        const pool = scene.add.image(x, baseY, poolTexture(scene, w, h)).setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
+        const pool = scene.add.image(x, baseY, poolTexture(scene, w, h)).setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
         this.lights.push(pool.setTint(tint));
       }
     }
@@ -354,14 +355,14 @@ export class Lighting {
       const prop = PROPS[p.kind];
       if (!prop.emissive) continue;
       const x = p.tx * TILE + ((prop.tilesWide ?? 1) * TILE) / 2;
-      this.emissives.push({ img: scene.add.image(x, (p.ty + 1) * TILE, prop.emissive).setOrigin(0.5, 1).setDepth(DEPTH + 2) });
+      this.emissives.push({ img: scene.add.image(x, (p.ty + 1) * TILE, prop.emissive).setOrigin(0.5, 1).setDepth(LAYER.emissive) });
       this.fixedSources.push({ x, y: (p.ty + 1) * TILE - 2, w: 56, h: 30, color: COOL, strength: 0.45 });
     }
     for (const g of built.glows) {
       const place = g.building ? PLACE_OF_BUILDING.get(g.building) : undefined;
       // Rótulo de un edificio sin lugar (un bloque cualquiera): no hay quien lo encienda.
       if (g.building && !place) continue;
-      const img = scene.add.image(g.x, g.y, g.key).setOrigin(0, 0).setDepth(DEPTH + 2);
+      const img = scene.add.image(g.x, g.y, g.key).setOrigin(0, 0).setDepth(LAYER.emissive);
       // Neón de la noche y rótulos del Carmen: fijos casi siempre y, de higos a brevas, un tartamudeo (tick). Con movimiento reducido, fijos.
       const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
       this.emissives.push({ img, place, flicker: flickers ? this.emissives.length + 1 : undefined });
@@ -399,8 +400,8 @@ export class Lighting {
       this.roofBrush = new Phaser.GameObjects.Rectangle(scene, 0, 0, 1, 1, 0xffffff).setOrigin(0, 0);
       // Las sombras se dibujan en coordenadas del mundo y se reducen al mapa de luz al pintarlas.
       this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / this.lm);
-      this.reflections = scene.add.graphics().setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
-      this.fx = scene.add.graphics().setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD);
+      this.reflections = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
+      this.fx = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
     }
 
     // Los focos son de la sala abierta: a la hora de cierre se apagan aunque sigas dentro.
@@ -436,7 +437,7 @@ export class Lighting {
     };
     const spots = STROBE_COLORS.map((color, i) => {
       const { x, y } = spot(i, 0);
-      return scene.add.image(x, y, 'fx-light').setDepth(DEPTH + 1).setBlendMode(Phaser.BlendModes.ADD).setTint(color).setScale(1.4).setAlpha(0.8);
+      return scene.add.image(x, y, 'fx-light').setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD).setTint(color).setScale(1.4).setAlpha(0.8);
     });
     const on = live();
     spots.forEach((light) => light.setVisible(on));

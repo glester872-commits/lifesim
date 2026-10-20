@@ -15,8 +15,20 @@ export const LAYER = {
   decal: -9,
   /** Del techo: colgantes, tubos y el borde del muro de delante en los interiores. */
   overhead: 800_000,
+  /** Lo que vuela alto (pájaros a más de 6 m): por encima de tejados y copas, por debajo de la luz. */
+  sky: 850_000,
   /** La luz de la hora (world/Lighting). */
   light: 900_000,
+  /** Luz que suma encima de la oscuridad: ventanas encendidas, charcos de farola, guirnaldas. */
+  glow: 900_001,
+  /** Lo que brilla por sí mismo: rótulos, faros, semáforos. Encima de su propio halo. */
+  emissive: 900_002,
+  /** Primer plano con paralaje (world/Foreground): delante de todo el mundo, también de la luz. */
+  foreground: 900_010,
+  /** Avisos del mundo para quien juega (la «E» de interactuar). */
+  prompt: 1_000_000,
+  /** Superposiciones de depuración (zonas). */
+  debug: 1_100_000,
 } as const;
 
 /** Lo que está de pie: su profundidad es la Y de sus pies. */

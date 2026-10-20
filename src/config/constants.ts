@@ -9,8 +9,8 @@ export const CAMERA_ZOOM = 2;
  * Mundo que se ve como poco, en px: unos 20 × 17 tiles. Algo más cerca que el
  * primer encuadre (21 × 18): la gente tiene presencia y la boca de metro manda
  * en la escena, sin perder la calle de alrededor. El zoom sale del eje que más
- * aprieta (en vertical manda el ancho) y va a medios pasos (3, 3,5, 4…): a
- * 3,5 un píxel de arte ocupa 3 o 4 de pantalla, alternos (prueba en curso).
+ * aprieta (en vertical manda el ancho) y es entero (world/PixelScale): cada
+ * píxel de arte ocupa los mismos píxeles de pantalla. Entre dos enteros se ve algo más de mundo.
  */
 export const VIEW_WIDTH = 315;
 export const VIEW_HEIGHT = 270;

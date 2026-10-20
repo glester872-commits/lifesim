@@ -4,6 +4,7 @@ import type { LocationDef, SignalDef } from '../types/game';
 import { signalAt } from '../systems/Signals';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { make, px, shade, type Ctx } from './paint';
+import { LAYER } from './Layers';
 
 /**
  * Semáforos de systems/Signals.ts dibujados. Por cada paso: un semáforo de
@@ -108,13 +109,13 @@ export class SignalView {
     const signals = def.signals ?? [];
     if (signals.length === 0) return;
     buildSignalTextures(scene);
-    const ground = scene.add.graphics().setDepth(-9);
+    const ground = scene.add.graphics().setDepth(LAYER.decal);
     for (const sig of signals) {
       const north = sig.ty - 1;
       const south = sig.ty + sig.h;
       // Baldosa podotáctil en el bordillo, frente a las bandas: se nota con el pie dónde empieza el paso.
       for (let x = sig.tx; x < sig.tx + sig.w; x++) {
-        for (const y of [north, south]) scene.add.image(x * TILE, y * TILE, 'tile-tactile-0').setOrigin(0, 0).setDepth(-9);
+        for (const y of [north, south]) scene.add.image(x * TILE, y * TILE, 'tile-tactile-0').setOrigin(0, 0).setDepth(LAYER.decal);
       }
       // Línea de detención de cada carril (también el bici), blanca y gastada, antes de las bandas.
       for (const lane of [...(def.traffic?.lanes ?? []), ...(def.traffic?.bikes?.lanes ?? [])]) {

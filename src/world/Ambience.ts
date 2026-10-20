@@ -4,6 +4,7 @@ import type { LocationDef, Vec2 } from '../types/game';
 import { PROPS } from './tiles';
 import { doorRow, STOREY_ROWS } from '../systems/LocationSystem';
 import { gust } from './Motion';
+import { LAYER } from './Layers';
 
 /**
  * Lo poco que se mueve solo en un sitio y no es gente ni tráfico: el agua de
@@ -38,9 +39,8 @@ export class Ambience {
       for (const o of scene.children.list) {
         if (!(o instanceof Phaser.GameObjects.Image)) continue;
         const key = o.texture.key;
-        // También la versión a doble densidad (world/HD): su racha es la HD, no la normal.
-        const m = /^(prop-(?:plane-|bed-)?tree-\d+)(@hd)?$/.exec(key);
-        const windy = m ? `${m[1]}-gust${m[2] ?? ''}` : '';
+        const m = /^(prop-(?:plane-|bed-)?tree-\d+)$/.exec(key);
+        const windy = m ? `${m[1]}-gust` : '';
         if (m && scene.textures.exists(windy)) this.trees.push({ img: o, still: key, windy });
       }
     }
@@ -66,7 +66,7 @@ export class Ambience {
       const sprite = scene.add
         .image(b.doorX * TILE, (tall ? row - (STOREY_ROWS - 1) : row) * TILE, `bs-${b.style}-door-open${tall ? '-t' : ''}`)
         .setOrigin(0, 0)
-        .setDepth(-9)
+        .setDepth(LAYER.decal)
         .setAlpha(0);
       this.doors.push({ sprite, x: b.doorX * TILE + TILE / 2, y: (row + 1) * TILE, open: false });
     }

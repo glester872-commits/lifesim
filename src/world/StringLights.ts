@@ -14,7 +14,7 @@ import { make, px, type Ctx } from './paint';
 
 const BULBS = ['#ffe9b8', '#ffd58a', '#ffc27a', '#ffb0a0'] as const;
 /** Por encima de la sombra de la hora: lo que brilla no se apaga con la noche. */
-const GLOW_DEPTH = 900_001;
+const GLOW_DEPTH = LAYER.glow;
 const BULB_EVERY = 11;
 
 type Garland = NonNullable<LocationDef['garlands']>[number];
