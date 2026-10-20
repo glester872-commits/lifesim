@@ -9,7 +9,7 @@ es decoración: es la interfaz del simulador. Si quieres estudiar, vas al centro
 de estudios; si quieres descansar, vuelves a casa; si quieres cambiar de barrio,
 bajas al metro y pagas el billete.
 
-Dos distritos conectados por la Línea 2: **Vallesco**, el primer barrio completo, y
+La Línea 2 conecta varios distritos. Los primeros mapas fueron **Vallesco**, el primer barrio completo, y
 **Ribera Norte** (el barrio del canal: paseo junto al agua con carril bici, viviendas
 modernas, terrazas, una pista de baloncesto, calistenia, zona de skate, un quiosco de
 helados y un salón recreativo; más gente por la tarde y al anochecer). En Vallesco se puede pasar un día entero: tu piso, el metro, un
@@ -20,9 +20,10 @@ café con terraza.
 
 A largo plazo la idea es que tiempo, dinero, energía y atención sean recursos
 limitados, de modo que cada decisión tenga coste de oportunidad y cada partida
-derive en una trayectoria vital distinta. De esa economía sólo existe todavía un
-punto: el billete de metro. Es deliberado — un único sitio donde el dinero y el
-reloj significan algo, para probar la idea sin abrir la puerta al scope creep.
+derive en una trayectoria vital distinta. Ya existen empleo y salario, cuentas de
+casa, estudios, relaciones persistentes, descanso y mejoras domésticas. La primera
+semana conecta estos sistemas mediante oportunidades opcionales.
+
 
 ## Stack
 
@@ -347,7 +348,8 @@ ni acceso global al estado.
   (`scripts/check-map.ts`): cada lugar en su puerta, cada interior en su barrio y
   la vista dentro del mapa.
 - **Diálogo** — conversación lineal que no sabe nada de cómo se pinta. Bloquea
-  el movimiento y pausa el reloj mientras está abierto.
+  el movimiento; el reloj sigue (hablar no para el mundo), salvo al leer lo que
+  ha pasado tras un salto de tiempo y durante la guía del principio.
 - **Cartelería** — las bocas de metro llevan el rótulo `METRO` dibujado con una
   fuente de 5x7 px hecha a mano; dentro, el muro del fondo lleva plano de línea
   y carteles. El resto de señalética es abstracta a propósito: a 16 px por tile
@@ -381,7 +383,7 @@ ni acceso global al estado.
   cuatro situaciones de turno; `systems/Jobs.ts` las reglas y
   `GameStateData.job` el progreso. En el Decathlon hay un cartel: se lee
   horario, pago y requisitos y se firma con Marta; los turnos empiezan al día
-  siguiente. Se ficha desde una hora antes (se espera a la hora) hasta 120 min
+  siguiente. Se ficha desde tres horas antes (se espera a la hora) hasta 120 min
   tarde (más de 10 min cobra lo trabajado y no cuenta como buen turno); sin
   energía 30 no se ficha. Antes del turno se elige qué hacer en la situación del
   día; volver sin elegir no paga ni pasa el tiempo. Cada turno es el de su día
@@ -448,6 +450,24 @@ ni acceso global al estado.
   a la suya; al hablar con ellas durante la visita reconocen lo que tienes instalado, se puede hacer algo juntos
   (tele, picar o enseñarle la casa, que se recuerda) y al día siguiente lo comentan en persona o por móvil. Cancelar
   por el móvil cuesta como cancelar un plan del móvil. `npm run check` lo prueba en `check-housing.ts`.
+- **Ritmo del día, agenda y progreso** — un solo reloj a 2 min de juego por segundo real (`GAME_MINUTES_PER_REAL_SECOND`,
+  sin cambiar): medidas las jornadas, cabe un turno de 10 a 16 en Decathlon, la compra, cenar, entrenar y volver a casa
+  antes de las 23:00. `systems/Agenda.ts` no guarda planes: lee lo pendiente de donde vive (turno de `Jobs`, clase o
+  tutoría y encargo de `Study`, cuentas de `Household`, planes del móvil, quedadas de `Story`, entradas de partido) y
+  estima el viaje desde donde está el jugador (a pie por tiles, en metro por paradas más la espera del primer tren;
+  desde Decathlon, la vuelta en metro). Si no se puede estimar, lo dice. El HUD enseña lo próximo bajo la hora, en
+  ámbar si hay que salir ya (o se llegará tarde) y en rojo si ya no se llega; junto a la hora dice «parado» (mapa,
+  menús, leyendo tras un salto, la guía) o «sigue» (con el móvil abierto). Cada compromiso se avisa una vez con margen
+  (viaje + 30 min; un pago, la mañana del día que vence); el turno o la clase que se pierde en un salto (dormir, otro
+  plan) se dice una vez al acabarlo; el progreso (buenos turnos para ascender, la clase siguiente, cuartos de la meta
+  de ahorro, un recuerdo al día, el cuerpo) avisa al cambiar. Varios avisos a la vez van en un solo toast; tocarlo abre
+  la app Hoy. Lo avisado va en `GameStateData.agenda`: recargar no repite nada. Tras un salto de tiempo el reloj espera
+  a que se cierre el texto de lo que ha pasado (`TimeSystem.holdJumps`): leer no come el margen. La app Hoy del móvil
+  lista lo pendiente con su viaje, cómo vas y la guía. La guía del principio (`data/tour.ts`: casa, transporte,
+  trabajo, contactos y el día) sale sólo en partidas nuevas, se salta con un toque o Esc y para el reloj mientras se
+  lee; una partida anterior no la ve. La forma física se ve en el jugador (`Fitness.buildOf`): hombros más anchos con
+  forma o fuerza ≥ 40 y brazos con fuerza ≥ 61, la misma deformación que la gente, debajo de la ropa y en todas las
+  poses. `npm run check` lo prueba en `check-agenda.ts`, que además recorre tres jornadas tipo con los datos reales.
 - **Personal de servicio** — `data/services.ts`: oficios reutilizables
   (camarero, barra, caja, seguridad, gimnasio, tienda, cocina, recepción, DJ)
   con uniforme, frase y forma de trabajar: en su puesto, de ronda o sirviendo
@@ -598,6 +618,7 @@ src/
   state/GameState.ts      estado central + partida nueva
   systems/
     TimeSystem.ts         reloj del mundo
+    Agenda.ts             lo próximo (de cada sistema), viaje estimado, avisos una vez y progreso
     SaveSystem.ts         persistencia + adaptador de almacenamiento
     DialogueSystem.ts     conversación con elección opcional (sin render)
     LocationSystem.ts     registro, validación, edificios -> portales, máscara de colisión
@@ -636,7 +657,7 @@ src/
     LocationBuilder.ts    suelo y edificios horneados, props, colisiones agrupadas
     tiles.ts              leyenda de terreno y props
   ui/
-    HUD.ts                reloj, dinero, energía
+    HUD.ts                reloj (y si corre), dinero, energía y lo próximo de la agenda
     DialogueBox.ts        panel de diálogo
     TargetHint.ts         coste del paso, visible antes de pagarlo
     MetroDebug.ts         panel de depuración de la estación
@@ -664,77 +685,39 @@ scripts/simulate-metro-events.ts  npm run simulate:events: años de viajes, con 
 
 ## Limitaciones actuales
 
-Conocidas y deliberadas:
+Conocidas y comprobables:
 
-- **El gráfico es provisional.** Original y coherente, pero placeholder; la
-  lógica no depende de ningún sprite concreto.
-- **Algunos interiores sólo se recorren.** Gimnasio y oficinas tienen mobiliario,
-  personal y sus puntos, pero no hay entrenar ni trabajar, y por eso ningún botón
-  lo finge. Los discos y la serigrafía sólo tienen fachada; el centro de estudios
-  tampoco tiene interior: la matrícula, las clases y la prueba se hacen en su puerta.
-- **La ropa no se prueba antes de comprarla.** El probador es un sitio de los
-  clientes; comprar te la pone y en casa te cambias. No hay tallas, existencias
-  por tienda (salvo las piezas únicas), rebajas, vender ropa usada ni ropa para
-  los personajes con nombre: `Appearance` ya lo admite (`setAppearance('sara', …)`),
-  falta quién lo decida.
-- **Los tatuajes son un píxel de tinta.** A 16 px por persona, el diseño se lee
-  por el color y el sitio, no por el dibujo. Pecho, espalda y gemelo nunca se ven
-  porque no existe ropa que los deje al aire (ni pantalón corto ni ir sin
-  camiseta); la regla ya lo contempla. No se borran ni se retocan.
-- **La Ribera Norte tiene vida de calle, pero no tiene a Vallesco dentro.** Su perfil
-  (`data/streets.ts`, `ribera`) mueve a gente por el paseo, la pista, las barras, los
-  helados, las terrazas y el salón recreativo (`scripts/check-ribera.ts` lo simula);
-  la gente no cambia de barrio por su cuenta: a Ribera se llega en metro. Los
-  patinadores de la zona de skate dan vueltas (`world/SkateParkView.ts`) pero no son
-  gente de verdad: no hablan ni se pueden parar. El metro circula las 24 horas; cerrarlo de
-  madrugada cambiaría cómo vuelve el jugador a casa, y no está decidido.
-- **Las rutinas no dependen aún de la relación con el jugador.** No existen
-  relaciones ni memoria de los personajes; cuando existan, `routineFor()` es el
-  único sitio donde entran. Pendientes y decisiones previas, en `TODO.md`.
-- **Los bordes del barrio son invisibles en las calles.** Las calles siguen fuera
-  del mapa como resto de la ciudad; el jugador se detiene en el límite.
-- **La Línea 2 tiene dos paradas.** No hay red. El horario va en tiempo real
-  (un tren cada 14–34 s según día y hora) y no se atiene al reloj del juego: esperar un tren son
-  30–70 minutos de juego. Al entrar en una estación el primer tren tarda 2–8 s.
-  El estado del tren no se guarda: cada visita empieza con la vía libre.
-- **Los NPC de la estación caminan sin pathfinding.** Van en línea recta entre
-  puntos definidos en `data/locations.ts` (validados en arranque) y no chocan
-  entre sí; empujan al jugador pero nada los bloquea. Mientras hay un diálogo
-  abierto, la estación se congela con el resto del mundo.
-- **La economía es doméstica y básica.** Se gana en Decathlon (empleo o turno suelto) y se gasta en
-  casa (Cuentas), tarjeta, viajes, comida, tiendas y salir. Sin préstamos, impuestos ni inversiones. La energía la gasta trabajar y la
-  devuelve comer o beber; todavía no se duerme. Restaurante, tiendas y súper no
-  venden aún: tendrán su catálogo cuando haga falta. No hay tiempo atmosférico,
-  así que las terrazas dependen sólo de la hora.
-- **Si se recarga la página en un sitio sin mapa**, se aparece en la estación de
-  la que se salió, con el reloj ya avanzado y lo cobrado cobrado.
-- **Los eventos no tienen todavía a dónde llevar.** Rumores, folletos y
-  contactos (`contacto:olga-estudio`, `contacto:amparo-mercado`) quedan como
-  flags para cuando existan trabajo y estudios; hoy no abren nada. No hay
-  estaciones del año, reputación ni relaciones fuera de la memoria de eventos,
-  así que ninguna condición depende de ellas.
-- **Los NPC con nombre no tienen memoria.** Cada conversación empieza de cero.
-  Los habituales del andén (Paula, Kike, Inés, Dani) siguen quietos; los que se
-  mueven son los pasajeros anónimos y Marco.
-- **Un mapa por barrio, sin trocear.** Vallesco (110×56, con la Calle del Carmen)
-  va a 55–59 fps en la calle y a 60 dentro (Chrome de escritorio, sábado a las
-  18:00), con ~220 cuerpos estáticos y ~630 objetos. Con varias veces ese tamaño tocaría trocear en zonas o
-  descartar props fuera de cámara.
-- **Sin audio ni menú principal.**
-- **Móvil: el joystick no repite en los menús.** Mantenerlo empujado mueve la
-  selección una vez; para bajar varias opciones se empuja varias veces o se
-  toca la opción directamente.
+- Las oficinas no ofrecen empleo; el trabajo jugable está en Decathlon. El gimnasio
+  sí permite entrenar. Discos y serigrafía sólo tienen fachada; los estudios se
+  atienden en la puerta del centro.
+- Un empleo, un curso de fotografía, tres mejoras y dos viviendas. Las historias
+  completas corresponden a Sara y Ada, no a todos los personajes.
+- La ropa no se prueba antes de comprar y no hay venta de prendas usadas. Los
+  tatuajes son procedurales y no se borran ni se retocan.
+- Sólo existe la Línea 2, con varias paradas; no hay transbordos. Los destinos
+  sin mapa regresan a su estación al recargar, conservando reloj y efectos. El
+  tren usa un ciclo visual en tiempo real y su estado no se guarda.
+- El viaje de la agenda es una estimación; no incluye colas, semáforos ni obstáculos
+  humanos. Sin ruta conocida se dice «sin estimación».
+- Hay economía doméstica, compras, descanso, tiempo atmosférico y estaciones.
+  No hay préstamos ni inversiones. Algunos objetos de eventos, como el folleto
+  de cursos, siguen sin desbloquear una actividad.
+- Un mapa por barrio; las calles terminan en el límite. Luna no tiene mapa. Arena
+  sí tiene barrio, estadio y partido.
+- Hay sonido ambiente (N), pero no menú principal. En móvil el joystick mueve la
+  selección del menú una vez por impulso; las opciones se pueden tocar.
+- Las pruebas táctiles se han hecho en navegador emulado, no en teléfono físico.
+  Las pruebas de navegador usaron preparación de posiciones y piloto de teclado;
+  no acreditan una semana completa sin ayudas de depuración.
 
 ## Roadmap conceptual
 
-No implementado. Aquí sólo para que las decisiones de hoy no lo bloqueen.
+Ya implementado: descanso y energía, empleo, salario, estudios, cuentas domésticas,
+relaciones persistentes y eventos.
 
-**0.2** — dar peso al tiempo: dormir en casa para pasar al día siguiente,
-consumir energía por acción y recuperarla al descansar. Es el primer bucle que
-convierte el reloj en una restricción real.
-
-**Después** — trabajo y salario, estudios y habilidades, finanzas, proyectos
-personales con riesgo y retorno, relaciones persistentes, eventos.
+Trabajo futuro: ampliar el contenido, añadir proyectos personales con riesgo y
+retorno y revisar el balance con sesiones largas de jugadores. El roadmap no
+implica que estas ampliaciones existan hoy.
 
 El principio que ordena todo eso: **LIFE//SIM no debe convertirse en hacer clic
 en botones para subir estadísticas.** Si el jugador quiere trabajar, se desplaza
@@ -802,7 +785,7 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 - **Ocupación compartida**: el puesto del jugador entra en `claimed` (el mismo conjunto que usan los personajes con nombre y quien se sienta): la gente de `Crowd` no lo coge y quien iba de camino lo cancela; con alguien dentro (o de camino), el jugador no puede. Se libera al acabar, cortar (E/Esc) o cambiar de escena.
 - **Animación** (`Player.startTraining/trainingFrame`): las mismas poses, repeticiones y accesorios (banda, barra, jaula vacía) que la gente (`entities/Character`), alineado con el punto del puesto.
 - **Tiempo y energía**: corre el reloj del mundo (suave 15 min, normal 30, intenso 50; estirar, la mitad); al cortar a medias se gana y se gasta en proporción.
-- **Forma física** (`systems/Fitness.ts`, `GameState.fitness`, se guarda): forma, fuerza, resistencia y cansancio. Cardio sube resistencia y forma; pesas, fuerza; estirar quita cansancio. Rendimientos decrecientes por nivel y por sesiones del día. `bodyProgress()` es el gancho para el cuerpo (no se dibuja todavía).
+- **Forma física** (`systems/Fitness.ts`, `GameState.fitness`, se guarda): forma, fuerza, resistencia y cansancio. Cardio sube resistencia y forma; pesas, fuerza; estirar quita cansancio. Rendimientos decrecientes por nivel y por sesiones del día. `bodyProgress()` se dibuja por tramos (`buildOf`: hombros, luego brazos) y se cuenta en la app Hoy (`bodyLine`).
 - **Prueba**: `scripts/check-fitness.ts`.
 
 ## La ciudad como un todo · pasada de integración
@@ -878,3 +861,27 @@ Verificación en navegador: propuestas del móvil en una partida de prueba indep
 respuesta con teclado y puntero, recarga y conservación del estado; encuentros de fotos
 y repaso con sus diálogos en el mundo. El recorrido completo de ambos arcos se
 comprueba automáticamente; no sustituye una partida manual completa de cada rama.
+
+
+## Primera semana libre (entrega 07)
+
+Móvil (P) → Hoy muestra «Puedes hacer»: empleo, tarjeta, curso, contactos, meta y
+mejoras según el estado real. No hay una misión obligatoria ni otra agenda:
+`data/opportunities.ts` define las oportunidades y `systems/Opportunities.ts` las
+lee de los sistemas existentes. Rechazar permite retomar; sin contrato queda el
+turno suelto. Sin compromiso próximo, el HUD muestra una oportunidad. La guía se
+puede saltar y releer en Hoy.
+
+Los planes aceptados con Sara y Ada por móvil o en persona se conectan con sus
+rutinas, buscan días compatibles con turnos y clases y aparecen una sola vez en
+la agenda. Acudir o faltar deja un recuerdo; cumplir genera un mensaje al día
+siguiente. Si no hay hueco se comunica sin inventar una quedada. Los personajes
+sin rutina compatible no ofrecen planes que no puedan realizar.
+
+Para empezar: máquina de Vallesco → metro a Polígono Norte → cartel de Decathlon
+(turno suelto o contrato). Centro de estudios en Calle Mayor para matricularse;
+clases martes/jueves a las 18:00. Móvil → Cuentas para meta y pagos. Hablar con
+Sara, pedir contacto y proponer por Mensajes. Ordenador de casa para mejoras;
+cama para descansar. Teclado y opciones táctiles ejecutan las mismas acciones.
+
+Recorrido registrado, pruebas y límites: [VERIFICATION-WEEK.md](VERIFICATION-WEEK.md).

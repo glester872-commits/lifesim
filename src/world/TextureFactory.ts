@@ -506,10 +506,15 @@ export const humanKey = (prefix: string, facing: Facing, pose: Pose): string => 
  * ('player') en sus texturas, o un personaje con nombre en su fila del atlas de
  * gente. Se pinta encima de lo que había, así que sus animaciones siguen
  * valiendo. La gente anónima no persiste y no se repinta nunca.
+ *
+ * El jugador lleva además su complexión (systems/Fitness.buildOf): la misma
+ * deformación que la gente (world/HumanArt.reshape), debajo de la ropa.
  */
-export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearance): void {
+let playerBuild: HumanColors['build'];
+export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearance, build: HumanColors['build'] = playerBuild): void {
   if (id === 'player') {
-    const colors = withAppearance(PLAYER_COLORS, changes);
+    playerBuild = build;
+    const colors = { ...withAppearance(PLAYER_COLORS, changes), build };
     for (const facing of FACINGS) {
       for (const pose of POSES) {
         const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;

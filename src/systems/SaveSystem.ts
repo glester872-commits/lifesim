@@ -15,6 +15,7 @@ import { createPhone, parsePhone } from './Phone.ts';
 import { parseJob } from './Jobs.ts';
 import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
+import { parseAgenda, startAgenda } from './Agenda.ts';
 import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
 
 /**
@@ -64,6 +65,7 @@ export function createInitialState(): GameStateData {
     ledger: [],
     study: emptyStudy(),
     housing: startHousing(),
+    agenda: startAgenda(),
   };
 }
 
@@ -353,6 +355,8 @@ function parseState(value: unknown): GameStateData | null {
     study: parseStudy(s.study),
     // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.
     housing: parseHousing(s.housing),
+    // Una partida anterior a la agenda no ve la guía del principio ni avisos de lo que ya pasó.
+    agenda: parseAgenda(s.agenda),
   };
 }
 

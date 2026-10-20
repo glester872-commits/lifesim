@@ -15,6 +15,9 @@ import { BILLS, GOALS } from '../data/household';
 import { euros } from '../systems/Commerce';
 import { COURSES, getGig, getSkill } from '../data/study';
 import { gigDeadline, gigStatus, hasCamera, knowledge, lessonStatus, levelName, nextSession, sessionLabel } from '../systems/Study';
+import { commitments, dueText, margin, marginLabel, progressSignals, travelHint, type Commitment } from '../systems/Agenda';
+import { TOUR } from '../data/tour';
+import { opportunities, opportunityInput } from '../systems/Opportunities';
 
 /**
  * El móvil (tecla P o su botón): una capa de DOM encima del juego, como el menú y el mapa. Pinta lo que hay en
@@ -41,7 +44,7 @@ export interface PhoneHost {
 
 type Screen =
   | { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'job' } | { app: 'thread'; npc: string }
-  | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' };
+  | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' } | { app: 'today' };
 
 /** Cómo está el turno de cada día, en la pantalla de Trabajo. */
 const SHIFT_TEXT: Readonly<Record<ShiftStatus, string>> = {
@@ -52,6 +55,18 @@ const SHIFT_TEXT: Readonly<Record<ShiftStatus, string>> = {
   late: 'Completado con retraso',
   missed: 'Perdido',
 };
+
+/** Desde Hoy, cada compromiso abre la app donde vive (el contrato, el curso, las cuentas, la conversación). */
+const OPENS: Readonly<Partial<Record<Commitment['kind'], Screen>>> = {
+  job: { app: 'job' }, class: { app: 'study' }, gig: { app: 'study' }, bill: { app: 'money' },
+  plan: { app: 'messages' }, visit: { app: 'messages' },
+};
+/** Desde Hoy, una oportunidad que se hace en el móvil abre su app. */
+const OPP_OPENS: Readonly<Partial<Record<string, Screen>>> = {
+  meta: { app: 'goals' }, 'mejora-ahorro': { app: 'money' }, 'sara-plan': { app: 'thread', npc: 'sara' }, 'ada-plan': { app: 'thread', npc: 'ada' },
+  curso: { app: 'study' }, practica: { app: 'study' }, empleo: { app: 'job' },
+};
+const SIGNAL_OPENS: Readonly<Partial<Record<string, Screen>>> = { job: { app: 'job' }, study: { app: 'study' }, goal: { app: 'goals' }, social: { app: 'contacts' } };
 
 interface Item {
   el: HTMLElement;
@@ -122,7 +137,7 @@ export class PhoneScreen {
   /** Lo que se cuenta una vez arriba de Cuentas (el pago hecho, por qué no se pudo). */
   private flash = '';
   /** Aviso de Cuentas a la espera de que haya escena (al arrancar). */
-  private queued: { title: string; text: string } | null = null;
+  private queued: { title: string; text: string; app: 'money' | 'today' } | null = null;
 
   constructor(root: HTMLElement, button: HTMLButtonElement, toast: HTMLElement, state: GameState, blocked: () => boolean) {
     this.root = root;
@@ -174,7 +189,7 @@ export class PhoneScreen {
       this.hideToast();
       if (!npc && !app) return;
       if (!this.opened) this.open();
-      if (this.opened) this.go(app === 'money' ? { app: 'money' } : { app: 'thread', npc: npc! });
+      if (this.opened) this.go(app === 'money' ? { app: 'money' } : app === 'today' ? { app: 'today' } : { app: 'thread', npc: npc! });
     });
 
     state.on('phone', (news: readonly PhoneNews[]) => this.onPhone(news));
@@ -191,6 +206,14 @@ export class PhoneScreen {
       if (this.screen.app === 'money' || this.screen.app === 'pay' || this.screen.app === 'goals') this.refresh();
     });
     state.on('change', () => this.renderClock());
+    // Hoy depende de la hora (cuánto falta, si da tiempo): se repinta cada cinco minutos de reloj, no en cada uno.
+    let shownAt = -1;
+    state.on('change', () => {
+      const slot = Math.floor(((state.day - 1) * 1440 + state.hour * 60 + state.minute) / 5);
+      if (slot === shownAt) return;
+      shownAt = slot;
+      if (this.screen.app === 'today') this.refresh();
+    });
     this.renderBadge();
   }
 
@@ -201,7 +224,7 @@ export class PhoneScreen {
     // Un aviso de Cuentas que llegó cargando (o entre escenas) se enseña cuando ya se ve el mundo.
     const queued = this.queued;
     this.queued = null;
-    if (host && queued) this.notice(queued.title, queued.text);
+    if (host && queued) this.notice(queued.title, queued.text, queued.app);
   }
 
   get isOpen(): boolean {
@@ -254,16 +277,24 @@ export class PhoneScreen {
     this.showToast(npc, nameOf(npc), text);
   }
 
-  /** Un aviso de Cuentas (un gasto anunciado, un recargo): tocarlo abre Cuentas. */
-  notice(title: string, text: string): void {
+  /**
+   * Un aviso de Cuentas (un gasto anunciado, un recargo) o de la agenda (algo próximo, algo perdido, un progreso):
+   * tocarlo abre Cuentas u Hoy. Dos avisos a la vez se juntan en uno, no se pisan.
+   */
+  notice(title: string, text: string, app: 'money' | 'today' = 'money'): void {
     if (!this.host) {
-      this.queued = this.queued ? { title, text: `${this.queued.text} ${text}` } : { title, text };
+      this.queued = this.queued ? { title: this.queued.title === title ? title : 'Avisos', text: `${this.queued.text} ${text}`, app: this.queued.app } : { title, text, app };
       return;
     }
-    const icon = el('span', 'phone__avatar', '€');
-    this.toast.replaceChildren(icon, rowText(title, text));
+    // Un aviso que aún se está leyendo no se borra: el nuevo se añade debajo.
+    const showing = this.toast.classList.contains('is-visible') && this.toast.dataset.app && this.toast.dataset.notice;
+    const merged = showing ? `${this.toast.dataset.notice} ${text}` : text;
+    const icon = el('span', 'phone__avatar', app === 'money' ? '€' : '◷');
+    this.toast.replaceChildren(icon, rowText(showing && this.toast.dataset.title !== title ? 'Avisos' : title, merged));
     delete this.toast.dataset.npc;
-    this.toast.dataset.app = 'money';
+    this.toast.dataset.app = showing ? this.toast.dataset.app! : app;
+    this.toast.dataset.notice = merged;
+    this.toast.dataset.title = title;
     this.toast.classList.add('is-visible');
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.hideToast(), 6000);
@@ -309,6 +340,7 @@ export class PhoneScreen {
     else if (s.app === 'money') this.renderMoney();
     else if (s.app === 'pay') this.renderPay(s.bill, s.period);
     else if (s.app === 'goals') this.renderGoals();
+    else if (s.app === 'today') this.renderToday();
     else this.renderThread(s.npc);
     this.selected = Math.min(Math.max(0, keep), Math.max(0, this.items.length - 1));
     this.mark();
@@ -331,6 +363,11 @@ export class PhoneScreen {
       }
       grid.append(b);
     };
+    // Hoy: lo que viene, cuánto se tarda y cómo vas. El número, lo que pide salir ya.
+    const now = this.host?.now() ?? 0;
+    const pos = this.position();
+    const hurry = this.agenda(now).filter((c) => c.start - now < 4 * 60 && margin(c, now, travelHint(pos, c.where)) !== 'ok').length;
+    app('◷', 'Hoy', () => this.go({ app: 'today' }), hurry);
     app('✉', 'Mensajes', () => this.go({ app: 'messages' }), unread);
     app('☺', 'Contactos', () => this.go({ app: 'contacts' }));
     app('▤', 'Trabajo', () => this.go({ app: 'job' }));
@@ -340,6 +377,74 @@ export class PhoneScreen {
     app('◉', 'Cámara', null);
     app('♪', 'Música', null);
     this.screenEl.replaceChildren(el('p', 'phone__greeting', this.greeting(unread)), grid);
+  }
+
+  private position(): { location: string; x: number; y: number; offMap?: string } {
+    return { location: this.state.locationId, x: this.state.position.x, y: this.state.position.y, offMap: this.state.offMap ?? undefined };
+  }
+
+  /** Lo pendiente, leído de donde vive cada cosa (systems/Agenda): no hay otra lista de planes. */
+  private agenda(now: number): Commitment[] {
+    const s = this.state.snapshot;
+    return commitments({ now, job: s.job ?? null, study: s.study!, household: s.household!, phone: s.phone!, stories: s.stories ?? {}, tickets: s.tickets ?? [] });
+  }
+
+  /**
+   * Hoy: lo próximo con hora, sitio y cuánto se tarda desde donde estás (a ojo, y dicho así); cómo vas en lo que
+   * avanza (trabajo, estudios, meta, un recuerdo, el cuerpo) y la guía del principio para releerla.
+   */
+  private renderToday(): void {
+    this.titleEl.textContent = 'Hoy';
+    const now = this.host?.now() ?? 0;
+    const pos = this.position();
+    const list = this.agenda(now).filter((c) => c.start - now < 7 * 1440).slice(0, 8);
+    const head = el('p', 'phone__greeting', list.length
+      ? 'Con el móvil abierto el reloj sigue corriendo; el mapa y las compras lo paran. El viaje es una estimación desde donde estás.'
+      : 'Nada con hora en los próximos días. Un contrato, un curso o un plan con alguien aparecerán aquí.');
+    const ul = el('ul', 'phone__list');
+    for (const c of list) {
+      const hint = travelHint(pos, c.where);
+      const label = marginLabel(c, now, hint);
+      const li = el('li', `phone__row${label ? ' is-unread' : ''}`);
+      const when = dueText(c, now);
+      li.append(rowText(c.title, `${when}${c.where ? ` · ${c.where.name}` : ''} · ${hint.text}`), el('span', 'phone__row-meta', label));
+      const to = OPENS[c.kind];
+      this.item(li, to ? () => this.go(to) : () => undefined);
+      ul.append(li);
+    }
+    const s = this.state;
+    // Lo que se puede hacer y aún no se ha hecho (data/opportunities.ts): sin orden, rechazar no lo quita.
+    const opps = opportunities(opportunityInput(s.snapshot, now));
+    const can = el('ul', 'phone__list');
+    for (const o of opps.slice(0, 5)) {
+      const li = el('li', 'phone__row');
+      li.append(rowText(o.title, o.text));
+      const to = OPP_OPENS[o.id];
+      this.item(li, to ? () => this.go(to) : () => undefined);
+      can.append(li);
+    }
+    const signals = progressSignals({ now, job: s.job, study: s.study, household: s.household, money: s.money, wardrobe: s.wardrobe, social: s.social, fitness: s.fitness });
+    const progress = el('ul', 'phone__list');
+    for (const sig of signals) {
+      const li = el('li', 'phone__row');
+      const [title, ...rest] = sig.line.split(': ');
+      const detail = rest.join(': ');
+      li.append(rowText(title, `${detail.charAt(0).toUpperCase()}${detail.slice(1)}`));
+      const target = SIGNAL_OPENS[sig.id];
+      // Con teclado se recorre todo; lo que tiene app, la abre. El cuerpo y la guía sólo se leen.
+      this.item(li, target ? () => this.go(target) : () => undefined);
+      progress.append(li);
+    }
+    const guide = el('ul', 'phone__list');
+    for (const step of TOUR) {
+      const li = el('li', 'phone__row');
+      li.append(rowText(step.title, step.text));
+      this.item(li, () => undefined);
+      guide.append(li);
+    }
+    const parts: HTMLElement[] = [head, ul];
+    if (can.childElementCount) parts.push(el('p', 'phone__note', 'Puedes hacer'), can);
+    this.screenEl.replaceChildren(...parts, el('p', 'phone__note', 'Cómo vas'), progress, el('p', 'phone__note', 'Guía'), guide);
   }
 
   private contacts(): Contact[] {
@@ -680,12 +785,14 @@ export class PhoneScreen {
     this.toast.replaceChildren(avatar(npc), rowText(title, text));
     this.toast.dataset.npc = npc;
     delete this.toast.dataset.app;
+    delete this.toast.dataset.notice;
     this.toast.classList.add('is-visible');
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.hideToast(), 4500);
   }
 
   private hideToast(): void {
+    delete this.toast.dataset.notice;
     this.toast.classList.remove('is-visible');
     window.clearTimeout(this.toastTimer);
   }

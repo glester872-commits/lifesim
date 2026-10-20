@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import saraHdUrl from '../assets/characters/sara-hd.png?url';
 import { buildTextures, registerAnimations, repaintPerson } from '../world/TextureFactory';
+import { buildOf } from '../systems/Fitness';
 import type { Services } from '../services';
 import type { WorldSceneData } from './WorldScene';
 
@@ -32,6 +33,15 @@ export class BootScene extends Phaser.Scene {
     // repinta cada vez que cambia. Las texturas son de todo el juego, no de una escena.
     for (const id of Object.keys(state.snapshot.appearance)) repaintPerson(this, id, state.appearanceOf(id));
     state.on('appearance', (id: string) => repaintPerson(this, id, state.appearanceOf(id)));
+    // El cuerpo del jugador sale de su forma física guardada (systems/Fitness.buildOf) y se repinta al cambiar de tramo.
+    let build = buildOf(state.fitness);
+    repaintPerson(this, 'player', state.appearanceOf('player'), build);
+    state.on('fitness', () => {
+      const next = buildOf(state.fitness);
+      if (next === build) return;
+      build = next;
+      repaintPerson(this, 'player', state.appearanceOf('player'), build);
+    });
     const payload: WorldSceneData = {
       locationId: state.locationId,
       position: { x: state.position.x, y: state.position.y },

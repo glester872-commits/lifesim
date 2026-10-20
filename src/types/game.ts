@@ -704,6 +704,8 @@ export interface GameStateData {
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */
   housing?: import('../systems/Housing.ts').HousingState;
+  /** Guía del principio, avisos ya dados y últimas señales de progreso (systems/Agenda). Opcional: una partida anterior no ve la guía. */
+  agenda?: import('../systems/Agenda.ts').AgendaState;
 }
 
 export interface SaveFile {

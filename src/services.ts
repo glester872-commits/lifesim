@@ -1,5 +1,6 @@
 import type { GameState } from './state/GameState';
 import type { TimeSystem } from './systems/TimeSystem';
+import type { HUD } from './ui/HUD';
 import type { DialogueSystem } from './systems/DialogueSystem';
 import type { SaveSystem } from './systems/SaveSystem';
 import type { TargetHint } from './ui/TargetHint';
@@ -17,6 +18,8 @@ import type { CityAudio } from './audio/CityAudio';
 export interface Services {
   state: GameState;
   clock: TimeSystem;
+  /** La placa de arriba: hora (y si el reloj corre), dinero, energía y lo próximo de la agenda. */
+  hud: HUD;
   dialogue: DialogueSystem;
   save: SaveSystem;
   hint: TargetHint;

@@ -139,7 +139,7 @@ export function clockInBlocker(p: JobProgress, now: number, energy: number): str
   if (s === 'none') return `Hoy no tienes turno.${nextText}`;
   if (s === 'done' || s === 'late') return `El turno de hoy ya está hecho.${nextText}`;
   if (s === 'missed') return `Ya no llegas: el turno de hoy cuenta como falta.${nextText}`;
-  if (s === 'upcoming') return `Entras a las ${hh(levelOf(p).start)}; se ficha desde una hora antes.`;
+  if (s === 'upcoming') return `Entras a las ${hh(levelOf(p).start)}; se ficha desde las ${clockIn(def, levelOf(p))} y se espera en la sala de descanso.`;
   if (energy < def.minEnergy) return 'Estás demasiado cansado para aguantar el turno: come algo o descansa antes.';
   return null;
 }
@@ -220,9 +220,15 @@ export function levelSummary(lvl: JobLevel): string {
   return `${lvl.title}: ${days} de ${hh(lvl.start)} a ${hh(lvl.start + lvl.hours)} · ${euros(lvl.wage)} por turno.`;
 }
 
+/** Desde qué hora se ficha: «07:00» (`early` minutos antes de entrar). */
+const clockIn = (job: JobDef, lvl: JobLevel): string => {
+  const m = lvl.start * 60 - job.early;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
 /** La oferta entera, para leerla antes de firmar. */
 export function offerText(job: JobDef): string {
-  return `${levelSummary(job.levels[0])} Empiezas mañana. Requisitos: fichar desde una hora antes de la hora y no más de ${job.late} min tarde, con energía de al menos ${job.minEnergy}. Más de ${job.grace} min tarde se paga lo trabajado; no venir es una falta (con ${job.maxStrikes} sin recuperar, a la calle). Con ${job.promoteAfter} buenos turnos, ${job.manager.split(',')[0]} habla de ascensos.`;
+  return `${levelSummary(job.levels[0])} El contrato empieza mañana. Requisitos: fichar desde las ${clockIn(job, job.levels[0])} (se espera a la hora en la sala de descanso) y no más de ${job.late} min tarde, con energía de al menos ${job.minEnergy}. Más de ${job.grace} min tarde se paga lo trabajado; no venir es una falta (con ${job.maxStrikes} sin recuperar, a la calle). Con ${job.promoteAfter} buenos turnos, ${job.manager.split(',')[0]} habla de ascensos.`;
 }
 
 function prune(p: JobProgress): void {

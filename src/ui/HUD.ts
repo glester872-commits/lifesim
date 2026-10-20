@@ -26,6 +26,10 @@ export class HUD {
   /** Saldo de la tarjeta de transporte; no se ve hasta tenerla. */
   private readonly cardEl: HTMLElement;
   private savedTimer: number | undefined;
+  /** Lo próximo de la agenda (systems/Agenda), con su sitio y el viaje; vacío si no hay nada. */
+  private readonly nextEl: HTMLElement;
+  /** Si el reloj corre o está parado ahora (un menú o el mapa lo paran; el móvil, no). */
+  private clockMode: 'running' | 'paused' | 'phone' = 'running';
 
   private readonly state: GameState;
 
@@ -36,15 +40,19 @@ export class HUD {
       <p class="hud__clock"></p>
       <p class="hud__vitals"><span class="hud__money"></span><span class="hud__energy"></span></p>
       <p class="hud__card"></p>
+      <p class="hud__next"></p>
       <p class="hud__saved">partida guardada</p>
     `;
 
+    this.nextEl = this.pick(root, '.hud__next');
     this.clockEl = this.pick(root, '.hud__clock');
     this.moneyEl = this.pick(root, '.hud__money');
     this.energyEl = this.pick(root, '.hud__energy');
     this.savedEl = this.pick(root, '.hud__saved');
     this.cardEl = this.pick(root, '.hud__card');
 
+    // El rótulo del sitio (#place) va justo debajo, crezca lo que crezca la placa.
+    new ResizeObserver(() => document.documentElement.style.setProperty('--hud-bottom', `${Math.round(root.getBoundingClientRect().bottom)}px`)).observe(root);
     state.on('change', () => this.render());
     state.on('saved', () => this.flashSaved());
     this.render();
@@ -59,11 +67,27 @@ export class HUD {
   private render(): void {
     const { day, hour, minute, money: cash, energy } = this.state;
     this.clockEl.textContent = formatClock(day, hour, minute);
+    this.clockEl.dataset.mode = this.clockMode;
     this.moneyEl.textContent = money(cash);
     this.energyEl.textContent = `⚡ ${energy}`;
     const card = this.state.wallet.cards.transport;
     this.cardEl.textContent = card === undefined ? '' : `tarjeta · ${money(card)}`;
     this.cardEl.hidden = card === undefined;
+  }
+
+  /** «Próximo · Turno en Decathlon · hoy 10:00 · …»; `urgency` lo colorea: hay que salir ya o ya no se llega. */
+  setNext(text: string, urgency: 'ok' | 'tight' | 'late'): void {
+    if (this.nextEl.textContent === text && this.nextEl.dataset.urgency === urgency) return;
+    this.nextEl.textContent = text;
+    this.nextEl.dataset.urgency = urgency;
+    this.nextEl.hidden = !text;
+  }
+
+  /** El reloj parado (menú, mapa, leyendo lo que ha pasado) o corriendo con el móvil abierto: se dice junto a la hora. */
+  setClockMode(mode: 'running' | 'paused' | 'phone'): void {
+    if (mode === this.clockMode) return;
+    this.clockMode = mode;
+    this.clockEl.dataset.mode = mode;
   }
 
   private flashSaved(): void {

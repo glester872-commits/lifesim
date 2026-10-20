@@ -154,9 +154,8 @@ export function train(f0: Fitness, station: string, intensity: Intensity, fracti
 }
 
 /**
- * Para el cuerpo del jugador cuando se pueda dibujar (hoy no: el aspecto de quien
- * persiste es ropa, pelo y tatuajes, y su cuerpo es uno). De 0 a 1 cada cosa, subiendo despacio:
- * más atlético con la forma, más musculado con la fuerza, mejor postura con las dos.
+ * El cuerpo del jugador, de 0 a 1 cada cosa, subiendo despacio: más atlético con la forma, más musculado con la
+ * fuerza, mejor postura con las dos. Se dibuja por tramos (buildOf) y se cuenta en una frase (bodyLine).
  */
 export function bodyProgress(f: Fitness): { athletic: number; muscular: number; posture: number } {
   const unit = (v: number): number => clamp(v, 0, 1);
@@ -165,6 +164,30 @@ export function bodyProgress(f: Fitness): { athletic: number; muscular: number; 
     muscular: unit((f.strength - 25) / 60),
     posture: unit((f.fitness + f.strength - 50) / 120),
   };
+}
+
+/**
+ * La complexión que se dibuja (world/HumanArt.reshape, la misma que la de la gente): sin cambio hasta que el
+ * entrenamiento se nota, luego hombros algo más anchos ('athletic') y, con mucha fuerza, también los brazos
+ * ('muscular'). Por tramos y no continuo: el cuerpo cambia en dos momentos que se ven, no un píxel cada día.
+ */
+export function buildOf(f: Fitness): 'athletic' | 'muscular' | undefined {
+  const b = bodyProgress(f);
+  if (b.muscular >= 0.6) return 'muscular';
+  if (b.athletic >= 0.25 || b.muscular >= 0.25) return 'athletic';
+  return undefined;
+}
+
+/** Cuánto falta para que se note (o qué se nota ya), en una frase. */
+export function bodyLine(f: Fitness): string {
+  const build = buildOf(f);
+  if (build === 'muscular') return 'hombros y brazos marcados; la postura, firme.';
+  if (build === 'athletic') {
+    const toMuscle = Math.max(1, Math.ceil(25 + 0.6 * 60 - f.strength));
+    return `hombros más anchos que al empezar. Con ${toMuscle} puntos más de fuerza se marcarán los brazos.`;
+  }
+  const toShow = Math.max(1, Math.ceil(Math.min(40 - f.fitness, 40 - f.strength)));
+  return `aún no se nota. Con ${toShow} puntos más de forma o de fuerza se te verá en los hombros.`;
 }
 
 const word = (v: number): string => (v < 20 ? 'baja' : v < 40 ? 'regular' : v < 60 ? 'buena' : v < 80 ? 'muy buena' : 'de atleta');

@@ -39,7 +39,8 @@ assert.deepEqual(nextShift(p, t(1, 9)), { day: 3, status: 'upcoming' }, 'primer 
 assert.equal(hireBlocker(job, p, 1), 'Ya trabajas aquí.');
 
 // Llegar demasiado pronto: aún no se ficha.
-assert.match(clockInBlocker(p, t(3, 8, 30), 90)!, /se ficha desde una hora antes/);
+assert.match(clockInBlocker(p, t(3, 6, 30), 90)!, /se ficha desde las 07:00/);
+assert.equal(clockInBlocker(p, t(3, 7, 30), 90), null, 'quien llega pronto ficha y espera en la sala de descanso');
 // Agotado: no se ficha (y el motivo se dice).
 assert.match(clockInBlocker(p, t(3, 9, 30), 20)!, /cansado/);
 // Antes de hora, con energía: se ficha, se espera a las 10 y se sale a las 16.

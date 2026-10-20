@@ -3,37 +3,17 @@
 Lo pendiente antes y después de la fase de personajes. El README describe lo
 que existe; esto, lo que falta y por qué.
 
-## Antes de empezar personajes (decidir, no programar)
+## Estado de la integración
 
-- **Escala de tiempo de los desplazamientos.** A la velocidad del jugador,
-  cruzar el barrio son ~16 s reales = 32 min de juego. `npm run check` simula
-  cinco rutinas y avisa: con horarios como «08:00 sale de casa, 08:10 en el
-  café», los NPC llegan 9–21 min tarde. Opciones: escribir horarios con
-  margen, que los NPC fuera de cámara avancen por el grafo a tiempo de juego
-  comprimido, o ambas. Es una decisión de diseño, no un bug del mundo.
-- **Qué pasa cuando un NPC entra en un edificio.** `worldRoute()` ya devuelve
-  los tramos por localización; falta decidir si un NPC dentro de un interior
-  que el jugador no visita se simula o sólo se da por "dentro" hasta su hora
-  de salida.
+Trabajo, cuentas, estudios, historias de Sara y Ada, vivienda, guía y oportunidades
+de la primera semana están conectados. Ver `VERIFICATION-WEEK.md` para el recorrido.
 
-## Fase de personajes (siguiente sistema)
-
-- Peatones y personajes en la calle reutilizando `Walker` y `route()`; se
-  suman a la lista de peatones de `Ambience` para que el tráfico y las puertas
-  les respondan sin tocar ese código.
-- Reserva de puntos: dos NPC no deben elegir la misma mesa (`seat`) a la vez.
-  Hoy nada lo impide porque nadie los usa.
-- Asociaciones persistentes `npcId → residenceId / workplaceId` sobre los ids
-  de `data/places.ts`, guardadas con la partida.
-- Los puestos de trabajo ocupados hoy por NPC estáticos (`GYM_STAFF`,
-  `CLOTHING_STORE_STAFF`, `SUPERMARKET_CASHIER`, `RESTAURANT_STAFF`,
-  `OFFICE_RECEPTIONIST`) pasarán a ser del personaje que trabaje ahí.
+Pendiente: teléfono físico y una sesión larga sin preparar posiciones ni tiempos
+por depuración. Las pruebas automáticas no sustituyen esa comprobación.
 
 ## Deuda conocida
 
 - Los extremos de las calles son un muro invisible (límite del mapa).
-- Ribera Norte sigue con el formato antiguo de rejilla, sin `BuildingDef`,
-  puntos ni lugares.
 - Los interiores no tienen grafo: `route()` usa la cuadrícula. Basta para
   salas pequeñas; en un interior grande habría que añadir `links`.
 - La caja de la tienda de ropa tapa un poco los pies de Iván.
@@ -42,10 +22,18 @@ que existe; esto, lo que falta y por qué.
 - La Ribera, Cuatro Ríos, Velaria y Puerta Central sólo se unen por metro: no hay
   calles que crucen de un mapa a otro. Cuando dos mapas se toquen, su borde será un
   portal de calle y `systems/World.travel()` lo dará como `walk`.
-- Arena y Luna son estado lógico sin mapa: el partido del Arena sólo se oye en la
-  megafonía del metro (y sale en `lifesim.world.now()`).
-- El móvil a tamaño de teléfono no se ha probado en navegador en esta pasada (la
-  ventana de pruebas no se deja redimensionar); `check-input` cubre la lógica táctil.
+- Luna sigue como estado lógico sin mapa. Arena sí tiene barrio, estadio y partido jugable.
+- El móvil a tamaño de teléfono se ha probado emulado (390 × 844, táctil): guía, HUD, avisos y app Hoy. No en un
+  teléfono físico; `check-input` cubre la lógica táctil.
+- Agenda (`systems/Agenda.ts`): el viaje es una estimación por tiles en línea recta (+30 % de rodeo) y la espera del
+  primer tren; no cuenta colas, semáforos ni a la gente que se cruza en una puerta. Entre barrios se estima en metro
+  sólo entre estaciones con puerta de calle conocida; si no, dice «sin estimación». Lo perdido en un salto se avisa
+  para turnos y clases; un plan del móvil o una quedada que pasa de largo la resuelven sus sistemas, sin aviso de la
+  agenda. Varios avisos a la vez se juntan en un toast de cuatro líneas como mucho; el resto está en Hoy.
+- Ritmo (prompt 06): con las jornadas medidas no hizo falta cambiar la velocidad global (2 min/s) ni ventanas de
+  horario; lo que se comía el margen era leer lo que pasa tras un salto (≈ 10–20 min de juego por lectura) y la guía,
+  y ahora no corre el reloj. Si los barrios crecen y un trayecto a pie pasa de ~30 min de juego, revisar antes la
+  velocidad del jugador que el reloj.
 - Empleo (`systems/Jobs.ts`): un solo empleo. Las faltas se guardan al volver al
   Decathlon (el móvil las enseña ya repasadas, sin guardar). Los compañeros son
   líneas de diálogo; Marta no es un personaje con nombre del sistema social.
@@ -65,8 +53,9 @@ que existe; esto, lo que falta y por qué.
 
 ## Historias de Sara y Ada
 
-- Jugar de principio a fin cada rama en navegador, incluidos los seguimientos del día
-  siguiente, los plantones y el aplazamiento por lluvia. Los recorridos del motor están
+- Completar todas las ramas de ambos arcos en navegador, en particular los
+  aplazamientos por lluvia. Se recorrieron la primera semana y la reparación
+  de un plantón con Sara; eso no acredita todas las ramas. Los recorridos del motor están
   cubiertos por `check-arcs.ts`; se ha comprobado el flujo del móvil en navegador.
 - Comprobar gestos en un dispositivo táctil real. Los botones se han probado con puntero
   en una ventana estrecha; eso no equivale a verificar un teléfono físico.

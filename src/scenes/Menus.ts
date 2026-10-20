@@ -202,6 +202,8 @@ export class Menus {
   private offMap(stop: TransitStop, back: TransitStop, note = ''): void {
     const { state, clock, menu, metroEvents } = this.services;
     const place = getOffMapPlace(stop.offMap!);
+    // La agenda estima desde aquí, no desde la estación que sigue cargada detrás del menú.
+    state.setOffMap(stop.id);
     const job = jobAt(place.id);
     const ret = destinationsFrom(stop).find((d) => d.stop.id === back.id)!;
     const again = (n = ''): void => this.offMap(stop, back, n);

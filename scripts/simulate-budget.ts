@@ -11,6 +11,10 @@ import { pay, startHousehold, sync, unpaid, owed } from '../src/systems/Househol
 import { absMinute } from '../src/systems/Handoff.ts';
 import { weekIndex } from '../src/systems/Calendar.ts';
 import { INITIAL_MONEY } from '../src/config/constants.ts';
+import { getCourse } from '../src/data/study.ts';
+import { UPGRADES } from '../src/data/housing.ts';
+import { buy as buyUpgrade, fits, rentsOf, startHousing } from '../src/systems/Housing.ts';
+import { levelOf, promote, promotionReady, scheduled } from '../src/systems/Jobs.ts';
 
 const job = getJob('decathlon');
 const fare = destinationsFrom(getStop('vallesco')).find((d) => d.stop.id === 'decathlon')!.fare;
@@ -76,3 +80,52 @@ console.log(
     `casa €${avg('rent').toFixed(2)} (${BILLS.map((b) => `${b.name} €${b.amount}`).join(' + ')}) · metro €${avg('transport').toFixed(2)} · comida €${avg('food').toFixed(2)} · ` +
     `salir €${avg('social').toFixed(2)} · margen €${margin.toFixed(2)} · saldo €${START} → €${money.toFixed(2)} (mínimo €${lowest.toFixed(2)})`,
 );
+
+// ------------------------------------------------------------------ decisiones razonables (prompt 07)
+// La misma rutina con lo que haría alguien en su primera semana: firmar el lunes, matricularse en el curso, aceptar el
+// ascenso cuando lo proponen, comprar una mejora para casa cuando sobra (quedando €40 libres) y salir el sábado sólo si
+// llega. ¿Cuándo llega el ascenso y cuándo cada mejora? Falla si algo vence sin pagar o si no da tiempo en el mes.
+{
+  const course = getCourse('foto-basica');
+  let cash = START - course.fee;
+  let house = startHousehold(1);
+  let contract = hire(job, 1);
+  let housing = startHousing();
+  let promotedOn = 0;
+  const bought: string[] = [];
+  let lowestCash = cash;
+  for (let day = 1; day <= 28; day++) {
+    house = sync(house, day, rentsOf(housing)).household;
+    cash -= groceries;
+    if (scheduled(contract, day)) {
+      const out = work(contract, absMinute(day, levelOf(contract).start, 50 - 60), situationFor(contract, day).choices[0]);
+      contract = out.progress;
+      cash += out.money - 2 * fare;
+      if (!promotedOn && promotionReady(contract)) {
+        contract = promote(contract, day);
+        promotedOn = day;
+      }
+    }
+    const free = (): number => cash - owed(house);
+    if (weekIndex(day) === 5 && free() >= nightOut.cost! + 2 * fare + 40) cash -= nightOut.cost! + 2 * fare;
+    const next = UPGRADES.filter((u) => fits(u, housing.home) && !housing.owned.includes(u.id)).sort((a, b) => a.price - b.price)[0];
+    if (next && free() - next.price >= 40) {
+      const r = buyUpgrade(housing, next.id, cash);
+      assert.ok(r.ok, r.message);
+      housing = r.housing;
+      cash = r.money;
+      bought.push(`${next.name} (día ${day})`);
+    }
+    for (const o of unpaid(house).filter((x) => x.due === day)) {
+      const r = pay(house, cash, o.bill, o.period, day);
+      assert.ok(r.ok, `decisiones razonables, día ${day}: ${o.bill} sin pagar (${cash.toFixed(2)} €)`);
+      house = r.household;
+      cash = r.money;
+    }
+    lowestCash = Math.min(lowestCash, cash);
+    assert.ok(cash >= 0, `decisiones razonables, día ${day}: saldo negativo`);
+  }
+  assert.ok(promotedOn > 0 && promotedOn <= 21, `el ascenso no llega en tres semanas (día ${promotedOn})`);
+  assert.ok(bought.length >= 1 && /día [1-7]\)/.test(bought[0]), `ninguna mejora asequible la primera semana: ${bought.join(', ')}`);
+  console.log(`decisiones razonables: curso €${course.fee} · ascenso el día ${promotedOn} (${job.levels[1].title}, €${job.levels[1].wage}/turno) · mejoras: ${bought.join(', ') || 'ninguna'} · saldo €${cash.toFixed(2)} (mínimo €${lowestCash.toFixed(2)})`);
+}

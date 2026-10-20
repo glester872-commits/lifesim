@@ -260,6 +260,8 @@ export const ADA_STORY: StoryDef = {
     { id: 'repaso', when: { ago: { event: 'repaso', days: 1 } }, text: ['Hoy en la academia me han preguntado el tema 14 y lo he clavado. Gracias por lo de ayer.'] },
     { id: 'partido', when: { ago: { event: 'partido', days: 1 } }, text: ['Tengo agujetas de ayer. Tú también, seguro. Buen partido.'] },
     { id: 'reconciliacion', when: { ago: { event: 'reconciliacion', days: 1 } }, text: ['Gracias por venir ayer. En serio.'] },
+    // Un plan de los de siempre que salió bien (también los quedados por el móvil, WorldScene.bridgePlans).
+    { id: 'plan', when: { ago: { event: 'plan-cumplido', days: 1 } }, text: ['Lo de ayer en {lugar} estuvo bien. Hay que repetirlo.'] },
     ...visitMessages(VISIT),
   ],
 };

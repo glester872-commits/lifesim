@@ -49,6 +49,9 @@ import { auditableLocations, auditVenues, lastTransitionError } from './systems/
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
 import { HUD } from './ui/HUD';
+import { commitmentLine, commitments, margin, marginLabel, review, travelHint } from './systems/Agenda';
+import { opportunities, opportunityInput } from './systems/Opportunities';
+import { LINES } from './data/transit';
 import { DialogueBox } from './ui/DialogueBox';
 import { TargetHint } from './ui/TargetHint';
 import { MetroDebug } from './ui/MetroDebug';
@@ -81,9 +84,13 @@ const dialogue = new DialogueSystem();
 const menu = new Menu(requireEl('#menu'));
 // Ni el móvil encima del mapa ni el mapa encima del móvil: primero se cierra uno.
 const phone = new PhoneScreen(requireEl('#phone'), requireEl('#phone-button') as HTMLButtonElement, requireEl('#phone-toast'), state, () => dialogue.isOpen || menu.isOpen || services.map.isOpen);
+const clock = new TimeSystem(state);
+// Tras dormir, un turno o el metro, el reloj espera a que se lea lo que ha pasado (systems/TimeSystem.release).
+clock.holdJumps = true;
 const services: Services = {
   state,
-  clock: new TimeSystem(state),
+  clock,
+  hud: new HUD(requireEl('#hud'), state),
   dialogue,
   save,
   hint: new TargetHint(requireEl('#hint')),
@@ -107,7 +114,6 @@ css.setProperty('--white', PALETTE.white);
 css.setProperty('--amber', PALETTE.amber);
 css.setProperty('--accent', PALETTE.glassLit);
 
-new HUD(requireEl('#hud'), state);
 new DialogueBox(requireEl('#dialogue'), services.dialogue);
 // Joystick y botón de acción en pantallas táctiles; en un PC con ratón no aparecen.
 new MobileControls(requireEl('#touch'), services.input);
@@ -124,6 +130,65 @@ const syncHousehold = (): void => {
 };
 syncHousehold();
 onNewDay(state, syncHousehold);
+
+// La agenda (systems/Agenda): en cada minuto de reloj, y una vez tras cada salto (dormir, trabajar, el metro), se
+// mira qué toca avisar, qué se ha perdido entre medias y qué progreso ha cambiado. Lo avisado se guarda en la
+// partida: recargar no lo repite. El HUD enseña lo próximo, con su sitio y cuánto se tarda desde donde se está.
+let reviewedAt = -1;
+let shownFor = '';
+const reviewAgenda = (): void => {
+  const now = (state.day - 1) * 1440 + state.hour * 60 + state.minute;
+  // Cada minuto, la revisión; el HUD también al cambiar de sitio con el reloj parado (llegar a Decathlon).
+  const key = `${now}|${state.locationId}|${state.offMap}`;
+  if (key === shownFor) return;
+  shownFor = key;
+  const fresh = now !== reviewedAt;
+  reviewedAt = now;
+  const s = state.snapshot;
+  const position = { location: state.locationId, x: state.position.x, y: state.position.y, offMap: state.offMap ?? undefined };
+  const input = { now, job: s.job ?? null, study: s.study!, household: s.household!, phone: s.phone!, stories: s.stories ?? {}, tickets: s.tickets ?? [] };
+  const r = fresh ? review(s.agenda!, { ...input, position }, { now, job: input.job, study: input.study, household: input.household, money: s.money, wardrobe: s.wardrobe, social: s.social ?? {}, fitness: s.fitness! }) : { agenda: s.agenda!, due: [], missed: [], progress: [] };
+  if (fresh) state.setAgenda(r.agenda);
+
+  const lines = [
+    ...r.due.map((c) => {
+      const hint = travelHint(position, c.where);
+      const label = marginLabel(c, now, hint);
+      return `${label ? `${label[0].toUpperCase()}${label.slice(1)}` : 'Próximo'}: ${commitmentLine(c, now, hint)}.`;
+    }),
+    ...r.missed,
+    ...r.progress,
+  ];
+  if (lines.length) {
+    // Pocos y juntos: tres frases como mucho; lo demás está en el móvil (Hoy).
+    const kinds = [r.due.length, r.missed.length, r.progress.length].filter(Boolean).length;
+    const title = kinds > 1 ? 'Avisos' : r.due.length ? 'Agenda' : r.missed.length ? 'Te lo has perdido' : 'Progreso';
+    const text = lines.length > 3 ? `${lines.slice(0, 3).join(' ')} Y ${lines.length - 3} más en Hoy.` : lines.join(' ');
+    phone.notice(title, text, 'today');
+    services.save.save(state.snapshot);
+  }
+
+  const next = commitments(input).find((c) => !c.deadline || c.start - now < 24 * 60);
+  // Sin nada con hora: lo primero que se puede hacer (data/opportunities.ts); el resto, en Hoy.
+  const idea = next ? undefined : opportunities(opportunityInput(s, now))[0];
+  if (!next) services.hud.setNext(idea ? `Libre · Puedes: ${idea.title}. Más en el móvil (P) → Hoy.` : 'Libre. Ideas y guía: móvil (P) → Hoy.', 'ok');
+  else {
+    const hint = travelHint(position, next.where);
+    // En metro sin saldo para ir y volver, se dice: sin tarjeta cargada no se sube.
+    const card = s.cards.transport;
+    const recharge = hint.text.startsWith('metro') && (card === undefined || card + 1e-9 < 2 * LINES[0].fare) ? (card === undefined ? ' · sin tarjeta' : ` · tarjeta ${euros(card)}: recárgala`) : '';
+    services.hud.setNext(`Próximo · ${commitmentLine(next, now, hint)}${recharge}`, recharge ? 'tight' : margin(next, now, hint));
+  }
+};
+state.on('change', reviewAgenda);
+// Firmar, matricularse, pagar o quedar con el reloj parado (en un menú) también cambia lo próximo: el HUD se rehace ya.
+for (const event of ['job', 'study', 'household', 'phone', 'story', 'housing']) {
+  state.on(event, () => {
+    shownFor = '';
+    reviewAgenda();
+  });
+}
+reviewAgenda();
 
 /**
  * El lienzo va a la resolución física de la pantalla y el CSS lo estira a la

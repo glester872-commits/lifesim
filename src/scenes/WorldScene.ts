@@ -51,6 +51,8 @@ import { getNpc, PASSENGER_LOOKS } from '../data/npcs';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
 import { STORIES } from '../data/saraStory';
+import { TOUR } from '../data/tour';
+import { freeBetween } from '../systems/Agenda';
 import { homeEntry, installedIn } from '../systems/Housing';
 import {
   applyEffect,
@@ -67,6 +69,7 @@ import {
   openerFor,
   phoneStory,
   planSummary,
+  planForInvite,
   cancelStoryPlan,
   presentBeat,
   routineOn,
@@ -135,7 +138,7 @@ import {
 } from '../systems/Social';
 import { NAMED_PEOPLE } from '../data/namedPeople';
 import { NAMED_VOICES } from '../data/chatNamed';
-import { INIT_SLOT, activePlan, lineFor, markRead, tierOf, phoneTick, planFromTalk, postMessage, sendMessage, statusOf, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneResult } from '../systems/Phone';
+import { INIT_SLOT, activePlan, lineFor, markRead, tierOf, phoneTick, planFromTalk, postMessage, sendMessage, statusOf, whenLabel, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneNews, type PhoneResult } from '../systems/Phone';
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
@@ -727,6 +730,7 @@ export class WorldScene extends Phaser.Scene {
     this.bindKeys();
 
     state.locationId = def.id;
+    state.setOffMap(null);
     clock.setPaused(false);
     // En el barrio del estadio, el día de partido se anuncia al llegar (systems/Match): rival y hora del saque; empezado,
     // el marcador de ese momento (systems/MatchPlay, el mismo que en la grada); acabado, el resultado.
@@ -769,6 +773,9 @@ export class WorldScene extends Phaser.Scene {
       },
       persist: () => this.persist(),
     });
+
+    // Partida nueva: la guía del principio, cuando ya se ve la calle (data/tour.ts). Una partida de antes no la ve.
+    this.time.delayedCall(TRANSITION_MS + 500, () => this.offerTour());
 
     const autosave = this.time.addEvent({
       delay: AUTOSAVE_INTERVAL_MS,
@@ -826,6 +833,12 @@ export class WorldScene extends Phaser.Scene {
     this.updateStand(time);
     // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
     pumpPeopleHD(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < HD_ENTRY_MS ? HD_BAKE_ENTRY_MS : HD_BAKE_MS);
+
+    // Tras un salto (dormir, un turno, el metro) el reloj espera a que se lea lo que ha pasado; sin nada abierto, sigue.
+    if (clock.isHeld && !dialogue.isOpen && !menu.isOpen && !this.leaving) clock.release();
+    // Junto a la hora se dice si corre: el mapa, un menú que no es «en vivo» y la lectura tras un salto lo paran; el móvil, no.
+    const stopped = map.isOpen || clock.isHeld || clock.isPaused || (menu.isOpen && !menu.isLive && !dialogue.isOpen);
+    this.services.hud.setClockMode(stopped ? 'paused' : phone.isOpen ? 'phone' : 'running');
 
     // El mapa es un modo de interfaz, como el menú: el jugador se para, nada responde a la E y el
     // mundo espera (ni reloj ni gente) hasta cerrarlo. M o Esc lo cierran; su botón, también.
@@ -1267,7 +1280,45 @@ export class WorldScene extends Phaser.Scene {
     const { state } = this.services;
     for (const [npc, profile] of Object.entries(result.profiles)) state.setSocialProfile(npc, profile);
     state.setPhone(result.phone, result.news);
+    this.bridgePlans();
     this.persistSoon();
+  }
+
+  /**
+   * Un plan aceptado (por el móvil o en persona) con quien tiene historia pasa a ser uno de sus planes de siempre
+   * (systems/Story.planForInvite): su rutina de ese día la lleva al sitio, y ir o faltar lo resuelve su historia (el
+   * recuerdo, el ánimo y lo que escribe después). Ella lo dice por el móvil: dónde y cuándo. Si ya teníais otro plan
+   * quedado, se queda ése. El plan del móvil se cierra: la agenda y Hoy enseñan el de su historia.
+   */
+  private bridgePlans(): void {
+    const { state } = this.services;
+    const now = Math.floor(this.absMinute());
+    const today = this.storyNow().day;
+    let phone = state.phone;
+    const news: PhoneNews[] = [];
+    for (const plan of state.phone.plans) {
+      const def = STORIES[plan.npc];
+      const story = plan.status === 'accepted' && def ? this.storyOf(plan.npc) : undefined;
+      if (!story || !def) continue;
+      const out = planForInvite(story, def, Math.max(plan.day, today + 1), this.storyNow().free);
+      phone = structuredClone(phone);
+      phone.plans.find((p) => p.id === plan.id)!.status = 'cancelled';
+      let text: string;
+      if (out) {
+        this.saveStory(plan.npc, out.story);
+        const p = def.plans[out.id];
+        text = out.day === plan.day
+          ? `Hecho. Te espero ${whenLabel(out.day, today)} en ${p.place} a las ${p.from}: allí suelo estar.`
+          : `Cambio de planes: ${whenLabel(plan.day, today)} no me cuadra. Mejor ${whenLabel(out.day, today)} en ${p.place}, a las ${p.from}; allí suelo estar.`;
+      } else if (story.plan?.status === 'pending') text = `Ya tenemos algo quedado: ${planSummary(story, def, today)}. Lo dejamos para entonces, ¿vale?`;
+      else text = 'Esta semana no encuentro un hueco que nos cuadre a los dos. Propónmelo más adelante, ¿vale?';
+      phone = postMessage(phone, plan.npc, 'them', text, now);
+      news.push({ npc: plan.npc, text, plan: true });
+    }
+    if (news.length) {
+      state.setPhone(phone, news);
+      this.persistSoon();
+    }
   }
 
   private sendPhone(npc: string, action: PhoneActionId): void {
@@ -1307,7 +1358,10 @@ export class WorldScene extends Phaser.Scene {
     const start = state.phone;
     let phone = start;
     for (const memory of after.memories) if (!known.has(memory.id)) phone = planFromTalk(phone, npc, memory, now);
-    if (phone !== start) state.setPhone(phone);
+    if (phone !== start) {
+      state.setPhone(phone);
+      this.bridgePlans();
+    }
     if (!before.contactExchanged && after.contactExchanged) this.services.phone.notify(npc, 'Te ha dado su número. Ya podéis escribiros.');
   }
 
@@ -1337,8 +1391,12 @@ export class WorldScene extends Phaser.Scene {
 
   /** Su día (empieza a las 06:00) y el minuto del reloj. */
   private storyNow(): StoryNow {
-    const { housing } = this.services.state;
-    return { day: characterDay(this.absMinute()), minute: Math.floor(this.services.clock.minuteOfDay), home: housing.home, owned: installedIn(housing) };
+    const { housing, job, study } = this.services.state;
+    return {
+      day: characterDay(this.absMinute()), minute: Math.floor(this.services.clock.minuteOfDay), home: housing.home, owned: installedIn(housing),
+      // Lo que proponga no cae encima de un turno ni de una clase (systems/Agenda.freeBetween).
+      free: (day, from, until) => freeBetween(job, study, day, from, until),
+    };
   }
 
   /** Si ese día llueve por la mañana: lo que decide una rutina de lluvia o cancelar un plan de fuera. */
@@ -1592,6 +1650,31 @@ export class WorldScene extends Phaser.Scene {
 
   private trafficClock(): { day: number; minuteOfDay: number } {
     return { day: this.services.state.day, minuteOfDay: this.services.clock.minuteOfDay };
+  }
+
+  /**
+   * La guía del principio (data/tour.ts): cinco pasos cortos, cada uno con «Siguiente» o «Saltar la guía» (Esc
+   * también la salta). Se apunta en la partida al acabar o al saltarla, así que no vuelve; el texto sigue en el
+   * móvil (Hoy). Con algo abierto, espera a la próxima vez que se entre en un sitio.
+   */
+  private offerTour(step = 0): void {
+    const { state, dialogue, menu } = this.services;
+    if (state.agenda.tour !== 'new' || this.leaving) return;
+    if (step === 0 && (dialogue.isOpen || menu.isOpen || this.services.phone.isOpen || this.services.map.isOpen)) return;
+    // Leer la guía no gasta el día: el reloj espera hasta acabarla o saltarla (al cambiar de sitio, create lo suelta).
+    this.services.clock.setPaused(true);
+    const finish = (tour: 'done' | 'skipped'): void => {
+      this.services.clock.setPaused(false);
+      state.setAgenda({ ...state.agenda, tour });
+      this.persist();
+    };
+    const last = step === TOUR.length - 1;
+    const s = TOUR[step];
+    dialogue.ask(`Guía ${step + 1}/${TOUR.length} · ${s.title}`, [s.text], last ? ['Empezar'] : ['Siguiente', 'Saltar la guía'], (i) => {
+      if (last) finish('done');
+      else if (i === 0) this.offerTour(step + 1);
+      else finish('skipped');
+    }, last ? 0 : 1);
   }
 
   /** Minuto absoluto de la partida, con la fracción en curso: el que lee el horario de los personajes. */

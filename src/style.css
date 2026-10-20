@@ -101,6 +101,45 @@ body {
   color: rgba(232, 227, 218, 0.62);
 }
 
+/* Junto a la hora: parado (un menú, el mapa, leyendo lo que ha pasado) o corriendo con el móvil abierto. */
+.hud__clock[data-mode="paused"]::after,
+.hud__clock[data-mode="phone"]::after {
+  margin-left: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+
+.hud__clock[data-mode="paused"]::after {
+  content: "‖ parado";
+  color: rgba(232, 227, 218, 0.6);
+}
+
+.hud__clock[data-mode="phone"]::after {
+  content: "▸ sigue";
+  color: var(--amber);
+}
+
+/* Lo próximo de la agenda: una línea corta, ámbar si hay que salir ya, roja si ya no se llega. */
+.hud__next {
+  max-width: 270px;
+  margin-top: 5px !important;
+  padding-top: 5px;
+  border-top: 1px solid rgba(232, 227, 218, 0.14);
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgba(232, 227, 218, 0.86);
+}
+
+.hud__next[data-urgency="tight"] {
+  color: var(--amber);
+}
+
+.hud__next[data-urgency="late"] {
+  color: #ee8a7a;
+}
+
 .hud__saved {
   /* Fuera de la placa, a su derecha: aparece y se va sin moverla. */
   position: absolute;
@@ -430,7 +469,8 @@ body {
 
 #place {
   position: absolute;
-  top: 102px;
+  /* Bajo el HUD, que crece con la línea de lo próximo (ui/HUD pone --hud-bottom). */
+  top: calc(var(--hud-bottom, 88px) + 14px);
   left: 14px;
   margin: 0;
   /* Placa oscura como la del aviso de puerta: el rótulo pasa sobre fachadas claras. */
@@ -488,8 +528,13 @@ body {
     font-size: 11px;
   }
 
+  .hud__next {
+    max-width: 190px;
+    font-size: 11px;
+  }
+
   #place {
-    top: calc(max(10px, env(safe-area-inset-top)) + 70px);
+    top: calc(var(--hud-bottom, 70px) + 10px);
     left: max(10px, env(safe-area-inset-left));
     font-size: 12px;
   }
@@ -1366,6 +1411,22 @@ body.has-touch .dialogue__choices li {
   color: rgba(232, 227, 218, 0.65);
 }
 
+/* Un aviso (agenda, cuentas, progreso) se lee entero: hasta cuatro líneas; lo demás, en el móvil. */
+#phone-toast .phone__row-text span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+/* En Hoy el detalle es lo importante (sitio, viaje, cuánto falta): se lee entero, en varias líneas. */
+.phone__screen[data-app="today"] .phone__row-text span {
+  white-space: normal;
+  line-height: 1.35;
+}
+
 .phone__row.is-unread .phone__row-text span {
   color: var(--white);
 }
@@ -1537,8 +1598,9 @@ body.has-touch .dialogue__choices li {
     min-height: 44px;
   }
 
+  /* Debajo del HUD (que crece con lo próximo, ui/HUD pone --hud-bottom): no tapa la hora ni los botones. */
   #phone-toast {
-    top: calc(max(10px, env(safe-area-inset-top)) + 60px);
+    top: calc(var(--hud-bottom, 70px) + 8px);
   }
 }
 

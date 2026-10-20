@@ -36,8 +36,24 @@ export class TimeSystem {
     return this.state.hour * 60 + this.state.minute + this.carry;
   }
 
+  /**
+   * Retenido tras un salto (dormir, un turno, el metro): el reloj no corre mientras se lee lo que ha pasado. Lo
+   * suelta la escena (release) cuando ya no hay diálogo ni menú: leer el resultado no come el margen del siguiente
+   * compromiso. Sólo con `holdJumps` (lo enciende el juego; los scripts usan el reloj tal cual).
+   */
+  holdJumps = false;
+  private held = false;
+
+  get isHeld(): boolean {
+    return this.held;
+  }
+
+  release(): void {
+    this.held = false;
+  }
+
   update(deltaMs: number): void {
-    if (this.paused) return;
+    if (this.paused || this.held) return;
     const step = Math.min(deltaMs, MAX_FRAME_MS);
     this.carry += (step / 1000) * GAME_MINUTES_PER_REAL_SECOND;
     const whole = Math.floor(this.carry);
@@ -55,6 +71,8 @@ export class TimeSystem {
    */
   advanceMinutes(minutes: number): void {
     if (minutes <= 0) return;
+    // Un paso de frame es un minuto suelto; un salto (≥ 10 min) es algo que ha pasado y se cuenta.
+    if (this.holdJumps && minutes >= 10) this.held = true;
     const from = this.state.day;
     const total = this.state.hour * 60 + this.state.minute + minutes;
     const days = Math.floor(total / MINUTES_PER_DAY);

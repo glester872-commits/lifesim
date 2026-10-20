@@ -325,6 +325,8 @@ export const SARA_STORY: StoryDef = {
   messages: [
     { id: 'sesion', when: { ago: { event: 'sesion-fotos', days: 1 } }, text: ['Estoy editando las fotos de ayer y no me lo creo. Gracias por venir de verdad.'] },
     { id: 'reconciliacion', when: { ago: { event: 'reconciliacion', days: 1 } }, text: ['Lo de ayer en el Molinillo me sentó bien. Gracias por venir.'] },
+    // Un plan de los de siempre que salió bien (también los quedados por el móvil, WorldScene.bridgePlans).
+    { id: 'plan', when: { ago: { event: 'plan-cumplido', days: 1 } }, text: ['Lo de ayer en {lugar} estuvo genial. ¿Repetimos un día de estos?'] },
     ...visitMessages(VISIT),
   ],
 };

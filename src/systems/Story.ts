@@ -5,6 +5,7 @@ import { formatDate, WEEKDAY_LABEL, weekdayOf, weekIndex } from './Calendar.ts';
 import {
   applyDelta,
   grantContact,
+  noteSocialMemory,
   relationshipState,
   type RelationshipState,
   type SocialDelta,
@@ -370,6 +371,8 @@ export interface StoryNow {
   /** La casa donde vive el jugador y lo que tiene instalado (GameState.housing): lo que condiciona visitas y comentarios. */
   home?: string;
   owned?: readonly string[];
+  /** Si el jugador está libre ese día de `from` a `until` (minutos): sus planes no caen encima de un turno o una clase. */
+  free?: (day: number, from: number, until: number) => boolean;
 }
 
 /** Si se cumple. `salt` separa las tiradas y las esperas de cosas distintas el mismo día. */
@@ -398,8 +401,12 @@ export function matches(s: NamedStory, c: Cond, profile: SocialProfile, now: Sto
   return true;
 }
 
-/** El primer día desde `from` (incluido) en que se puede ese plan. */
-export function planDayFrom(plan: PlanDef, from: number): number {
+/**
+ * El primer día desde `from` (incluido) en que se puede ese plan y, si se dice, en que el jugador está libre a esa
+ * hora (`free`). Si en una semana no hay ninguno libre, el primero que le toque a ella.
+ */
+export function planDayFrom(plan: PlanDef, from: number, free?: StoryNow['free']): number {
+  if (free) for (let d = from; d < from + 7; d++) if (plan.days.includes(weekIndex(d)) && free(d, minuteOf(plan.from), minuteOf(plan.until))) return d;
   for (let d = from; d < from + 7; d++) if (plan.days.includes(weekIndex(d))) return d;
   return from;
 }
@@ -467,7 +474,19 @@ export interface DayInput {
 function missPlan(s: NamedStory, p: SocialProfile, def: StoryDef, now: StoryNow): Applied {
   const plan = def.plans[s.plan!.id];
   const next: NamedStory = { ...s, plan: { ...s.plan!, status: 'missed' } };
-  return applyEffect(next, p, plan?.missed ?? def.missed, now, plan?.place);
+  const out = applyEffect(next, p, plan?.missed ?? def.missed, now, plan?.place);
+  return { ...out, profile: planMemory(out.profile, s.plan!.day, now, false, plan?.place) };
+}
+
+/**
+ * El plan vivido (o el plantón) también lo recuerda la relación (systems/Social): «estuvisteis en la terraza del
+ * Pausa». Es lo que enseña después la app Hoy como recuerdo y lo que cuenta cuando se habla de lo pasado.
+ */
+function planMemory(p: SocialProfile, day: number, now: StoryNow, kept: boolean, place = 'el sitio de siempre'): SocialProfile {
+  return noteSocialMemory(p, {
+    kind: 'SHARED_EVENT', outcome: kept ? 'positive' : 'negative', day, hour: Math.floor(now.minute / 60), minute: now.minute % 60,
+    note: kept ? `estuvisteis en ${place}` : `te esperó en ${place} y no fuiste`,
+  });
 }
 
 /**
@@ -529,7 +548,8 @@ export function watchPlan(s: NamedStory, profile: SocialProfile, def: StoryDef, 
   if (during && together) {
     const kept = plan.kept ?? def.kept;
     const next: NamedStory = { ...structuredClone(s), plan: { ...s.plan, status: 'kept' } };
-    return { ...applyEffect(next, profile, kept.then, now, plan.place), kept: true, say: kept.say };
+    const out = applyEffect(next, profile, kept.then, now, plan.place);
+    return { ...out, profile: planMemory(out.profile, s.plan.day, now, true, plan.place), kept: true, say: kept.say };
   }
   if (now.minute >= minuteOf(plan.until)) return { ...missPlan(s, profile, def, now), kept: false, say: [] };
   return null;
@@ -577,7 +597,7 @@ function fillWith(text: string, s: NamedStory, def: StoryDef, gameDay: number, p
 function ready(b: Beat, s: NamedStory, def: StoryDef, now: StoryNow, gameDay: number, fixed?: { id: string; day: number }): ReadyBeat {
   // Lo que ya propuso sigue en su día mientras sea futuro y se pueda; si no, el primer día posible desde mañana.
   const planFor = (id: string): { id: string; day: number } =>
-    fixed && fixed.id === id && fixed.day > now.day && def.plans[id].days.includes(weekIndex(fixed.day)) ? fixed : { id, day: planDayFrom(def.plans[id], now.day + 1) };
+    fixed && fixed.id === id && fixed.day > now.day && def.plans[id].days.includes(weekIndex(fixed.day)) ? fixed : { id, day: planDayFrom(def.plans[id], now.day + 1, now.free) };
   const offered = b.offer ? planFor(b.offer) : undefined;
   return {
     id: b.id,
@@ -600,7 +620,7 @@ export function offerBeat(s: NamedStory, def: StoryDef, now: StoryNow, gameDay: 
     return b ? ready(b, s, def, now, gameDay, o.planDay ? { id: o.plan, day: o.planDay } : undefined) : null;
   }
   // La lluvia: lo dice y propone el siguiente día posible. Decir que no tampoco tiene culpa.
-  const fixed = o.planDay && o.planDay > now.day && def.plans[o.plan].days.includes(weekIndex(o.planDay)) ? o.planDay : planDayFrom(def.plans[o.plan], now.day + 1);
+  const fixed = o.planDay && o.planDay > now.day && def.plans[o.plan].days.includes(weekIndex(o.planDay)) ? o.planDay : planDayFrom(def.plans[o.plan], now.day + 1, now.free);
   const plan = { id: o.plan, day: fixed };
   const { rain } = def;
   const say = (t: string): string => fillWith(t, s, def, gameDay, plan);
@@ -726,6 +746,31 @@ export function acceptPlan(source: NamedStory, def: StoryDef, plan: { id: string
   s.plan = { id: plan.id, day: plan.day, status: 'pending' };
   s.routines[String(plan.day)] = def.plans[plan.id].routine;
   return s;
+}
+
+/**
+ * Un plan quedado por el móvil o en persona con quien tiene historia (un café, tomar algo) se hace en uno de sus
+ * planes de siempre (los que ella misma propone, con `ask` y sin requisitos): el primero que le cuadre desde `from`.
+ * Así va de verdad al sitio a su hora y lo vivido (ir o faltar) lo resuelve su historia. Con otro plan ya quedado,
+ * null: no se pisa.
+ */
+export function planForInvite(
+  source: NamedStory, def: StoryDef, from: number,
+  /** Si el jugador está libre ese día de `from` a `until` (minutos del día): sin turno ni clase encima. */
+  free: (day: number, from: number, until: number) => boolean = () => true,
+): { story: NamedStory; id: string; day: number } | null {
+  if (source.plan?.status === 'pending') return null;
+  let best: { id: string; day: number } | null = null;
+  for (const [id, p] of Object.entries(def.plans)) {
+    if (!p.ask || p.requires) continue;
+    // El primer día de la semana que viene en que le toca ese plan y el jugador puede.
+    for (let day = from; day < from + 7; day++) {
+      if (!p.days.includes(weekIndex(day)) || !free(day, minuteOf(p.from), minuteOf(p.until))) continue;
+      if (!best || day < best.day) best = { id, day };
+      break;
+    }
+  }
+  return best ? { story: acceptPlan(source, def, best), ...best } : null;
 }
 
 /** Al cruzarse: si hoy le toca saludar primero, lo que dice. Una vez al día como mucho. */

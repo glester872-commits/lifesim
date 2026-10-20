@@ -183,6 +183,12 @@ function interestKind(npc: string): PlanKind {
   return 'walk';
 }
 
+/**
+ * Sólo se queda con quien vive en el barrio con su rutina (data/characters): ella va al sitio a su hora (su historia
+ * fija el día, WorldScene.bridgePlans). Con quien no tiene rutina nadie aparecería, así que no se proponen planes.
+ */
+export const canMeet = (npc: string): boolean => CHARACTERS.some((c) => c.npc === npc);
+
 /** Lo que se acepta en persona deja su plan (las notas exactas de systems/Social.memoryNoteFor). */
 const TALK_PLANS: Readonly<Record<string, PlanKind | 'interest'>> = {
   'aceptó tomar un café': 'cafe',
@@ -409,7 +415,7 @@ export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProf
   for (const id of Object.keys(PHONE_ACTIONS) as PhoneActionId[]) {
     const s = PHONE_ACTIONS[id].social;
     if (!s || s === 'bye' || !social.includes(s)) continue;
-    if (INVITES[id] && (plan || story?.cancel)) continue;
+    if (INVITES[id] && (plan || story?.cancel || !canMeet(npc))) continue;
     // Una cita rechazada hace poco se recuerda: no se vuelve a pedir enseguida.
     if (id === 'propose-date' && profile.memories.some((mem) => mem.kind === 'DATE' && mem.outcome === 'negative' && dayOfAbs(now) - mem.day < 4)) continue;
     ids.push(id);
@@ -706,7 +712,7 @@ function initiation(phone: PhoneState, npc: string, profile: SocialProfile, now:
   if (plan?.status === 'accepted' && plan.kind === 'date' && romantic) return { text: line('init:date-ahead') };
   if (seenDay === today - 1 && rng() < 0.5) return { text: line('init:remember') };
   if (tier !== 'acq' && (weekIndex(today) === 4 || weekIndex(today) === 5) && m >= 17 * 60 && rng() < 0.5) return { text: line('init:tonight') };
-  if (tier !== 'acq' && !plan && rng() < 0.4) {
+  if (tier !== 'acq' && !plan && canMeet(npc) && rng() < 0.4) {
     const kind: PlanKind = romantic && profile.attraction >= 45 && rng() < 0.4 ? 'date' : rng() < 0.5 ? 'cafe' : interestKind(npc);
     const def = PLAN_KINDS[kind];
     const invite: Omit<SocialPlan, 'id'> = { npc, kind, day: planDay(def.place, def.at, today), at: def.at, place: def.place, status: 'proposed', by: 'npc', via: 'phone', created: now };
@@ -727,7 +733,7 @@ function initiation(phone: PhoneState, npc: string, profile: SocialProfile, now:
  */
 export function planFromTalk(source: PhoneState, npc: string, memory: SocialMemory, now: number): PhoneState {
   const what = memory.outcome === 'positive' ? TALK_PLANS[memory.note ?? ''] : undefined;
-  if (!what || activePlan(source, npc, now)) return source;
+  if (!what || !canMeet(npc) || activePlan(source, npc, now)) return source;
   const phone = structuredClone(source);
   const kind = what === 'interest' ? interestKind(npc) : what;
   const def = PLAN_KINDS[kind];

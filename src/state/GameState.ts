@@ -11,6 +11,7 @@ import type { JobProgress } from '../systems/Jobs';
 import { LEDGER_SIZE, type HouseholdState, type Movement } from '../systems/Household';
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { startHousing, type HousingState } from '../systems/Housing';
+import { parseAgenda, type AgendaState } from '../systems/Agenda';
 
 /**
  * Estado central de la partida.
@@ -34,6 +35,23 @@ export class GameState extends Phaser.Events.EventEmitter {
   };
 
   facing: Facing;
+
+  /**
+   * En un sitio sin mapa (el menú de Decathlon, scenes/Menus.offMap): su parada. La escena sigue siendo la
+   * estación de la que se salió; esto sólo lo lee la agenda para estimar viajes. No se guarda: al recargar se
+   * vuelve a la estación. Lo borra la escena al cambiar de sitio.
+   */
+  private _offMap: string | null = null;
+
+  get offMap(): string | null {
+    return this._offMap;
+  }
+
+  setOffMap(stop: string | null): void {
+    if (stop === this._offMap) return;
+    this._offMap = stop;
+    this.emit('change');
+  }
 
   /**
    * Memoria narrativa del metro.
@@ -87,6 +105,9 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** Vivienda activa y mejoras compradas (systems/Housing). */
   private _housing: HousingState;
+
+  /** Guía, avisos dados y señales de progreso (systems/Agenda). */
+  private _agenda: AgendaState;
 
   /** Motivo del cambio de dinero en curso (as()). */
   private why: string | null = null;
@@ -175,6 +196,22 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._study = structuredClone(initial.study ?? emptyStudy());
 
     this._housing = structuredClone(initial.housing ?? startHousing());
+
+    this._agenda = structuredClone(initial.agenda ?? parseAgenda(undefined));
+  }
+
+  // ================================================================
+  // AGENDA (systems/Agenda)
+  // ================================================================
+
+  get agenda(): AgendaState {
+    return structuredClone(this._agenda);
+  }
+
+  /** Lo avisado y la guía: se guarda con la partida para que nada se repita al recargar. */
+  setAgenda(a: AgendaState): void {
+    this._agenda = structuredClone(a);
+    this.emit('agenda');
   }
 
   // ================================================================
@@ -693,6 +730,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       study: structuredClone(this._study),
 
       housing: structuredClone(this._housing),
+
+      agenda: structuredClone(this._agenda),
     };
   }
 }

@@ -82,7 +82,9 @@ export const JOBS: readonly JobDef[] = [
     promoteAfter: 4,
     maxStrikes: 3,
     minEnergy: 30,
-    early: 60,
+    // Tres horas: el sitio no tiene mapa y su menú para el reloj, así que quien llega pronto ficha y espera en la
+    // sala de descanso hasta la hora (systems/Jobs.work) en vez de quedarse sin forma de esperar.
+    early: 180,
     grace: 10,
     late: 120,
     // Abierto por el encargo de fotografía (data/study.ts): fotos de producto para la web, con plus.
