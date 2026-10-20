@@ -7,6 +7,9 @@ import { createSocialProfile, type SocialProfile, type SocialState } from '../sy
 import { createStory, type NamedStory, type StoryState } from '../systems/Story';
 import { createPhone, type PhoneNews, type PhoneState } from '../systems/Phone';
 import type { Ticket } from '../systems/Tickets';
+import type { JobProgress } from '../systems/Jobs';
+import { LEDGER_SIZE, type HouseholdState, type Movement } from '../systems/Household';
+import { emptyStudy, type StudyState } from '../systems/Study';
 
 /**
  * Estado central de la partida.
@@ -68,6 +71,21 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** Entradas de partido (systems/Tickets). */
   private _tickets: Ticket[];
+
+  /** Contrato (systems/Jobs). */
+  private _job: JobProgress | null;
+
+  /** Gastos de casa y meta de ahorro (systems/Household). */
+  private _household: HouseholdState;
+
+  /** Movimientos de la cartera, con su motivo. */
+  private _ledger: Movement[];
+
+  /** Habilidades, curso, encargo y desbloqueos (systems/Study). */
+  private _study: StudyState;
+
+  /** Motivo del cambio de dinero en curso (as()). */
+  private why: string | null = null;
 
   constructor(
     initial: GameStateData,
@@ -143,6 +161,86 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._phone = structuredClone(initial.phone ?? createPhone());
 
     this._tickets = structuredClone(initial.tickets ?? []);
+
+    this._job = structuredClone(initial.job ?? null);
+
+    this._household = structuredClone(initial.household ?? { since: initial.day, generated: {}, obligations: [], goal: null });
+
+    this._ledger = structuredClone(initial.ledger ?? []);
+
+    this._study = structuredClone(initial.study ?? emptyStudy());
+  }
+
+  // ================================================================
+  // CUENTAS (systems/Household)
+  // ================================================================
+
+  get household(): HouseholdState {
+    return structuredClone(this._household);
+  }
+
+  setHousehold(h: HouseholdState): void {
+    this._household = structuredClone(h);
+    this.emit('household');
+  }
+
+  get ledger(): Movement[] {
+    return structuredClone(this._ledger);
+  }
+
+  /** Lo que cambie el dinero dentro de `fn` se apunta con este motivo (sueldo, alquiler, una compra). */
+  as<T>(label: string, fn: () => T): T {
+    const before = this.why;
+    this.why = label;
+    try {
+      return fn();
+    } finally {
+      this.why = before;
+    }
+  }
+
+  /** Apunta un cambio de la cartera. Sin motivo, «Otros». El mismo motivo el mismo día suma en una línea. */
+  private record(delta: number): void {
+    if (Math.abs(delta) < 0.005) return;
+    const label = this.why ?? 'Otros';
+    const last = this._ledger.at(-1);
+    if (last && last.label === label && last.day === this._day) {
+      last.amount = Math.round((last.amount + delta) * 100) / 100;
+      last.hour = this._hour;
+      last.minute = this._minute;
+    } else {
+      this._ledger.push({ day: this._day, hour: this._hour, minute: this._minute, label, amount: Math.round(delta * 100) / 100 });
+      if (this._ledger.length > LEDGER_SIZE) this._ledger.shift();
+    }
+  }
+
+  // ================================================================
+  // ESTUDIOS (systems/Study)
+  // ================================================================
+
+  get study(): StudyState {
+    return structuredClone(this._study);
+  }
+
+  /** Cambia el progreso de estudios y avisa (el móvil lo repinta). Dinero y energía se aplican aparte. */
+  setStudy(s: StudyState): void {
+    this._study = structuredClone(s);
+    this.emit('study');
+  }
+
+  // ================================================================
+  // EMPLEO (systems/Jobs)
+  // ================================================================
+
+  /** El contrato del jugador (copia), o null si nunca ha firmado. */
+  get job(): JobProgress | null {
+    return structuredClone(this._job);
+  }
+
+  /** Cambia el contrato y avisa (el móvil lo repinta). El dinero y la energía del turno se aplican aparte, antes de guardar. */
+  setJob(job: JobProgress | null): void {
+    this._job = structuredClone(job);
+    this.emit('job');
   }
 
   // ================================================================
@@ -337,6 +435,8 @@ export class GameState extends Phaser.Events.EventEmitter {
   set wallet(
     w: Wallet,
   ) {
+    this.record(w.money - this._money);
+
     this._money =
       w.money;
 
@@ -370,6 +470,8 @@ export class GameState extends Phaser.Events.EventEmitter {
     ) {
       return;
     }
+
+    this.record(value - this._money);
 
     this._money =
       value;
@@ -561,6 +663,14 @@ export class GameState extends Phaser.Events.EventEmitter {
       phone: structuredClone(this._phone),
 
       tickets: structuredClone(this._tickets),
+
+      job: structuredClone(this._job),
+
+      household: structuredClone(this._household),
+
+      ledger: structuredClone(this._ledger),
+
+      study: structuredClone(this._study),
     };
   }
 }

@@ -12,6 +12,9 @@ import { mayStay, parseTickets, venueOf } from './Tickets.ts';
 import { parseSocialState } from './Social.ts';
 import { parseStories } from './Story.ts';
 import { createPhone, parsePhone } from './Phone.ts';
+import { parseJob } from './Jobs.ts';
+import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
+import { emptyStudy, parseStudy } from './Study.ts';
 
 /**
  * Qué se guarda y qué no (política de lo pasajero). Se guarda lo que es del
@@ -55,6 +58,10 @@ export function createInitialState(): GameStateData {
     stories: {},
     phone: createPhone(),
     tickets: [],
+    job: null,
+    household: startHousehold(INITIAL_CLOCK.day),
+    ledger: [],
+    study: emptyStudy(),
   };
 }
 
@@ -319,6 +326,13 @@ function parseState(value: unknown): GameStateData | null {
     phone: parsePhone(s.phone),
     // Una partida anterior a las entradas del estadio carga sin ninguna.
     tickets: parseTickets(s.tickets),
+    // Una partida anterior al empleo carga sin contrato; el turno suelto de Decathlon sigue abierto.
+    job: parseJob(s.job),
+    // Una partida anterior a los gastos de casa empieza sus periodos el día que se carga: nada de alquiler atrasado.
+    household: parseHousehold(s.household, Math.floor(total / 1440) + 1),
+    ledger: parseLedger(s.ledger),
+    // Una partida anterior a los estudios carga sin curso ni habilidades.
+    study: parseStudy(s.study),
   };
 }
 

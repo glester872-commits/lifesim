@@ -46,7 +46,7 @@ export const AUTOSAVE_INTERVAL_MS = 10_000;
 
 export const TRANSITION_MS = 180;
 
-export const INITIAL_MONEY = 1200;
+export const INITIAL_MONEY = 120;
 export const INITIAL_ENERGY = 100;
 export const INITIAL_CLOCK = { day: 1, hour: 8, minute: 30 };
 

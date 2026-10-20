@@ -52,16 +52,20 @@ import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
 import { STORIES } from '../data/saraStory';
 import {
-  acceptPlan,
   applyEffect,
   beatAfterTalk,
   chatFlags,
   chatMood,
+  chooseBeat,
+  clockOf,
   dayStart,
   helloFor,
-  markBeat,
+  migrateStory,
   noteEvent,
+  offerBeat,
   openerFor,
+  phoneStory,
+  presentBeat,
   routineOn,
   watchPlan,
   type Effect,
@@ -128,7 +132,7 @@ import {
 } from '../systems/Social';
 import { NAMED_PEOPLE } from '../data/namedPeople';
 import { NAMED_VOICES } from '../data/chatNamed';
-import { INIT_SLOT, lineFor, markRead, tierOf, phoneTick, planFromTalk, sendMessage, statusOf, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneResult } from '../systems/Phone';
+import { INIT_SLOT, lineFor, markRead, tierOf, phoneTick, planFromTalk, postMessage, sendMessage, statusOf, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneResult } from '../systems/Phone';
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
@@ -159,7 +163,7 @@ type Interactable =
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; lines?: readonly string[] }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
@@ -555,6 +559,10 @@ export class WorldScene extends Phaser.Scene {
       if (PROPS[p.kind].board) this.interactables.push({ kind: 'inspect', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, name: 'Tablón del barrio', lines: [], board: { tx: p.tx, ty: p.ty } });
     }
     for (const b of def.buildings ?? []) {
+      if (b.study && b.doorX !== undefined) {
+        this.interactables.push({ kind: 'spot', x: b.doorX * TILE + TILE / 2, y: doorRow(b) * TILE + TILE / 2, name: b.name, activities: [], study: b.study, lines: b.inspect });
+        continue;
+      }
       if (!b.inspect || b.doorX === undefined) continue;
       this.interactables.push({ kind: 'inspect', x: b.doorX * TILE + TILE / 2, y: doorRow(b) * TILE + TILE / 2, name: b.name, lines: b.inspect });
     }
@@ -568,7 +576,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
-      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe });
+      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study });
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
@@ -604,7 +612,9 @@ export class WorldScene extends Phaser.Scene {
         const state = this.services.state;
         const took = Math.min(amount, Math.max(0, state.money));
         if (took <= 0) return 0;
-        state.money = Math.round((state.money - took) * 100) / 100;
+        state.as('Te han robado', () => {
+          state.money = Math.round((state.money - took) * 100) / 100;
+        });
         // Si lo nota, lo sabe en el momento; si no, lo verá en la cartera (el dinero del HUD baja igual).
         if (noticed) this.services.dialogue.start('Tú', [`¡Eh! ¡Alguien te ha metido la mano en el bolsillo! Te faltan ${euros(took)}.`]);
         return took;
@@ -737,11 +747,16 @@ export class WorldScene extends Phaser.Scene {
       now: () => Math.floor(this.absMinute()),
       status: (npc) => this.phoneEnv().status(npc, Math.floor(this.absMinute())),
       send: (npc, action) => this.sendPhone(npc, action),
+      offer: (npc) => {
+        const beat = this.storyOfferFor(npc);
+        return beat?.choices ? { accept: beat.choices[0].label, decline: beat.choices[1].label } : undefined;
+      },
       read: (npc) => {
         const phone = this.services.state.phone;
         const read = markRead(phone, npc);
         if (read !== phone) this.services.state.setPhone(read);
       },
+      persist: () => this.persist(),
     });
 
     const autosave = this.time.addEvent({
@@ -1197,9 +1212,43 @@ export class WorldScene extends Phaser.Scene {
     if (this.phoneSlot < 0) this.phoneSlot = slot;
     const { state } = this.services;
     const phone = state.phone;
+    const fresh = slot > this.phoneSlot;
     const result = phoneTick(phone, state.social, now, this.phoneSlot, this.phoneEnv());
     this.phoneSlot = slot;
     if (result.phone !== phone) this.applyPhone(result);
+    if (fresh) this.storyPhone(now);
+  }
+
+  /**
+   * Lo que escribe por su historia (systems/Story.phoneStory): una propuesta, un hito o el seguimiento de lo vivido.
+   * Con vuestros números, despierta y libre, sin mensajes suyos por leer: lo que se lea luego no se amontona.
+   */
+  private storyPhone(now: number): void {
+    const { state } = this.services;
+    const { minute } = clockOf(now);
+    if (minute < 9 * 60 || minute >= 23 * 60) return;
+    for (const npc of Object.keys(STORIES)) {
+      const profile = state.social[npc];
+      const thread = state.phone.threads[npc];
+      if (!profile?.contactExchanged || thread?.pending || (thread?.unread ?? 0) > 0) continue;
+      const status = this.phoneEnv().status(npc, now);
+      if (status.state !== 'free' && status.state !== 'home') continue;
+      const story = this.storyOf(npc);
+      if (!story) continue;
+      const out = phoneStory(story, STORIES[npc], profile, this.storyNow(), state.day);
+      if (!out) continue;
+      this.saveStory(npc, out.story, out.profile !== profile ? out.profile : undefined);
+      state.setPhone(postMessage(state.phone, npc, 'them', out.text, now), [{ npc, text: out.text, plan: !!out.story.offer }]);
+      this.persistSoon();
+    }
+  }
+
+  /** Su propuesta pendiente, si ya la mandó por el móvil: el móvil la enseña con sus opciones. */
+  private storyOfferFor(npc: string): ReadyBeat | null {
+    const story = this.storyOf(npc);
+    const def = STORIES[npc];
+    if (!story?.offer?.sent || !def) return null;
+    return offerBeat(story, def, this.storyNow(), this.services.state.day);
   }
 
   /** Lo que cambia el móvil va a la misma relación de siempre (GameState.setSocialProfile) y se guarda. */
@@ -1213,6 +1262,16 @@ export class WorldScene extends Phaser.Scene {
   private sendPhone(npc: string, action: PhoneActionId): void {
     const { state } = this.services;
     const now = Math.floor(this.absMinute());
+    // Contestar por el móvil a una propuesta de su historia es lo mismo que contestarla en persona (answerStory).
+    const beat = action === 'accept-invite' || action === 'decline-invite' ? this.storyOfferFor(npc) : null;
+    if (beat?.choices) {
+      const i = action === 'accept-invite' ? 0 : 1;
+      const reply = this.answerStory(npc, beat, i).join(' ');
+      const phone = postMessage(postMessage(state.phone, npc, 'me', beat.choices[i].label, now), npc, 'them', reply, now + 1);
+      state.setPhone(phone, [{ npc, text: reply, plan: true }]);
+      this.persistSoon();
+      return;
+    }
     this.applyPhone(sendMessage(state.phone, state.socialOf(npc), npc, action, now, this.phoneEnv().status(npc, now)));
   }
 
@@ -1237,6 +1296,8 @@ export class WorldScene extends Phaser.Scene {
       // Una partida de antes de las historias en la que ya se conocían: no se vuelve a presentar.
       const met = this.services.state.events.importantNPCsMet[npc];
       if (met && def.metFlag && !(def.metFlag in story.flags)) story.flags[def.metFlag] = met.firstDay;
+      // Una relación que ya existía no repite su presentación ni su «ya eres de mi gente».
+      story = migrateStory(story, def, this.services.state.socialOf(npc), this.storyNow().day);
       this.stories.set(npc, story);
     }
     return story;
@@ -1293,7 +1354,7 @@ export class WorldScene extends Phaser.Scene {
     if (!result) return;
     this.saveStory(c.def.npc, result.story, result.profile);
     this.persistSoon();
-    if (result.kept) this.storyQueue.push(() => this.storyLines(c.sprite, def.kept.say));
+    if (result.kept) this.storyQueue.push(() => this.storyLines(c.sprite, result.say));
   }
 
   /** Al cruzarse: si hoy le toca saludar primero, para al jugador ella. */
@@ -1387,7 +1448,9 @@ export class WorldScene extends Phaser.Scene {
     const { dialogue } = this.services;
     const name = sprite.def.name;
     const note = getLocation(this.services.state.locationId).name;
-    this.saveStory(npc, markBeat(this.storyOf(npc)!, beat.id, this.storyNow()));
+    // Dicho: cuenta para `once` y, si propone un plan, queda como propuesta (la misma que el móvil) hasta contestar.
+    this.saveStory(npc, presentBeat(this.storyOf(npc)!, beat, this.storyNow()));
+    this.persist();
     this.player.halt();
     this.startTalk(sprite);
     if (!beat.choices?.length) {
@@ -1398,14 +1461,23 @@ export class WorldScene extends Phaser.Scene {
     }
     const choices = beat.choices;
     dialogue.ask(name, [beat.say.join(' ')], choices.map((c) => c.label), (i) => {
-      const choice = choices[i];
-      // La invitación aceptada (la primera opción) deja el plan hecho y su rutina de ese día fijada.
-      if (beat.plan && i === 0) this.saveStory(npc, acceptPlan(this.storyOf(npc)!, STORIES[npc], beat.plan));
-      this.applyStory(npc, choice.then, beat.plan ? STORIES[npc].plans[beat.plan.id]?.place : note);
-      this.persist();
+      const reply = this.answerStory(npc, beat, i, note);
       this.startTalk(sprite);
-      dialogue.start(name, choice.reply);
+      dialogue.start(name, reply);
     });
+  }
+
+  /**
+   * Contestar a algo de su historia, en persona o por el móvil: el mismo cambio (systems/Story.chooseBeat), una
+   * vez. Devuelve lo que contesta ella.
+   */
+  private answerStory(npc: string, beat: ReadyBeat, index: number, note?: string): string[] {
+    const before = this.services.state.socialOf(npc);
+    const result = chooseBeat(this.storyOf(npc)!, before, STORIES[npc], beat, index, this.storyNow(), note);
+    this.saveStory(npc, result.story, result.profile);
+    if (!before.contactExchanged && result.profile.contactExchanged) this.services.phone.notify(npc, 'Te ha dado su número. Ya podéis escribiros.');
+    this.persist();
+    return result.reply;
   }
 
   /** Guarda en cuanto acabe este fotograma: placeCharacters también corre mientras se monta la escena. */
@@ -2127,7 +2199,9 @@ export class WorldScene extends Phaser.Scene {
     const lines: string[] = [];
     if (why) lines.push(why);
     if (owed > 0) {
-      this.services.state.money -= owed;
+      this.services.state.as('Cuenta en la mesa', () => {
+        this.services.state.money -= owed;
+      });
       this.persist();
       lines.push(why ? `Dejas ${euros(owed)} en la mesa por lo que has tomado.` : `Dejas ${euros(owed)} en la mesa y te levantas.`);
     }
@@ -2193,7 +2267,9 @@ export class WorldScene extends Phaser.Scene {
           }
           // playerPay sólo cobra una vez lo que quede sin pagar; si ya estaba pagado devuelve 0 y no se descuenta nada.
           if (service.playerPay() === 0) return;
-          state.money -= amount;
+          state.as('Cuenta en la mesa', () => {
+            state.money -= amount;
+          });
           this.persist();
           dialogue.start(waiter, [say(lines.thanks)]);
         }),
@@ -2370,6 +2446,7 @@ export class WorldScene extends Phaser.Scene {
     else if (target.kind === 'rack') this.menus.openRack(target.rack);
     else if (target.kind === 'spot') {
       if (target.wardrobe) this.menus.openWardrobe();
+      else if (target.study) this.menus.openStudy(target.study, target.name, target.lines ?? []);
       else this.menus.openSpot(target.name, target.activities);
     }
     else if (target.kind === 'event') this.approachEvent(target.view);

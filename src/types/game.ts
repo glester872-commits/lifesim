@@ -347,6 +347,8 @@ export interface BuildingDef {
   point?: string;
   /** Sin interior: lo que se lee al pulsar E en su puerta. */
   inspect?: readonly string[];
+  /** Punto de estudio (data/study.ts) en su puerta: la ventanilla de un curso o el sitio de un encargo. Sin nada que hacer, se lee `inspect`. */
+  study?: string;
 }
 
 /** Donde se compra algo con E: máquina expendedora, taquilla, mostrador. */
@@ -381,6 +383,8 @@ export interface SpotDef {
   activities: readonly string[];
   /** El armario: cambiarse con la ropa comprada (scenes/Menus.ts, openWardrobe). */
   wardrobe?: true;
+  /** Punto de estudio (data/study.ts): practicar una habilidad aquí (scenes/Menus.ts, openStudy). */
+  study?: string;
 }
 
 /** Algo que se puede mirar con E: un cartel, una fuente, un escaparate. */
@@ -686,6 +690,14 @@ export interface GameStateData {
   phone?: import('../systems/Phone.ts').PhoneState;
   /** Entradas de partido (systems/Tickets): de qué partido, su asiento y si ya ha pasado por la puerta. Opcional: una partida anterior carga sin entradas. */
   tickets?: import('../systems/Tickets.ts').Ticket[];
+  /** Contrato del jugador (systems/Jobs): puesto, nivel, turnos hechos y faltas. Opcional: una partida anterior carga sin contrato. */
+  job?: import('../systems/Jobs.ts').JobProgress | null;
+  /** Gastos de casa y meta de ahorro (systems/Household). Opcional: una partida anterior empieza sus periodos al cargar. */
+  household?: import('../systems/Household.ts').HouseholdState;
+  /** Últimos movimientos de la cartera con su motivo. Opcional: una partida anterior carga sin historial. */
+  ledger?: import('../systems/Household.ts').Movement[];
+  /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
+  study?: import('../systems/Study.ts').StudyState;
 }
 
 export interface SaveFile {

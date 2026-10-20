@@ -323,6 +323,32 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('21:15', SARA_HOME, 'Me voy a cenar. Ha estado bien.'),
         ],
       },
+      {
+        // Las fotos del lookbook con el jugador, en el mural del Carmen (data/saraStory.ts, plan 'sesion').
+        id: 'plan-sesion',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '12:30', point: 'CAFE_TABLE_05', lines: ['Esta tarde, fotos. Estoy nerviosa y no sé por qué.'], going: ['Café y a preparar la ropa.'] },
+          inside('13:40', SARA_HOME, 'Me subo a planchar las chaquetas.'),
+          { at: '18:00', point: 'CARMEN_PHOTO_01', lines: ['Aquí, junto al mural. Como quedamos.'], going: ['Voy al Carmen, que tengo sesión de fotos.'] },
+          inside('20:40', SARA_HOME, 'A casa a pasar las fotos.'),
+        ],
+      },
+      {
+        // La presentación del lookbook en el escaparate de Retales (plan 'presentacion').
+        id: 'plan-presentacion',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '12:30', point: 'CAFE_TABLE_05', lines: ['Esta tarde presento. No me hables de nervios.'], going: ['Un café, que hoy presento.'] },
+          inside('13:40', SARA_HOME, 'Me subo a repasarlo todo otra vez.'),
+          { at: '18:40', point: 'RETALES_WINDOW', lines: ['Aquí, delante del escaparate. ¡Ha quedado precioso!'], going: ['Voy a Retales, que presento el lookbook.'] },
+          inside('21:40', SARA_HOME, 'A casa. Qué día.'),
+        ],
+      },
     ],
   },
   {
@@ -418,6 +444,57 @@ export const CHARACTERS: readonly CharacterDef[] = [
         days: WEEKEND,
         weight: 1,
         stops: [inside('06:00', ADA_HOME)],
+      },
+      {
+        // Día malo (data/adaStory.ts): sale lo justo.
+        id: 'ada-dia-gris',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '12:00', point: 'SUPERMARKET_PRODUCE', lines: ['Hoy no estoy para nadie. Sólo compro algo.'], going: ['Al súper y a casa.'] },
+          inside('12:50', ADA_HOME, 'A casa.'),
+        ],
+      },
+      {
+        // Le tomas el temario en el banco de la plaza (plan 'repaso' y su arreglo).
+        id: 'plan-repaso',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Hoy repaso con alguien. Raro en mí.'),
+          { at: '13:30', point: 'CAFE_TABLE_01', alt: ['CAFE_WINDOW_SEAT'], lines: ['Esta tarde me toman el temario. Estoy repasando el repaso.'], going: ['Pausa para comer algo.'] },
+          inside('14:40', 'STUDY_CENTER_ENTRANCE', 'Vuelta a los apuntes.'),
+          { at: '19:00', point: 'PLAZA_BENCH_02', lines: ['Aquí, con el temario. Como quedamos.'], going: ['Voy a la plaza, que he quedado para repasar.'] },
+          inside('21:10', ADA_HOME, 'A casa, que mañana hay academia.'),
+        ],
+      },
+      {
+        // El partidillo de los viernes, con el jugador apuntado (plan 'pista').
+        id: 'plan-pista',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Último día de la semana. Aguanta.'),
+          inside('14:30', ADA_HOME, 'Hoy salgo pronto. Es viernes.'),
+          { at: '19:00', point: 'PARK_COURT', lines: ['Partidillo. Vas con los de camiseta.'], going: ['Voy a la pista, que hay partido y viene alguien.'] },
+          inside('21:10', ADA_HOME, 'A la ducha. Buen partido.'),
+        ],
+      },
+      {
+        // Libro en el parque con el jugador (plan 'parque').
+        id: 'plan-parque',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '10:30', point: 'PARK_BENCH_02', lines: ['Aquí, con el libro. Siéntate.'], going: ['Me voy al parque, que he quedado.'] },
+          inside('12:30', ADA_HOME, 'A comer. Gracias por el rato.'),
+          { at: '18:00', point: 'CARMEN_BENCH_02', optional: true, lines: ['Aquí se lee bien.'], going: ['Me bajo a leer al Carmen.'] },
+          inside('19:20', ADA_HOME, 'A casa. Mañana más.'),
+        ],
       },
     ],
   },

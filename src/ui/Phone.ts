@@ -7,6 +7,14 @@ import {
   type Contact, type NpcStatus, type PhoneActionId, type PhoneNews, type SocialPlan,
 } from '../systems/Phone';
 import { createSocialProfile, type ContactState } from '../systems/Social';
+import { dayOf, hireBlocker, levelOf, levelSummary, nextShift, settle, statusOf, type ShiftStatus } from '../systems/Jobs';
+import { getJob, JOBS } from '../data/jobs';
+import { WEEKDAY_SHORT, weekdayOf, formatDateShort } from '../systems/Calendar';
+import { billOf, dueLabel, goalAdvice, goalById, goalView, owed, pay, total, unpaid } from '../systems/Household';
+import { BILLS, GOALS } from '../data/household';
+import { euros } from '../systems/Commerce';
+import { COURSES, getGig, getSkill } from '../data/study';
+import { gigDeadline, gigStatus, hasCamera, knowledge, lessonStatus, levelName, nextSession, sessionLabel } from '../systems/Study';
 
 /**
  * El móvil (tecla P o su botón): una capa de DOM encima del juego, como el menú y el mapa. Pinta lo que hay en
@@ -23,9 +31,25 @@ export interface PhoneHost {
   status(npc: string): NpcStatus;
   send(npc: string, action: PhoneActionId): void;
   read(npc: string): void;
+  /** Una propuesta suya por contestar (systems/Story): con qué palabras se acepta o se dice que no. */
+  offer?(npc: string): { accept: string; decline: string } | undefined;
+  /** Guarda la partida ya (tras un pago). */
+  persist(): void;
 }
 
-type Screen = { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'thread'; npc: string };
+type Screen =
+  | { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'job' } | { app: 'thread'; npc: string }
+  | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' };
+
+/** Cómo está el turno de cada día, en la pantalla de Trabajo. */
+const SHIFT_TEXT: Readonly<Record<ShiftStatus, string>> = {
+  none: 'Libre',
+  upcoming: 'Programado',
+  open: 'Disponible: ve a fichar',
+  done: 'Completado',
+  late: 'Completado con retraso',
+  missed: 'Perdido',
+};
 
 interface Item {
   el: HTMLElement;
@@ -93,6 +117,10 @@ export class PhoneScreen {
   private selected = 0;
   private opened = false;
   private toastTimer: number | undefined;
+  /** Lo que se cuenta una vez arriba de Cuentas (el pago hecho, por qué no se pudo). */
+  private flash = '';
+  /** Aviso de Cuentas a la espera de que haya escena (al arrancar). */
+  private queued: { title: string; text: string } | null = null;
 
   constructor(root: HTMLElement, button: HTMLButtonElement, toast: HTMLElement, state: GameState, blocked: () => boolean) {
     this.root = root;
@@ -140,14 +168,26 @@ export class PhoneScreen {
     // Tocar la notificación abre esa conversación.
     toast.addEventListener('click', () => {
       const npc = toast.dataset.npc;
+      const app = toast.dataset.app;
       this.hideToast();
-      if (!npc) return;
+      if (!npc && !app) return;
       if (!this.opened) this.open();
-      if (this.opened) this.go({ app: 'thread', npc });
+      if (this.opened) this.go(app === 'money' ? { app: 'money' } : { app: 'thread', npc: npc! });
     });
 
     state.on('phone', (news: readonly PhoneNews[]) => this.onPhone(news));
     state.on('social', () => this.refresh());
+    state.on('job', () => this.refresh());
+    state.on('study', () => this.refresh());
+    state.on('household', () => this.refresh());
+    // El saldo cambia mientras se mira Cuentas (un cobro, una compra): se repinta esa pantalla. Sólo si cambió el
+    // dinero: 'change' llega también con cada minuto y repintar cada vez se comería los toques.
+    let shown = state.money;
+    state.on('change', () => {
+      if (state.money === shown) return;
+      shown = state.money;
+      if (this.screen.app === 'money' || this.screen.app === 'pay' || this.screen.app === 'goals') this.refresh();
+    });
     state.on('change', () => this.renderClock());
     this.renderBadge();
   }
@@ -156,6 +196,10 @@ export class PhoneScreen {
   attach(host: PhoneHost | null): void {
     this.host = host;
     if (!host) this.close();
+    // Un aviso de Cuentas que llegó cargando (o entre escenas) se enseña cuando ya se ve el mundo.
+    const queued = this.queued;
+    this.queued = null;
+    if (host && queued) this.notice(queued.title, queued.text);
   }
 
   get isOpen(): boolean {
@@ -183,6 +227,7 @@ export class PhoneScreen {
     const s = this.screen;
     if (s.app === 'home') this.close();
     else if (s.app === 'thread') this.go({ app: this.cameFrom });
+    else if (s.app === 'pay' || s.app === 'goals') this.go({ app: 'money' });
     else this.go({ app: 'home' });
   }
 
@@ -205,6 +250,22 @@ export class PhoneScreen {
   /** Un aviso suelto (te ha dado su número), con el mismo material que los mensajes. */
   notify(npc: string, text: string): void {
     this.showToast(npc, nameOf(npc), text);
+  }
+
+  /** Un aviso de Cuentas (un gasto anunciado, un recargo): tocarlo abre Cuentas. */
+  notice(title: string, text: string): void {
+    if (!this.host) {
+      this.queued = this.queued ? { title, text: `${this.queued.text} ${text}` } : { title, text };
+      return;
+    }
+    const icon = el('span', 'phone__avatar', '€');
+    this.toast.replaceChildren(icon, rowText(title, text));
+    delete this.toast.dataset.npc;
+    this.toast.dataset.app = 'money';
+    this.toast.classList.add('is-visible');
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => this.hideToast(), 6000);
+    this.refresh();
   }
 
   // ------------------------------------------------------------ pantallas
@@ -241,6 +302,11 @@ export class PhoneScreen {
     if (s.app === 'home') this.renderHome();
     else if (s.app === 'contacts') this.renderContacts();
     else if (s.app === 'messages') this.renderMessages();
+    else if (s.app === 'job') this.renderJob();
+    else if (s.app === 'study') this.renderStudy();
+    else if (s.app === 'money') this.renderMoney();
+    else if (s.app === 'pay') this.renderPay(s.bill, s.period);
+    else if (s.app === 'goals') this.renderGoals();
     else this.renderThread(s.npc);
     this.selected = Math.min(Math.max(0, keep), Math.max(0, this.items.length - 1));
     this.mark();
@@ -265,6 +331,10 @@ export class PhoneScreen {
     };
     app('✉', 'Mensajes', () => this.go({ app: 'messages' }), unread);
     app('☺', 'Contactos', () => this.go({ app: 'contacts' }));
+    app('▤', 'Trabajo', () => this.go({ app: 'job' }));
+    app('✎', 'Estudios', () => this.go({ app: 'study' }));
+    const urgent = unpaid(this.state.household).filter((o) => o.due <= this.state.day).length;
+    app('€', 'Cuentas', () => this.go({ app: 'money' }), urgent);
     app('◉', 'Cámara', null);
     app('♪', 'Música', null);
     this.screenEl.replaceChildren(el('p', 'phone__greeting', this.greeting(unread)), grid);
@@ -291,6 +361,202 @@ export class PhoneScreen {
       ul.append(li);
     }
     this.screenEl.replaceChildren(ul);
+  }
+
+  /**
+   * El contrato: puesto, siguiente turno, cómo vas y los días alrededor de hoy. Lo pinta repasado hasta ahora
+   * (systems/Jobs.settle) sin guardarlo: las faltas se apuntan al volver al trabajo.
+   */
+  private renderJob(): void {
+    this.titleEl.textContent = 'Trabajo';
+    const now = this.host?.now() ?? 0;
+    const saved = this.state.job;
+    const p = saved && settle(saved, now).progress;
+    if (!p || p.status !== 'active') {
+      const job = p ? getJob(p.job) : JOBS[0];
+      const why = !p ? 'Sin contrato.' : p.status === 'fired' ? `Te despidieron de ${job.employer}.` : `Dejaste ${job.employer}.`;
+      const offer = hireBlocker(job, p, dayOf(now)) ?? `En ${job.employer} (L2) buscan personal: el cartel está junto a las cajas.`;
+      this.screenEl.replaceChildren(el('p', 'phone__empty', `${why} ${offer} Mientras, se pueden hacer turnos sueltos.`));
+      return;
+    }
+    const def = getJob(p.job);
+    const lvl = levelOf(p);
+    const next = nextShift(p, now);
+    const nextText = next ? ` Siguiente turno: ${WEEKDAY_SHORT[weekdayOf(next.day)]} a las ${String(lvl.start).padStart(2, '0')}:00${next.status === 'open' ? ', ya se puede fichar' : ''}.` : '';
+    const progress = p.level + 1 < def.levels.length ? ` Buenos turnos: ${Math.min(p.good, def.promoteAfter)} de ${def.promoteAfter} para el ascenso.` : ' Nivel más alto del puesto.';
+    const strikes = p.strikes ? ` Faltas: ${p.strikes} de ${def.maxStrikes}; dos buenos turnos seguidos borran una.` : '';
+    const head = el('p', 'phone__greeting', `${def.employer}. ${levelSummary(lvl)}${nextText}${progress}${strikes}`);
+    const ul = el('ul', 'phone__list');
+    const today = dayOf(now);
+    for (let d = Math.max(1, today - 3); d <= today + 6; d++) {
+      const rec = p.shifts[d];
+      const li = el('li', `phone__row${d === today ? ' is-unread' : ''}`);
+      li.append(
+        rowText(`${WEEKDAY_SHORT[weekdayOf(d)]}${d === today ? ' · hoy' : ''}`, SHIFT_TEXT[statusOf(p, d, now)]),
+        el('span', 'phone__row-meta', rec?.pay ? `+${rec.pay.toFixed(2).replace('.', ',')} €` : ''),
+      );
+      ul.append(li);
+    }
+    this.screenEl.replaceChildren(head, ul);
+  }
+
+  /**
+   * Estudios: la habilidad y su nivel, la cámara prestada, cada clase con su estado, la próxima sesión, la prueba y
+   * el encargo. Se calcula con el reloj de ahora (systems/Study): nada se guarda al mirarlo.
+   */
+  private renderStudy(): void {
+    this.titleEl.textContent = 'Estudios';
+    const now = this.host?.now() ?? 0;
+    const s = this.state.study;
+    const c = (s.course && COURSES.find((x) => x.id === s.course!.id)) ?? COURSES[0];
+    const k = knowledge(s, c.skill);
+    const skill = `${getSkill(c.skill).name}: ${k} de 100 (${levelName(c.skill, k)}).`;
+    const p = s.course;
+    if (!p) {
+      this.screenEl.replaceChildren(el('p', 'phone__empty', `${skill} Sin curso. En el Centro de estudios (Calle Mayor) se da ${c.name}: ${euros(c.fee)}, ${c.lessons.length} clases a las ${c.start}:00. La matrícula, en la ventanilla de la puerta.`));
+      return;
+    }
+    const next = nextSession(c, p, now);
+    const head = el('p', 'phone__greeting', `${skill}${next && p.attended.length < c.lessons.length ? ` Próxima: ${sessionLabel(c, next)}.` : ''}${hasCamera(s) ? ` ${c.camera}` : ''}`);
+    const ul = el('ul', 'phone__list');
+    const row = (title: string, sub: string, meta = ''): void => {
+      const li = el('li', 'phone__row');
+      li.append(rowText(title, sub), el('span', 'phone__row-meta', meta));
+      ul.append(li);
+    };
+    c.lessons.forEach((lesson, i) => {
+      const st = lessonStatus(c, p, i, now);
+      const sub = st === 'attended' ? 'Hecha' : st === 'open' ? 'Ahora: ve al centro' : st === 'missed' ? `Perdida: tutoría ${c.recovery.days.map((d) => WEEKDAY_SHORT[weekdayOf(d + 1)]).join(' o ')} a las ${c.recovery.start}:00` : 'Programada';
+      row(`${i + 1} · ${lesson.title}`, sub, `${formatDateShort(p.lessons[i])}`);
+    });
+    const left = c.lessons.length - p.attended.length;
+    row('Prueba final', p.passed ? 'Aprobada' : left ? `Tras las clases (faltan ${left})` : `En el centro, de ${c.demo.hours[0]}:00 a ${c.demo.hours[1]}:00, una al día`);
+    const gig = getGig(c.gig);
+    const status = gigStatus(gig, s, now);
+    if (status !== 'locked') {
+      const sub = status === 'offered' ? `${euros(gig.pay)} · acéptalo en el centro` : status === 'active' ? `${gig.place}, hasta el ${gigDeadline(gig, s.gig!)} · ${euros(gig.pay)}`
+        : status === 'expired' ? 'Plazo pasado: pide otro en el centro' : 'Entregado';
+      row(`Encargo · ${gig.client.split(',')[0]}`, sub);
+    }
+    if (s.unlocks.includes(gig.unlock)) row('Decathlon', 'Fotos de producto al fichar: +€15 por turno');
+    this.screenEl.replaceChildren(head, ul);
+  }
+
+  /**
+   * Cuentas: saldo, lo que se debe y cuándo vence, la meta de ahorro y los últimos movimientos. Cada pago se
+   * abre en una confirmación con el importe y el saldo que queda (renderPay).
+   */
+  private renderMoney(): void {
+    this.titleEl.textContent = 'Cuentas';
+    const h = this.state.household;
+    const money = this.state.money;
+    const today = this.state.day;
+    const debt = owed(h);
+    const head = el('p', 'phone__greeting', `Saldo ${euros(money)} · Debes ${euros(debt)} · Libre ${money - debt < 0 ? `−${euros(debt - money)}` : euros(money - debt)}.${this.flash ? ` ${this.flash}` : ''}`);
+    this.flash = '';
+    const ul = el('ul', 'phone__list');
+    const bills = unpaid(h);
+    for (const o of bills) {
+      const li = el('li', `phone__row${o.due <= today ? ' is-unread' : ''}`);
+      li.append(rowText(`${billOf(o).name}${o.fee ? ' + recargo' : ''}`, dueLabel(o, today)), el('span', 'phone__row-meta', euros(total(o))));
+      this.item(li, () => this.go({ app: 'pay', bill: o.bill, period: o.period }));
+      ul.append(li);
+    }
+    if (!bills.length) {
+      const li = el('li', 'phone__row');
+      const every = BILLS.map((b) => `${b.name.toLowerCase()} ${euros(b.amount)}`).join(' y ');
+      li.append(rowText('Todo pagado', `Cada semana: ${every}.`));
+      ul.append(li);
+    }
+    const def = goalById(h.goal);
+    const goal = el('li', 'phone__row');
+    if (def) {
+      const v = goalView(def, money, h, this.state.wardrobe);
+      goal.append(rowText(`Meta: ${v.name}`, v.owned ? 'Conseguida' : `${euros(Math.min(v.cost, Math.max(0, v.free)))} de ${euros(v.cost)} · ${Math.round(v.progress * 100)}%${v.free >= v.cost ? ' · ya te llega' : ''}`), el('span', 'phone__row-meta', ''));
+    } else goal.append(rowText('Meta de ahorro', 'Elige algo para lo que ahorrar'));
+    this.item(goal, () => this.go({ app: 'goals' }));
+    ul.append(goal);
+    const moves = el('ul', 'phone__list');
+    for (const m of this.state.ledger.slice(-8).reverse()) {
+      const li = el('li', 'phone__row');
+      const hh = `${String(m.hour).padStart(2, '0')}:${String(m.minute).padStart(2, '0')}`;
+      li.append(rowText(m.label, `${formatDateShort(m.day)} · ${hh}`), el('span', 'phone__row-meta', `${m.amount > 0 ? '+' : '−'}${euros(Math.abs(m.amount))}`));
+      moves.append(li);
+    }
+    const parts: HTMLElement[] = [head, ul];
+    if (moves.childElementCount) parts.push(el('p', 'phone__note', 'Movimientos'), moves);
+    this.screenEl.replaceChildren(...parts);
+  }
+
+  /** Confirmar un pago: importe, a quién y el saldo que queda. Si no llega, cuánto falta y qué hacer. */
+  private renderPay(bill: string, period: number): void {
+    const h = this.state.household;
+    const o = h.obligations.find((x) => x.bill === bill && x.period === period);
+    if (!o || o.paid !== undefined) {
+      this.go({ app: 'money' });
+      return;
+    }
+    const def = billOf(o);
+    this.titleEl.textContent = 'Pagar';
+    const money = this.state.money;
+    const amount = total(o);
+    const enough = money + 1e-9 >= amount;
+    const text = `${def.name} · ${def.payee}. ${dueLabel(o, this.state.day)}. Importe ${euros(amount)}${o.fee ? ` (con recargo de ${euros(o.fee)})` : ''}. Saldo ${euros(money)} → ${enough ? euros(money - amount) : 'no llega'}.`;
+    const ul = el('ul', 'phone__list');
+    const confirm = el('li', `phone__row${enough ? '' : ' is-soon'}`);
+    confirm.append(rowText(enough ? `Confirmar pago de ${euros(amount)}` : 'No te llega', enough ? 'Se paga con la cartera' : 'Sigue pendiente; no pasa nada hoy'));
+    this.item(confirm, () => {
+      const r = pay(this.state.household, this.state.money, bill, period, this.state.day);
+      if (!r.ok) {
+        this.flash = r.message;
+        this.go({ app: 'money' });
+        return;
+      }
+      this.state.setHousehold(r.household);
+      this.state.as(def.name, () => {
+        this.state.money = r.money;
+      });
+      this.host?.persist();
+      this.flash = r.message;
+      this.go({ app: 'money' });
+    });
+    const cancel = el('li', 'phone__row');
+    cancel.append(rowText('Ahora no', 'Volver a Cuentas'));
+    this.item(cancel, () => this.go({ app: 'money' }));
+    ul.append(confirm, cancel);
+    const parts: HTMLElement[] = [el('p', 'phone__greeting', text), ul];
+    if (!enough) parts.splice(1, 0, el('p', 'phone__note', pay(h, money, bill, period, this.state.day).message));
+    this.screenEl.replaceChildren(...parts);
+  }
+
+  /** Elegir meta: cosas de verdad, con su precio y dónde están. El dinero sigue en la cartera. */
+  private renderGoals(): void {
+    this.titleEl.textContent = 'Meta de ahorro';
+    const h = this.state.household;
+    const money = this.state.money;
+    const current = goalById(h.goal);
+    const advice = current ? goalAdvice(goalView(current, money, h, this.state.wardrobe), h, this.state.day) : 'Elige algo para lo que ahorrar. El dinero no se aparta: la meta cuenta lo que llevas menos lo que debes.';
+    const ul = el('ul', 'phone__list');
+    for (const g of GOALS) {
+      const v = goalView(g, money, h, this.state.wardrobe);
+      const li = el('li', `phone__row${g.id === h.goal ? ' is-unread' : ''}`);
+      li.append(rowText(v.name, `${v.where} · ${v.owned ? 'ya la tienes' : `${Math.round(v.progress * 100)}%`}${g.id === h.goal ? ' · tu meta' : ''}`), el('span', 'phone__row-meta', euros(v.cost)));
+      this.item(li, () => this.setGoal(g.id));
+      ul.append(li);
+    }
+    if (current) {
+      const none = el('li', 'phone__row');
+      none.append(rowText('Sin meta', 'Quitar la meta'));
+      this.item(none, () => this.setGoal(null));
+      ul.append(none);
+    }
+    this.screenEl.replaceChildren(el('p', 'phone__greeting', advice), ul);
+  }
+
+  private setGoal(id: string | null): void {
+    this.state.setHousehold({ ...this.state.household, goal: id });
+    this.host?.persist();
+    this.go({ app: 'money' });
   }
 
   private renderMessages(): void {
@@ -351,7 +617,7 @@ export class PhoneScreen {
     if (!profile.contactExchanged) replies.append(el('p', 'phone__note', HOW_TO_GET[contact?.contact ?? 'KNOWN'].replace('{la}', p === 'ella' ? 'la' : p === 'él' ? 'lo' : 'le')));
     else if (thread?.pending) replies.append(el('p', 'phone__note', `${name} aún no ha contestado.`));
     else {
-      phoneOptions(phone, npc, profile, now).forEach((o, i) => {
+      phoneOptions(phone, npc, profile, now, this.host?.offer?.(npc)).forEach((o, i) => {
         const b = el('button', 'phone__reply') as HTMLButtonElement;
         b.type = 'button';
         b.append(el('span', 'phone__key', String(i + 1)), o.label);
@@ -405,6 +671,7 @@ export class PhoneScreen {
   private showToast(npc: string, title: string, text: string): void {
     this.toast.replaceChildren(avatar(npc), rowText(title, text));
     this.toast.dataset.npc = npc;
+    delete this.toast.dataset.app;
     this.toast.classList.add('is-visible');
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.hideToast(), 4500);

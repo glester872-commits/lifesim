@@ -45,7 +45,8 @@ export interface OffMapPlace {
 export const ACTIVITIES: readonly ActivityDef[] = [
   {
     id: 'work-decathlon',
-    name: 'Turno en Decathlon (6 h)',
+    // Turno suelto, sin contrato (data/jobs.ts `casual`): sigue abierto para quien no firma o viene de una partida antigua.
+    name: 'Turno suelto de reposición (6 h)',
     minutes: 6 * 60,
     requires: { energy: 30, start: [8, 16], days: [0, 1, 2, 3, 4, 5] },
     effects: { money: 54, energy: -35 },

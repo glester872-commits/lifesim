@@ -145,7 +145,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('club-door', 'Sala Órbita', 'club', [12, 19, 5, 6], 'n', 14, { enter: into('club'), point: 'CLUB_ENTRANCE' }),
   b('fruit', 'Frutería', 'fruit', [17, 19, 5, 6], 'n', 19, { point: 'FRUIT_SHOP_ENTRANCE', inspect: ['Cajas de naranjas en la acera y una pizarra: «Hoy, nísperos».'] }),
   b('hardware', 'Ferretería', 'hardware', [25, 25, 9, 4], 's', 29, { point: 'HARDWARE_ENTRANCE', inspect: ['Ferretería. Tienen de todo, pero hay que saber pedirlo.'] }),
-  b('study', 'Centro de estudios', 'study', [34, 19, 16, 9], 'n', 41, { point: 'STUDY_CENTER_ENTRANCE', inspect: ['Centro de estudios Vallesco. Un cartel anuncia cursos de tarde; la matrícula, en ventanilla.'] }),
+  b('study', 'Centro de estudios', 'study', [34, 19, 16, 9], 'n', 41, { point: 'STUDY_CENTER_ENTRANCE', study: 'centro-vallesco', inspect: ['Centro de estudios Vallesco. Un cartel anuncia cursos de tarde; la matrícula, en ventanilla.'] }),
   b('laundry', 'Lavandería', 'laundry', [51, 19, 6, 6], 'n', 53, { point: 'LAUNDRY_ENTRANCE', inspect: ['Tres lavadoras girando y nadie esperando.'] }),
   b('res-av-2', 'Avenida 2', 'res-plaster', [2, 37, 11, 9], 'n', 7, { point: 'RES_AVENIDA_2_ENTRANCE', inspect: ['Un portal que huele a lejía recién echada.'] }),
   b('res-olmo-3', 'Olmo 3', 'res-brick', [13, 37, 9, 9], 's', 17, { floors: 3, point: 'RES_OLMO_3_ENTRANCE', inspect: ['En el portal, un aviso: «Junta de vecinos el jueves. Tema: el ascensor».'] }),
@@ -168,7 +168,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('backdrop-e', 'Manzana este', 'backdrop', [86, 1, 11, 5], undefined),
   b('res-mayor-20', 'Mayor 20', 'res-stone', [76, 19, 14, 8], 'n', 82, { point: 'RES_MAYOR_20_ENTRANCE', inspect: ['El ascensor lleva un cartel de «averiado» desde el verano.'] }),
   // Mayor 22: el portal en medio, el horno a un lado y el bar de toda la vida al otro (los mismos 20 tiles de fachada).
-  b('bakery', 'Horno San Blas', 'bakery', [90, 19, 6, 8], 'n', 92, { point: 'BAKERY_ENTRANCE', inspect: ['Horno San Blas. Huele a pan desde la esquina. Barras, hogazas y napolitanas; a mediodía, empanada.'] }),
+  b('bakery', 'Horno San Blas', 'bakery', [90, 19, 6, 8], 'n', 92, { point: 'BAKERY_ENTRANCE', study: 'horno-san-blas', inspect: ['Horno San Blas. Huele a pan desde la esquina. Barras, hogazas y napolitanas; a mediodía, empanada.'] }),
   b('res-mayor-22', 'Mayor 22', 'res-brick', [96, 19, 7, 8], 'n', 99, { point: 'RES_MAYOR_22_ENTRANCE', inspect: ['Un patio de vecinos detrás de la reja, lleno de macetas.'] }),
   b('corner-bar', 'Bar El Rincón', 'bar', [103, 19, 7, 8], 'n', 106, { point: 'CORNER_BAR_ENTRANCE', inspect: ['Bar El Rincón. Café con churros por la mañana, vermú al mediodía y la tele con el fútbol por la noche.'] }),
 
@@ -557,6 +557,11 @@ const BASE: LocationDef = {
     { id: 'avenida-oeste', tx: 24, ty: 31, w: 3, h: 9 },
     { id: 'avenida-este', tx: 52, ty: 31, w: 3, h: 9, offset: 9_000 },
   ],
+  // Donde se practica fotografía con la cámara del curso (data/study.ts PRACTICE_SITES).
+  spots: [
+    { tx: 40, ty: 15, name: 'Fotografiar · Plaza de la Fuente', activities: [], study: 'foto-fuente' },
+    { tx: 102, ty: 45, name: 'Fotografiar · Calle del Carmen', activities: [], study: 'foto-carmen' },
+  ],
   // Cosas que se miran: responden con una línea, no abren nada.
   inspects: [
     { tx: 40, ty: 11, name: 'Fuente', lines: ['El agua sale fría hasta en agosto. Alguien ha dejado una moneda en el fondo.'] },
@@ -603,6 +608,7 @@ function widen(def: LocationDef): LocationDef {
     points: map(def.points, at),
     tables: def.tables?.map((t) => ({ ...t, service: at(t.service) })),
     inspects: def.inspects?.map(at),
+    spots: def.spots?.map(at),
     areas: def.areas?.map(at),
     zones: def.zones?.map(rect),
     showcase: def.showcase && rect(def.showcase),

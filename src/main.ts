@@ -13,7 +13,9 @@ import type { AudioLevel } from './config/audio';
 import { CityAudio } from './audio/CityAudio';
 import { placeInfo, placesOfType } from './systems/Places';
 import { forceWeather, weatherAt } from './systems/Weather';
-import { dateOf, dayOfDate, formatDate, SEASON_LABEL } from './systems/Calendar';
+import { dateOf, dayOfDate, formatDate, onNewDay, SEASON_LABEL } from './systems/Calendar';
+import { announce, billOf, sync as syncBills } from './systems/Household';
+import { euros } from './systems/Commerce';
 import { handoffs } from './systems/Handoff';
 import { MetroEventManager } from './systems/MetroEventManager';
 import { contactOnCooldown, contactReadiness, contactState, relationshipState } from './systems/Social';
@@ -108,6 +110,19 @@ new HUD(requireEl('#hud'), state);
 new DialogueBox(requireEl('#dialogue'), services.dialogue);
 // Joystick y botón de acción en pantallas táctiles; en un PC con ratón no aparecen.
 new MobileControls(requireEl('#touch'), services.input);
+
+// Gastos de casa (systems/Household): cada periodo se anuncia al empezar (importe y vencimiento) y vence al
+// acabar. Se ponen al día al arrancar y en cada medianoche; repetirlo no crea nada: cada periodo, una vez.
+const syncHousehold = (): void => {
+  const r = syncBills(state.household, state.day);
+  if (!r.news.length && !r.fined.length) return;
+  state.setHousehold(r.household);
+  services.save.save(state.snapshot);
+  const fined = r.fined.map((o) => `${billOf(o).name}: sigue sin pagar pasado el margen; recargo único de ${euros(o.fee)}.`);
+  phone.notice('Cuentas', [...r.news.map(announce), ...fined].join(' '));
+};
+syncHousehold();
+onNewDay(state, syncHousehold);
 
 /**
  * El lienzo va a la resolución física de la pantalla y el CSS lo estira a la

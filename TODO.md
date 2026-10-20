@@ -46,3 +46,23 @@ que existe; esto, lo que falta y por qué.
   megafonía del metro (y sale en `lifesim.world.now()`).
 - El móvil a tamaño de teléfono no se ha probado en navegador en esta pasada (la
   ventana de pruebas no se deja redimensionar); `check-input` cubre la lógica táctil.
+- Empleo (`systems/Jobs.ts`): un solo empleo. Las faltas se guardan al volver al
+  Decathlon (el móvil las enseña ya repasadas, sin guardar). Los compañeros son
+  líneas de diálogo; Marta no es un personaje con nombre del sistema social.
+- Cuentas (`systems/Household.ts`): sólo pago manual y por obligación entera (sin
+  pagos parciales ni domiciliación). Los viajes en metro se descuentan de la
+  tarjeta, así que en Movimientos sólo aparecen sus recargas. Los cambios de dinero
+  sin motivo (sucesos de calle, eventos del metro) salen como «Otros».
+- Estudios (`systems/Study.ts`): un curso (fotografía), dos sitios de práctica y un
+  encargo. El centro de estudios no tiene interior (todo se hace en su puerta) y
+  Reme del horno no es un personaje: sólo su puerta. Sin cámara propia: la del
+  centro se devuelve al entregar el encargo; después la fotografía sólo se usa en
+  el plus del Decathlon. El folleto del metro (`folleto:cursos`) sigue sin efecto.
+
+## Historias de Sara y Ada
+
+- Jugar de principio a fin cada rama en navegador, incluidos los seguimientos del día
+  siguiente, los plantones y el aplazamiento por lluvia. Los recorridos del motor están
+  cubiertos por `check-arcs.ts`; se ha comprobado el flujo del móvil en navegador.
+- Comprobar gestos en un dispositivo táctil real. Los botones se han probado con puntero
+  en una ventana estrecha; eso no equivale a verificar un teléfono físico.

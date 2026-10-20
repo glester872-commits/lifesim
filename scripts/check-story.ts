@@ -10,8 +10,8 @@ import { weekIndex } from '../src/systems/Calendar.ts';
 import { createInitialState, SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
 import { createSocialProfile, type SocialProfile } from '../src/systems/Social.ts';
 import {
-  acceptPlan, applyEffect, beatAfterTalk, chatFlags, chatMood, createStory, dayStart, helloFor, markBeat, minuteOf, noteEvent,
-  openerFor, parseStories, routineOn, watchPlan, type Cond, type Effect, type NamedStory, type ReadyBeat,
+  acceptPlan, applyEffect, beatAfterTalk, chatFlags, chatMood, createStory, dayStart, helloFor, minuteOf, noteEvent,
+  openerFor, parseStories, presentBeat, chooseBeat, routineOn, watchPlan, type Cond, type Effect, type NamedStory, type ReadyBeat,
 } from '../src/systems/Story.ts';
 
 const DAY = 24 * 60;
@@ -71,10 +71,8 @@ const start = (s: NamedStory, p: SocialProfile, day: number, rainy = false) =>
   dayStart(s, p, def, { day, rainy, pick: (forced) => routineFor(sara, day, { rainy, forced }).id });
 /** Elige la opción `i` de un microevento como WorldScene.showStoryBeat. */
 function choose(s: NamedStory, p: SocialProfile, beat: ReadyBeat, i: number, at: { day: number; minute: number }) {
-  let story = markBeat(s, beat.id, at);
-  if (beat.plan && i === 0) story = acceptPlan(story, def, beat.plan);
-  const effect = beat.choices ? beat.choices[i].then : beat.then!;
-  return applyEffect(story, p, effect, at, 'Calle Mayor');
+  const story = presentBeat(s, beat, at);
+  return beat.choices ? chooseBeat(story, p, def, beat, i, at, 'Calle Mayor') : applyEffect(story, p, beat.then!, at, 'Calle Mayor');
 }
 
 let story = createStory(def);
@@ -167,14 +165,17 @@ let greyDays = 0;
     if (routineOn(g, d) === def.greyRoutine) greyDays++;
   }
   assert.ok(greyDays > 0, 'tras el plantón ningún día es gris');
-  // Lo saca ella al acabar una charla; pedir perdón la reconcilia.
+  // Pedir perdón compromete a un arreglo; sólo acudir la reconcilia.
   const talk = beatAfterTalk(s, def, p, now(planDay + 1, '12:00'), planDay + 1);
   assert.equal(talk?.id, 'reconciliar');
   assert.ok(talk.say.join(' ').includes(planDef.place), 'no dice qué plan fue');
   const sorry = choose(s, p, talk, 0, now(planDay + 1, '12:00'));
-  assert.ok('sara_reconciled' in sorry.story.flags && !('sara_conflict' in sorry.story.flags), 'pedir perdón no reconcilia');
+  assert.ok('sara_apologized' in sorry.story.flags && 'sara_conflict' in sorry.story.flags, 'pedir perdón debe dejar pendiente el arreglo');
+  assert.equal(sorry.story.plan?.id, 'arreglo');
+  const repaired = watchPlan(sorry.story, sorry.profile, def, now(sorry.story.plan!.day, def.plans.arreglo.from), true);
+  assert.ok(repaired && 'sara_reconciled' in repaired.story.flags && !('sara_conflict' in repaired.story.flags), 'venir al arreglo no reconcilia');
   assert.equal(sorry.story.decisions.planton, 'perdon', 'la decisión no se guarda');
-  const shrug = choose(s, p, talk, 1, now(planDay + 1, '12:00'));
+  const shrug = choose(s, p, talk, 2, now(planDay + 1, '12:00'));
   assert.ok('sara_conflict' in shrug.story.flags && shrug.profile.trust < p.trust, 'quitarle importancia no cuesta nada');
 }
 
@@ -185,9 +186,10 @@ let greyDays = 0;
   let p = profile;
   ({ story: s, profile: p } = start(s, p, 30, true));
   assert.equal(s.plan?.status, 'cancelled', 'con lluvia no cancela el plan de fuera');
-  assert.ok('sara_changed_mind' in s.flags);
+  assert.ok(!('sara_changed_mind' in s.flags), 'la lluvia no es una cancelación personal');
+  assert.deepEqual(p, profile, 'la lluvia no cambia la relación');
   assert.notEqual(routineOn(s, 30), outdoor.routine, 'cancelado, sigue yendo');
-  assert.equal(beatAfterTalk(s, def, p, now(30, '12:00'), 30)?.id, 'disculpa', 'no se disculpa');
+  assert.equal(beatAfterTalk(s, def, p, now(30, '12:00'), 30)?.id, 'reschedule', 'no propone pasar el plan');
 }
 
 // --------------------------------------------- 4. una flag desbloquea contenido (y sólo para ella)
@@ -214,10 +216,10 @@ const anon = buildContext({ who: 'c:x:1', identity: 0, place: 'shop', day: 3, ho
 assert.deepEqual(anon.flags, [], 'la gente anónima hereda flags');
 assert.equal(anon.opener, undefined, 'la gente anónima hereda el recuerdo de Sara');
 for (const l of NAMED_LINES) if (l.n === 'sara') assert.equal(fit(l, anon), 0, `«${l.text}» le sale a cualquiera`);
-// Ada tampoco: tiene voz propia, pero no la historia de Sara.
+// Ada tiene su propia historia y no recibe las frases de Sara.
 const ada = buildContext({ who: 'ada', named: 'ada', place: 'shop', day: 3, hour: 12, minute: 0, weather: 'clear', group: false, rel: 2, flags: ['sara_tattoo'] });
 for (const l of tattooLines) assert.equal(fit(l, ada), 0, 'Ada dice cosas de Sara');
-assert.equal(STORIES.ada, undefined);
+assert.equal(STORIES.ada.npc, 'ada');
 
 // Su ánimo llega al chat sólo cuando se nota.
 assert.equal(chatMood({ ...story, mood: 20 }), 'down');

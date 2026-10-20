@@ -370,12 +370,67 @@ ni acceso global al estado.
   que aún no lo tiene (`offMap`).
 - **Sitios sin mapa y actividades** — Polígono Norte · Decathlon es una parada
   sin mapa: se llega en tren y se ve en un menú con sus actividades
-  (`data/activities.ts`: duración, requisitos, coste, efectos). Un turno de 6 h
-  paga €54 y cansa; al acabar se vuelve en metro. Salir a las 10:00 es volver a
+  (`data/activities.ts`: duración, requisitos, coste, efectos). Un turno suelto
+  de reposición (6 h) paga €54 y cansa; al acabar se vuelve en metro. Salir a las 10:00 es volver a
   las 17:00 a un barrio que va a las 17:00: personajes, locales, calle, metro,
   discoteca y luz salen del reloj, así que nada se queda congelado.
   `npm run check` recorre ese viaje. Cuando Decathlon tenga mapa, su parada pasa
   de `offMap` a `station` y el tren, el pago y las actividades siguen igual.
+- **Empleo en Decathlon** — `data/jobs.ts` define la oferta, dos niveles
+  (dependiente: L/X/V 10–16, €60; responsable de montaña: M/J/S 9–16, €84) y
+  cuatro situaciones de turno; `systems/Jobs.ts` las reglas y
+  `GameStateData.job` el progreso. En el Decathlon hay un cartel: se lee
+  horario, pago y requisitos y se firma con Marta; los turnos empiezan al día
+  siguiente. Se ficha desde una hora antes (se espera a la hora) hasta 120 min
+  tarde (más de 10 min cobra lo trabajado y no cuenta como buen turno); sin
+  energía 30 no se ficha. Antes del turno se elige qué hacer en la situación del
+  día; volver sin elegir no paga ni pasa el tiempo. Cada turno es el de su día
+  y se cobra una vez. Al llegar al Decathlon se repasan los turnos que pasaron
+  sin fichar: cada uno es una falta, una sola vez aunque se salten días o se
+  recargue; dos buenos turnos seguidos borran una y con tres se acaba el
+  contrato (7 días sin poder volver a firmar). Con cuatro buenos turnos y sin
+  faltas, Marta propone el ascenso: se acepta o se rechaza (vuelve a
+  proponerlo tras otros cuatro). Se puede dejar el puesto. Con contrato el
+  turno suelto se cierra; sin él (o en una partida antigua) sigue abierto. El
+  móvil tiene la app Trabajo: puesto, siguiente turno, progreso, faltas y los
+  días alrededor de hoy. `npm run check` lo prueba en `check-jobs.ts`.
+- **Cuentas: casa y metas de ahorro** — una partida nueva empieza con €120.
+  `data/household.ts` define los gastos de casa (alquiler €45 y luz, agua e
+  internet €10, cada semana) y las metas (prendas de verdad con su precio de
+  tienda); `systems/Household.ts` las reglas y `GameStateData.household` lo que se
+  debe. Cada periodo se anuncia al empezar (aviso en el móvil: importe,
+  periodicidad y vencimiento) y vence al acabar su último día; se crea una vez
+  aunque se duerma, se trabaje, se cambie de escena, se recargue o se salten
+  días (`main.ts` lo pone al día al arrancar y en cada medianoche). Se paga a
+  mano en la app Cuentas del móvil, con una confirmación que enseña importe y
+  saldo resultante; con el saldo justo se puede, sin él sigue pendiente y se
+  explica qué falta y cómo conseguirlo. Hay 7 días de margen y luego un único
+  recargo de €5 en el alquiler: ni intereses, ni saldo negativo, ni desahucio,
+  y se puede seguir trabajando. Una partida anterior empieza sus periodos el
+  día que se carga: nada atrasado, primer vencimiento a la semana. La meta no
+  aparta dinero: cuenta la cartera menos lo que se debe y dice si comprarla ya
+  deja para la casa. Cuentas enseña los últimos movimientos con su motivo
+  (sueldo, alquiler, compras): los apunta `GameState` al cambiar el dinero
+  (`state.as(motivo, …)`), sin recalcular nada. `simulate-budget.ts` comprueba
+  que tres turnos de dependiente a la semana (€180) pagan casa (€55), metro
+  (€16), comida (€63) y una noche fuera (€27) con €19 de margen.
+- **Estudios: fotografía** — `data/study.ts` define la habilidad, el curso, los
+  sitios de práctica y el primer encargo; `systems/Study.ts` las reglas y
+  `GameStateData.study` el progreso (conocimiento, clases hechas y desbloqueos, por
+  separado). En la puerta del centro de estudios (Calle Mayor) se matricula
+  (€30, precio, calendario y lo que da a la vista; sin dinero, explica cuánto
+  falta) y se presta una cámara. Cuatro clases, martes y jueves a las 18:00, que no
+  pisan ningún turno del Decathlon; la que se pierde se recupera en la tutoría de
+  sábado o domingo a las 11:00. Con la cámara se practica gratis en la Plaza de la
+  Fuente y en la Calle del Carmen, con una decisión sobre cómo hacerlo; repetir el
+  mismo sitio el mismo día rinde la mitad. Con las cuatro clases, la prueba final
+  (una al día, determinista: conocimiento + tres decisiones) explica la nota y qué
+  repasar. Aprobarla abre el encargo del Horno San Blas (€60 más propina, plazo de
+  tres días de mañana; si se pasa, se pide otro plazo en el centro); entregarlo
+  paga una vez, devuelve la cámara y abre en el Decathlon una decisión de fichar
+  con plus de €15 (fotos de producto). El móvil tiene la app Estudios. Perder una
+  clase o el plazo se ve al mirar, con el reloj: recargar o dormir no repite nada.
+  `npm run check` lo prueba en `check-study.ts`.
 - **Personal de servicio** — `data/services.ts`: oficios reutilizables
   (camarero, barra, caja, seguridad, gimnasio, tienda, cocina, recepción, DJ)
   con uniforme, frase y forma de trabajar: en su puesto, de ronda o sirviendo
@@ -598,7 +653,8 @@ Conocidas y deliberadas:
   lógica no depende de ningún sprite concreto.
 - **Algunos interiores sólo se recorren.** Gimnasio y oficinas tienen mobiliario,
   personal y sus puntos, pero no hay entrenar ni trabajar, y por eso ningún botón
-  lo finge. El centro de estudios, los discos y la serigrafía sólo tienen fachada.
+  lo finge. Los discos y la serigrafía sólo tienen fachada; el centro de estudios
+  tampoco tiene interior: la matrícula, las clases y la prueba se hacen en su puerta.
 - **La ropa no se prueba antes de comprarla.** El probador es un sitio de los
   clientes; comprar te la pone y en casa te cambias. No hay tallas, existencias
   por tienda (salvo las piezas únicas), rebajas, vender ropa usada ni ropa para
@@ -628,8 +684,8 @@ Conocidas y deliberadas:
   puntos definidos en `data/locations.ts` (validados en arranque) y no chocan
   entre sí; empujan al jugador pero nada los bloquea. Mientras hay un diálogo
   abierto, la estación se congela con el resto del mundo.
-- **La economía es mínima.** Se gana con el turno de Decathlon y se gasta en
-  tarjeta, viajes, máquina y barra del Pausa. La energía la gasta trabajar y la
+- **La economía es doméstica y básica.** Se gana en Decathlon (empleo o turno suelto) y se gasta en
+  casa (Cuentas), tarjeta, viajes, comida, tiendas y salir. Sin préstamos, impuestos ni inversiones. La energía la gasta trabajar y la
   devuelve comer o beber; todavía no se duerme. Restaurante, tiendas y súper no
   venden aún: tendrán su catálogo cuando haga falta. No hay tiempo atmosférico,
   así que las terrazas dependen sólo de la hora.
@@ -777,3 +833,31 @@ se llega por sus tornos; cuando lo tenga, la Puerta 3 lleva `enter` y nada más 
   (`StreetLife.budget`) recorta lo que pase de ahí.
 - Al llegar al barrio un día de partido, el rótulo del sitio dice rival y hora. Consola: `lifesim.world.match()`,
   `lifesim.world.matches(14)`. `scripts/check-arena.ts` simula la calle en cada fase contra un día sin partido.
+
+## Historias de Sara y Ada
+
+El motor de `systems/Story.ts` usa datos por personaje y la relación social existente.
+Sara tiene el arco del lookbook (promesa, fotos en el mural del Carmen, elección de portada,
+presentación en Retales y cierre); Ada, el examen (promesa de repaso, temario en la plaza,
+decisión de convocatoria y resultado). Las decisiones cambian el cierre; rechazar también
+tiene continuación. Apuntarse al partidillo de Ada habilita sus invitaciones a la pista.
+
+- Las propuestas de los arcos se pueden recibir y contestar en persona o en el móvil con
+  las mismas palabras y el mismo estado. La primera respuesta cierra la propuesta: una
+  respuesta antigua no vuelve a aplicar sus efectos.
+- Acudir a un plan fija un hito. Faltar deja un conflicto: pedir perdón compromete a un
+  plan de arreglo y sólo acudir lo repara. Faltar al arreglo permite volver a intentarlo.
+- La lluvia cancela los planes exteriores sin culpa ni pérdida de confianza y propone
+  otro día. Rechazar el aplazamiento tampoco penaliza. Cancelar por ánimo bajo es distinto.
+- Las rutinas reservan el horario entero de cada plan, incluyendo el margen de vuelta a
+  casa. Hay seguimientos al día siguiente y esperas entre propuestas y cierres.
+- Flags, decisiones, ofertas pendientes y rutinas se guardan. Las partidas anteriores
+  conservan las relaciones y no repiten presentaciones ni escenas de amistad.
+- Validación: `scripts/check-story.ts` y `scripts/check-arcs.ts`, incluidos en
+  `npm run check`. Cubren las dos portadas, las dos convocatorias, rechazo, lluvia,
+  reparación, respuestas repetidas, guardado a mitad de arco y migración de relaciones.
+
+Verificación en navegador: propuestas del móvil en una partida de prueba independiente,
+respuesta con teclado y puntero, recarga y conservación del estado; encuentros de fotos
+y repaso con sus diálogos en el mundo. El recorrido completo de ambos arcos se
+comprueba automáticamente; no sustituye una partida manual completa de cada rama.

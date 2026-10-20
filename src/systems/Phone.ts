@@ -389,8 +389,10 @@ export function activePlan(phone: PhoneState, npc: string, now: number): SocialP
  * y lo propio del móvil: confirmar o cancelar lo que tenéis, contestar a lo que te propone. Sin su número, nada;
  * esperando su respuesta, tampoco (no se le bombardea).
  */
-export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProfile, now: number): PhoneOption[] {
+export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProfile, now: number, story?: { accept: string; decline: string }): PhoneOption[] {
   if (!profile.contactExchanged || phone.threads[npc]?.pending) return [];
+  // Una propuesta de su historia (systems/Story.phoneStory): se contesta aquí con sus palabras, o en persona.
+  if (story) return [{ id: 'accept-invite', label: story.accept }, { id: 'decline-invite', label: story.decline }, { id: 'bye', label: PHONE_ACTIONS.bye.label }];
   const m = minuteOfAbs(now);
   const social = availableSocialActions(profile, {
     day: dayOfAbs(now),
@@ -727,6 +729,18 @@ export function planFromTalk(source: PhoneState, npc: string, memory: SocialMemo
   const kind = what === 'interest' ? interestKind(npc) : what;
   const def = PLAN_KINDS[kind];
   addPlan(phone, { npc, kind, day: planDay(def.place, def.at, dayOfAbs(now)), at: def.at, place: def.place, status: 'accepted', by: 'player', via: 'talk', created: now });
+  return phone;
+}
+
+/**
+ * Un mensaje de su historia (systems/Story.phoneStory: una propuesta, un seguimiento) o tu respuesta a una
+ * propuesta suya: al hilo tal cual. Lo que cambia en la relación ya lo ha aplicado su historia.
+ */
+export function postMessage(source: PhoneState, npc: string, from: PhoneMessage['from'], text: string, at: number): PhoneState {
+  const phone = structuredClone(source);
+  const t = threadIn(phone, npc, dayOfAbs(at));
+  push(t, { from, text, at });
+  if (from === 'them') t.lastInit = at;
   return phone;
 }
 
