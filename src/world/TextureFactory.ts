@@ -448,8 +448,10 @@ function drawShadow(ctx: Ctx): void {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const d = Math.hypot((x + 0.5 - w / 2) / (w / 2), (y + 0.5 - h / 2) / (h / 2));
+      // HD-03: el núcleo, un píxel al sureste (la luz del mundo viene del noroeste); la penumbra, centrada.
+      const core = Math.hypot((x - 0.5 - w / 2) / (w / 2), (y - 0.5 - h / 2) / (h / 2));
       // Núcleo denso de oclusión bajo los pies y penumbra que se abre: la de antes ni se veía a zoom de juego.
-      const a = d < 0.5 ? 0.58 : d < 0.75 ? 0.36 : d < 1 ? 0.15 : 0;
+      const a = core < 0.5 ? 0.58 : d < 0.75 ? 0.36 : d < 1 ? 0.15 : 0;
       if (a === 0) continue;
       ctx.globalAlpha = a;
       px(ctx, PALETTE.ink, x, y);

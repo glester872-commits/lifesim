@@ -49,20 +49,29 @@ const wetGround = (sky: number, wet: number): number => multiply(sky, mix(0xffff
 
 /** [hora, color del cielo]. Entre dos puntos se interpola. */
 /** Noche azul pizarra, no añil: la sombra deja leer el suelo y la gente (design/visual-reference). */
-const NIGHT = 0x4c5686;
+// HD-03: un punto más clara que antes (0x4c5686): de noche se juega, la calle y la gente se leen sin linterna.
+const NIGHT = 0x56609a;
+/**
+ * HD-03: cinco tramos con carácter propio. Hora azul y amanecer rosado; mañana cálida que se
+ * neutraliza hacia el mediodía (blanco: el arte con sus colores); tarde que se dora; la puesta
+ * en naranja y rosa; malva y hora azul antes de la noche. El verde manda en nightAt: las
+ * farolas se siguen encendiendo hacia las 18 h, como antes (verde ≤ 247).
+ */
 const SKY: readonly (readonly [number, number])[] = [
   [0, NIGHT],
-  [5.5, NIGHT],
-  [6.5, 0x8e84a6],
-  [7.5, 0xf2d6be],
-  // De día, luz algo cálida contra la sombra azul del sol (SUN_SHADOW). El verde se queda en 255:
-  // nightAt lee el verde, así que ninguna luz se enciende antes por esto.
-  [9, 0xfffff4],
-  [17.5, 0xffffea],
-  [19, 0xffe0b8],
-  [20.2, 0xd09486],
-  [21.2, 0x6a6294],
-  [22.2, NIGHT],
+  [5.3, NIGHT],
+  [6.2, 0x7c7aa8],
+  [7.0, 0xe8b9a6],
+  [8.0, 0xffe6cf],
+  [10, 0xfffaf0],
+  [14, 0xffffff],
+  [17, 0xfffbe6],
+  [18.6, 0xffe8b8],
+  [19.6, 0xffc488],
+  [20.3, 0xe8977a],
+  [20.9, 0xa07896],
+  [21.5, 0x6c6aa2],
+  [22.3, NIGHT],
   [24, NIGHT],
 ];
 /** Focos de la pista de baile: rosa, cian, violeta y ámbar de neón. */
@@ -110,6 +119,8 @@ export interface Sun {
   length: number;
   /** Cuánto oscurece la sombra, de 0 a 1. */
   strength: number;
+  /** Altura del sol, de 0 (a ras) a 1 (mediodía): de ella sale el color de la sombra. */
+  elevation: number;
 }
 
 const SUNRISE = 6.5;
@@ -117,7 +128,7 @@ const SUNSET = 20.5;
 
 export function sunAt(hour: number): Sun {
   const t = (hour - SUNRISE) / (SUNSET - SUNRISE);
-  if (t <= 0 || t >= 1) return { dx: 0, dy: 1, length: 0, strength: 0 };
+  if (t <= 0 || t >= 1) return { dx: 0, dy: 1, length: 0, strength: 0, elevation: 0 };
   const elevation = Math.sin(Math.PI * t);
   const x = -1 + 2.2 * t;
   const y = 0.35 + 0.35 * elevation;
@@ -126,15 +137,18 @@ export function sunAt(hour: number): Sun {
     dx: x / n,
     dy: y / n,
     length: Phaser.Math.Clamp(0.6 / Math.max(elevation, 0.05), 0.6, 2.6),
-    // Con el sol a ras, la sombra se funde con la penumbra de la hora.
-    strength: Phaser.Math.Clamp(elevation * 6, 0, 1),
+    // Con el sol a ras, la sombra se funde con la penumbra de la hora; HD-03: aguanta hasta casi la puesta,
+    // que es cuando las sombras largas cuentan la hora.
+    strength: Phaser.Math.Clamp(elevation * 10, 0, 1),
+    elevation,
   };
 }
 
 /** El sol se repinta a pasos de diez minutos de juego: cinco segundos reales, invisible al ojo. */
 const SUN_STEP_H = 1 / 6;
-/** Color de la sombra del sol: el azul del cielo, no negro. */
+/** Color de la sombra del sol: el azul del cielo, no negro. Con el sol bajo, violeta (el complementario del oro). */
 const SUN_SHADOW = 0x6a6f9a;
+const SUN_SHADOW_LOW = 0x5a4c8e;
 /** Cuánto oscurece como mucho (sobre el blanco del mediodía). */
 const SUN_SHADOW_MAX = 0.34;
 
@@ -203,7 +217,57 @@ const COOL = 0xa8d4ff;
 const LIGHT_MASK = 'fx-lightmask';
 const MASK_SIZE = 64;
 
-/** Caída suave y fuerte en el centro: el mapa de luz se filtra en lineal, la luz es lo único que no va a píxel. */
+/**
+ * HD-03: la luz también va a píxel. Cada tamaño de luz tiene su máscara, pintada al tamaño exacto en el
+ * mapa de luz (sin escalar al estamparla), con la caída en LIGHT_LEVELS escalones y la frontera de cada
+ * escalón tramada con una matriz de Bayer 4 × 4: se lee como un degradado de pixel art, no como un desenfoque.
+ * El tamaño se redondea a pares: las farolas y ventanas del mismo tipo comparten textura.
+ */
+const LIGHT_LEVELS = 7;
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5] as const;
+function steppedMask(scene: Phaser.Scene, w: number, h: number): string {
+  const W = Math.max(4, Math.round(w / 2) * 2);
+  const H = Math.max(4, Math.round(h / 2) * 2);
+  const key = `fx-lm-${W}x${H}`;
+  make(scene, key, W, H, (ctx) => {
+    ctx.fillStyle = '#ffffff';
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const d = Math.hypot((x + 0.5 - W / 2) / (W / 2), (y + 0.5 - H / 2) / (H / 2));
+        if (d >= 1) continue;
+        const a = (1 - d * d) ** 1.5;
+        const q = Math.floor(a * LIGHT_LEVELS + (BAYER4[(y & 3) * 4 + (x & 3)] + 0.5) / 16) / LIGHT_LEVELS;
+        if (q <= 0) continue;
+        ctx.globalAlpha = Math.min(1, q);
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+  });
+  return key;
+}
+
+/** Halo de linterna a su tamaño exacto, en anillos: el brillo del cristal, no un círculo borroso. */
+function haloTexture(scene: Phaser.Scene, size: number): string {
+  const key = `fx-halo-${size}`;
+  make(scene, key, size, size, (ctx) => {
+    const r = size / 2;
+    ctx.fillStyle = '#ffffff';
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const d = Math.hypot(x + 0.5 - r, y + 0.5 - r) / r;
+        const a = d < 0.18 ? 0.42 : d < 0.4 ? 0.26 : d < 0.68 ? 0.12 : d < 1 && (x + y) % 2 === 0 ? 0.06 : 0;
+        if (a === 0) continue;
+        ctx.globalAlpha = a;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+  });
+  return key;
+}
+
+/** Caída suave y fuerte en el centro (la de antes de HD-03). */
 function makeLightMask(scene: Phaser.Scene): void {
   if (scene.textures.exists(LIGHT_MASK)) return;
   make(scene, LIGHT_MASK, MASK_SIZE, MASK_SIZE, (ctx) => {
@@ -291,11 +355,16 @@ export class Lighting {
   private fxAt = 0;
   private fxEmpty = true;
   private readonly camera: Phaser.Cameras.Scene2D.Camera;
+  private readonly scene: Phaser.Scene;
+  /** Pie y cabeza de cada edificio en px, y si mira al norte: hasta dónde llega la luz de sus huecos del bajo. */
+  private readonly footOf = new Map<string, { top: number; bottom: number; north: boolean }>();
 
   constructor(scene: Phaser.Scene, def: LocationDef, built: { widthPx: number; heightPx: number; windows: readonly WindowSpot[]; glows: readonly GlowSpot[] }, state: GameState) {
     const { widthPx, heightPx } = built;
     this.state = state;
     this.camera = scene.cameras.main;
+    this.scene = scene;
+    for (const b of def.buildings ?? []) this.footOf.set(b.id, { top: b.ty * TILE, bottom: (b.ty + b.h) * TILE, north: b.front === 'n' });
     this.indoor = def.kind === 'interior';
     this.ambient = def.ambient ? Number.parseInt(def.ambient.slice(1), 16) : 0xffffff;
     this.room = placeForInterior(def.id);
@@ -322,10 +391,12 @@ export class Lighting {
       if (!prop.light) continue;
       const y = (p.ty + 1) * TILE - prop.light.dy;
       const tint = prop.light.cool ? 0x9fd8ff : 0xf0b46a;
-      const light = scene.add.image(x, y, 'fx-light').setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
       // Con charco, el halo es sólo el brillo de la linterna: la luz de verdad está en el suelo.
       // Fuera pasa lo mismo sin charco: el mapa de luz alumbra el suelo; un halo entero sería un círculo amarillo.
-      if (prop.light.pool || !this.indoor) light.setScale(prop.light.pool ? 0.6 : 0.45);
+      // HD-03: fuera, el halo a su tamaño exacto (antes, el de 56 px escalado a 0,6 o 0,45, con anillos irregulares).
+      const outdoorHalo = !this.indoor ? haloTexture(scene, prop.light.pool ? 33 : 25) : null;
+      const light = scene.add.image(Math.round(x), Math.round(y), outdoorHalo ?? 'fx-light').setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
+      if (!outdoorHalo && prop.light.pool) light.setScale(0.6);
       this.lights.push(light.setTint(tint));
       const baseY = (p.ty + 1) * TILE - 3;
       if (!this.indoor) {
@@ -396,7 +467,8 @@ export class Lighting {
         .setScale(this.lm)
         .setDepth(DEPTH)
         .setBlendMode(Phaser.BlendModes.MULTIPLY);
-      this.lightmap.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+      // HD-03: sin filtro lineal. La luz va en escalones tramados (steppedMask): suavizada, sería un desenfoque.
+      this.lightmap.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
       this.roofBrush = new Phaser.GameObjects.Rectangle(scene, 0, 0, 1, 1, 0xffffff).setOrigin(0, 0);
       // Las sombras se dibujan en coordenadas del mundo y se reducen al mapa de luz al pintarlas.
       this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / this.lm);
@@ -483,9 +555,14 @@ export class Lighting {
         g.fillStyle(w.tone, body).fillRect(w.x, w.y, w.w, w.h);
         g.fillStyle(0xffffff, top).fillRect(w.x, w.y, w.w, 1);
       } else this.homeWindow(g, w, i);
-      // Y un poco de esa luz cae en la acera, al pie del cristal.
-      const warm = this.lampAt(w.x + w.w / 2, w.y + w.h + 6)[0];
-      sources.push({ x: w.x + w.w / 2, y: w.y + w.h + 6, w: w.w * 2 + 20, h: 26, color: w.shop ? mix(warm, w.tone, 0.6) : warm, strength: pool });
+      // HD-03: la luz sale por el hueco y cae al suelo de delante. Una ventana alta no echa un charco en su
+      // propio muro (antes, 6 px por debajo del cristal, en mitad de la fachada): sólo los huecos del bajo
+      // alumbran la acera, al pie de la fachada y hacia donde mira.
+      const foot = this.footOf.get(w.building);
+      if (!foot || foot.bottom - (w.y + w.h) > 16) return;
+      const py = foot.north ? foot.top - 6 : foot.bottom + 6;
+      const warm = this.lampAt(w.x + w.w / 2, py)[0];
+      sources.push({ x: w.x + w.w / 2, y: py, w: w.w * 2 + 18, h: 22, color: w.shop ? mix(warm, w.tone, 0.6) : warm, strength: pool });
     });
     // La puerta de un local abierto: un charco en el umbral, del color de dentro.
     for (const { b, place } of this.doors) {
@@ -519,21 +596,36 @@ export class Lighting {
     const kind = windowKind(i);
     const color = kind === 'tv' ? 0x7fa8d8 : kind === 'dim' ? 0xa86a30 : 0xd08a3a;
     const alpha = kind === 'dim' ? 0.34 : kind === 'tv' ? 0.42 : 0.5;
-    // El muro de alrededor recoge algo de luz: un marco tenue, no un halo.
-    g.fillStyle(color, 0.07).fillRect(w.x - 2, w.y - 1, w.w + 4, w.h + 3);
+    // HD-03: la luz es de dentro. El muro de fuera no se ilumina (antes, un marco tenue alrededor del hueco);
+    // la carpintería (parteluz y travesaño) queda a contraluz, el dintel deja en penumbra la parte de arriba y
+    // la luz que sale cae en el alféizar.
+    const big = w.w >= 6 && w.h >= 8;
+    const mull = big ? w.x + Math.floor(w.w / 2) - 1 : -99;
+    const transom = big ? w.y + Math.floor(w.h / 3) : -99;
+    g.fillStyle(color, alpha * 0.4).fillRect(w.x - 1, w.y + w.h, w.w + 2, 1);
     const someone = w.h >= 8 && w.w >= 4 && windowRank(i * 13 + 5) < 0.14;
     const cx = w.x + Math.floor(w.w / 2);
+    const span = (y: number, a: number, x0: number, x1: number): void => {
+      if (x1 <= x0) return;
+      // El parteluz no deja pasar la luz: dos tramos, uno a cada lado.
+      if (x0 < mull && x1 > mull + 2) g.fillStyle(color, a).fillRect(x0, y, mull - x0, 1).fillRect(mull + 2, y, x1 - mull - 2, 1);
+      else g.fillStyle(color, a).fillRect(x0, y, x1 - x0, 1);
+    };
     for (let y = w.y; y < w.y + w.h; y++) {
+      if (y === transom) continue;
       // Persiana a medias: la mitad de arriba con sus lamas.
       if (kind === 'blinds' && y < w.y + w.h * 0.55 && (y - w.y) % 2 === 1) continue;
+      // Bajo el dintel, penumbra; el resto del hueco, la lámpara de dentro.
+      const a = y < w.y + 2 ? alpha * 0.55 : y < transom ? alpha : alpha * 0.9;
       // Alguien al trasluz: cabeza de dos y hombros de cuatro, apoyado en el alféizar.
       const row = y - (w.y + w.h - 5);
       if (someone && row >= 0) {
         const [l, r] = row < 2 ? [cx - 1, cx + 1] : [cx - 2, cx + 2];
-        g.fillStyle(color, alpha).fillRect(w.x, y, l - w.x, 1).fillRect(r, y, w.x + w.w - r, 1);
+        span(y, a, w.x, l);
+        span(y, a, r, w.x + w.w);
         continue;
       }
-      g.fillStyle(color, alpha).fillRect(w.x, y, w.w, 1);
+      span(y, a, w.x, w.x + w.w);
     }
     if (kind === 'curtain') {
       // Cortinas recogidas a los lados: la tela deja pasar menos luz.
@@ -579,13 +671,15 @@ export class Lighting {
     const ground = wetGround(sky, wet);
     map.clear().fill(ground);
     this.paintZones(map, ground);
-    if (sun.strength > 0.02) map.draw(this.castShadows(sun, mix(sky, SUN_SHADOW, SUN_SHADOW_MAX * sun.strength)));
+    if (sun.strength > 0.02) {
+      const low = Math.min(1, sun.elevation * 2.5);
+      map.draw(this.castShadows(sun, mix(sky, mix(SUN_SHADOW_LOW, SUN_SHADOW, low), SUN_SHADOW_MAX * (1.25 - 0.25 * low) * sun.strength)));
+    }
     if (night >= 0.05) {
       map.beginDraw();
       for (const l of [...this.fixedSources, ...this.dynamicSources]) {
-        map.stamp(LIGHT_MASK, undefined, l.x / this.lm, l.y / this.lm, {
-          scaleX: l.w / MASK_SIZE / this.lm,
-          scaleY: l.h / MASK_SIZE / this.lm,
+        // A tamaño exacto y en píxel entero del mapa: el tramado no se deforma ni se emborrona.
+        map.stamp(steppedMask(this.scene, l.w / this.lm, l.h / this.lm), undefined, Math.round(l.x / this.lm), Math.round(l.y / this.lm), {
           tint: l.color,
           alpha: Math.min(1, night * l.strength),
           blendMode: Phaser.BlendModes.NORMAL,

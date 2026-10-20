@@ -1,0 +1,100 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LIFE//SIM · HD-03 · Iluminación</title>
+<style>
+:root{--bg:#11151c;--panel:#181d25;--fg:#e8e3da;--muted:#a8b2bb;--btn:#252b33;--line:#4a535d;--accent:#6fd0c6;--warn:#e0b45a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+.wrap{max-width:1132px;margin:0 auto;padding:0 16px}header{padding:16px 0;border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 8px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}.bar label{color:var(--muted);font-size:13px}
+button,select{padding:7px 12px;background:var(--btn);color:inherit;border:1px solid var(--line);border-radius:4px;font:inherit;font-size:14px;cursor:pointer}
+button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.view{position:relative;width:100%;background:#000;overflow:hidden;touch-action:none;cursor:grab;margin:0 auto}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+.tag{position:absolute;top:8px;padding:2px 8px;background:#000b;font-size:12px;border-radius:3px;pointer-events:none}
+.hint{color:var(--muted);font-size:13px}kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:12px}
+.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:var(--muted);font-weight:500}.bad{color:var(--warn)}.good{color:var(--accent)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 16px}
+.card h3{margin:0 0 6px;font-size:15px}ul{margin:6px 0;padding-left:20px}li{margin:3px 0}code{font-size:13px}
+</style>
+<div class="wrap"><header><h1>LIFE//SIM · HD-03 · iluminación 2D</h1>
+<div class="hint">Antes = commit <code>819cc70</code> (HD-03 con Olmo 11). Después = iluminación nueva. Calle residencial junto a la plaza del metro, cámara fija en el mismo punto del mundo (640, 760), Full HD a 4×; misma hora en las dos versiones (día 6: 14:00, 20:15 y 22:30). Capturas reales del lienzo WebGL de cada versión servida por separado, a la resolución física indicada (sin escalar), con la misma partida: semilla 103, día 6 a las 14:00, sin lluvia y la misma secuencia de pasos de 16 ms.</div></header>
+<div class="bar"><label for="res">Pantalla</label><select id="res">
+<option value="day" selected>Día · 14:00</option><option value="dusk">Atardecer · 20:15</option><option value="night">Noche con farolas y ventanas · 22:30</option></select>
+<button data-mode="a">Antes</button><button data-mode="b">Después</button><button data-mode="slide" aria-pressed="true">Deslizador</button>
+<span style="flex:1"></span><button id="zout" aria-label="Alejar">−</button><span id="zl" style="min-width:56px;text-align:center"></span><button id="zin" aria-label="Acercar">+</button>
+<button id="z1">1 px de pantalla = 1 px de imagen</button><button id="zfit">Encajar</button><button id="zp">Ver al jugador</button></div>
+<div class="view" id="view"><canvas id="cv"></canvas><span class="tag" id="ta" style="left:8px">Antes</span><span class="tag" id="tb" style="right:8px">Después</span></div>
+<p class="hint" id="meta"></p>
+<p class="hint">Arrastra la línea para comparar, arrastra fuera de ella para moverte y usa la rueda para el zoom. <kbd>Espacio</kbd> alterna antes y después. Con «1 px de pantalla = 1 px de imagen» se ve cuántos píxeles físicos ocupa cada píxel de arte: con zoom entero, todos el mismo; con 5,5 o 2,5, unos más que otros.</p>
+
+<h2>Rendimiento</h2>
+<div class="tablewrap"><table><thead><tr><th>Escena</th><th>Versión</th><th>Repintado del mapa de luz (mediana · p95)</th><th>CPU por frame (mediana · p95)</th><th>Texturas · MiB</th></tr></thead><tbody>
+<tr><td>Día 14:00</td><td>Antes</td><td>2,6 · 4,6 ms</td><td>0,8 · 1,7 ms</td><td>2.301 · 79,7</td></tr>
+<tr><td>Día 14:00</td><td>Después</td><td>2,7 · 5,3 ms</td><td>0,8 · 6,3 ms</td><td>2.303 · 79,7</td></tr>
+<tr><td>Atardecer 20:15</td><td>Antes</td><td>3,0 · 5,9 ms</td><td>1,3 · 18,5 ms</td><td>2.306 · 81,7</td></tr>
+<tr><td>Atardecer 20:15</td><td>Después</td><td>3,6 · 6,6 ms</td><td>1,7 · 17,5 ms</td><td>2.321 · 81,5</td></tr>
+<tr><td>Noche 22:30</td><td>Antes</td><td>1,8 · 4,2 ms</td><td>1,3 · 6,2 ms</td><td>2.305 · 81,2</td></tr>
+<tr><td>Noche 22:30</td><td>Después (3 pasadas)</td><td>1,6–1,7 · 3,4–5,5 ms</td><td>1,3–1,9 · 6,8–8,1 ms</td><td>2.321–2.325 · 81,5–83,5</td></tr>
+</tbody></table></div>
+<p class="hint">El mapa de luz se repinta solo cuando cambia algo que se ve (el cielo, el sol a pasos de diez minutos, qué locales abren, cuántas casas tienen luz), no en cada frame. Medido 20 veces forzado. La CPU por frame es update + render con el bucle parado; su variación entre pasadas de la misma versión (1,3–1,9 ms de noche) es la de la simulación de la gente, no la de la luz: el trabajo por frame de la iluminación no ha cambiado. Las máscaras de luz nuevas son 16 texturas (una por tamaño, y dos halos) que suman 240 KiB.</p>
+<h2>Qué cambia</h2>
+<div class="cols">
+<div class="card"><h3>Transición del día</h3><ul>
+<li>Cielo en cinco tramos: hora azul y amanecer rosado, mañana cálida, mediodía neutro (el arte con sus colores), tarde dorada, puesta naranja y rosa, malva y hora azul.</li>
+<li>La sombra del sol aguanta hasta casi la puesta (antes se borraba al bajar el sol) y vira a violeta con el sol bajo, el complementario del oro.</li>
+<li>Noche un punto más clara (0x56609a frente a 0x4c5686): se juega sin perder la penumbra azul. Las farolas se siguen encendiendo hacia las 18 h.</li></ul></div>
+<div class="card"><h3>Luz cuantizada, sin desenfoque</h3><ul>
+<li>Cada luz se estampa con una máscara a su tamaño exacto, en 7 escalones con tramado de Bayer 4 × 4. Antes era un degradado suave escalado y filtrado en lineal.</li>
+<li>El mapa de luz va sin filtro (<code>NEAREST</code>): las sombras del sol y los charcos tienen bordes de píxel.</li>
+<li>El halo de las linternas va a su tamaño exacto: antes era una textura de 56 px escalada a 0,6 o 0,45, con anillos irregulares.</li>
+<li>Sin bloom: las luces siguen por debajo de los emisivos y nada se suma sobre los contornos.</li></ul></div>
+<div class="card"><h3>Ventanas desde dentro</h3><ul>
+<li>El parteluz y el travesaño quedan a contraluz; bajo el dintel, penumbra; la luz sale al alféizar. El muro de fuera ya no se tiñe.</li>
+<li>Las ventanas altas ya no echan un charco en su propia fachada (antes, 6 px por debajo del cristal). Solo los huecos del bajo alumbran la acera, al pie de la fachada y hacia donde mira el edificio.</li>
+<li>Se encienden las mismas ventanas que antes (mismo índice).</li></ul></div>
+<div class="card"><h3>Sombras de contacto</h3><ul>
+<li>Personas: el núcleo de la sombra se desplaza un píxel al sureste, del lado contrario a la luz del noroeste.</li>
+<li>Árboles y mobiliario: las de HD-02, más hondas y desplazadas al sureste. Con el mapa de luz sin filtro, se leen nítidas.</li></ul></div>
+<div class="card"><h3>Pendiente</h3><ul>
+<li class="bad">El tramado de los charcos se ve como un patrón a zoom alto: es la elección de pixel art (frente al desenfoque). Si se prefiere, bastan 9 escalones sin tramado.</li>
+<li>Los escaparates de los locales siguen con su luz de siempre (rectángulo de color): este paso no toca locales comerciales.</li>
+<li>Las luces no tienen oclusión real por muros: no la necesitan porque los tejados se repintan con el cielo y los charcos van al suelo de delante, pero una farola pegada a una medianera alumbra los dos lados.</li>
+<li>Calidad media y baja (mapa de luz a la mitad): el tramado se ve a 2 × 2 píxeles de mundo.</li></ul></div>
+</div>
+<p class="hint">Respaldo: <code>main</code> (4232cda) sin tocar; etiqueta <code>hd03-base</code> = HD-02. Sin push ni despliegue.</p>
+</div>
+<script>
+const LABELS={'day-1080p':'Día Full HD','night-1080p':'Noche Full HD','day-1100':'Día 1100','night-1100':'Noche 1100'};
+const $=s=>document.querySelector(s),cv=$('#cv'),cx=cv.getContext('2d'),view=$('#view');
+let A,B,W=1,H=1,mode='slide',split=.5,zoom=1,ox=0,oy=0,meta={};
+const img=src=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>j(src);i.src=src});
+const json=async n=>{try{return await (await fetch('/__shots/'+n+'.json')).json()}catch{return null}};
+async function table(){const rows=[];for(const k of Object.keys(LABELS))for(const v of['before','after']){const m=await json('olmo-'+v+'-'+k);if(!m)continue;meta[v+'-'+k]=m;
+ rows.push(`<tr><td>${LABELS[k]}</td><td>${v==='before'?'Antes':'Después'}</td><td class="${Number.isInteger(m.zoom)?'good':'bad'}">${m.zoom}×</td><td>${m.worldView.join(' × ')}</td><td class="${m.renderRoundPixels?'good':'bad'}">${m.renderRoundPixels?'sí':'no'}</td><td>${m.fps??'—'}</td><td>${m.frameP95??'—'}</td><td>${m.cpuMedian!=null?m.cpuMedian+' · '+m.cpuP95:'—'}</td><td>${m.loadMs}</td><td>${m.textures}</td><td>${m.textureMiB}</td><td>${m.jsHeapMiB??'—'}</td></tr>`)}
+ $('#tb2').innerHTML=rows.join('')}
+async function load(){const k=$('#res').value;[A,B]=await Promise.all([img('/__shots/light-before-'+k+'.png'),img('/__shots/light-after-'+k+'.png')]);W=A.width;H=A.height;cv.width=Math.min(1100,W);cv.height=Math.round(cv.width*H/W);
+ view.style.aspectRatio=W+'/'+H;view.style.maxWidth=(H>W?'420px':'100%');fit();const a=meta['before-'+k],b=meta['after-'+k];
+ $('#meta').textContent=a&&b?`Lienzo ${W} × ${H} px físicos. Antes: zoom ${a.zoom}×, ${a.worldView.join(' × ')} px de mundo. Después: zoom ${b.zoom}×, ${b.worldView.join(' × ')} px de mundo.`:''}
+// zoom = píxeles del lienzo de la página por píxel de imagen.
+function fit(){zoom=cv.width/W;ox=oy=0;draw()}
+function clamp(){const vw=cv.width/zoom,vh=cv.height/zoom;ox=Math.max(0,Math.min(Math.max(0,W-vw),ox));oy=Math.max(0,Math.min(Math.max(0,H-vh),oy))}
+function draw(){if(!A)return;clamp();cx.imageSmoothingEnabled=false;cx.setTransform(1,0,0,1,0,0);cx.fillStyle='#000';cx.fillRect(0,0,cv.width,cv.height);
+ cx.setTransform(zoom,0,0,zoom,-ox*zoom,-oy*zoom);cx.drawImage(mode==='b'?B:A,0,0);
+ if(mode==='slide'){const sx=ox+split*cv.width/zoom;cx.save();cx.beginPath();cx.rect(sx,0,W,H);cx.clip();cx.drawImage(B,0,0);cx.restore();cx.setTransform(1,0,0,1,0,0);
+  cx.fillStyle='#e8e3da';cx.fillRect(Math.round(split*cv.width)-1,0,2,cv.height);cx.beginPath();cx.arc(split*cv.width,cv.height/2,12,0,7);cx.fill();cx.fillStyle='#11151c';cx.font='bold 14px system-ui';cx.textAlign='center';cx.fillText('⇆',split*cv.width,cv.height/2+5)}
+ $('#zl').textContent=(zoom*W/cv.width>=1?Math.round(zoom*W/cv.width*10)/10+'×':Math.round(zoom*100)+' %');$('#ta').hidden=mode==='b';$('#tb').hidden=mode==='a'}
+function setMode(m){mode=m;document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m));draw()}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+const pos=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left)/r.width*cv.width,(e.clientY-r.top)/r.height*cv.height]};
+function zoomAt(f,px,py){const wx=ox+px/zoom,wy=oy+py/zoom;zoom=Math.max(cv.width/W,Math.min(16,zoom*f));ox=wx-px/zoom;oy=wy-py/zoom;draw()}
+$('#zin').onclick=()=>zoomAt(1.5,cv.width/2,cv.height/2);$('#zout').onclick=()=>zoomAt(1/1.5,cv.width/2,cv.height/2);$('#zfit').onclick=fit;
+$('#z1').onclick=()=>{const r=cv.getBoundingClientRect();zoomAt((cv.width/r.width*devicePixelRatio)/zoom,cv.width/2,cv.height/2)};
+$('#zp').onclick=()=>{zoom=Math.min(16,6*cv.width/W*W/1100);ox=W/2-cv.width/zoom/2;oy=H*0.5-cv.height/zoom/2;draw()};
+view.addEventListener('wheel',e=>{e.preventDefault();const[x,y]=pos(e);zoomAt(e.deltaY<0?1.25:0.8,x,y)},{passive:false});
+let drag=null;view.addEventListener('pointerdown',e=>{view.setPointerCapture(e.pointerId);const[x,y]=pos(e);drag={x,y,ox,oy,line:mode==='slide'&&Math.abs(x-split*cv.width)<24}});
+view.addEventListener('pointermove',e=>{if(!drag)return;const[x,y]=pos(e);if(drag.line)split=Math.max(0,Math.min(1,x/cv.width));else{ox=drag.ox-(x-drag.x)/zoom;oy=drag.oy-(y-drag.y)/zoom}draw()});
+view.addEventListener('pointerup',()=>drag=null);
+addEventListener('keydown',e=>{if(e.target.tagName==='SELECT')return;if(e.code==='Space'){e.preventDefault();setMode(mode==='b'?'a':'b')}});
+$('#res').onchange=load;load();
+</script></html>
