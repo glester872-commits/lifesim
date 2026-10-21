@@ -81,6 +81,8 @@ const PROFILES: Partial<Record<VehicleShape, CarProfile>> = {
   hatch: { rearBase: 0.06, roofRear: 0.17, roofFront: 0.54, wsBase: 0.72, roof: 2, belt: 7, hood: 8, deck: 7, pillars: [0.38], wheels: [0.19, 0.8] },
   // Berlina: tres volúmenes, la luneta tumbada y el maletero.
   sedan: { rearBase: 0.16, roofRear: 0.31, roofFront: 0.58, wsBase: 0.74, roof: 2, belt: 7, hood: 8, deck: 7, pillars: [0.46], wheels: [0.2, 0.8] },
+  // Cupé: techo bajo y corto, capó largo, parabrisas muy tumbado, sin montante B (dos puertas, una ventanilla).
+  coupe: { rearBase: 0.14, roofRear: 0.32, roofFront: 0.5, wsBase: 0.68, roof: 3, belt: 7, hood: 9, deck: 7, pillars: [], wheels: [0.2, 0.79] },
   // Familiar: techo largo hasta atrás y una ventanilla más.
   wagon: { rearBase: 0.04, roofRear: 0.08, roofFront: 0.57, wsBase: 0.73, roof: 2, belt: 7, hood: 8, deck: 7, pillars: [0.27, 0.47], wheels: [0.19, 0.8] },
   'suv-compact': { rearBase: 0.05, roofRear: 0.1, roofFront: 0.57, wsBase: 0.71, roof: 1, belt: 8, hood: 9, deck: 8, pillars: [0.41], wheels: [0.19, 0.8] },

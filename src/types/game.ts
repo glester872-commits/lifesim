@@ -205,7 +205,12 @@ export type PropKind =
   | 'notice-board'
   // la grada del estadio: asiento abatible de plástico (data/stadium.ts)
   | 'stadium-seat'
-  | 'floodlight';
+  | 'floodlight'
+  // La Parroquia de San Blas (CV-05): bancos corridos que miran al altar, el altar, el retablo de la pared y las lamparillas.
+  | 'pew'
+  | 'altar'
+  | 'altarpiece'
+  | 'candles';
 
 export interface PropPlacement {
   kind: PropKind;
@@ -322,6 +327,8 @@ export type BuildingStyle =
   // Distrito Arena: el estadio (desde arriba, grada y césped) y la tienda oficial del club.
   | 'stadium'
   | 'team-store'
+  // Vallesco (CV-05): la Parroquia de San Blas, una pieza propia (espadaña, rosetón y portada).
+  | 'church'
   | 'backdrop';
 
 /**
@@ -393,6 +400,8 @@ export interface SpotDef {
   wardrobe?: true;
   /** Punto de estudio (data/study.ts): practicar una habilidad aquí (scenes/Menus.ts, openStudy). */
   study?: string;
+  /** Un encuentro con hora (data/parish.ts): su horario, entrar si es la hora y cómo fue el último (scenes/Menus.ts, openGathering). */
+  gathering?: string;
   /**
    * El catálogo del hogar (data/housing.ts): comprar mejoras para esta casa (scenes/Menus.ts, openHousing).  es el
    * de casa (también recolocar lo puesto); un id de tienda ('velarde') vende sólo lo suyo (UpgradeDef.sold).
@@ -723,6 +732,8 @@ export interface GameStateData {
   housing?: import('../systems/Housing.ts').HousingState;
   /** Guía del principio, avisos ya dados y últimas señales de progreso (systems/Agenda). Opcional: una partida anterior no ve la guía. */
   agenda?: import('../systems/Agenda.ts').AgendaState;
+  /** Encuentros a los que se ha ido (systems/Parish): uno por ensayo. Opcional: una partida anterior carga sin ninguno. */
+  parish?: import('../systems/Parish.ts').ParishState;
 }
 
 export interface SaveFile {

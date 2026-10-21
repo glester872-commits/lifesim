@@ -310,6 +310,13 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Tablón del barrio: un panel de corcho con tejadillo sobre un solo poste; pasa quien quiera por los lados.
   'notice-board': { key: 'prop-notice-board', tilesHigh: 3, shadow: [8, 2], post: true, board: true },
   floodlight: { key: 'prop-floodlight', tilesHigh: 4, shadow: [10, 3], cast: 24, light: { dy: 58, cool: true } },
+  // Parroquia de San Blas (CV-05). El banco corrido es un tile por plaza (data/seating.ts): se sienta mirando al altar,
+  // con el respaldo por delante de la espalda, como la silla de espaldas.
+  pew: { key: 'prop-pew', tilesHigh: 1, mount: true, front: 'prop-pew-front' },
+  altar: { key: 'prop-altar', tilesHigh: 1, tilesWide: 3 },
+  // En la pared, sobre la fila de muro con cara (como la ventana o el cuadro).
+  altarpiece: { key: 'prop-altarpiece', tilesHigh: 1, tilesWide: 3 },
+  candles: { key: 'prop-candles', tilesHigh: 1, light: { dy: 6, pool: [18, 8] } },
 };
 
 export function tileAt(ground: readonly string[], tx: number, ty: number): TileDef | undefined {

@@ -36,6 +36,7 @@ import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKe
 import { Litter } from './Litter.ts';
 import { PROPS } from '../world/tiles.ts';
 import { absMinute, dueOut, enterPlace, insideLooks, type Handoff } from './Handoff.ts';
+import { gatheringLooks } from './Parish.ts';
 
 /**
  * El tiempo en la calle: con lluvia o frío hay menos gente (quien puede, se
@@ -529,6 +530,8 @@ export class StreetLife {
     const used = new Set(this.agents.map((a) => a.look));
     for (const l of this.elsewhere) used.add(l);
     for (const l of insideLooks(this.now)) used.add(l);
+    // Quien está en un encuentro con hora (el coro de la parroquia, systems/Parish): dentro hasta que acabe.
+    for (const l of gatheringLooks(this.now)) used.add(l);
     return used;
   }
 

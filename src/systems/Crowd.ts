@@ -19,6 +19,7 @@ import { IDENTITIES, outfitOf, outfitsOf } from './People.ts';
 import { isWalkable } from './LocationSystem.ts';
 import { aheadBlocked, nearestReachable, offCamera, StuckWatch, tileKey, type RecoveryLevel } from './Recovery.ts';
 import { absMinute, FRESH_MINUTES, handoffs, insideOf, markExited, type Handoff } from './Handoff.ts';
+import { guestsInside } from './Parish.ts';
 
 /** Una reserva a la que no se llega en este tiempo (ms de reloj de la sala) se da por perdida. */
 const RESERVE_TTL_MS = 90_000;
@@ -132,6 +133,8 @@ export interface Agent {
   sport?: boolean;
   /** Va con la camiseta y la bufanda del equipo (día de partido en el Arena): world/CrowdView le pone su versión de aficionado. */
   fan?: boolean;
+  /** Viene a un encuentro con hora (systems/Parish): un vecino con nombre, sentado todo el rato; no cuenta para la afluencia. */
+  guest?: true;
   /** Se cambia en el paso que hace ahora (PlanStep.outfit): la ropa cambia a mitad, o al acabar el paso, siempre en su sitio. */
   pendingOutfit?: 'gym' | 'street';
   /** Ms que lleva en el sitio antes de que se note el cambio de ropa. */
@@ -316,6 +319,18 @@ export class Crowd {
     // Quien entró desde la calle delante del jugador, antes que nadie: así su cara no le toca a otro.
     this.now = absMinute(clock.day, clock.hour, clock.minute);
     if (level !== null) for (const h of insideOf(this.place.id, this.now)) this.admit(h, clock, player);
+    // Luego quien viene a un encuentro (el coro): ya sentados, cada cual con su cara, antes de repartir las demás.
+    const meeting = guestsInside(this.place.id, this.now);
+    for (const look of meeting.looks) {
+      if (!meeting.gathering || this.agents.some((a) => a.look === look)) continue;
+      const point = this.freePoint(meeting.gathering.seats, far);
+      if (!point) break;
+      const step = this.guestStep(meeting.gathering.seats, meeting.until);
+      const agent = this.newAgent('visitor', 'guest', meeting.gathering.guest.label, meeting.gathering.guest.line, this.pointAt(point), look);
+      agent.guest = true;
+      this.occupy(agent, point, step.state);
+      agent.timer = this.duration(step, point);
+    }
     const target = targetAt(this.place, this.profile, clock);
     let placed = this.agents.filter((a) => a.handoff).length;
     for (let tries = 0; placed < target && tries < target * 2; tries++) {
@@ -426,7 +441,17 @@ export class Crowd {
       const h = handoffs().find((o) => o.token === a.handoff);
       if (!h || this.now >= h.leaveAt) a.leaveSoon = true;
     }
-    const active = this.agents.filter((a) => a.kind === 'visitor' && !a.leaving && !a.leaveSoon);
+    // Quien viene al encuentro y aún no está, entra por la puerta (uno por vez) y va a sentarse hasta que acabe.
+    const meeting = guestsInside(this.place.id, this.now);
+    const missing = meeting.gathering ? meeting.looks.find((look) => !this.agents.some((a) => a.look === look)) : undefined;
+    if (missing !== undefined && meeting.gathering && doorClear && this.agents.length < this.place.capacity) {
+      const agent = this.newAgent('visitor', 'guest', meeting.gathering.guest.label, meeting.gathering.guest.line, this.door, missing);
+      agent.guest = true;
+      agent.plan = [this.guestStep(meeting.gathering.seats, meeting.until)];
+      agent.timer = between(this.rng, ...POPULATION.reaction);
+      return;
+    }
+    const active = this.agents.filter((a) => a.kind === 'visitor' && !a.guest && !a.leaving && !a.leaveSoon);
     const diff = this.stats.target - active.length;
     const changes = Math.min(Math.abs(diff), Math.abs(diff) > 4 ? POPULATION.maxChangesPerTick : 1);
     // Por la puerta entra una persona cada vez: primero el resto de un grupo que ya está dentro.
@@ -811,8 +836,15 @@ export class Crowd {
    * se notan, y dos con el mismo jersey y pantalón también. Una sola tirada (la semilla manda), luego la primera
    * que cumple las dos; si no hay, la primera con cara libre.
    */
+  /** Sentarse en uno de esos asientos hasta que acabe el encuentro (minutos de juego que quedan). */
+  private guestStep(seats: readonly string[], until: number): PlanStep {
+    const left = Math.max(1, until - this.now);
+    return { state: 'REST', points: seats, minutes: [left, left] };
+  }
+
   private pickLook(): number {
-    const used = new Set(this.agents.map((a) => a.look));
+    // Las caras de quien viene a un encuentro son suyas aunque aún no hayan entrado: nadie de paso las lleva.
+    const used = new Set([...this.agents.map((a) => a.look), ...guestsInside(this.place.id, this.now).looks]);
     const worn = outfitsOf(used);
     const n = PASSENGER_LOOKS.length;
     const start = Math.floor(this.rng() * n);

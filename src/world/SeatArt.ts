@@ -114,7 +114,32 @@ function drawBenchUpFront(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 12, 4, 2, 6);
 }
 
+/**
+ * Banco corrido de iglesia, un tile por plaza: tablero del asiento de madera oscura de lado a lado (se junta con el de
+ * al lado sin hueco) y el reclinatorio abajo; el respaldo, la capa de delante.
+ */
+function drawPew(ctx: Ctx): void {
+  const dark = shade(WOOD_DARK, -0.12);
+  px(ctx, WOOD_DARK, 0, 7, TILE, 3);
+  px(ctx, WOOD, 0, 7, TILE, 1);
+  px(ctx, dark, 0, 10, TILE, 1);
+  // Reclinatorio: un listón bajo, más atrás, y los pies del banco.
+  px(ctx, dark, 0, 13, TILE, 2);
+  px(ctx, WOOD_DARK, 1, 10, 2, 5);
+  px(ctx, WOOD_DARK, 13, 10, 2, 5);
+}
+
+/** Su respaldo alto y macizo, con el canto de arriba claro: tapa la parte baja de la espalda de quien se sienta. */
+function drawPewFront(ctx: Ctx): void {
+  px(ctx, WOOD_DARK, 0, 2, TILE, 6);
+  px(ctx, WOOD_LIT, 0, 2, TILE, 1);
+  px(ctx, WOOD, 0, 3, TILE, 1);
+  px(ctx, shade(WOOD_DARK, -0.15), 0, 7, TILE, 1);
+}
+
 export function buildSeatTextures(scene: Phaser.Scene): void {
+  make(scene, 'prop-pew', TILE, TILE, drawPew);
+  make(scene, 'prop-pew-front', TILE, TILE, drawPewFront);
   make(scene, 'prop-chair-down', TILE, TILE * 2, drawChairDown);
   make(scene, 'prop-chair-up', TILE, TILE, drawChairUp);
   make(scene, 'prop-chair-up-front', TILE, TILE, drawChairUpFront);

@@ -231,6 +231,14 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     effects: {},
     lines: ['La pinza baja, agarra al peluche por una oreja y lo suelta a medio camino. Casi.', 'Es la tercera vez que es «casi». Sabes perfectamente lo que haces.'],
   },
+  {
+    // La visita libre de la Parroquia de San Blas (CV-05): sólo dentro de su horario, que ya cierra la puerta (data/places.ts).
+    id: 'parish-rest',
+    name: 'Sentarte un rato en silencio (20 min)',
+    minutes: 20,
+    effects: { energy: 4 },
+    lines: ['Te sientas en el banco del fondo. Fuera se oye la fuente y, de vez en cuando, una bici.', 'Veinte minutos sin mirar el móvil. Sales más despacio de lo que entraste.'],
+  },
 ];
 
 export const OFF_MAP_PLACES: readonly OffMapPlace[] = [

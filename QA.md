@@ -202,3 +202,45 @@ comprobó en el dominio (en la partida probada, las dos ranuras de la planta est
 **Punto de continuación.** Último cambio: textos de regalo por artículo y `cap()` en `Housing`. Siguiente
 comprobación: `npm run check` completo y recolocar con éxito en el navegador (vender la lámpara no existe:
 probarlo en una partida sin lámpara).
+
+## CV-04 · coches variados y tráfico creíble (2026-10-22)
+
+**Qué hay de verdad.** Sólo tráfico ambiental (`systems/Traffic.ts` + `world/TrafficView.ts`): no existe conducción,
+propiedad ni ningún campo de vehículo en la partida, así que no hay plazas, aceleración ni coste que diferenciar ni
+tipos guardados que migrar. Los carriles son rectos (fila + sentido): no hay giros, así que «curvas» no aplica. Ya había
+12 carrocerías, color ponderado, anti-clones y semilla por lugar/día/media hora.
+
+**Hecho.** Cinco familias por datos (`ARCHETYPE_OF` en `data/vehicles.ts`): urbano (city), compacto/familiar
+(hatch, wagon), SUV (suv-compact, suv), furgoneta (van), berlina/deportivo (sedan + cupé nuevo `coupe`, 44×18, techo
+bajo, capó largo, sin montante B; perfil en `VehicleArt.PROFILES`, texturas cacheadas en el arranque como las demás).
+Tráfico: hueco de cola según el largo (`queueGap`: 5 px por cada 40 px; autobús ≈ 12,5), `populate` no saca a nadie
+encima de un peatón ni del jugador (entrada en la escena, retorno y carga), y recuperación de atascos: parado
+>60 s reales sin recogida y fuera de cámara, se retira; a la vista espera siempre (nunca desaparece delante).
+
+**Pruebas.** `check-traffic` (40 semillas sin coches sobre peatones; bloqueo de 96 s en todos los carriles: cola
+esperando a la vista, retirados sólo fuera de cámara, ningún salto >3 px por frame, hueco de cola ≥ el de su largo,
+nadie atascado al despejar) y `check-vehicle-variety` (las 5 familias en la jornada, ninguna >45 %; huellas:
+urbano el más corto, SUV más alto que un turismo, furgoneta la más grande, cupé el más bajo). Suite completa con el
+runner por comando: 88/88, sin reintentos. `npm run build` OK.
+
+**Rendimiento** (mismo escenario: partida nueva aislada, district, día 3 08:00, junto al primer semáforo, zoom 3,
+vista 319×296, 1 500 `game.step` de 16 ms; 12 núcleos, 16 GB, textura máx. 16384). Antes (HEAD 94f4e56):
+2,34 ms/step media, p95 3,8, máx 6,0, 13,1 vehículos. Después: 2,34 media, p95 3,7, máx 7,5, 16,2 vehículos (otra
+tirada por el catálogo nuevo). Sólo tráfico (`node scripts/bench-traffic.ts`, 20 000 frames): 8,7 → 9,9 µs/frame.
+Sin regresión material.
+
+**Recorrido** (navegador, contexto aislado). Jugador plantado en el carril 32: el compacto para a 60 px y espera 72 s
+con su cola; 0 desapariciones a la vista; al apartarse, nadie queda atascado. `home` → `district` con el jugador en el
+carril: ningún coche encima. Guardar, recargar: misma posición, 12 vehículos, ninguno encima, consola limpia. Paseo
+con teclado (↑ 38 px, ← 73 px). Evidencia: `design/cv04/familias-x3.png` (las cinco familias junto al jugador a ×3) y
+`design/cv04/calle-0824.png`.
+
+**Supuestos.** Cupé de 18 px de alto (1,30 m frente a 1,75 m de persona); `check-traffic` le permite 18 en vez de 19.
+Peso 2 (raro), más fin de semana y noche.
+
+**Pendiente.** Táctil no repetido (el cambio no toca controles). Las familias se juzgaron a ojo en una captura, no
+con un panel de personas. Con el jugador quieto en la calzada a la vista, la cola espera indefinidamente (decisión:
+nada desaparece delante del jugador); no hay claxon ni rodeo porque los carriles no cambian.
+
+**Punto de continuación.** Último cambio: registro en QA.md. Siguiente comprobación: mirar el cupé de noche (faros
+del perfil bajo) y en lluvia.

@@ -150,7 +150,112 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   'team-store': { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: TEAL, shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: [ORANGE, TEAL], sign: 'flag' },
   souvenir: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#d9b25c', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#b8433a', '#e8c25a'], sign: 'flag' },
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
+  // La parroquia (CV-05) se pinta entera en drawChurch; esto sólo da el tono de sus huecos encendidos.
+  church: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.stoneLit, shop: 'arched', upper: 'windows', lit: PALETTE.amber, door: 'wood' },
 };
+
+// ------------------------------------------------------------- la parroquia
+
+const CHURCH_BRONZE = '#a8823e';
+const CHURCH_GLASS = ['#4f7fa8', '#b8483e', '#d9b44a', '#5c8a5a'] as const;
+
+/** Arco de medio punto relleno: de `top` (la clave) a `bottom`, centrado en cx, de ancho w. */
+function archFill(ctx: Ctx, color: string, cx: number, w: number, top: number, bottom: number): void {
+  const r = w / 2;
+  for (let y = top; y < bottom; y++) {
+    const dy = top + r - y;
+    const half = dy > 0 ? Math.round(Math.sqrt(Math.max(0, r * r - dy * dy))) : r;
+    px(ctx, color, Math.round(cx - half), y, half * 2, 1);
+  }
+}
+
+/**
+ * Parroquia de San Blas, de una pieza (W × H tiles, fachada al sur): tejado de teja arriba; abajo, la fachada de
+ * sillería con frontón, la espadaña con dos campanas y su cruz, el rosetón, dos ventanas en arco, contrafuertes y la
+ * portada de madera en la columna de la puerta (`doorCol`), con su escalón. Se reconoce desde la plaza sin leer nada.
+ */
+function drawChurch(ctx: Ctx, w: number, h: number, doorCol: number): void {
+  const stone = PALETTE.stoneLit;
+  const joint = shade(stone, -0.14);
+  const facadeTop = h - 2 * STOREY;
+  const cx = doorCol * TILE + TILE / 2;
+  // Tejado: hiladas de teja con su sombra, la cumbrera al fondo.
+  for (let y = 0; y < facadeTop + 4; y++) {
+    const row = Math.floor(y / 4);
+    px(ctx, (row + (y % 4 === 3 ? 1 : 0)) % 2 ? PALETTE.roofA : PALETTE.roofALit, 0, y, w, 1);
+    if (y % 4 === 3) px(ctx, shade(PALETTE.roofA, -0.18), 0, y, w, 1);
+  }
+  px(ctx, shade(PALETTE.roofA, -0.3), 0, 0, w, 2);
+  // Muro de sillería: hiladas de 6 px con las juntas a tresbolillo.
+  for (let y = facadeTop; y < h; y++) {
+    px(ctx, stone, 0, y, w, 1);
+    const course = Math.floor((y - facadeTop) / 6);
+    if ((y - facadeTop) % 6 === 5) px(ctx, joint, 0, y, w, 1);
+    else for (let x = (course % 2) * 9; x < w; x += 18) px(ctx, joint, x, y, 1, 1);
+  }
+  // Frontón: el muro sube en triángulo hasta la espadaña.
+  const peak = facadeTop - 18;
+  for (let y = peak; y < facadeTop; y++) {
+    const half = Math.round(((y - peak) / (facadeTop - peak)) * (w / 2 - 6)) + 12;
+    px(ctx, stone, cx - half, y, half * 2, 1);
+    px(ctx, shade(stone, 0.12), cx - half, y, 2, 1);
+    px(ctx, shade(stone, 0.12), cx + half - 2, y, 2, 1);
+  }
+  // Espadaña: un paño alto con dos huecos en arco y una campana en cada uno; encima, una cruz pequeña de hierro.
+  const ew = 28;
+  const etop = 6;
+  px(ctx, stone, cx - ew / 2, etop, ew, peak - etop + 2);
+  px(ctx, shade(stone, 0.14), cx - ew / 2, etop, ew, 2);
+  for (const bx of [cx - 7, cx + 7]) {
+    archFill(ctx, '#2b2622', bx, 8, etop + 4, etop + 15);
+    archFill(ctx, CHURCH_BRONZE, bx, 4, etop + 7, etop + 12);
+    px(ctx, shade(CHURCH_BRONZE, 0.3), bx - 1, etop + 8, 1, 2);
+  }
+  px(ctx, PALETTE.ink, cx - 1, 0, 2, etop);
+  px(ctx, PALETTE.ink, cx - 3, 2, 6, 1);
+  // Contrafuertes en las esquinas.
+  for (const x of [0, w - 6]) {
+    px(ctx, shade(stone, -0.18), x, facadeTop, 6, h - facadeTop);
+    px(ctx, shade(stone, -0.05), x, facadeTop, 6, 1);
+  }
+  // Rosetón sobre la portada: anillo de piedra, vidrio de colores en gajos y el centro claro.
+  const ry = facadeTop + 12;
+  for (let y = -7; y <= 7; y++) {
+    for (let x = -7; x <= 7; x++) {
+      const d = Math.hypot(x, y);
+      if (d > 7.4) continue;
+      const c = d > 6 ? shade(stone, -0.32) : d < 1.6 ? PALETTE.amber : CHURCH_GLASS[(Math.floor(((Math.atan2(y, x) + Math.PI) / (2 * Math.PI)) * 8) + (d > 3.6 ? 1 : 0)) % CHURCH_GLASS.length];
+      px(ctx, c, cx + x, ry + y, 1, 1);
+    }
+  }
+  // Ventanas altas en arco a los lados.
+  for (const wx of [cx - 32, cx + 32]) {
+    archFill(ctx, shade(stone, -0.3), wx, 8, facadeTop + 14, facadeTop + 36);
+    archFill(ctx, '#3a4f6e', wx, 6, facadeTop + 15, facadeTop + 35);
+    px(ctx, shade('#3a4f6e', 0.25), wx - 1, facadeTop + 18, 1, 14);
+  }
+  // Portada: arquivolta de piedra clara, puerta de madera de dos hojas con clavos y el escalón.
+  const doorTop = h - STOREY - 4;
+  archFill(ctx, shade(stone, 0.16), cx, 22, doorTop - 2, h - 3);
+  archFill(ctx, shade(stone, -0.24), cx, 18, doorTop, h - 3);
+  archFill(ctx, PALETTE.wood, cx, 14, doorTop + 2, h - 3);
+  px(ctx, PALETTE.woodDark, cx, doorTop + 4, 1, h - doorTop - 7);
+  for (const x of [cx - 5, cx - 2, cx + 3, cx + 5]) px(ctx, shade(PALETTE.wood, -0.12), x, doorTop + 8, 1, h - doorTop - 11);
+  for (let y = doorTop + 10; y < h - 4; y += 6) for (const x of [cx - 4, cx + 3]) px(ctx, PALETTE.ink, x, y, 1, 1);
+  px(ctx, shade(stone, 0.2), cx - 12, h - 3, 24, 3);
+  px(ctx, shade(stone, -0.2), cx - 12, h - 1, 24, 1);
+  // Zócalo.
+  px(ctx, shade(stone, -0.12), 6, h - 6, cx - 18, 6);
+  px(ctx, shade(stone, -0.12), cx + 12, h - 6, w - cx - 18, 6);
+}
+
+/** De noche, con la iglesia abierta: el rosetón y las dos ventanas encendidos (world/Lighting los pone encima). */
+function drawChurchGlow(ctx: Ctx, h: number, doorCol: number): void {
+  const facadeTop = h - 2 * STOREY;
+  const cx = doorCol * TILE + TILE / 2;
+  for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (Math.hypot(x, y) <= 6) px(ctx, (x + y) % 3 === 0 ? PALETTE.amber : '#f6d79a', cx + x, facadeTop + 12 + y, 1, 1);
+  for (const wx of [cx - 32, cx + 32]) archFill(ctx, '#e9c27a', wx, 6, facadeTop + 15, facadeTop + 35);
+}
 
 const STYLES = Object.keys(LOOKS) as BuildingStyle[];
 
@@ -1719,6 +1824,15 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
     if (b.style === 'metro' && b.w === 3 && b.h === 3) {
       rt.batchDraw('bs-metro-entrance', b.tx * TILE, b.ty * TILE);
       glows.push({ key: 'bs-metro-entrance-glow', x: b.tx * TILE, y: b.ty * TILE });
+      continue;
+    }
+    // La parroquia: una pieza, con su portada en la columna de la puerta; sus huecos brillan sólo con ella abierta.
+    if (b.style === 'church') {
+      const [w, h, col] = [b.w * TILE, b.h * TILE, (b.doorX ?? b.tx + (b.w >> 1)) - b.tx];
+      make(rt.scene, `bs-church-${b.id}`, w, h, (ctx) => drawChurch(ctx, w, h, col));
+      make(rt.scene, `bs-church-${b.id}-glow`, w, h, (ctx) => drawChurchGlow(ctx, h, col));
+      rt.batchDraw(`bs-church-${b.id}`, b.tx * TILE, b.ty * TILE);
+      glows.push({ key: `bs-church-${b.id}-glow`, x: b.tx * TILE, y: b.ty * TILE, building: b.id });
       continue;
     }
     const look = LOOKS[b.style];

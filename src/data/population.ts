@@ -345,6 +345,28 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     ],
   },
   {
+    place: 'parish',
+    // Poca gente: alguna visita por la mañana y al caer la tarde. El coro de los sábados no sale de aquí: son vecinos con
+    // nombre, elegidos por systems/Parish.guestsOf, que Crowd sienta en los bancos durante el ensayo.
+    bands: [[9, 12, 'LOW'], [12, 17, 'VERY_LOW'], [17, 20.5, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 0, 1],
+    maxVisitors: 4,
+    staff: [{ service: 'host', npc: 'encarna', points: ['PARISH_HOST'] }],
+    visitors: [
+      {
+        role: 'visitor', label: 'De visita', line: 'Entro un momento. Fuera hay mucho ruido.', weight: 2,
+        plan: [
+          { state: 'BROWSE', points: ['PARISH_CANDLES'], minutes: [1, 3], chance: 0.4 },
+          { state: 'REST', points: ['PARISH_PEW_'], minutes: [6, 15] },
+        ],
+      },
+      {
+        role: 'elderly', label: 'Vecina mayor', line: 'Vengo todas las tardes. Aquí se está fresquito.', weight: 1.5,
+        plan: [{ state: 'REST', points: ['PARISH_PEW_'], minutes: [12, 25] }],
+      },
+    ],
+  },
+  {
     place: 'restaurant',
     bands: [[12, 14, 'MEDIUM'], [14, 16, 'HIGH'], [16, 18, 'VERY_LOW'], [18, 20, 'LOW'], [20, 23, 'HIGH'], [23, 24, 'LOW']],
     // Viernes y sábado por la noche, lleno.

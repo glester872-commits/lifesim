@@ -2,7 +2,7 @@
 // Madrid (blancos, negros y grises casi siempre; azul, rojo y verde de vez en cuando) y nada de clones cerca. La misma
 // lógica que el juego, sin Phaser. Llamado desde la cadena `check` de package.json. `node scripts/check-vehicle-variety.ts`.
 import assert from 'node:assert/strict';
-import { VEHICLES, type VehicleType } from '../src/data/vehicles.ts';
+import { ARCHETYPE_OF, VEHICLES, type VehicleType } from '../src/data/vehicles.ts';
 import { withDistrictLanes } from '../src/systems/Districts.ts';
 import { getLocation } from '../src/systems/LocationSystem.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
@@ -17,10 +17,20 @@ const neutral = (hex: string): boolean => {
 };
 
 // ------------------------------------------------- 1. el catálogo: carrocerías y colores
-const CARS = VEHICLES.filter((v) => !v.id.startsWith('taxi') && ['city', 'hatch', 'sedan', 'wagon', 'suv-compact', 'suv', 'van'].includes(v.shape));
+const CARS = VEHICLES.filter((v) => !v.id.startsWith('taxi') && ['city', 'hatch', 'sedan', 'coupe', 'wagon', 'suv-compact', 'suv', 'van'].includes(v.shape));
 {
   const shapes = new Set(CARS.map((v) => v.shape));
-  assert.ok(shapes.size >= 7, `carrocerías de calle: ${[...shapes].join(', ')}`);
+  assert.ok(shapes.size >= 8, `carrocerías de calle: ${[...shapes].join(', ')}`);
+  // CV-04: las cinco familias, cada turismo en una, y cada familia con su huella (largo × alto) distinta de las demás.
+  assert.deepEqual(new Set(CARS.map((v) => ARCHETYPE_OF[v.shape])), new Set(['urbano', 'compacto', 'suv', 'furgoneta', 'berlina']));
+  const urbano = CARS.filter((v) => ARCHETYPE_OF[v.shape] === 'urbano');
+  const suv = CARS.filter((v) => ARCHETYPE_OF[v.shape] === 'suv');
+  const van = CARS.filter((v) => ARCHETYPE_OF[v.shape] === 'furgoneta');
+  const others = CARS.filter((v) => !['urbano', 'furgoneta'].includes(ARCHETYPE_OF[v.shape]!));
+  assert.ok(Math.max(...urbano.map((v) => v.length)) < Math.min(...others.map((v) => v.length)), 'el urbano no es el más corto');
+  assert.ok(Math.min(...suv.map((v) => v.height)) > Math.max(...CARS.filter((v) => ['urbano', 'compacto', 'berlina'].includes(ARCHETYPE_OF[v.shape]!)).map((v) => v.height)), 'el SUV no es más alto que un turismo');
+  assert.ok(Math.min(...van.map((v) => v.height)) > Math.max(...suv.map((v) => v.height)) && Math.min(...van.map((v) => v.length)) > Math.max(...others.map((v) => v.length)), 'la furgoneta no es la más grande');
+  assert.ok(VEHICLES.find((v) => v.shape === 'coupe')!.height < Math.min(...CARS.filter((v) => v.shape !== 'coupe').map((v) => v.height)), 'el deportivo no es el más bajo');
   for (const v of CARS) {
     assert.ok(v.colorWeight && v.colorWeight.length === v.colors.length, `${v.id}: un peso por color`);
     const total = v.colorWeight!.reduce((a, b) => a + b, 0);
@@ -42,11 +52,11 @@ const CARS = VEHICLES.filter((v) => !v.id.startsWith('taxi') && ['city', 'hatch'
 }
 
 // ------------------------------------------------- 2. el tráfico de verdad: la avenida y una calle de barrio
-interface Sample { cars: number; neutral: number; bodies: Map<string, number>; clones: number; colored: Map<string, number>; sequence: string }
+interface Sample { cars: number; neutral: number; bodies: Map<string, number>; families: Map<string, number>; clones: number; colored: Map<string, number>; sequence: string }
 function run(flow: LaneFlow, widthPx: number, seed: number, days = 6): Sample {
   const t = new Traffic(flow, VEHICLES, [], widthPx, seededRng(seed));
   const seen = new Set<number>();
-  const out: Sample = { cars: 0, neutral: 0, bodies: new Map(), clones: 0, colored: new Map(), sequence: '' };
+  const out: Sample = { cars: 0, neutral: 0, bodies: new Map(), families: new Map(), clones: 0, colored: new Map(), sequence: '' };
   for (let day = 2; day < 2 + days; day++) {
     for (let min = 0; min < 24 * 60; min++) {
       t.update(1_000, { day, minuteOfDay: min }, []);
@@ -60,6 +70,8 @@ function run(flow: LaneFlow, widthPx: number, seed: number, days = 6): Sample {
         if (neutral(c)) out.neutral++;
         else out.colored.set(c, (out.colored.get(c) ?? 0) + 1);
         out.bodies.set(ty.shape, (out.bodies.get(ty.shape) ?? 0) + 1);
+        const fam = ARCHETYPE_OF[ty.shape]!;
+        out.families.set(fam, (out.families.get(fam) ?? 0) + 1);
         // Un clon: otro igual (modelo y color) a la vista, en cualquier carril, al salir.
         if (t.vehicles.some((o) => o !== v && o.type === v.type && o.color === v.color && Math.abs(o.x - v.x) < 320)) out.clones++;
         if (out.cars <= 40) out.sequence += `${ty.id}:${v.color},`;
@@ -77,6 +89,9 @@ for (const [name, r] of [['avenida', avenue], ['calle de barrio', street]] as co
   assert.ok(r.cars >= 60, `${name}: muestra pequeña (${r.cars})`);
   assert.ok(r.neutral / r.cars >= 0.65, `${name}: sólo ${Math.round((r.neutral / r.cars) * 100)} % de blancos, negros y grises`);
   assert.ok(r.bodies.size >= 6, `${name}: carrocerías vistas: ${[...r.bodies.keys()].join(', ')}`);
+  // Las cinco familias salen en la jornada (no en cada frame) y ninguna se come la calle.
+  assert.equal(r.families.size, 5, `${name}: familias vistas: ${[...r.families.keys()].join(', ')}`);
+  assert.ok(Math.max(...r.families.values()) / r.cars <= 0.45, `${name}: una familia domina (${[...r.families].map(([k, n]) => `${k} ${n}`).join(', ')})`);
   assert.ok(Math.max(...r.bodies.values()) / r.cars <= 0.3, `${name}: una carrocería domina (${[...r.bodies].map(([k, n]) => `${k} ${n}`).join(', ')})`);
   for (const [c, n] of r.colored) assert.ok(n / r.cars <= 0.07, `${name}: ${c} es el ${Math.round((n / r.cars) * 100)} % del tráfico`);
   assert.ok(r.clones / r.cars <= 0.03, `${name}: ${r.clones} de ${r.cars} coches con un clon a la vista`);
@@ -86,5 +101,5 @@ const lanes = withDistrictLanes(district, district.traffic!);
 assert.equal(run(lanes, width, 5, 1).sequence, run(lanes, width, 5, 1).sequence, 'el tráfico no es reproducible');
 assert.notEqual(run(lanes, width, 5, 1).sequence, run(lanes, width, 6, 1).sequence, 'dos semillas, el mismo tráfico');
 
-const pct = (r: Sample): string => `${Math.round((r.neutral / r.cars) * 100)} % neutros, ${r.bodies.size} carrocerías, ${r.clones} clones de ${r.cars}`;
+const pct = (r: Sample): string => `${Math.round((r.neutral / r.cars) * 100)} % neutros, ${r.bodies.size} carrocerías, familias ${[...r.families].map(([k, n]) => `${k} ${Math.round((n / r.cars) * 100)} %`).join(' / ')}, ${r.clones} clones de ${r.cars}`;
 console.log(`check-vehicle-variety: avenida ${pct(avenue)} · calle de barrio ${pct(street)}; ${new Set(CARS.map((v) => v.shape)).size} carrocerías y ${new Set(CARS.flatMap((v) => v.colors)).size} colores en el catálogo, OK`);

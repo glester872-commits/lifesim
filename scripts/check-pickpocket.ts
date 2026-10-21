@@ -83,7 +83,7 @@ function street(day: number, hour: number, seed: number, who = player): { life: 
 }
 
 // --------------------------------------------------- 3. gente de sobra en una zona que lo permite: un robo de principio a fin
-function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phases: string[]; robbed: Robbery[] } {
+function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phases: string[]; robbed: Robbery[]; refused?: string } {
   const s = street(SAT, 19, seed);
   const robbed: Robbery[] = [];
   s.life.pickpocket.onRobbed = (r) => {
@@ -95,8 +95,13 @@ function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phase
     r = onPlayer ? s.life.pickpocket.forceOnPlayer(player) : s.life.pickpocket.force({ tx: -999, ty: -999 });
     if (!r.ok) s.step(2_000);
   }
+  // Junto al jugador, una tarde puede no juntarse gente bastante (CV-05: el sábado a esa hora parte del barrio está en el
+  // coro de la parroquia): rechazar es la regla misma. Se cuenta y se acota abajo; con un NPC, siempre tiene que salir.
+  if (!r.ok && onPlayer) return { life: s.life, phases: [], robbed, refused: r.reason };
   assert.ok(r.ok, `forzado: ${r.reason}`);
-  const phases: string[] = [];
+  // La fase con la que nace, antes del primer paso: si el carterista ya está al lado, ese paso lo pasa al tirón.
+  const born = s.life.pickpocket.lifecycle();
+  const phases: string[] = [`${born.lifecycle}/${born.phase}`];
   for (let i = 0; i < 1_800 && s.life.pickpocket.active; i++) {
     s.step(100);
     const e = s.life.pickpocket.lifecycle();
@@ -130,10 +135,15 @@ function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phase
 
 // --------------------------------------------------- 4. la víctima es el jugador: se lleva efectivo (nunca más del que tiene)
 {
-  let robbedTimes = 0, noticed = 0, tries = 0, min = Infinity, max = 0;
+  let robbedTimes = 0, noticed = 0, tries = 0, refused = 0, min = Infinity, max = 0;
   for (let seed = 1; seed <= 40 && robbedTimes < 8; seed++) {
     const r = runIncident(seed, true);
     tries++;
+    if (r.refused) {
+      assert.match(r.refused, /sin gente suficiente/, `seed ${seed}: rechazado por otra cosa: ${r.refused}`);
+      refused++;
+      continue;
+    }
     for (const x of r.robbed) {
       robbedTimes++;
       if (x.noticed) noticed++;
@@ -144,7 +154,8 @@ function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phase
     assert.ok(r.life.agents.every((a) => !a.incident));
   }
   assert.ok(robbedTimes >= 3, `pocos robos al jugador (${robbedTimes} en ${tries})`);
-  console.log(`  jugador: ${robbedTimes} robos en ${tries} intentos (${noticed} notados), de ${min.toFixed(2)} a ${max.toFixed(2)} €`);
+  assert.ok(refused <= tries / 4, `junto al jugador casi nunca hay gente: ${refused} de ${tries} tardes sin grupo`);
+  console.log(`  jugador: ${robbedTimes} robos en ${tries} intentos (${noticed} notados, ${refused} tardes sin gente bastante), de ${min.toFixed(2)} a ${max.toFixed(2)} €`);
 }
 
 // --------------------------------------------------- 5. descanso: tras un robo no vuelve a salir solo hasta pasado su tiempo

@@ -94,7 +94,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     kit: { props: ['bin', 'planter'], on: 'facade', every: 18, max: 6 },
     crowd: { everyday: 3, smart: 2.5, street: 0.8, sport: 0.5 },
     vehicles: { all: { 'delivery-truck': 1.2 }, night: { taxi: 1.3 } },
-    facades: ['res-*', 'gym', 'cafe', 'fashion', 'super', 'restaurant', 'office', 'hair', 'pharmacy', 'bank', 'fruit', 'hardware', 'study', 'laundry', 'club', 'backdrop'],
+    facades: ['res-*', 'gym', 'cafe', 'fashion', 'super', 'restaurant', 'office', 'hair', 'pharmacy', 'bank', 'fruit', 'hardware', 'study', 'laundry', 'club', 'church', 'backdrop'],
     ambience: { leaf: 0.6, paper: 1, steam: 1.2 },
   },
   // Calle del Carmen: ladrillo más rojo y cálido, carteles, bicis; la gente que más se viste para salir a la calle.

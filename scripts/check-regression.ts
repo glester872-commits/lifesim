@@ -2,6 +2,7 @@
 // ida y vuelta, metro, vigilantes lejos de la vía, guardado completo, interacciones y texturas.
 // Parte de `npm run check` y de `npm run test:regression`.
 import { practiceAt } from '../src/systems/Study.ts';
+import { getGathering } from '../src/systems/Parish.ts';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -123,6 +124,8 @@ const full: GameStateData = {
   ledger: [{ day: 6, hour: 18, minute: 5, label: 'Alquiler', amount: -45 }],
   // Agenda (systems/Agenda): guía saltada, un aviso ya dado y las últimas señales: vuelve igual, sin repetir avisos.
   agenda: { tour: 'skipped', seen: { 'job:9': 12_900 }, checked: 12_935, marks: { job: '0:1', body: 'average' } },
+  // Parroquia (systems/Parish): un ensayo del coro hasta el final y otro un rato: vuelven igual, sin volver a contar.
+  parish: { attended: [{ id: 'coro-6', day: 6, stay: 'full', minutes: 90 }, { id: 'coro-13', day: 13, stay: 'partial', minutes: 30 }] },
 };
 assert.ok(save.save(full));
 assert.deepEqual(save.load(), full, 'el guardado no vuelve igual');
@@ -142,7 +145,7 @@ for (const loc of allLocations()) {
   };
   for (const t of loc.terminals ?? []) (getCatalog(t.catalog), inside(t, t.name));
   for (const s of loc.spots ?? []) {
-    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)) || s.housing, `[${loc.id}] ${s.name} no hace nada`);
+    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)) || (s.gathering && getGathering(s.gathering)) || s.housing, `[${loc.id}] ${s.name} no hace nada`);
     s.activities.forEach(getActivity);
     inside(s, s.name);
   }

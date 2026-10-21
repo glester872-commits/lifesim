@@ -16,8 +16,14 @@ const STOP_GAP = 3;
 const AMBER_COMMIT = TILE;
 /** Cuánto acelera la llegada a la línea o al de delante: px/s por px que queda. */
 const APPROACH = 2.5;
-/** En cola, a un palmo del de delante. */
+/** En cola, a un palmo del de delante; lo largo deja más (un autobús, el doble y pico: QUEUE_GAP por cada 40 px). */
 const QUEUE_GAP = 5;
+const queueGap = (len: number): number => QUEUE_GAP * Math.max(1, len / 40);
+/**
+ * Atasco: parado tanto tiempo (ms reales; más de dos ciclos de semáforo) es que algo no se mueve. Fuera de cámara, se
+ * va (ha tirado por otra calle); a la vista, espera: nunca desaparece delante del jugador.
+ */
+const STUCK_MS = 60_000;
 /** Hueco libre en el borde del mapa para que entre otro por ese carril. */
 const ENTRY_GAP = TILE * 2;
 /** Entre dos entradas por el mismo carril, en ms. */
@@ -38,6 +44,8 @@ export interface Vehicle<T extends MoverType = MoverType> {
   cruise: number;
   /** Frenando o parado: luces de freno encendidas. */
   braking: boolean;
+  /** Cuánto lleva parado sin recogida, en ms reales (STUCK_MS). */
+  stuckMs: number;
   /**
    * Recogida (Traffic.hail): px del centro donde para a recoger a alguien. Se arrima frenando como en un semáforo, se
    * queda parado hasta release() y sigue su carril hasta salir. Mientras, es de esa recogida y de ninguna otra.
@@ -148,8 +156,12 @@ export class Traffic<T extends MoverType = MoverType> {
     return m;
   }
 
-  /** Al entrar en el sitio, el tráfico ya está a mitad de camino: repartido por cada carril. */
-  populate(clock: TrafficClock): void {
+  /** Pies en la calzada ahora mismo: nadie aparece encima de ellos. */
+  private feet: readonly Vec2[] = [];
+
+  /** Al entrar en el sitio, el tráfico ya está a mitad de camino: repartido por cada carril, sin nadie debajo. */
+  populate(clock: TrafficClock, pedestrians: readonly Vec2[] = []): void {
+    this.feet = pedestrians;
     this.def.lanes.forEach((lane, i) => {
       const n = this.target(clock.minuteOfDay / 60, clock.day, lane);
       for (let k = 0; k < n; k++) {
@@ -159,7 +171,9 @@ export class Traffic<T extends MoverType = MoverType> {
     });
   }
 
-  update(deltaMs: number, clock: TrafficClock, pedestrians: readonly Vec2[]): void {
+  /** `view`: lo que enseña la cámara en x (px, de izquierda a derecha); sin ella, nadie se da por atascado. */
+  update(deltaMs: number, clock: TrafficClock, pedestrians: readonly Vec2[], view?: readonly [number, number]): void {
+    this.feet = pedestrians;
     const dt = Math.min(deltaMs, 100) / 1000;
     this.def.lanes.forEach((lane, i) => {
       const target = this.target(clock.minuteOfDay / 60, clock.day, lane);
@@ -171,11 +185,13 @@ export class Traffic<T extends MoverType = MoverType> {
 
     for (const v of this.vehicles) this.drive(v, dt, clock.minuteOfDay, pedestrians);
 
-    // Sale del todo por el borde: fuera.
+    // Sale del todo por el borde: fuera. Atascado y fuera de cámara, también (se fue por otra calle): sin saltos a la vista.
     for (let i = this.vehicles.length - 1; i >= 0; i--) {
       const v = this.vehicles[i];
       const half = v.type.length / 2;
-      if ((v.dir > 0 && v.x - half > this.widthPx) || (v.dir < 0 && v.x + half < 0)) this.vehicles.splice(i, 1);
+      v.stuckMs = v.speed < 1 && v.stopAt === undefined ? v.stuckMs + deltaMs : 0;
+      const unseen = view !== undefined && (v.x + half < view[0] || v.x - half > view[1]);
+      if ((v.dir > 0 && v.x - half > this.widthPx) || (v.dir < 0 && v.x + half < 0) || (unseen && v.stuckMs > STUCK_MS)) this.vehicles.splice(i, 1);
     }
   }
 
@@ -217,7 +233,7 @@ export class Traffic<T extends MoverType = MoverType> {
     const leader = this.leaderOf(v);
     if (leader) {
       const gap = this.gap(v, leader);
-      if (gap < BRAKE_PX) target = Math.min(target, leader.speed * 0.9 + Math.max(0, (gap - QUEUE_GAP) * APPROACH));
+      if (gap < BRAKE_PX) target = Math.min(target, leader.speed * 0.9 + Math.max(0, (gap - queueGap(v.type.length)) * APPROACH));
     }
 
     const before = v.speed;
@@ -349,8 +365,10 @@ export class Traffic<T extends MoverType = MoverType> {
     if (this.recent.length > RECENT_MODELS) this.recent.shift();
     const half = type.length / 2;
     const at = atEdge ? (lane.dir > 0 ? -half : this.widthPx + half) : x;
-    // Al repartir, nadie encima de otro: si no cabe, no sale.
-    if (this.inLane(lane).some((o) => Math.abs(o.x - at) < (o.type.length + type.length) / 2 + QUEUE_GAP)) return;
+    // Al repartir, nadie encima de otro ni de quien pisa el carril: si no cabe, no sale.
+    if (this.inLane(lane).some((o) => Math.abs(o.x - at) < (o.type.length + type.length) / 2 + queueGap(Math.max(o.type.length, type.length)))) return;
+    const top = lane.row * TILE;
+    if (this.feet.some((p) => p.y > top && p.y < top + TILE + 8 && Math.abs(p.x - at) < half + TILE)) return;
     const cruise = CRUISE * type.pace * between(this.rng, 0.9, 1.1);
     // El color: blancos, negros y grises casi siempre; azul, rojo y verde de vez en cuando (VehicleType.colorWeight).
     // Nunca el mismo modelo y color a la vista de otro, en cualquier carril: se vuelve a tirar (hasta COLOR_TRIES veces) y,
@@ -376,6 +394,7 @@ export class Traffic<T extends MoverType = MoverType> {
       speed: atEdge ? cruise : cruise * 0.8,
       cruise,
       braking: false,
+      stuckMs: 0,
     });
   }
 }

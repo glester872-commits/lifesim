@@ -31,7 +31,9 @@ export type ServiceOffer =
    * La recepción de una comisaría (systems/Police): cómo está la zona ahora (la calle `street`, su hora y los robos que
    * constan) y, sólo si te han robado y no lo has denunciado, la denuncia.
    */
-  | { kind: 'police'; title: string; street: string };
+  | { kind: 'police'; title: string; street: string }
+  /** Quien lleva un encuentro con hora (data/parish.ts): horario, apuntarse si es la hora y cómo fue el último (systems/Parish). */
+  | { kind: 'gathering'; gathering: string };
 
 export const SERVICE_OFFERS = {
   haircut: { kind: 'appearance', slot: 'hair', title: 'Barbería Nati · corte', greeting: 'Siéntate. ¿Cómo lo quieres?', minutes: 30 },
@@ -63,6 +65,7 @@ export const SERVICE_OFFERS = {
   'bar-larguero': { kind: 'activities', title: 'Barra · Bar El Larguero', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'bar-grada': { kind: 'activities', title: 'Barra · Taberna La Grada', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'police-desk': { kind: 'police', title: 'Comisaría de Puerta Central · recepción', street: 'puerta-central' },
+  'parish-choir': { kind: 'gathering', gathering: 'coro' },
 } as const satisfies Record<string, ServiceOffer>;
 
 export type OfferId = keyof typeof SERVICE_OFFERS;
@@ -92,6 +95,8 @@ export const SERVICE_ROLES = {
   'shop-worker': { label: 'Personal de tienda', line: 'Si buscas algo, dímelo.', uniform: 'uniforme-tienda', activity: 'rounds' },
   cook: { label: 'Cocina', line: 'Sale en cinco minutos.', uniform: 'uniforme-sala', activity: 'post' },
   receptionist: { label: 'Recepción', line: '¿Tienes cita?', uniform: 'uniforme-tienda', activity: 'post' },
+  // Quien abre y atiende un sitio de todos (la parroquia): sin uniforme de tienda, en su sitio.
+  host: { label: 'Acogida', line: 'Pasa, que está abierto.', uniform: 'uniforme-sala', activity: 'post', offers: 'parish-choir' },
   // La guardia de la comisaría (systems/Police): el mismo uniforme que la patrulla de la calle.
   'police-officer': { label: 'Agente de guardia', line: 'Buenas. ¿En qué te puedo ayudar?', uniform: 'uniforme-policia', activity: 'post', offers: 'police-desk' },
   dj: { label: 'DJ', line: '(Señala los cascos y sonríe. No te oye.)', uniform: 'dj', activity: 'post' },

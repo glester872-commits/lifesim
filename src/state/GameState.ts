@@ -10,6 +10,7 @@ import type { Ticket } from '../systems/Tickets';
 import type { JobProgress } from '../systems/Jobs';
 import { LEDGER_SIZE, type HouseholdState, type Movement } from '../systems/Household';
 import { emptyStudy, type StudyState } from '../systems/Study';
+import { emptyParish, type ParishState } from '../systems/Parish';
 import { startHousing, type HousingState } from '../systems/Housing';
 import { parseAgenda, type AgendaState } from '../systems/Agenda';
 
@@ -123,6 +124,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** Guía, avisos dados y señales de progreso (systems/Agenda). */
   private _agenda: AgendaState;
 
+  /** Encuentros con hora a los que se ha ido (systems/Parish). */
+  private _parish: ParishState;
+
   /** Motivo del cambio de dinero en curso (as()). */
   private why: string | null = null;
 
@@ -212,6 +216,8 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._housing = structuredClone(initial.housing ?? startHousing());
 
     this._agenda = structuredClone(initial.agenda ?? parseAgenda(undefined));
+
+    this._parish = structuredClone(initial.parish ?? emptyParish());
   }
 
   // ================================================================
@@ -297,6 +303,20 @@ export class GameState extends Phaser.Events.EventEmitter {
   setStudy(s: StudyState): void {
     this._study = structuredClone(s);
     this.emit('study');
+  }
+
+  // ================================================================
+  // ENCUENTROS (systems/Parish)
+  // ================================================================
+
+  get parish(): ParishState {
+    return structuredClone(this._parish);
+  }
+
+  /** Apunta un encuentro al que se ha ido. Energía y perfil de quien lo lleva se aplican aparte. */
+  setParish(p: ParishState): void {
+    this._parish = structuredClone(p);
+    this.emit('parish');
   }
 
   // ================================================================
@@ -749,6 +769,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       housing: structuredClone(this._housing),
 
       agenda: structuredClone(this._agenda),
+
+      parish: structuredClone(this._parish),
     };
   }
 }

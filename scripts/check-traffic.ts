@@ -51,7 +51,8 @@ const shortestCar = Math.min(...CARS.map((t) => t.length));
 const longestCar = Math.max(...CARS.map((t) => t.length));
 for (const b of BIKES) assert.ok(b.length < shortestCar * 0.65, `${b.id}: la bici (${b.length}) se acerca al coche más corto (${shortestCar})`);
 assert.ok(shortestCar > 24 * 1.35, `coches de juguete: el más corto (${shortestCar}) apenas pasa del alto de una persona`);
-for (const t of CARS) assert.ok(t.height >= 19 && t.height <= 25 && t.length <= 48, `${t.id}: ${t.length} × ${t.height} fuera de escala`);
+// El cupé, más bajo: ~1,30 m frente a 1,75 m de una persona (0,74 de 24 px).
+for (const t of CARS) assert.ok(t.height >= (t.shape === 'coupe' ? 18 : 19) && t.height <= 25 && t.length <= 48, `${t.id}: ${t.length} × ${t.height} fuera de escala`);
 for (const b of BUSES) assert.ok(b.length >= longestCar * 2 && b.height > Math.max(...CARS.map((t) => t.height)), `${b.id}: no se lee más grande que un coche`);
 for (const t of VEHICLES) assert.ok(t.length >= 30 && t.length <= 112, `${t.id}: largo raro`);
 
@@ -185,5 +186,64 @@ const bikeShare = report('bicis', riders, bikes);
 assert.ok(bikeShare('morning', ['commuter']) > bikeShare('midday', ['commuter']), 'quien va al trabajo, por la mañana');
 assert.ok(bikeShare('midday', ['courier']) > bikeShare('morning', ['courier']), 'el reparto, a la hora de comer');
 assert.ok(riders.exits > 7 * 100, `sólo ${riders.exits} bicis cruzan en una semana: atasco`);
+
+// ------------------------------------------------------------ CV-04: peatón encima, bloqueo, separación por tamaño
+const feetAt = (x: number): Vec2[] => def.lanes.map((l) => ({ x, y: l.row * TILE + TILE / 2 }));
+// Al entrar en la escena (o volver), ningún coche aparece encima de quien está en la calzada.
+for (let seed = 1; seed <= 40; seed++) {
+  const t = new Traffic(def, VEHICLES, [], widthPx, seededRng(seed));
+  const feet = [1, 2, 3, 4, 5].flatMap((k) => feetAt((k * widthPx) / 6));
+  t.populate({ day: 3, minuteOfDay: 480 }, feet);
+  for (const v of t.vehicles) {
+    for (const p of feet) if (p.y > v.row * TILE && p.y < v.row * TILE + TILE + 8) assert.ok(Math.abs(p.x - v.x) >= v.type.length / 2, `semilla ${seed}: ${v.type.id} aparece encima de un peatón`);
+  }
+}
+{
+  // Alguien plantado en mitad de la calzada, en todos los carriles, con la cámara encima: la cola espera a la vista y,
+  // fuera de cámara, el atascado se va pasado STUCK_MS; nada desaparece ni salta a la vista.
+  const t = new Traffic(def, VEHICLES, [], widthPx, seededRng(77));
+  const mid = widthPx / 2;
+  // Una vista estrecha (la del móvil en vertical, de sobra) para que la cola salga de cámara.
+  const view = [mid - 90, mid + 90] as const;
+  const block = feetAt(mid);
+  t.populate({ day: 3, minuteOfDay: 480 });
+  assert.ok(t.forceSpawn('bus', { day: 3, minuteOfDay: 480 }), 'no sale el autobús de la prueba');
+  const last = new Map<Vehicle, number>();
+  let gone = 0;
+  const step = (f: number, feet: readonly Vec2[]): void => {
+    t.update(16, { day: 3, minuteOfDay: 480 + (f * 16) / 500 }, feet, view);
+    const alive = new Set(t.vehicles);
+    for (const [v, x] of last) {
+      if (alive.has(v)) continue;
+      const atEdge = x < 0 || x > widthPx || Math.abs(x - (v.dir > 0 ? widthPx : 0)) < v.type.length;
+      assert.ok(x + v.type.length / 2 < view[0] || x - v.type.length / 2 > view[1] || atEdge, `${v.type.id} desaparece a la vista (x ${x.toFixed(0)})`);
+      if (!atEdge) gone++;
+      last.delete(v);
+    }
+    for (const v of t.vehicles) {
+      const before = last.get(v);
+      if (before !== undefined) assert.ok(Math.abs(v.x - before) < 3, `${v.type.id} salta ${(v.x - before).toFixed(1)} px en un frame`);
+      last.set(v, v.x);
+    }
+  };
+  for (let f = 0; f < 6_000; f++) step(f, block);
+  // A la vista, la cola sigue esperando delante del peatón.
+  const waiting = t.vehicles.filter((v) => v.speed < 1 && v.x + v.type.length / 2 >= view[0] && v.x - v.type.length / 2 <= view[1]);
+  assert.ok(waiting.length > 0, 'nadie espera al peatón a la vista');
+  assert.ok(gone > 0, 'el atasco fuera de cámara no se recupera');
+  // En cola, lo largo deja más hueco: nunca menos de QUEUE_GAP (5 px) por cada 40 px de largo.
+  let busGap = 0;
+  for (const v of t.vehicles) {
+    const ahead = t.vehicles.filter((o) => o.row === v.row && (o.x - v.x) * v.dir > 0).sort((a, b) => (a.x - b.x) * v.dir)[0];
+    if (!ahead || v.speed > 0.5 || ahead.speed > 0.5) continue;
+    const gap = (ahead.x - v.x) * v.dir - (ahead.type.length + v.type.length) / 2;
+    assert.ok(gap >= 5 * Math.max(1, v.type.length / 40) - 1, `${v.type.id} en cola a ${gap.toFixed(1)} px de ${ahead.type.id}`);
+    if (v.type.id === 'bus') busGap = gap;
+  }
+  // Se va el peatón: la cola arranca y nadie se queda clavado.
+  for (let f = 6_000; f < 9_000; f++) step(f, []);
+  assert.ok(t.vehicles.every((v) => v.stuckMs < 5_000), 'alguien sigue atascado sin nadie delante');
+  console.log(`CV-04: sin coches sobre peatones (40 semillas); bloqueo de 96 s: ${gone} atascados fuera de cámara retirados, ${waiting.length} esperando a la vista, sin saltos${busGap ? `; autobús en cola a ${busGap.toFixed(1)} px` : ''}.`);
+}
 
 console.log('OK: carriles de coches y bici sobre su calzada, rojo respetado, sin solapes, ceden al peatón, mezcla por hora y día, sin atascos.');

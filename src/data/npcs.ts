@@ -227,6 +227,20 @@ const DEFS: readonly NpcDef[] = [
     ],
   },
   {
+    // Parroquia de San Blas (CV-05): voluntaria de toda la vida; abre, cierra y lleva el coro del barrio de los sábados.
+    id: 'encarna',
+    name: 'Encarna',
+    cloth: '#6b4f6e',
+    clothDark: '#523b54',
+    hair: '#c9c4bc',
+    glasses: 'clear',
+    lines: [
+      'Pasa, pasa, que está abierto. Si quieres sentarte un rato, nadie te va a preguntar nada.',
+      'Los sábados a las seis ensayamos con el coro. Viene quien quiere: hay quien canta y hay quien sólo escucha.',
+      'Esta iglesia es más vieja que la plaza. La fuente la pusieron después, para la gente que salía.',
+    ],
+  },
+  {
     // Barbería Nati: lleva el local desde hace veinte años y corta ella.
     id: 'nati',
     name: 'Nati',

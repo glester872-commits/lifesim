@@ -157,7 +157,10 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('wine-bar', 'La Cepa · vinoteca', 'wine', [28, 50, 8, 5], 'n', 32, { enter: into('wine-bar'), point: 'WINE_BAR_ENTRANCE' }),
   // Traseras: tejados que cierran el norte del barrio.
   b('backdrop-nw', 'Manzana norte', 'backdrop', [2, 1, 20, 7], undefined),
-  b('backdrop-ne', 'Manzana noreste', 'backdrop', [49, 1, 18, 6], undefined),
+  // CV-05: la Parroquia de San Blas cierra la plaza por el noreste, en lo que era el tramo oeste de la trasera.
+  // Su puerta da al césped que bordea la plaza (fila 7), a cuatro pasos del banco de la fuente.
+  b('parish-door', 'Parroquia de San Blas', 'church', [49, 1, 7, 6], 's', 52, { enter: into('parish'), point: 'PARISH_ENTRANCE' }),
+  b('backdrop-ne', 'Manzana noreste', 'backdrop', [56, 1, 11, 6], undefined),
 
   // Calle Mayor, tramo este: vecinos a los dos lados.
   b('res-mayor-15', 'Mayor 15', 'res-brick', [76, 4, 10, 12], 's', 80, { floors: 3, point: 'RES_MAYOR_15_ENTRANCE', inspect: ['Una bici colgada en el balcón del primero. Nadie sabe cómo la subieron.'] }),
@@ -197,6 +200,8 @@ const PROPS: readonly PropPlacement[] = [
   // Sin espejo: la esquina noreste es de jardineras y los bancos de ese lado van corridos.
   ...[[31, 7], [31, 13], [48, 13]].map(([x, y]) => at('tree', x, y)),
   at('planter', 48, 7), at('planter', 49, 7),
+  // El tablón de la parroquia (spots: el horario del coro), a la derecha de su puerta.
+  at('menu-board', 54, 7),
   // Los bancos miran a la fuente: los del norte, al sur; los del sur, al norte (con el respaldo hacia la calle).
   ...row('bench', 8, [35, 36, 43, 44]),
   ...row('bench-up', 13, [35, 36, 44, 45]),
@@ -362,6 +367,8 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   'mayor-56': p(56, 17, 'path'), 'mayor-64': p(64, 17, 'path'), 'mayor-71': p(71, 17, 'path'),
   'plaza-s': p(40, 15, 'path'), 'plaza-w': p(34, 10, 'path'), 'plaza-e': p(46, 10, 'path'),
   'plaza-nw': p(34, 7, 'path'), 'plaza-ne': p(46, 7, 'path'), 'plaza-sw': p(31, 15, 'path'),
+  // A la parroquia: por la fila 9 (las jardineras de la esquina cierran la 7) y el césped de delante de la cafetería.
+  'parish-a': p(46, 9, 'path'), 'parish-b': p(51, 9, 'path'), 'parish-c': p(51, 7, 'path'),
   'tintoreros-n': p(23, 24, 'path'), callejon: p(50, 24, 'path'),
   'av-23': p(23, 30, 'path'), 'av-25': p(25, 30, 'path'), 'av-29': p(29, 30, 'path'),
   'av-50': p(50, 30, 'path'), 'av-53': p(53, 30, 'path'), 'av-65': p(65, 30, 'path'),
@@ -416,6 +423,7 @@ const LINKS: readonly Link[] = [
   ['PLAZA_BENCH_01', 'plaza-b1'], ['PLAZA_BENCH_05', 'plaza-b1'], ['PLAZA_BENCH_02', 'plaza-b2'], ['PLAZA_BENCH_06', 'plaza-b2'],
   ['PLAZA_BENCH_03', 'plaza-b3'], ['PLAZA_BENCH_07', 'plaza-b3'], ['PLAZA_BENCH_04', 'plaza-b4'], ['PLAZA_BENCH_08', 'plaza-b4'],
   ['NEWS_KIOSK', 'PLAZA_FOUNTAIN'],
+  ...chain('plaza-e', 'parish-a', 'parish-b', 'parish-c', 'PARISH_ENTRANCE'),
 
   // De la Mayor a la avenida
   ...chain('mayor-23', 'tintoreros-n', 'av-23'),
@@ -561,6 +569,8 @@ const BASE: LocationDef = {
   spots: [
     { tx: 40, ty: 15, name: 'Fotografiar · Plaza de la Fuente', activities: [], study: 'foto-fuente' },
     { tx: 102, ty: 45, name: 'Fotografiar · Calle del Carmen', activities: [], study: 'foto-carmen' },
+    // El tablón de la parroquia, junto a su puerta: horario del coro, el próximo ensayo y cómo te fue (systems/Parish).
+    { tx: 54, ty: 7, name: 'Tablón · Parroquia de San Blas', activities: [], gathering: 'coro' },
   ],
   // Cosas que se miran: responden con una línea, no abren nada.
   inspects: [

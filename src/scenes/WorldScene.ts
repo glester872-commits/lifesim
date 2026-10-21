@@ -169,7 +169,7 @@ type Interactable =
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; housing?: true | string; lines?: readonly string[] }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; lines?: readonly string[] }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
@@ -582,7 +582,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
-      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, housing: s.housing });
+      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, gathering: s.gathering, housing: s.housing });
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
@@ -675,12 +675,14 @@ export class WorldScene extends Phaser.Scene {
     const slot = Math.floor(this.services.clock.minuteOfDay / 30);
     const trafficRng = (flow: string): Rng => seededRng(hashSeed('traffic', def.id, flow, state.day, slot));
     this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx, trafficRng('cars')) : null;
-    this.traffic?.populate(this.trafficClock());
+    // Ningún coche aparece encima del jugador ni de quien ya está en la calle (al volver a la escena, tampoco).
+    this.gatherPedestrians();
+    this.traffic?.populate(this.trafficClock(), this.pedestrians);
     // Las recogidas de taxi/VTC de la calle piden su coche a este tráfico (StreetLife.advanceRides, Traffic.hail).
     if (this.street) this.street.traffic = this.traffic;
     this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour, () => weatherAt(state.day, hour()).wet) : null;
     this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx, trafficRng('bikes')) : null;
-    this.bikes?.populate(this.trafficClock());
+    this.bikes?.populate(this.trafficClock(), this.pedestrians);
     this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
     this.occlusion = new Occlusion(this);
@@ -941,9 +943,12 @@ export class WorldScene extends Phaser.Scene {
     this.wildlife?.update(delta, time, hour + minute / 60, this.playerTile(), (this.player.body as Phaser.Physics.Arcade.Body).speed > 1);
     this.gatherPedestrians();
     this.ambience?.update();
-    this.traffic?.update(delta, this.trafficClock(), this.pedestrians);
+    // Lo que enseña la cámara: un atascado sólo se va fuera de ella (Traffic.update).
+    const seen = this.cameras.main.worldView;
+    const view = [seen.x, seen.right] as const;
+    this.traffic?.update(delta, this.trafficClock(), this.pedestrians, view);
     this.trafficView?.sync(time);
-    this.bikes?.update(delta, this.trafficClock(), this.pedestrians);
+    this.bikes?.update(delta, this.trafficClock(), this.pedestrians, view);
     this.cyclistView?.sync();
     this.signals?.update(time);
     this.weatherView?.update(delta);
@@ -2554,6 +2559,7 @@ export class WorldScene extends Phaser.Scene {
     else if (target.kind === 'spot') {
       if (target.wardrobe) this.menus.openWardrobe();
       else if (target.study) this.menus.openStudy(target.study, target.name, target.lines ?? []);
+      else if (target.gathering) this.menus.openGathering(target.gathering, target.name);
       else if (target.housing) this.menus.openHousing(target.name, typeof target.housing === 'string' ? target.housing : undefined);
       else this.menus.openSpot(target.name, target.activities);
     }

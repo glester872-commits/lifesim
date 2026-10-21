@@ -643,6 +643,48 @@ function drawPainting(ctx: Ctx): void {
   px(ctx, PALETTE.amber, 9, 5, 2, 2);
 }
 
+/** Altar de piedra de tres tiles: mesa maciza con mantel blanco que cae por delante y un filo de luz arriba. */
+function drawAltar(ctx: Ctx): void {
+  const stone = PALETTE.stoneLit;
+  px(ctx, shade(stone, -0.2), 2, 4, 44, 12);
+  px(ctx, stone, 2, 4, 44, 2);
+  px(ctx, PALETTE.white, 1, 2, 46, 3);
+  px(ctx, shade(PALETTE.white, -0.12), 4, 5, 40, 4);
+  px(ctx, shade(PALETTE.white, 0.08), 1, 2, 46, 1);
+  // Paños de la piedra: dos juntas verticales.
+  px(ctx, shade(stone, -0.32), 17, 9, 1, 7);
+  px(ctx, shade(stone, -0.32), 31, 9, 1, 7);
+}
+
+/**
+ * Retablo sencillo en la pared del fondo, tres tiles: marco dorado, tres calles con arco y, en la central, una
+ * vidriera de colores; nada figurativo que lea quién cree en qué.
+ */
+function drawAltarpiece(ctx: Ctx): void {
+  const gold = '#c9a45a';
+  px(ctx, shade(gold, -0.35), 3, 0, 42, 16);
+  px(ctx, gold, 4, 1, 40, 14);
+  for (const [x, w] of [[6, 10], [19, 10], [32, 10]] as const) {
+    px(ctx, '#3a2c22', x, 4, w, 10);
+    px(ctx, '#3a2c22', x + 1, 3, w - 2, 1);
+  }
+  // La vidriera de en medio: rombos de colores con su luz.
+  const glass = ['#4f7fa8', '#b8483e', '#d9b44a', '#5c8a5a'];
+  for (let y = 4; y < 14; y++) for (let x = 20; x < 28; x++) px(ctx, glass[((x >> 1) + (y >> 1)) % glass.length], x, y);
+  px(ctx, shade(gold, 0.25), 4, 1, 40, 1);
+}
+
+/** Pie de lamparillas: soporte de hierro con tres filas de velas pequeñas encendidas. */
+function drawCandles(ctx: Ctx): void {
+  px(ctx, PALETTE.ink, 2, 8, 12, 2);
+  px(ctx, PALETTE.ink, 7, 10, 2, 6);
+  px(ctx, PALETTE.ink, 4, 15, 8, 1);
+  for (const [x, y] of [[3, 6], [6, 6], [9, 6], [12, 6], [4, 3], [8, 3], [11, 3]] as const) {
+    px(ctx, PALETTE.white, x, y, 1, 2);
+    px(ctx, PALETTE.amber, x, y - 1, 1, 1);
+  }
+}
+
 function drawClock(ctx: Ctx): void {
   px(ctx, PALETTE.ink, 5, 3, 6, 8);
   px(ctx, PALETTE.ink, 4, 4, 8, 6);
@@ -889,6 +931,9 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-window', TILE * 2, TILE, drawWindow);
   make(scene, 'prop-painting', TILE, TILE, drawPainting);
   make(scene, 'prop-clock', TILE, TILE, drawClock);
+  make(scene, 'prop-altar', TILE * 3, TILE, drawAltar);
+  make(scene, 'prop-altarpiece', TILE * 3, TILE, drawAltarpiece);
+  make(scene, 'prop-candles', TILE, TILE, drawCandles);
   make(scene, 'prop-chalkboard', TILE * 2, TILE, drawChalkboard);
   make(scene, 'prop-neon', TILE * 2, TILE, drawNeon);
   make(scene, 'prop-wall-shelf', TILE * 2, TILE, drawWallShelf);

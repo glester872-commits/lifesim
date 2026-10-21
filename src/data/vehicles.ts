@@ -9,7 +9,21 @@
  */
 
 /** Silueta: cómo se reparte el perfil entre capó, cabina y caja. */
-export type VehicleShape = 'city' | 'hatch' | 'sedan' | 'wagon' | 'suv-compact' | 'suv' | 'van' | 'bus' | 'coach' | 'box-truck' | 'garbage' | 'pickup';
+export type VehicleShape = 'city' | 'hatch' | 'sedan' | 'coupe' | 'wagon' | 'suv-compact' | 'suv' | 'van' | 'bus' | 'coach' | 'box-truck' | 'garbage' | 'pickup';
+
+/**
+ * Las cinco familias de turismo que se reconocen en la calle, por silueta: lo que el ojo agrupa a zoom normal
+ * (corto y alto, dos volúmenes, alto y cuadrado, caja con cristal sólo delante, largo y bajo). El resto de
+ * carrocerías (autobús, camión, servicio) no es un turismo y no tiene familia.
+ */
+export type CarArchetype = 'urbano' | 'compacto' | 'suv' | 'furgoneta' | 'berlina';
+export const ARCHETYPE_OF: Partial<Record<VehicleShape, CarArchetype>> = {
+  city: 'urbano',
+  hatch: 'compacto', wagon: 'compacto',
+  'suv-compact': 'suv', suv: 'suv',
+  van: 'furgoneta',
+  sedan: 'berlina', coupe: 'berlina',
+};
 
 /** Franjas del día con tráfico distinto. */
 export type TrafficBand = 'dawn' | 'morning' | 'midday' | 'evening' | 'night';
@@ -109,6 +123,13 @@ export const VEHICLES: readonly VehicleType[] = [
     colors: ['#14161a', '#3a3f48', '#e8e8ec', '#b8bcc2'],
     colorWeight: [4, 3, 3, 2],
     weight: 2.5, bands: { dawn: 0.5, night: 1.2 }, roads: { residential: 0.5 },
+  },
+  // Deportivo: cupé de dos puertas, bajo, de capó largo y una sola ventanilla; pocos, más los fines de semana y de noche.
+  {
+    id: 'coupe', shape: 'coupe', length: 44, height: 18, pace: 1.12,
+    colors: ['#1f2126', '#e6e2d8', '#9aa0a6', '#3a3f48', '#a8262c', '#2a4f8a'],
+    colorWeight: [10, 8, 8, 6, 3, 2],
+    weight: 2, bands: { dawn: 0.4, night: 1.3 }, weekend: 1.5, roads: { residential: 0.6 },
   },
   // VTC: berlina oscura de alquiler con conductor. Sólo donde el barrio la pide (Velaria): gated.
   {

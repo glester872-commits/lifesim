@@ -14,6 +14,8 @@ import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
 import { boardAt } from '../systems/Boards';
+import { attend as attendGathering, getGathering, hhmm, joinBlocker, lastAttendance, occurrenceOn } from '../systems/Parish';
+import { getNpc } from '../data/npcs';
 import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
 import { absMinute } from '../systems/Handoff';
 import { HAIRSTYLES, type Appearance } from '../data/appearance';
@@ -764,6 +766,57 @@ export class Menus {
     }, () => menu.close(), note);
   }
 
+  // ---------------------------------------------------------- encuentros
+
+  /**
+   * Un encuentro con hora (data/parish.ts), desde su tablón o hablando con quien lo lleva: qué es, el próximo, cómo
+   * fue el último y, si es la hora y estás dentro, ir hasta el final o un rato. Las reglas son de systems/Parish; aquí
+   * se enseñan, se aplica el resultado (una vez, antes de pasar el reloj) y se adelanta el reloj.
+   */
+  openGathering(id: string, name: string, note = ''): void {
+    const g = getGathering(id);
+    if (!g) return;
+    const { state, menu } = this.services;
+    const now = this.now();
+    const s = state.parish;
+    const today = occurrenceOn(g, state.day);
+    const blocked = joinBlocker(g, s, now);
+    const inside = placeForInterior(state.locationId)?.id === g.place;
+    const why = blocked ?? (inside ? undefined : `Es dentro: entra en la ${placeInfo(g.place)?.name ?? 'iglesia'} y habla con ${getNpc(g.host).name}.`);
+    const left = today ? today.end - now : 0;
+    const status = blocked ?? `Ahora: ${g.name}, hasta las ${hhmm(g.start + g.minutes / 60)}.`;
+    const text = [g.pitch, status, lastAttendance(g, s) ?? ''].filter(Boolean).join(' ');
+    menu.open(name, text, [
+      { label: 'Quedarme hasta el final', detail: blocked ? '' : `${left} min`, disabled: why },
+      { label: 'Sólo un rato', detail: blocked ? '' : `${Math.min(g.shortStay, left)} min`, disabled: why },
+      { label: 'Ahora no' },
+    ], (i) => {
+      if (i === 2) return menu.close();
+      this.joinGathering(g.id, name, i === 0 ? 'full' : 'short');
+    }, undefined, note);
+  }
+
+  /** Ir: se apunta en el estado y en el perfil de quien lo lleva, se guarda y luego pasa el rato. */
+  private joinGathering(id: string, name: string, choice: 'full' | 'short'): void {
+    const g = getGathering(id)!;
+    const { state, clock, menu, dialogue } = this.services;
+    const blocked = joinBlocker(g, state.parish, this.now());
+    if (blocked) return this.openGathering(id, name, blocked);
+    const out = attendGathering(g, state.parish, state.socialOf(g.host), this.now(), choice);
+    menu.close();
+    state.setParish(out.parish);
+    state.setSocialProfile(g.host, out.host);
+    state.energy += out.energy;
+    clock.advanceMinutes(out.minutes);
+    this.host.persist();
+    const host = getNpc(g.host).name;
+    dialogue.start(g.name, [
+      ...out.lines,
+      `${out.stay === 'full' ? 'Hasta el final' : 'Un rato'}: energía +${out.energy}; ${host} te tiene más presente (amistad +${out.effect.friendship}).`,
+      `${formatClock(state.day, state.hour, state.minute)}.`,
+    ]);
+  }
+
   // ---------------------------------------------------------- actividades
 
   // ----------------------------------------------------------- servicios
@@ -785,6 +838,10 @@ export class Menus {
     }
     if (offer.kind === 'police') {
       this.openPoliceDesk(offer, who);
+      return;
+    }
+    if (offer.kind === 'gathering') {
+      this.openGathering(offer.gathering, who, note);
       return;
     }
     if (offer.slot === 'tattoos') {

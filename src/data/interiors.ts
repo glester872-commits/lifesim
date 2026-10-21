@@ -615,6 +615,43 @@ export const PHARMACY: LocationDef = {
   },
 };
 
+// -------------------------------------------------------------- parroquia
+
+/** Bancos de la nave: dos filas a cada lado del pasillo central, un punto por plaza (data/seating.ts, 'pew'). */
+const PEW_CELLS: readonly (readonly [number, number])[] = [5, 7].flatMap((y) => [2, 3, 4, 8, 9, 10].map((x) => [x, y] as const));
+
+/**
+ * Parroquia de San Blas (CV-05): nave pequeña de piedra con el retablo al fondo, el altar delante, cuatro bancos
+ * corridos a los lados del pasillo y, a la derecha del altar, el pie de lamparillas donde sentarse un rato en silencio
+ * (data/activities.ts 'parish-rest'). Encarna, que lleva el coro, está junto al altar mientras está abierto; los
+ * sábados por la tarde los bancos se llenan con el coro del barrio (systems/Parish, systems/Crowd).
+ */
+export const PARISH: LocationDef = {
+  id: 'parish',
+  name: 'Parroquia de San Blas',
+  kind: 'interior',
+  ground: room(13, 12, 6, () => 't'),
+  props: [
+    at('altarpiece', 5, 1),
+    ...many('window', [[1, 1], [10, 1]]),
+    at('altar', 5, 3),
+    at('candles', 10, 3),
+    ...many('pew', PEW_CELLS),
+    at('plant', 1, 9),
+    at('plant', 11, 9),
+  ],
+  ambient: '#f1e3c8',
+  ...exitTo('parish-door', 6, 12),
+  spots: [{ tx: 10, ty: 3, name: 'Lamparillas', activities: ['parish-rest'] }],
+  npcs: [],
+  points: {
+    PARISH_EXIT: p(6, 9, 'exit', 'up'),
+    PARISH_HOST: p(6, 2, 'work', 'down'),
+    PARISH_CANDLES: p(10, 4, 'interact', 'up'),
+    ...Object.fromEntries(PEW_CELLS.map(([x, y], i) => [`PARISH_PEW_${TWO(i)}`, p(x, y, 'seat', 'up')])),
+  },
+};
+
 // ------------------------------------------------------- Calle del Carmen
 
 /**

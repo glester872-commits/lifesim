@@ -12,7 +12,7 @@ import { PC_INTERIORS } from './puertaCentralVenues.ts';
 import { ARENA } from './arena.ts';
 import { AR_INTERIORS } from './arenaVenues.ts';
 import { rebased } from './velariaVenues.ts';
-import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
+import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PARISH, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
 /**
  * Leyenda del terreno (ver TILES en world/tiles.ts):
@@ -580,6 +580,7 @@ export const LOCATIONS: readonly LocationDef[] = [
   RIBERA_STATION,
   BAR,
   PHARMACY,
+  PARISH,
   BARBERSHOP,
   RETALES,
   ARCHIVO,
