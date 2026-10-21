@@ -624,7 +624,7 @@ const PEW_CELLS: readonly (readonly [number, number])[] = [5, 7].flatMap((y) => 
  * Parroquia de San Blas (CV-05): nave pequeña de piedra con el retablo al fondo, el altar delante, cuatro bancos
  * corridos a los lados del pasillo y, a la derecha del altar, el pie de lamparillas donde sentarse un rato en silencio
  * (data/activities.ts 'parish-rest'). Encarna, que lleva el coro, está junto al altar mientras está abierto; los
- * sábados por la tarde los bancos se llenan con el coro del barrio (systems/Parish, systems/Crowd).
+ * domingos a mediodía los bancos se llenan con el coro del barrio (systems/Parish, systems/Crowd).
  */
 export const PARISH: LocationDef = {
   id: 'parish',

@@ -14,7 +14,6 @@ import { attractedTo, compatible, IDENTITIES, relation, RELATIONSHIPS, roleAffin
 import { getLocation } from '../src/systems/LocationSystem.ts';
 import { StreetLife, streetProfileFor, type Walker } from '../src/systems/StreetLife.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
-import { gatheringLooks } from '../src/systems/Parish.ts';
 import { NAMED_PEOPLE, NAMED_RELATIONSHIPS } from '../src/data/namedPeople.ts';
 import { namedRelation, tiesOf } from '../src/systems/People.ts';
 import { Conversation, ChatLog } from '../src/systems/Chat.ts';
@@ -121,11 +120,8 @@ for (const seed of [1, 2, 3, 4]) {
       const t = clock.hour * 60 + clock.minute + 1;
       clock = { day: clock.day + Math.floor(t / 1440), hour: Math.floor((t % 1440) / 60), minute: t % 60 };
     }
-    // CV-05: el sábado de 17:45 a 19:30 los vecinos del coro (systems/Parish) están dentro de la parroquia, y son de los
-    // más sociables: sus amigos salen esa hora con otra gente. Lo de «los grupos se conocen» se mide fuera de esa hora.
-    const choir = gatheringLooks((clock.day - 1) * 1440 + clock.hour * 60 + clock.minute).length > 0;
     for (const a of street.agents) {
-      if (a.leader && !choir && !seen.has(`${seed}:${a.id}`)) seen.set(`${seed}:${a.id}`, { c: a, lead: a.leader.look });
+      if (a.leader && !seen.has(`${seed}:${a.id}`)) seen.set(`${seed}:${a.id}`, { c: a, lead: a.leader.look });
       // Juntos por el camino: quien acompaña no se aleja de quien lleva el grupo.
       if (a.leader && a.moving && a.leader.moving && a.delay <= 0 && !a.vanish && street.agents.includes(a.leader)) {
         gaps++;
@@ -138,8 +134,8 @@ for (const seed of [1, 2, 3, 4]) {
 const companions = [...seen.values()];
 const tied = companions.filter(({ c }) => c.tie);
 assert.ok(companions.length >= 80, `pocos grupos en cuatro sábados: ${companions.length}`);
-// Medido (CV-05, 2026-10-22): antes de la parroquia, 0,61–0,62 en cuatro tandas; con el coro del sábado, 0,597–0,618
-// (el ensayo cambia el azar del resto de la tarde). Con 0,6 justo en el borde fallaba una de cada pocas veces.
+// Medido (CV-05, 2026-10-22): esta prueba no es determinista; antes de la parroquia, 0,61–0,62 en cuatro tandas, y con
+// ella, 0,59–0,62 en otras tres. 0,6 quedaba justo en el borde (ya fallaba alguna vez): margen para el ruido, no para grupos de extraños.
 assert.ok(tied.length / companions.length > 0.57, `sólo ${tied.length}/${companions.length} acompañantes se conocen`);
 for (const { c, lead } of tied) {
   assert.equal(relation(c.look, lead), c.tie, 'quien acompaña no es lo que dice ser');

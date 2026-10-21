@@ -2,7 +2,7 @@
 import { CHOIR, type GatheringDef, type GatheringEffect } from '../data/parish.ts';
 import { formatDate, weekIndex } from './Calendar.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
-import { IDENTITIES } from './People.ts';
+import { IDENTITIES, relationsOf } from './People.ts';
 import { isOpen, placeInfo } from './Places.ts';
 import { applyDelta, noteSocialMemory, type SocialMoment, type SocialProfile } from './Social.ts';
 
@@ -163,9 +163,14 @@ const GUESTS = new Map<string, readonly number[]>();
 
 function pickGuests(g: GatheringDef, day: number): number[] {
   const rng = seededRng(hashSeed('gathering', g.id, day));
+  // Un coro de barrio de domingo a mediodía: sobre todo gente de 45 para arriba y a quien le gusta la música; quien
+  // a esa hora sale (noche, skate, videojuegos) casi nunca. Así no se lleva a las pandas del Carmen (systems/StreetLife).
   const pool = IDENTITIES.filter((p) => p.resident && !busy(p.work, day, g.start, g.minutes)).map((p) => ({
     index: p.index,
-    w: 0.3 + p.sociability + (p.age >= 55 ? 0.8 : 0) + (p.interests.includes('music') ? 0.8 : 0),
+    w: (0.1 + (p.age >= 60 ? 1.6 : p.age >= 45 ? 1 : 0) + (p.interests.includes('music') ? 0.7 : 0) + 0.3 * p.sociability)
+      * (p.interests.some((i) => i === 'nightlife' || i === 'skating' || i === 'gaming') ? 0.2 : 1)
+      // Quien tiene pareja suele pasar el domingo con ella (los paseos en pareja de systems/StreetLife).
+      * (relationsOf(p.index).some((r) => r.type === 'couple' || r.type === 'married' || r.type === 'dating') ? 0.25 : 1),
   }));
   const n = g.guests[0] + Math.floor(rng() * (g.guests[1] - g.guests[0] + 1));
   const out: number[] = [];

@@ -97,8 +97,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'study-center', name: 'Centro de estudios', type: 'business', tags: ['study', WORK], building: 'study', capacity: 40, hours: [8, 21] },
   { id: 'civic-office', name: 'Junta municipal', type: 'business', tags: ['civic', WORK], building: 'civic', capacity: 10, hours: [9, 14] },
 
-  // La iglesia de la plaza (CV-05): visita libre en su horario y, los sábados de 18:00 a 19:30, el ensayo abierto del coro (data/parish.ts).
-  { id: 'parish', name: 'Parroquia de San Blas', type: 'public', tags: ['social', 'quiet'], building: 'parish-door', capacity: 30, hours: [9, 20.5], why: 'Sentarse un rato en silencio y, los sábados por la tarde, cantar con el coro del barrio.' },
+  // La iglesia de la plaza (CV-05): visita libre en su horario y, los domingos de 12:00 a 13:30, el ensayo abierto del coro (data/parish.ts).
+  { id: 'parish', name: 'Parroquia de San Blas', type: 'public', tags: ['social', 'quiet'], building: 'parish-door', capacity: 30, hours: [9, 20.5], why: 'Sentarse un rato en silencio y, los domingos a mediodía, cantar con el coro del barrio.' },
 
   // Transporte y espacio público
   { id: 'metro-vallesco', name: 'Metro · Vallesco', type: 'transit', tags: ['transit'], building: 'metro-door', anchors: ['METRO_PLAZUELA_BENCH'], capacity: 60 },

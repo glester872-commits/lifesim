@@ -346,7 +346,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   },
   {
     place: 'parish',
-    // Poca gente: alguna visita por la mañana y al caer la tarde. El coro de los sábados no sale de aquí: son vecinos con
+    // Poca gente: alguna visita por la mañana y al caer la tarde. El coro de los domingos no sale de aquí: son vecinos con
     // nombre, elegidos por systems/Parish.guestsOf, que Crowd sienta en los bancos durante el ensayo.
     bands: [[9, 12, 'LOW'], [12, 17, 'VERY_LOW'], [17, 20.5, 'LOW']],
     weekday: [0, 0, 0, 0, 0, 0, 1],
