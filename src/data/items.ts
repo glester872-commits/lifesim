@@ -8,13 +8,23 @@ import { takeawayItems } from './foodItems.ts';
 export interface ItemDef {
   id: string;
   name: string;
-  /** ingredient: no se come tal cual, se usa (cocinar); medicine: se toma y quita el cansancio. */
-  kind: 'food' | 'drink' | 'ingredient' | 'medicine' | 'card';
+  /**
+   * ingredient: no se come tal cual, se usa (cocinar); medicine: se toma y quita el cansancio; hygiene: se gasta en
+   * una actividad (la ducha de casa), no desde la bolsa.
+   */
+  kind: 'food' | 'drink' | 'ingredient' | 'medicine' | 'hygiene' | 'gift' | 'card';
   /** Energía que devuelve al consumirlo. */
   energy?: number;
   /** Lo que se lee al usarlo. */
   use?: string;
+  /** Dónde se usa si no es desde la bolsa (ingredient, hygiene): lo enseña la tienda antes de comprar. */
+  where?: string;
+  /** Unidades que caben en la bolsa (CARRY_MAX si no se dice). */
+  max?: number;
 }
+
+/** Lo que cabe de cada cosa en la bolsa: comprar más se niega y se explica (systems/Commerce.checkout). */
+export const CARRY_MAX = 12;
 
 export const ITEMS: readonly ItemDef[] = [
   { id: 'water', name: 'Agua', kind: 'drink', energy: 3, use: 'Agua fría. Tampoco hace milagros.' },
@@ -26,7 +36,15 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'coffee', name: 'Café con leche', kind: 'drink', energy: 10, use: 'Ahora sí.' },
   { id: 'croissant', name: 'Cruasán', kind: 'food', energy: 8, use: 'Deja migas en todas partes.' },
   // Segunda tanda: la compra (para cocinar en casa), la panadería y la farmacia.
-  { id: 'groceries', name: 'Bolsa de la compra', kind: 'ingredient', use: 'Arroz, huevos, verdura y algo de pescado. Da para una comida de verdad, si la cocinas.' },
+  { id: 'groceries', name: 'Bolsa de la compra', kind: 'ingredient', where: 'se cocina en la cocina de casa (+30 ⚡)', use: 'Arroz, huevos, verdura y algo de pescado. Da para una comida de verdad, si la cocinas.' },
+  // Súper Rosales (CV-02): lo que faltaba para comer sin cocinar, un zumo y el gel de la ducha de casa.
+  { id: 'ready-meal', name: 'Plato preparado', kind: 'food', energy: 16, use: 'Lentejas de tarrina, templadas a medias. Llenan igual.' },
+  { id: 'juice', name: 'Zumo de naranja', kind: 'drink', energy: 7, use: 'Del brik, frío. Sabe a desayuno aunque sean las seis.' },
+  // Una unidad es una ducha: el bote trae 8 (data/catalogs.ts) y caben dos botes.
+  // Almacenes Velarde, regalos (CV-03): se dan hablando con alguien que conoces (systems/Gifts.ts), no se usan.
+  { id: 'gift-chocolates', name: 'Caja de bombones', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Bombones surtidos con lazo dorado.' },
+  { id: 'gift-cologne', name: 'Colonia de regalo', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 2, use: 'Frasco de cristal, envuelto en papel verde de Velarde.' },
+  { id: 'shower-gel', name: 'Gel de ducha', kind: 'hygiene', where: 'en la ducha de casa: ducha con gel, +10 ⚡ en vez de +6', max: 16, use: 'Huele a algo que se llama «brisa marina».' },
   { id: 'bread', name: 'Barra de pan', kind: 'food', energy: 6, use: 'Crujiente por fuera. Te comes el pico antes de llegar a casa.' },
   { id: 'pastry', name: 'Napolitana de chocolate', kind: 'food', energy: 9, use: 'Todavía caliente.' },
   { id: 'fruit', name: 'Bolsa de fruta', kind: 'food', energy: 5, use: 'Una manzana. La más fea, la más buena.' },

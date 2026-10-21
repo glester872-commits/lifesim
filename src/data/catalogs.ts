@@ -27,6 +27,11 @@ export interface Catalog {
   /** Lo que dice la máquina o el mostrador al abrirse. */
   greeting: string;
   products: readonly Product[];
+  /**
+   * Una tienda en la que se elige cantidad y se paga en caja (scenes/Menus.openCheckout, systems/Commerce.checkout):
+   * ficha con efecto, total y saldo antes de pagar, y el rato de la caja. Sin esto, cada toque compra una unidad.
+   */
+  checkout?: boolean;
 }
 
 const item = (id: string, label: string, price: number): Product => ({ id, label, price, effect: { item: id } });
@@ -55,6 +60,35 @@ export const CATALOGS: readonly Catalog[] = [
     id: 'supermarket-till',
     greeting: 'Buenas. ¿Bolsa?',
     products: [item('groceries', 'Compra para cocinar', 9), item('bread', 'Barra de pan', 0.9), item('fruit', 'Bolsa de fruta', 2.4), item('water', 'Agua (1,5 l)', 0.6), item('chocolate', 'Chocolatina', 1), item('chips', 'Patatas fritas', 1.1)],
+  },
+  {
+    // Súper Rosales (Vallesco): el súper de barrio. Precios de un súper de verdad; todo tiene uso (comer o beber desde la
+    // bolsa, cocinar en casa o la ducha con gel). La compra para cocinar sigue a €9: el presupuesto (simulate-budget) cuenta con ella.
+    id: 'super-rosales',
+    greeting: 'Súper Rosales. Mientras eliges, el reloj no corre; pagar en caja lleva 2 min.',
+    checkout: true,
+    products: [
+      item('groceries', 'Compra para cocinar (una comida)', 9),
+      item('ready-meal', 'Plato preparado', 3.2),
+      item('sandwich', 'Sándwich envasado', 2.2),
+      item('bread', 'Barra de pan', 0.9),
+      item('fruit', 'Bolsa de fruta (1 kg)', 2.4),
+      item('chocolate', 'Chocolatina', 1),
+      item('chips', 'Patatas fritas', 1.1),
+      item('water', 'Agua (1,5 l)', 0.6),
+      item('juice', 'Zumo de naranja (1 l)', 1.45),
+      item('cola', 'Refresco de cola (lata)', 0.85),
+      item('energy-drink', 'Bebida energética', 1.3),
+      { id: 'shower-gel', label: 'Gel de ducha (8 duchas)', price: 1.95, effect: { item: 'shower-gel', qty: 8 } },
+    ],
+  },
+  {
+    // Almacenes Velarde, departamento de regalos (CV-03): se pagan en caja con cantidad y se dan hablando con alguien
+    // que conoces (systems/Gifts.ts). Más caro que el súper, envuelto y con su papel verde.
+    id: 'velarde-regalos',
+    greeting: 'Regalos · Almacenes Velarde. Se lo envolvemos sin coste. Mientras elige, el reloj no corre; pagar lleva 2 min.',
+    checkout: true,
+    products: [item('gift-chocolates', 'Caja de bombones', 14), item('gift-cologne', 'Colonia de regalo', 32)],
   },
   {
     id: 'pharmacy-counter',

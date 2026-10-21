@@ -57,7 +57,7 @@ export const STUDIO: LocationDef = {
   ambient: '#ffe6c8',
   spots: [
     { tx: 4, ty: 6, name: 'Cocina', activities: ['cook'] },
-    { tx: 1, ty: 4, name: 'Ducha', activities: ['shower'] },
+    { tx: 1, ty: 4, name: 'Ducha', activities: ['shower', 'shower-gel'] },
     { tx: 12, ty: 3, name: 'Cama', activities: ['nap', 'sleep'] },
     { tx: 7, ty: 3, name: 'Armario', activities: [], wardrobe: true },
     { tx: 9, ty: 1, name: 'Espejo', activities: [], wardrobe: true },

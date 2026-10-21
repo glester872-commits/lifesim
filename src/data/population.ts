@@ -314,7 +314,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
         plan: [
           { state: 'BROWSE_AISLE', points: ['SUPERMARKET_AISLE_', 'SUPERMARKET_PRODUCE', 'SUPERMARKET_FRIDGES'], minutes: [2, 5], repeat: [2, 4] },
           { state: 'QUEUE', points: ['SUPERMARKET_QUEUE_'], minutes: [1, 2] },
-          { state: 'CHECKOUT', points: ['SUPERMARKET_TILL'], minutes: [1, 2] },
+          { state: 'CHECKOUT', points: ['SUPERMARKET_CHECKOUT'], minutes: [1, 2] },
         ],
       },
     ],

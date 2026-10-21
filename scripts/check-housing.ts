@@ -11,7 +11,7 @@ import { baseLocation, getLocation, isWalkable } from '../src/systems/LocationSy
 import { route } from '../src/systems/Navigation.ts';
 import {
   buy, buyBlocker, installAll, installedIn, move, moveBlocker, moveSummary, movePlans, homeDoor, homeEntry, parseHousing, quote, reaches, rentsOf,
-  startHousing, storedIn, variantOf, type HousingState,
+  startHousing, storedIn, variantOf, layout, optionsOf, type HousingState,
 } from '../src/systems/Housing.ts';
 import { routineFor, whereabouts, whereaboutsIn } from '../src/systems/Characters.ts';
 import {
@@ -44,7 +44,7 @@ for (const home of HOMES) {
 }
 for (const u of UPGRADES) {
   assert.ok(u.price > 0 && Object.keys(u.placements).length > 0, `${u.id}: sin precio o sin sitio`);
-  for (const [homeId, p] of Object.entries(u.placements)) {
+  for (const [homeId, p] of Object.entries(u.placements).flatMap(([home]) => optionsOf(u, home).map((o) => [home, o] as const))) {
     const slot = SLOTS[homeId]?.[p.slot];
     assert.ok(slot, `${u.id}/${homeId}: ranura ${p.slot} desconocida`);
     const inside = (tx: number, ty: number): boolean => tx >= slot.tx && tx < slot.tx + slot.w && ty >= slot.ty && ty < slot.ty + slot.h;
@@ -107,7 +107,7 @@ for (const home of HOMES) {
     assert.ok(route(exit, seat), `${home.id}+[${owned}]: sin ruta de la puerta al sofá`);
     // Lo comprado e instalado se ve y se toca desde la misma definición.
     for (const id of installedIn(h)) {
-      const placed = getUpgrade(id).placements[home.id];
+      const placed = [...layout(h, home.id).values()].find((v) => v.id === id)!.placement;
       for (const prop of placed.props) assert.ok(loc.props.some((q) => q.kind === prop.kind && q.tx === prop.tx && q.ty === prop.ty), `${home.id}: ${id} no está en la casa`);
       for (const s of placed.spots ?? []) assert.ok(loc.spots?.some((q) => q.name === s.name), `${home.id}: ${id} no se puede usar`);
     }
@@ -115,7 +115,7 @@ for (const home of HOMES) {
   }
 }
 installAll(startHousing());
-assert.deepEqual(variantOf(getHome('olmo7'), []).props, baseLocation('home').props, 'sin mejoras, la casa es la de los datos');
+assert.deepEqual(variantOf(getHome('olmo7'), null).props, baseLocation('home').props, 'sin mejoras, la casa es la de los datos');
 // Una mejora sólida cambia las colisiones: el tile del sofá nuevo deja de ser transitable.
 installAll(homeAt('olmo7', ['sofa-lectura']));
 assert.equal(isWalkable(getLocation('home'), 13, 11), false, 'el sofá nuevo no choca');

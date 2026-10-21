@@ -682,7 +682,9 @@ export class StreetLife {
     const walking = this.walkers().length;
     if (walking < target) this.startTrip(clock, player, target, false);
     else if (walking > target + 2) {
-      const staying = this.agents.filter((a) => a.staying && !a.leader && a.kind === 'visitor').sort((a, b) => b.timer - a.timer);
+      // A quien espera a la policía (víctima de un aviso abierto) no se le manda a casa.
+      const waiting = new Set(this.agents.map((a) => a.respond?.victim));
+      const staying = this.agents.filter((a) => a.staying && !a.leader && a.kind === 'visitor' && !waiting.has(a)).sort((a, b) => b.timer - a.timer);
       for (const a of staying.slice(0, 2)) a.timer = Math.min(a.timer, 1_500);
     }
     if (this.rng() < AMBIENT_CHANCE) this.startAmbient(clock, player, false);
@@ -1443,6 +1445,8 @@ export class StreetLife {
     const free = this.agents.filter((a) => a.kind === 'visitor' && isPolice(a.role) && !a.respond && !a.leader).sort((p, q) => d(p) - d(q));
     const lead = free[0] ?? this.callPatrol(at);
     if (!lead) return false;
+    // La víctima, si estaba parada, espera a que lleguen y la atiendan; luego sigue con lo suyo.
+    if (victim !== 'player' && victim.staying) victim.timer = Math.max(victim.timer, POLICE.reachMs + POLICE.attendMs);
     let sent = 0;
     for (const o of [lead, ...this.companions(lead)]) {
       const path = this.detour({ tx: Math.round(o.x), ty: Math.round(o.y) }, this.sideTile(at) ?? at);

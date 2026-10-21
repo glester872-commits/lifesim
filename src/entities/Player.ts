@@ -6,6 +6,7 @@ import { PLAYER_H, PLAYER_W } from '../world/TextureFactory';
 import { every } from '../world/Motion';
 import { BENCH_BAR, RACK_EMPTY, REPS, SETUP_MS } from './Character';
 import type { Motion } from '../data/stations';
+import { LightDepth } from '../world/LightDepth';
 
 export interface MoveInput {
   up: boolean;
@@ -52,6 +53,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   constructor(scene: Phaser.Scene, x: number, y: number, facing: Facing) {
     super(scene, x, y, `player-${facing}-0`);
+    // Tapa la luz que tiene detrás: ventanas, halos, rótulos, semáforos (world/LightDepth).
+    LightDepth.of(scene).occluder(this);
     this.dir = facing;
 
     scene.add.existing(this);
@@ -251,7 +254,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.anims.stop();
       this.setTexture(`player-${dir}-${tr.sits ? 4 : 0}`);
     } else if (tr.motion === 'treadmill') {
-      this.anims.play(`player-walk-${dir}`, true);
+      this.anims.play(`player-run-${dir}`, true);
       this.anims.timeScale = 1.75;
       under = `fx-belt-${Math.floor(time / 70) % 2}`;
     } else if (reps) {

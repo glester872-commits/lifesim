@@ -54,6 +54,20 @@ export class GameState extends Phaser.Events.EventEmitter {
   }
 
   /**
+   * Probándose una prenda (scenes/Menus.openGarment): el outfit de antes. No se guarda, y el snapshot guarda esto en
+   * vez de la prueba, la guarde quien la guarde (la escena, el cierre de la pestaña): sin pagar, no se queda puesta.
+   */
+  private _fitting: Appearance | null = null;
+
+  get fitting(): Appearance | null {
+    return this._fitting;
+  }
+
+  setFitting(outfit: Appearance | null): void {
+    this._fitting = outfit ? { ...outfit } : null;
+  }
+
+  /**
    * Memoria narrativa del metro.
    */
   events: EventMemory;
@@ -588,6 +602,9 @@ export class GameState extends Phaser.Events.EventEmitter {
     hour: number,
     minute: number,
   ): void {
+    // Un reloj sin número (setClock(undefined, …), una fecha mal escrita en la consola) no se aplica: se guardaría y la
+    // partida entera se apartaría como ilegible al cargar.
+    if (![day, hour, minute].every(Number.isFinite)) return;
     if (
       day === this._day &&
       hour === this._hour &&
@@ -696,7 +713,7 @@ export class GameState extends Phaser.Events.EventEmitter {
 
       appearance:
         structuredClone(
-          this._appearance,
+          this._fitting ? { ...this._appearance, player: this._fitting } : this._appearance,
         ),
 
       wardrobe: [

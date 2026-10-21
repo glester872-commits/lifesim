@@ -178,7 +178,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
       night: { taxi: 1.8, vtc: 1.4 },
     },
     // 'police': la comisaría de la plaza (systems/Police).
-    facades: ['res-*', 'souvenir', 'fashion', 'restaurant', 'cafe', 'metro', 'police', 'backdrop'],
+    facades: ['res-*', 'souvenir', 'fashion', 'budget', 'department', 'restaurant', 'cafe', 'metro', 'police', 'backdrop'],
     ambience: { leaf: 0.6, paper: 1.6, steam: 1.2 },
   },
   // Distrito Arena: hormigón del estadio y granito de la explanada; farola cálida casi blanca (lo frío, las torres de focos). La gente, de chándal y de

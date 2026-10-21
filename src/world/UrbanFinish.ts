@@ -5,28 +5,24 @@ import { make, px, shade, type Ctx } from './paint';
 import { drawMetroHero, drawTotemSign, HERO_H, HERO_W } from './UrbanArt';
 
 /**
- * HD-03, acabado urbano de la manzana piloto (LocationDef.pilot). Las mismas
+ * HD-03, acabado urbano de todo el sitio (LocationDef.finish). Las mismas
  * piezas de siempre, del mismo tamaño y con el mismo pie (colisión, asiento,
  * luz y sombra no cambian), pintadas con el lenguaje de Olmo 11: volumen por
  * tonos con la luz del noroeste (canto claro arriba a la izquierda, cara en
  * sombra abajo a la derecha), materiales que se distinguen (hierro, acero,
  * madera, granito, plástico) y contacto con el suelo. Ni brillo añadido ni más
- * objetos: cada textura es la versión `-hd03` de una que ya existe, y sólo se
- * usa dentro de la manzana. El suelo va en world/Surfaces, los árboles en
+ * objetos: cada textura es la versión `-hd03` de una que ya existe, en todo
+ * el sitio a la vez (sin costura entre manzanas). El suelo va en world/Surfaces, los árboles en
  * world/Vegetation y los semáforos en world/SignalView. Los turismos (en
  * marcha y aparcados) llevan el acabado en todo el mapa: world/VehicleArt.
  */
 
-type Rect = NonNullable<LocationDef['pilot']>;
+/** Si el sitio lleva el acabado HD-03: fuera, con LocationDef.finish. Los interiores, como siempre. */
+export const finished = (def: Pick<LocationDef, 'finish' | 'kind'>): boolean => !!def.finish && def.kind !== 'interior';
 
-/** Si el tile cae en la manzana piloto. */
-export function inPilot(pilot: Rect | undefined, tx: number, ty: number): boolean {
-  return !!pilot && tx >= pilot.tx && tx < pilot.tx + pilot.w && ty >= pilot.ty && ty < pilot.ty + pilot.h;
-}
-
-/** La textura de una pieza en ese tile: dentro de la manzana, su versión `-hd03` si la hay. */
-export function pilotKey(scene: Phaser.Scene, def: LocationDef, key: string, tx: number, ty: number): string {
-  if (!inPilot(def.pilot, tx, ty)) return key;
+/** La textura de una pieza en ese tile: con el acabado, su versión `-hd03` si la hay. */
+export function finishKey(scene: Phaser.Scene, def: LocationDef, key: string, tx: number, ty: number): string {
+  if (!finished(def)) return key;
   // Si la pieza tiene variantes con acabado (`-hd03-0`…), cada sitio la suya, siempre la misma.
   const variant = `${key}-hd03-${(tx * 7 + ty * 13) % BUSH_VARIANTS}`;
   if (scene.textures.exists(variant)) return variant;

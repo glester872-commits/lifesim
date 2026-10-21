@@ -4,7 +4,7 @@ import { every } from '../world/Motion';
 import { TILE } from '../config/constants';
 import type { Facing, NpcDef } from '../types/game';
 import { findPoint } from '../systems/Navigation';
-import { PEOPLE, personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
+import { personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
 import type { Pose } from '../world/HumanArt';
 import { getStation, STATIONS, type Motion, type StationDef } from '../data/stations';
 import type { SeatIdle } from '../data/seating';
@@ -12,6 +12,7 @@ import { seatAt, seatIdle } from '../systems/Seating';
 import type { AmbientFrame } from '../systems/AmbientActions';
 import type { AmbientLook, AmbientProp } from '../data/ambientActions';
 import { SmokeFx } from '../world/SmokeFx';
+import { LightDepth } from '../world/LightDepth';
 
 /**
  * Lo que se ve hacer a alguien parado. No es IA: sale del sitio donde está
@@ -210,6 +211,8 @@ export class Character extends Phaser.GameObjects.Sprite {
 
   constructor(scene: Phaser.Scene, def: NpcDef, seed = 0) {
     super(scene, 0, 0, personTexture(def.id), personFrame(def.id, 'down'));
+    // Tapa la luz que tiene detrás: ventanas, halos, rótulos, semáforos (world/LightDepth).
+    LightDepth.of(scene).occluder(this);
     this.def = def;
     this.lookId = def.id;
     this.seed = seed;
@@ -376,7 +379,7 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.facing = null;
       this.anims.stop();
       // Escondido no apunta a una textura de 28 × 42 que ya nadie retiene (y que se puede tirar).
-      this.setTexture(PEOPLE, personFrame(this.lookId, 'down'));
+      this.setTexture(personTexture(this.lookId), personFrame(this.lookId, 'down'));
       return;
     }
     // El icono es de todos (móvil, plato, bocadillo): sólo lo que se sostiene en un gesto va en espejo.
@@ -446,7 +449,8 @@ export class Character extends Phaser.GameObjects.Sprite {
     if (activity === 'walk' && this.rising(where, time)) {
       // Recién levantado: de pie un instante (rising ya pone la pose).
     } else if (activity === 'walk' || activity === 'run' || activity === 'treadmill') {
-      this.loop(`npc-${id}-walk-${where.dir}`);
+      // Quien corre (el del parque, o en la cinta a buen ritmo) corre: zancada en el aire, no el paso de andar acelerado.
+      this.loop(`npc-${id}-${activity === 'run' || (activity === 'treadmill' && pace > 1.5) ? 'run' : 'walk'}-${where.dir}`);
       // La banda corre hacia atrás bajo los pies, al paso de quien va encima.
       if (activity === 'treadmill') under = `fx-belt-${Math.floor(time / (pace > 1.5 ? 70 : 120)) % 2}`;
     } else if (reps) {

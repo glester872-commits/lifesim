@@ -180,13 +180,13 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'taxi-velaria', name: 'Parada de taxis del Gran Hotel', type: 'transit', tags: ['transit'], anchors: ['VL_TAXI_01', 'VL_TAXI_02'], capacity: 6 },
   { id: 'plaza-aurelia', name: 'Plaza Aurelia', type: 'public', tags: ['social', 'outdoor'], anchors: ['VL_PLAZA_BENCH_01', 'VL_PLAZA_BENCH_02', 'VL_PLAZA_BENCH_03', 'VL_PLAZA_BENCH_04'], capacity: 16 },
   // ------------------------------------------------------------------ Puerta Central (data/puertaCentral.ts)
-  { id: 'res-pc-puerta-9', name: 'Calle de la Puerta 9', type: 'residence', tags: ['home'], building: 'pc-puerta-9', capacity: 14 },
+  { id: 'pc-monton', name: 'Montón · moda', type: 'business', tags: ['shop', 'fashion', WORK], building: 'pc-puerta-9', capacity: 12, hours: [9.5, 22], why: 'Ropa de temporada al precio más bajo de la ciudad: camisetas a cuatro euros y te lo llevas puesto.' },
   { id: 'res-pc-puerta-13', name: 'Calle de la Puerta 13', type: 'residence', tags: ['home'], building: 'pc-puerta-13', capacity: 14 },
   { id: 'res-pc-puerta-17', name: 'Calle de la Puerta 17', type: 'residence', tags: ['home'], building: 'pc-puerta-17', capacity: 12 },
   { id: 'res-pc-puerta-21', name: 'Calle de la Puerta 21', type: 'residence', tags: ['home'], building: 'pc-puerta-21', capacity: 14 },
   { id: 'res-pc-plaza-4', name: 'Plaza de la Puerta 4', type: 'residence', tags: ['home'], building: 'pc-plaza-4', capacity: 12 },
   { id: 'res-pc-plaza-6', name: 'Plaza de la Puerta 6', type: 'residence', tags: ['home'], building: 'pc-plaza-6', capacity: 12 },
-  { id: 'res-pc-plaza-8', name: 'Plaza de la Puerta 8', type: 'residence', tags: ['home'], building: 'pc-plaza-8', capacity: 12 },
+  { id: 'pc-velarde', name: 'Almacenes Velarde', type: 'business', tags: ['shop', 'gifts', 'home-goods', WORK], building: 'pc-plaza-8', capacity: 16, hours: [10, 22], hoursByDay: { sunday: [11, 21] }, why: 'Grandes almacenes: hogar (muebles que se colocan en casa) y regalos para la gente que conoces.' },
   { id: 'res-pc-plaza-10', name: 'Plaza de la Puerta 10', type: 'residence', tags: ['home'], building: 'pc-plaza-10', capacity: 10 },
   // La comisaría (systems/Police): abierta siempre. Dentro, recepción: la seguridad de la zona y, si te han robado, la denuncia.
   { id: 'pc-comisaria', name: 'Comisaría de Puerta Central', type: 'business', tags: ['police', 'civic'], building: 'pc-comisaria', capacity: 8, hours: [0, 24], why: 'Preguntar cómo está la zona a esta hora y, si te han robado en la calle, poner la denuncia.' },

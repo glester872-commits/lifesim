@@ -8,7 +8,7 @@ import { getCatalog } from '../src/data/catalogs.ts';
 import { KIND_OF } from '../src/systems/Fitness.ts';
 import { allLocations, doorRow, solidMask } from '../src/systems/LocationSystem.ts';
 import { seatsIn } from '../src/systems/Seating.ts';
-import { INTERACTION, PRIORITY, pickTarget, wallBetween, type Candidate } from '../src/systems/Interaction.ts';
+import { INTERACTION, PRIORITY, pickTarget, tileAhead, wallBetween, type Candidate } from '../src/systems/Interaction.ts';
 import { DialogueSystem } from '../src/systems/DialogueSystem.ts';
 import { PlayerInput } from '../src/systems/PlayerInput.ts';
 import { purchase, payFare } from '../src/systems/Commerce.ts';
@@ -272,6 +272,17 @@ for (const loc of allLocations()) {
   const origin = { x: till.tx * TILE + C, y: till.ty * TILE + TILE + 4 - 8 };
   const offered = pickTarget(origin, cands, { facing: 'up', blocked: (c) => wallBetween(cafe, origin, c) });
   assert.ok(offered && offered.kind === 'terminal', `delante del mostrador se ofrece ${offered?.id}`);
+  // Hora punta: un cliente pagando pegado al jugador, en el mismo mostrador. Sin mirar qué hay delante gana él (así
+  // se bloqueaban las cajas, BUG-004/007); con el tile de delante (tileAhead), el mostrador.
+  // Jugador de pie en el centro del tile de delante (pies a 14 px, origen 8 px más arriba, como WorldScene); el cliente,
+  // en ese mismo tile (su ancla, 10 px sobre sus pies).
+  const standing = { x: till.tx * TILE + C, y: (till.ty + 1) * TILE + 14 - 8 };
+  const queuer: Candidate = { id: 'npc:cliente', kind: 'npc', x: standing.x + 4, y: (till.ty + 1) * TILE + 14 - 10 };
+  const crowded = [...cands, queuer];
+  assert.equal(pickTarget(standing, crowded, { facing: 'up' })?.id, 'npc:cliente', 'el cliente pegado ya no gana: la prueba no reproduce el bloqueo');
+  const playerTile = { tx: till.tx, ty: till.ty + 1 };
+  assert.equal(pickTarget(standing, crowded, { facing: 'up', ahead: tileAhead(playerTile, 'up') })?.kind, 'terminal', 'con gente en la cola, la caja de delante no se ofrece');
+  assert.notEqual(pickTarget(standing, crowded, { facing: 'down', ahead: tileAhead(playerTile, 'down') })?.kind, 'terminal', 'de espaldas a la caja, se ofrece igual');
   const wallet = { money: 30, inventory: {}, cards: {} };
   const product = getCatalog('cafe-counter').products[0];
   const bought = purchase(wallet, product);

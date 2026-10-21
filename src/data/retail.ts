@@ -118,6 +118,14 @@ const SEEDS: readonly GarmentSeed[] = [
   // Puerta Central. Recuerdos de la Puerta: lo de la plaza, para llevárselo puesto.
   { id: 'camiseta-rosa', name: 'Camiseta de la Rosa de los Vientos', category: 'camiseta', description: 'Blanca, con la esfera del monumento en rojo y «Puerta Central» debajo. Se reconoce desde lejos.', color: '#f2efe8', dark: '#d2cec4', sleeve: 'short' },
   { id: 'sudadera-puerta', name: 'Sudadera «Puerta Central»', category: 'sudadera', description: 'Azul marino, capucha y el nombre de la plaza en letras de colegio americano.', color: '#2a3550', dark: '#1d2539' },
+  // Montón (Puerta Central, CV-03): moda a precio de montón. Básicos de temporada en colores que se ven de lejos.
+  { id: 'camiseta-raya', name: 'Camiseta de rayas', category: 'camiseta', description: 'Rayas marineras azul y blanco. Tres euros más barata que la de al lado.', color: '#e9ecf2', dark: '#3c5a96', sleeve: 'short' },
+  { id: 'camiseta-mostaza', name: 'Camiseta mostaza', category: 'camiseta', description: 'Algodón fino, mostaza de temporada. Encoge un poco; avisados quedáis.', color: '#d9a52b', dark: '#a87d1c', sleeve: 'short' },
+  { id: 'sudadera-lila', name: 'Sudadera lila', category: 'sudadera', description: 'Felpa por dentro, capucha y un cordón que nunca está igualado.', color: '#9b86c9', dark: '#76649f' },
+  { id: 'plumifero-rojo', name: 'Plumífero rojo', category: 'chaqueta', description: 'Acolchado ligero, rojo bombero. Abriga más de lo que cuesta.', color: '#c8323a', dark: '#97252b' },
+  { id: 'pitillo-claro', name: 'Vaquero pitillo claro', category: 'vaquero', description: 'Lavado claro, pierna estrecha. Cuatro tallas en el mismo perchero.', color: '#8fb0d4' },
+  { id: 'jogger-verde', name: 'Jogger verde', category: 'pantalon', description: 'Verde caqui, puño en el tobillo y cordón de algodón.', color: '#5d6e3f' },
+  { id: 'lona-blanca', name: 'Zapatillas de lona', category: 'zapatillas', description: 'Lona blanca y suela de goma. Se ensucian el primer día; se lavan a máquina.', color: '#f0ede6' },
 ];
 
 export const GARMENTS: readonly GarmentDef[] = SEEDS.map((g) => {
@@ -228,6 +236,15 @@ export const STORES: readonly RetailStoreDef[] = [
   {
     id: 'recuerdos', name: 'Recuerdos de la Puerta', greeting: 'Hello, hola, bonjour. Las camisetas, tres por veinticinco.', thanks: 'Que la disfrutes. Si te pierdes, vuelve a la Rosa.',
     stock: [{ garment: 'camiseta-rosa', price: 12 }, { garment: 'sudadera-puerta', price: 29 }, { garment: 'camiseta-grafica', price: 15 }],
+  },
+  {
+    // Montón: la de precio más bajo de la ciudad. Lo de siempre, pero a tres o cuatro veces menos que en Hilo o Ferrant.
+    id: 'monton', name: 'Montón · moda', greeting: 'Bolsa grande en la entrada. Lo de las mesas, todo a cinco.', thanks: 'Ahí va tu bolsa. ¡Que te dure!',
+    stock: [
+      { garment: 'camiseta-raya', price: 4 }, { garment: 'camiseta-mostaza', price: 3.5 }, { garment: 'sudadera-lila', price: 12 },
+      { garment: 'plumifero-rojo', price: 19 }, { garment: 'pitillo-claro', price: 13 }, { garment: 'jogger-verde', price: 9 },
+      { garment: 'lona-blanca', price: 8 },
+    ],
   },
   {
     id: 'central', name: 'Moda Central', greeting: 'Hola. Probadores al fondo; máximo cuatro prendas.', thanks: 'Si no te vale, tienes treinta días con el tique.',

@@ -134,7 +134,9 @@ function watch(location: string, day: number, hour: number, hours: number, seed:
 // --------------------------------------------------- 3. dos grupos a la vez: cada uno su parada y su coche
 {
   let both = false;
-  for (let seed = 1; seed <= 6 && !both; seed++) {
+  // Coincidir dos depende del azar: con dos portales de la plaza convertidos en tiendas (CV-03) las semillas que lo dan
+  // cambiaron (24 semillas de 3 h: antes 6 con dos a la vez, ahora 2; recogidas 79 → 74). Se busca hasta 30.
+  for (let seed = 1; seed <= 30 && !both; seed++) {
     const s = scene('puerta-central', SAT, 23, seed);
     s.step(3 * 60 * MS, () => {
       const withCar = s.life.rides.filter((r) => r.car);

@@ -13,12 +13,12 @@ import { weekIndex } from '../src/systems/Calendar.ts';
 import { INITIAL_MONEY } from '../src/config/constants.ts';
 import { getCourse } from '../src/data/study.ts';
 import { UPGRADES } from '../src/data/housing.ts';
-import { buy as buyUpgrade, fits, rentsOf, startHousing } from '../src/systems/Housing.ts';
+import { buy as buyUpgrade, buyBlocker, fits, rentsOf, startHousing } from '../src/systems/Housing.ts';
 import { levelOf, promote, promotionReady, scheduled } from '../src/systems/Jobs.ts';
 
 const job = getJob('decathlon');
 const fare = destinationsFrom(getStop('vallesco')).find((d) => d.stop.id === 'decathlon')!.fare;
-const groceries = getCatalog('supermarket-till').products.find((p) => p.id === 'groceries')!.price;
+const groceries = getCatalog('super-rosales').products.find((p) => p.id === 'groceries')!.price;
 const nightOut = getActivity('restaurant-dinner');
 const cana = getActivity('bar-cana');
 
@@ -108,7 +108,8 @@ console.log(
     }
     const free = (): number => cash - owed(house);
     if (weekIndex(day) === 5 && free() >= nightOut.cost! + 2 * fare + 40) cash -= nightOut.cost! + 2 * fare;
-    const next = UPGRADES.filter((u) => fits(u, housing.home) && !housing.owned.includes(u.id)).sort((a, b) => a.price - b.price)[0];
+    // La siguiente que se puede comprar aquí (cabe y tiene ranura libre: la planta y la lámpara comparten esquina).
+    const next = UPGRADES.filter((u) => !buyBlocker(housing, u.id, Infinity)).sort((a, b) => a.price - b.price)[0];
     if (next && free() - next.price >= 40) {
       const r = buyUpgrade(housing, next.id, cash);
       assert.ok(r.ok, r.message);

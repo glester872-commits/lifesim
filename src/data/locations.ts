@@ -106,7 +106,7 @@ const HOME: LocationDef = {
   // Lo que se hace en casa (data/activities.ts): cocinar, ducharse, dormir, ver la tele y cambiarse en el armario o ante el espejo.
   spots: [
     { tx: 4, ty: 2, name: 'Cocina', activities: ['cook'] },
-    { tx: 8, ty: 5, name: 'Ducha', activities: ['shower'] },
+    { tx: 8, ty: 5, name: 'Ducha', activities: ['shower', 'shower-gel'] },
     { tx: 19, ty: 3, name: 'Cama', activities: ['nap', 'sleep'] },
     { tx: 13, ty: 3, name: 'Armario', activities: [], wardrobe: true },
     { tx: 14, ty: 1, name: 'Espejo', activities: [], wardrobe: true },

@@ -28,8 +28,8 @@ export interface Site {
   buildings: readonly BuildingDef[];
   /** Escena de muestra (LocationDef.showcase): su acera usa la baldosa grande. */
   showcase?: { tx: number; ty: number; w: number; h: number };
-  /** HD-03, manzana piloto (LocationDef.pilot): calzada, acera, bordillo, mediana y hierba con el acabado nuevo. */
-  pilot?: { tx: number; ty: number; w: number; h: number };
+  /** HD-03, acabado del sitio (LocationDef.finish): calzada, acera, bordillo, mediana y hierba con el acabado nuevo. */
+  finish?: boolean;
 }
 
 interface Paint {
@@ -1029,8 +1029,8 @@ export function paintSurfaces(scene: Phaser.Scene, rt: Phaser.GameObjects.Render
   const lctx = layer.getContext('2d');
   if (!ctx || !lctx) return;
   const at = (tx: number, ty: number): string => ground[ty]?.[tx] ?? '';
-  const pilot = site.pilot;
-  const fine = (tx: number, ty: number): boolean => !!pilot && tx >= pilot.tx && tx < pilot.tx + pilot.w && ty >= pilot.ty && ty < pilot.ty + pilot.h;
+  // Todo el sitio a la vez: sin borde entre lo nuevo y lo de antes.
+  const fine = (_tx: number, _ty: number): boolean => !!site.finish;
   const inBuilding = new Set<string>();
   for (const b of site.buildings) for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) inBuilding.add(`${x},${y}`);
   // Muro: edificios del barrio, muros de interior y las fachadas por tile de los distritos antiguos.

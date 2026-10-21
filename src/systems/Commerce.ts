@@ -1,6 +1,6 @@
 // Sin Phaser: lo usan WorldScene y scripts/check-economy.ts.
-import { getItem } from '../data/items.ts';
-import type { Product } from '../data/catalogs.ts';
+import { CARRY_MAX, getItem } from '../data/items.ts';
+import type { Catalog, Product } from '../data/catalogs.ts';
 
 /**
  * Transacciones. Todo lo que se paga pasa por aquí: una compra en una
@@ -19,7 +19,7 @@ export interface Wallet {
 }
 
 /** Por qué no se pudo. */
-export type Refusal = 'money' | 'no-card' | 'has-card' | 'no-balance' | 'no-item';
+export type Refusal = 'money' | 'no-card' | 'has-card' | 'no-balance' | 'no-item' | 'qty' | 'full' | 'not-sold';
 
 export interface TxResult {
   ok: boolean;
@@ -60,7 +60,54 @@ const WHY: Readonly<Record<Refusal, (p?: Product) => string>> = {
   'has-card': () => 'Ya tienes tarjeta: sólo hace falta recargarla.',
   'no-balance': () => 'No queda saldo suficiente en la tarjeta.',
   'no-item': () => 'No te queda.',
+  qty: () => 'Esa cantidad no vale: de una unidad en adelante.',
+  full: (p) => `No te cabe más ${getItem((p!.effect as { item: string }).item).name.toLowerCase()} en la bolsa.`,
+  'not-sold': () => 'Aquí no se vende eso.',
 };
+
+/** Unidades de un objeto que caben en la bolsa (data/items.ts max, o CARRY_MAX). */
+export const carryMax = (itemId: string): number => getItem(itemId).max ?? CARRY_MAX;
+
+/** Cuántas de un producto se pueden pagar ahora: lo que llega con el dinero y lo que cabe en la bolsa. 0 si ninguna. */
+export function maxQty(w: Wallet, p: Product): number {
+  if (!('item' in p.effect)) return 0;
+  const per = p.effect.qty ?? 1;
+  const room = Math.floor((carryMax(p.effect.item) - (w.inventory[p.effect.item] ?? 0)) / per);
+  const affordable = Math.floor(cents(w.money + 1e-9) / p.price + 1e-9);
+  return Math.max(0, Math.min(room, affordable));
+}
+
+/**
+ * Pagar en caja: `qty` unidades de un producto de ese catálogo, todo o nada. Se comprueba aquí (no en el botón) que el
+ * producto se vende ahí y al precio de la lista, que la cantidad es un entero ≥ 1, que llega el dinero y que cabe en la
+ * bolsa; si algo falla, la cartera vuelve igual. Si no, una cartera nueva con el cobro y lo comprado a la vez.
+ */
+export function checkout(w: Wallet, catalog: Catalog, productId: string, qty: number): TxResult & { total?: number } {
+  const p = catalog.products.find((x) => x.id === productId);
+  if (!p || !('item' in p.effect)) return { ok: false, reason: 'not-sold', wallet: w, message: WHY['not-sold']() };
+  if (!Number.isInteger(qty) || qty < 1) return { ok: false, reason: 'qty', wallet: w, message: WHY.qty() };
+  const total = cents(p.price * qty);
+  if (w.money + 1e-9 < total) return { ok: false, reason: 'money', wallet: w, message: `No te llega: son ${euros(total)} y llevas ${euros(w.money)}.` };
+  const id = p.effect.item;
+  const units = (p.effect.qty ?? 1) * qty;
+  const have = w.inventory[id] ?? 0;
+  if (have + units > carryMax(id)) {
+    return { ok: false, reason: 'full', wallet: w, message: `${WHY.full(p)} Llevas ${have} y caben ${carryMax(id)}.` };
+  }
+  const next = copy(w);
+  next.money = cents(next.money - total);
+  next.inventory[id] = have + units;
+  return { ok: true, wallet: next, total, message: `${qty} × ${p.label}: ${euros(total)}. Te quedan ${euros(next.money)}.` };
+}
+
+/** Qué hace un producto, para leerlo antes de comprarlo: la energía al tomarlo, o dónde se usa. */
+export function productUse(p: Product): string {
+  if (!('item' in p.effect)) return 'saldo en la tarjeta';
+  const item = getItem(p.effect.item);
+  const per = p.effect.qty && p.effect.qty > 1 ? `${p.effect.qty} usos · ` : '';
+  if (item.where) return `${per}${item.where}`;
+  return `${per}+${item.energy ?? 0} ⚡ al ${item.kind === 'drink' ? 'beberlo' : 'comerlo'} (bolsa, I)`;
+}
 
 export function purchase(w: Wallet, p: Product): TxResult {
   const why = refusal(w, p);
@@ -96,6 +143,8 @@ export function consume(w: Wallet, itemId: string): TxResult {
   if (!w.inventory[itemId] || item.kind === 'card') return { ok: false, reason: 'no-item', wallet: w, message: WHY['no-item']() };
   // Lo de cocinar no se come tal cual: se usa en la cocina.
   if (item.kind === 'ingredient') return { ok: false, reason: 'no-item', wallet: w, message: 'Así no se come. Hay que cocinarlo.' };
+  if (item.kind === 'hygiene') return { ok: false, reason: 'no-item', wallet: w, message: `Se usa ${item.where ?? 'en casa'}.` };
+  if (item.kind === 'gift') return { ok: false, reason: 'no-item', wallet: w, message: `Es para regalar: ${item.where ?? 'a alguien que conozcas'}.` };
   const next = copy(w);
   next.inventory[itemId] -= 1;
   if (next.inventory[itemId] === 0) delete next.inventory[itemId];

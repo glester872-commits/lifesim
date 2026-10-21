@@ -1148,7 +1148,8 @@ body.has-touch .dialogue__choices li {
 
 /* El botón, debajo del del mapa y del mismo material; con lo que hay sin leer en una pastilla. */
 #phone-button,
-#sound-button {
+#sound-button,
+#bag-button {
   position: absolute;
   top: 54px;
   right: 14px;
@@ -1168,6 +1169,8 @@ body.has-touch .dialogue__choices li {
 
 #phone-button:hover,
 #sound-button:hover,
+#bag-button:hover,
+#bag-button:focus-visible,
 #sound-button:focus-visible,
 #phone-button:focus-visible,
 #phone-button.is-active {
@@ -1178,6 +1181,11 @@ body.has-touch .dialogue__choices li {
 /* El volumen del ambiente (audio/CityAudio), bajo el del móvil; apagado, más tenue. */
 #sound-button {
   top: 94px;
+}
+
+/* La bolsa (I), bajo el volumen: en el móvil es la única forma de comer lo comprado. */
+#bag-button {
+  top: 134px;
 }
 
 #sound-button.is-muted {
@@ -1574,6 +1582,13 @@ body.has-touch .dialogue__choices li {
 
   #sound-button {
     top: calc(max(10px, env(safe-area-inset-top)) + 104px);
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  #bag-button {
+    top: calc(max(10px, env(safe-area-inset-top)) + 156px);
     right: max(10px, env(safe-area-inset-right));
     min-width: 44px;
     min-height: 44px;

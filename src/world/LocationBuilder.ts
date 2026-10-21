@@ -9,7 +9,8 @@ import { painted, paintSurfaces } from './Surfaces';
 import { hex, zonesOf } from '../systems/Districts';
 import { DISTRICTS } from '../data/districts';
 import { bakeDetail } from './Detail';
-import { pilotKey } from './UrbanFinish';
+import { finishKey, finished } from './UrbanFinish';
+import { LightDepth } from './LightDepth';
 
 /** Lado en px de la caja de colisión de un poste, al pie de su tile (PropDef.post). */
 const POST_BODY = 6;
@@ -212,7 +213,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   const solids = scene.physics.add.staticGroup();
 
   // Losas, baldosa y asfalto se pintan en coordenadas de mundo (world/Surfaces); el resto, por tile.
-  paintSurfaces(scene, ground, { ground: def.ground, props: def.props, buildings: def.buildings ?? [], showcase: def.showcase, pilot: def.pilot });
+  paintSurfaces(scene, ground, { ground: def.ground, props: def.props, buildings: def.buildings ?? [], showcase: def.showcase, finish: finished(def) });
   ground.beginDraw();
   for (let ty = 0; ty < rows; ty++) {
     const row = def.ground[ty];
@@ -224,7 +225,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   // Lo plano (alcantarillas, rejillas, hojas) es suelo: horneado, sin colisión y debajo de todo.
   for (const placement of def.props) {
     const prop = PROPS[placement.kind];
-    if (prop.flat) ground.batchDraw(pilotKey(scene, def, propKey(prop, placement.tx, placement.ty), placement.tx, placement.ty), placement.tx * TILE, placement.ty * TILE);
+    if (prop.flat) ground.batchDraw(finishKey(scene, def, propKey(prop, placement.tx, placement.ty), placement.tx, placement.ty), placement.tx * TILE, placement.ty * TILE);
   }
   // Velo de cada zona (data/districts.ts) sobre el suelo, debajo de edificios y props; el borde, fundido en tres tiles.
   ground.endDraw();
@@ -249,12 +250,14 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const width = (prop.tilesWide ?? 1) * TILE;
     const baseY = placement.ty * TILE + TILE;
     // Lo del techo, por encima de la gente (y por debajo de la luz de world/Lighting).
-    // HD-03: dentro de la manzana piloto, la versión con el acabado nuevo si la hay (world/UrbanFinish).
-    const key = pilotKey(scene, def, propKey(prop, placement.tx, placement.ty), placement.tx, placement.ty);
+    // HD-03: con el acabado del sitio, la versión nueva si la hay (world/UrbanFinish).
+    const key = finishKey(scene, def, propKey(prop, placement.tx, placement.ty), placement.tx, placement.ty);
     // Una sola densidad de píxel en todo el mundo (HD-03): nada a doble densidad a media escala junto al arte de 1×.
     const img = scene.add.image(placement.tx * TILE + width / 2, baseY, key).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.mount ? seat(baseY) : standing(baseY));
     // Árboles: además de su variante de dibujo, un matiz propio (más verde, más cálido, más apagado) por sitio.
     // Sin espejo: la luz del arte viene siempre del noroeste.
+    // Lo alto (árboles, farolas, marquesinas) tapa la luz que tiene detrás (world/LightDepth).
+    if (!prop.overhead && prop.tilesHigh >= 2) LightDepth.of(scene).occluder(img);
     if (prop.castBlob) img.setTint(CANOPY_TINTS[(placement.tx * 7 + placement.ty * 13) % CANOPY_TINTS.length]);
     // El respaldo que queda por delante de quien se sienta (una silla vista desde detrás) va encima de él.
     if (prop.front) scene.add.image(placement.tx * TILE + width / 2, baseY, prop.front).setOrigin(0.5, 1).setDepth(standing(baseY) + 1);

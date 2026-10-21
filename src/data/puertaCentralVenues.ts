@@ -53,6 +53,54 @@ const MODA: LocationDef = shopRoom({
   inspects: [{ tx: 11, ty: 4, name: 'Maniquí', lines: ['Vaquero, camiseta blanca y cazadora. Encima, un cartel: «Nueva colección». Debajo, otro: «-30 %».'] }],
 });
 
+/**
+ * Montón (CV-03): moda a precio de montón. La misma planta pequeña, abarrotada: cuatro percheros por categoría, dos mesas
+ * de todo a cinco y luz blanca de nave. Se paga en el perchero (systems/Retail) y se viste en el armario de casa.
+ */
+const MONTON: LocationDef = shopRoom({
+  id: 'pc-monton', name: 'Montón · moda', building: 'pc-puerta-9', street: STREET, pre: 'PCMONTON', ambient: '#eef3ff',
+  props: [
+    ...many('clothes-rack', [[2, 3], [4, 3], [6, 3], [8, 3]]), ...many('bargain-bin', [[3, 6], [5, 6]]), at('fitting-room', 1, 6),
+    at('mirror', 12, 1), ...many('tube-light', [[3, 2], [7, 2], [4, 5]]),
+  ],
+  browse: [[2, 4, 'up'], [4, 4, 'up'], [6, 4, 'up'], [8, 4, 'up'], [3, 7, 'up'], [5, 7, 'up']],
+  racks: [
+    { tx: 2, ty: 4, name: 'Camisetas', store: 'monton', categories: ['camiseta'] },
+    { tx: 4, ty: 4, name: 'Sudaderas y abrigos', store: 'monton', categories: ['sudadera', 'chaqueta'] },
+    { tx: 6, ty: 4, name: 'Vaqueros y pantalones', store: 'monton', categories: ['vaquero', 'pantalon'] },
+    { tx: 8, ty: 4, name: 'Zapatillas', store: 'monton', categories: ['zapatillas'] },
+    { tx: 3, ty: 7, name: 'Mesa de todo a cinco', store: 'monton' },
+  ],
+  inspects: [{ tx: 5, ty: 7, name: 'Mesa revuelta', lines: ['Camisetas dobladas por alguien y desdobladas por todos los demás. El cartel dice «3 por 10». Nadie sabe de qué.'] }],
+});
+
+/**
+ * Almacenes Velarde (CV-03): los grandes almacenes de la plaza, en su planta baja. A la izquierda, hogar: el sofá y la
+ * lámpara de exposición y el mostrador donde se pide un mueble, que te llevan a casa y eliges dónde va (systems/Housing).
+ * A la derecha, regalos: estanterías, la vitrina y la caja (data/catalogs.ts velarde-regalos). Luz cálida.
+ */
+const VELARDE_ROOM = shopRoom({
+  id: 'pc-velarde', name: 'Almacenes Velarde', building: 'pc-plaza-8', street: STREET, pre: 'PCVELARDE', ambient: '#fff1dc',
+  props: [
+    // Hogar.
+    at('sofa', 1, 3), at('floor-lamp', 4, 3), ...many('plant', [[5, 3], [1, 7]]), at('desk', 3, 6),
+    // Regalos.
+    ...many('wall-shelf', [[9, 1], [11, 1]]), at('vitrine', 12, 4), at('display-table', 9, 4),
+    ...many('pendant', [[3, 4], [10, 3]]),
+  ],
+  browse: [[2, 4, 'up'], [4, 4, 'up'], [9, 5, 'up'], [11, 4, 'right']],
+  inspects: [
+    { tx: 7, ty: 2, name: 'Directorio', lines: ['Almacenes Velarde, desde 1931. Planta baja: hogar (a la izquierda) y regalos (a la derecha). Envolvemos sin coste.'] },
+    { tx: 11, ty: 4, name: 'Vitrina', lines: ['Colonias en frascos de cristal tallado y cajas de bombones con lazo. El papel de envolver es verde, como el toldo.'] },
+  ],
+});
+const VELARDE: LocationDef = {
+  ...VELARDE_ROOM,
+  terminals: [{ tx: 10, ty: 7, name: 'Regalos · caja de Velarde', catalog: 'velarde-regalos' }],
+  spots: [{ tx: 3, ty: 7, name: 'Hogar · mostrador de Velarde', activities: [], housing: 'velarde' }],
+  points: { ...VELARDE_ROOM.points, PCVELARDE_HOGAR_STAFF: { tx: 3, ty: 5, kind: 'work', facing: 'down' } },
+};
+
 // ------------------------------------------------------------------ el café
 
 /** Café Central: la planta del Café del Río; la terraza, en la plaza (data/streets.ts). */
@@ -91,7 +139,7 @@ const COMISARIA: LocationDef = {
   portals: [{ id: 'exit', tx: 7, ty: 9, label: 'Salir a la plaza', to: { location: STREET, spawn: 'pc-comisaria' } }],
 };
 
-export const PC_INTERIORS: readonly LocationDef[] = [RECUERDOS, MODA, PC_CAFE, COMISARIA, ...FOOD_INTERIORS.filter((l) => FOOD.has(l.id))];
+export const PC_INTERIORS: readonly LocationDef[] = [RECUERDOS, MODA, MONTON, VELARDE, PC_CAFE, COMISARIA, ...FOOD_INTERIORS.filter((l) => FOOD.has(l.id))];
 
 // ------------------------------------------------------------------ gente
 
@@ -111,6 +159,26 @@ export const PC_PROFILES: readonly PopulationProfile[] = [
     weekday: [-1, 0, 0, 0, 1, 2, 0], maxVisitors: 6,
     staff: [cashier('PCMODA', 'Moda Central', 'Si no te vale, tienes treinta días. Con tique.', 'uniforme-tienda', 'shop-central')],
     visitors: [customer('PCMODA', 'Vengo a por unos vaqueros. Siempre vengo a por unos vaqueros.', 2, { party: [1, 2] })],
+  },
+  {
+    // Montón siempre está lleno: lo barato se mira mucho y se compra deprisa.
+    place: 'pc-monton', bands: [[9.5, 12, 'HIGH'], [12, 17, 'HIGH'], [17, 21, 'VERY_HIGH'], [21, 22, 'MEDIUM']],
+    weekday: [0, 0, 0, 0, 1, 2, 0], maxVisitors: 8,
+    staff: [cashier('PCMONTON', 'Caja · Montón', 'Si es para cambiar, con la etiqueta puesta.', 'uniforme-tienda', 'shop-monton')],
+    visitors: [
+      customer('PCMONTON', 'Me llevo tres. Total, a cuatro euros.', 3, { party: [1, 3] }),
+      customer('PCMONTON', '¿Esto en una talla menos? Da igual, me lo llevo.', 1, { label: 'Estudiante', party: [2, 3] }),
+    ],
+  },
+  {
+    // Velarde, más tranquilo: gente que viene a por algo concreto, un regalo o una lámpara.
+    place: 'pc-velarde', bands: [[10, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 21, 'HIGH'], [21, 22, 'LOW']],
+    weekday: [-1, 0, 0, 0, 1, 2, 1], maxVisitors: 6,
+    staff: [
+      cashier('PCVELARDE', 'Regalos · Velarde', '¿Se lo envuelvo? Es sin coste.', 'uniforme-tienda'),
+      { service: 'shop-worker', label: 'Hogar · Velarde', line: 'Se lo llevamos hoy mismo. Usted sólo dice dónde lo quiere.', look: 'uniforme-tienda', points: ['PCVELARDE_HOGAR_STAFF'] },
+    ],
+    visitors: [customer('PCVELARDE', 'Busco algo para mi madre. Algo que no sea otra colonia. Bueno, a ver las colonias.', 2, { party: [1, 2] })],
   },
   {
     // Siempre hay guardia; de día entra más gente (un trámite, una pregunta) que de madrugada.

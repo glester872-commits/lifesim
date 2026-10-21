@@ -56,6 +56,7 @@ export const SERVICE_OFFERS = {
   'shop-deportes-arena': { kind: 'retail', store: 'deportes-arena', minutes: 10 },
   'shop-halcones': { kind: 'retail', store: 'halcones', minutes: 8 },
   'shop-central': { kind: 'retail', store: 'central', minutes: 12 },
+  'shop-monton': { kind: 'retail', store: 'monton', minutes: 6 },
   'club-bar': { kind: 'activities', title: 'Barra · Sala Órbita', activities: ['club-drink', 'club-water'] },
   'wine-bar': { kind: 'activities', title: 'Barra · La Cepa', activities: ['wine-glass', 'wine-board'] },
   'bar-ribera': { kind: 'activities', title: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },

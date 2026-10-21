@@ -1,5 +1,5 @@
 // Sin Phaser: lo usan Menus, WorldScene, SaveSystem, main y scripts/check-housing.ts.
-import { HOMES, UPGRADES, getHome, getUpgrade, type HomeDef, type UpgradeDef } from '../data/housing.ts';
+import { HOMES, SLOTS, UPGRADES, getHome, getUpgrade, type HomeDef, type Placement, type UpgradeDef } from '../data/housing.ts';
 import { STORIES } from '../data/saraStory.ts';
 import type { LocationDef, TilePoint } from '../types/game.ts';
 import { euros } from './Commerce.ts';
@@ -21,6 +21,11 @@ export interface HousingState {
   home: string;
   /** Ids de las mejoras compradas. */
   owned: string[];
+  /**
+   * Mejora → ranura elegida (data/housing.ts SLOTS). Sólo cuenta si esa ranura es una de las suyas en la casa de ahora
+   * y está libre; si no, va a la primera libre (layout). Sin elegir nada (una partida anterior), falta.
+   */
+  slots?: Record<string, string>;
 }
 
 export const startHousing = (): HousingState => ({ home: HOMES[0].id, owned: [] });
@@ -32,25 +37,66 @@ export function parseHousing(v: unknown): HousingState {
   const o = v as Record<string, unknown>;
   const home = HOMES.some((h) => h.id === o.home) ? (o.home as string) : start.home;
   const owned = Array.isArray(o.owned) ? [...new Set(o.owned.filter((id): id is string => typeof id === 'string' && UPGRADES.some((u) => u.id === id)))] : [];
-  return { home, owned };
+  const raw = typeof o.slots === 'object' && o.slots !== null ? (o.slots as Record<string, unknown>) : {};
+  const slots = Object.fromEntries(Object.entries(raw).filter((e): e is [string, string] => owned.includes(e[0]) && typeof e[1] === 'string'));
+  return Object.keys(slots).length ? { home, owned, slots } : { home, owned };
 }
 
 // ------------------------------------------------------------ qué hay dónde
 
-export const fits = (u: UpgradeDef, homeId: string): boolean => !!u.placements[homeId];
+/** Las ranuras donde puede ir una mejora en esa casa, en orden de preferencia (ninguna: no cabe). */
+export function optionsOf(u: UpgradeDef, homeId: string): readonly Placement[] {
+  const p = u.placements[homeId];
+  return !p ? [] : 'slot' in p ? [p] : p;
+}
 
-/** Lo comprado que tiene sitio en esa casa (por defecto, la de ahora). */
-export const installedIn = (h: HousingState, homeId = h.home): string[] => h.owned.filter((id) => fits(getUpgrade(id), homeId));
+export const fits = (u: UpgradeDef, homeId: string): boolean => optionsOf(u, homeId).length > 0;
 
-/** Lo comprado que no cabe ahí: en el trastero, intacto. */
-export const storedIn = (h: HousingState, homeId = h.home): string[] => h.owned.filter((id) => !fits(getUpgrade(id), homeId));
+/** Primera letra en mayúscula: los avisos que empiezan por una ranura («La esquina del salón ya la ocupa…»). */
+const cap = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
+
+/** Cómo se llama una ranura de una casa: «la esquina del salón». */
+export const slotName = (homeId: string, slot: string): string => SLOTS[homeId]?.[slot]?.name ?? slot;
+
+/**
+ * Qué hay en cada ranura de esa casa (ranura → mejora y su colocación). Lo comprado, por orden de compra, va a la ranura
+ * elegida (h.slots) si es suya y está libre, o a la primera libre de las suyas; lo que no encuentra sitio, al trastero.
+ * Una ranura, una cosa: esto decide en un solo sitio qué está puesto, y recolocar mueve, nunca duplica.
+ */
+export function layout(h: HousingState, homeId = h.home): Map<string, { id: string; placement: Placement }> {
+  const used = new Map<string, { id: string; placement: Placement }>();
+  for (const id of h.owned) {
+    const free = optionsOf(getUpgrade(id), homeId).filter((p) => !used.has(p.slot));
+    const pick = free.find((p) => p.slot === h.slots?.[id]) ?? free[0];
+    if (pick) used.set(pick.slot, { id, placement: pick });
+  }
+  return used;
+}
+
+/** Lo comprado que está puesto en esa casa (por defecto, la de ahora). */
+export const installedIn = (h: HousingState, homeId = h.home): string[] => [...layout(h, homeId).values()].map((v) => v.id);
+
+/** Lo comprado que no cabe ahí (o cuyas ranuras están todas ocupadas): en el trastero, intacto. */
+export function storedIn(h: HousingState, homeId = h.home): string[] {
+  const placed = installedIn(h, homeId);
+  return h.owned.filter((id) => !placed.includes(id));
+}
+
+/** Las ranuras de esta mejora que están libres en la casa de ahora (o que ya ocupa ella misma). */
+export function freeSlots(h: HousingState, id: string): Placement[] {
+  const taken = layout(h);
+  return optionsOf(getUpgrade(id), h.home).filter((p) => (taken.get(p.slot)?.id ?? id) === id);
+}
+
+/** Quién ocupa una ranura de la casa de ahora, o undefined si está libre. */
+export const occupant = (h: HousingState, slot: string): string | undefined => layout(h).get(slot)?.id;
 
 const shortName = (home: HomeDef): string => home.name.split(' · ')[0].toLowerCase();
 
 /** La localización de una casa con las mejoras puestas: los datos de siempre más lo de cada ranura. */
-export function variantOf(home: HomeDef, ids: readonly string[]): LocationDef {
+export function variantOf(home: HomeDef, h: HousingState | null): LocationDef {
   const base = baseLocation(home.location);
-  const placed = ids.flatMap((id) => getUpgrade(id).placements[home.id] ?? []);
+  const placed = h ? [...layout(h, home.id).values()].map((v) => v.placement) : [];
   return {
     ...base,
     props: [...base.props, ...placed.flatMap((p) => p.props)],
@@ -64,7 +110,7 @@ export function variantOf(home: HomeDef, ids: readonly string[]): LocationDef {
  * interacciones y rutas (LocationSystem.getLocation) salen de lo mismo. Se llama al cargar, al comprar y al mudarse.
  */
 export function installAll(h: HousingState): void {
-  for (const home of HOMES) installLocation(variantOf(home, home.id === h.home ? installedIn(h) : []));
+  for (const home of HOMES) installLocation(variantOf(home, home.id === h.home ? h : null));
 }
 
 // ----------------------------------------------------------------- comprar
@@ -76,11 +122,20 @@ export interface BuyResult {
   money: number;
 }
 
-export function buyBlocker(h: HousingState, id: string, money: number): string | null {
+export function buyBlocker(h: HousingState, id: string, money: number, slot?: string): string | null {
   const u = UPGRADES.find((x) => x.id === id);
   if (!u) return 'Eso no está en el catálogo.';
-  if (h.owned.includes(id)) return fits(u, h.home) ? 'Ya la tienes instalada.' : 'Ya la tienes: está en el trastero.';
+  if (h.owned.includes(id)) return installedIn(h).includes(id) ? 'Ya la tienes instalada: se tiene una sola. Desde el catálogo de casa se puede cambiar de sitio.' : 'Ya la tienes: está en el trastero.';
   if (!fits(u, h.home)) return `No cabe en ${shortName(getHome(h.home))}: no se puede instalar en esta casa.`;
+  const free = freeSlots(h, id);
+  if (!free.length) {
+    const taken = optionsOf(u, h.home).map((p) => `${slotName(h.home, p.slot)} la ocupa ${getUpgrade(occupant(h, p.slot)!).name.toLowerCase()}`);
+    return `No queda sitio: ${taken.join(' y ')}. Recoloca algo desde el catálogo de casa.`;
+  }
+  if (slot !== undefined && !free.some((p) => p.slot === slot)) {
+    const who = occupant(h, slot);
+    return who ? `${cap(slotName(h.home, slot))} ya la ocupa ${getUpgrade(who).name.toLowerCase()}.` : 'Ahí no va.';
+  }
   if (money + 1e-9 < u.price) return `Te faltan ${euros(u.price - money)} (cuesta ${euros(u.price)}). Un turno o un encargo lo cubre; el catálogo sigue ahí.`;
   return null;
 }
@@ -92,11 +147,29 @@ export function quote(h: HousingState, id: string, money: number): string {
 }
 
 /** Comprar e instalar: una sola vez (si ya es tuya, no cobra) y sólo si llega el dinero. */
-export function buy(h: HousingState, id: string, money: number): BuyResult {
-  const blocked = buyBlocker(h, id, money);
+export function buy(h: HousingState, id: string, money: number, slot?: string): BuyResult {
+  const blocked = buyBlocker(h, id, money, slot);
   if (blocked) return { ok: false, message: blocked, housing: h, money };
   const u = getUpgrade(id);
-  return { ok: true, message: `${u.name} instalada.`, housing: { ...h, owned: [...h.owned, id] }, money: Math.round((money - u.price) * 100) / 100 };
+  const at = slot ?? freeSlots(h, id)[0].slot;
+  return {
+    ok: true,
+    message: `${u.name} instalada en ${slotName(h.home, at)}.`,
+    housing: { ...h, owned: [...h.owned, id], slots: { ...h.slots, [id]: at } },
+    money: Math.round((money - u.price) * 100) / 100,
+  };
+}
+
+/** Cambiar de ranura algo ya instalado: a otra de las suyas que esté libre. No cobra ni crea otra: sólo cambia dónde está. */
+export function relocate(h: HousingState, id: string, slot: string): { ok: boolean; message: string; housing: HousingState } {
+  const fail = (message: string): { ok: boolean; message: string; housing: HousingState } => ({ ok: false, message, housing: h });
+  if (!installedIn(h).includes(id)) return fail('Eso no está puesto en esta casa.');
+  const u = getUpgrade(id);
+  if (!optionsOf(u, h.home).some((p) => p.slot === slot)) return fail(`${u.name} no va en ${slotName(h.home, slot)}.`);
+  const who = occupant(h, slot);
+  if (who === id) return fail(`Ya está en ${slotName(h.home, slot)}.`);
+  if (who) return fail(`${cap(slotName(h.home, slot))} ya la ocupa ${getUpgrade(who).name.toLowerCase()}.`);
+  return { ok: true, message: `${u.name}: ahora en ${slotName(h.home, slot)}.`, housing: { ...h, slots: { ...h.slots, [id]: slot } } };
 }
 
 // ----------------------------------------------------------------- mudarse

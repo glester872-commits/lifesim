@@ -218,7 +218,10 @@ export function dress(d: Uint8ClampedArray, parts: Uint8Array, W: number, H: num
   };
   const MAT_OF: Record<number, Material | 'skin'> = { [TOP]: topMat, [ARM]: topMat, [BOT]: botMat, [SHOE]: shoeMat, [SKIN]: 'skin', [INNER]: 'cotton', [SOLE]: 'cotton' };
   const accent = o.accent ?? (lum(c.cloth) > 170 ? '#2b2d33' : '#ecebe6');
-  const string = lum(c.cloth) > 150 ? P[TOP][0] : '#e9e4d8';
+  // A 16 × 24 (la gente a escala 1, world/HumanArtHD.drawPersonFine) un detalle de 28 × 42 ocupa casi el doble de
+  // la prenda: los cordones van del tono de la tela, sin el blanco que gritaba.
+  const small = W < 20;
+  const string = small ? tone(P[TOP][2], lum(c.cloth) > 150 ? -0.22 : 0.28) : lum(c.cloth) > 150 ? P[TOP][0] : '#e9e4d8';
 
   const torso = box(TOP);
   const legs0 = box(BOT);
@@ -339,13 +342,14 @@ export function dress(d: Uint8ClampedArray, parts: Uint8Array, W: number, H: num
         for (let x = cx + 3; x <= TR - 2; x++) claim(x, TT - 1, TOP, 1);
         for (let x = TL + 1; x <= TR - 1; x++) if (ownAt(x, TT) === TOP) T(x, TT, x <= cx ? 3 : 1, TOP);
         eachNeck((x, y) => T(x, y, 0, TOP));
-        // Cordones.
-        for (let y = TT + 1; y <= TT + 4; y++) { F(cx - 1, y, string, TOP); F(cx + 2, y, string, TOP); }
-        // Bolsillo canguro.
-        const y0 = TB - 6;
-        for (let x = cx - 3; x <= cx + 4; x++) T(x, y0, 1, TOP);
-        for (let y = y0 + 1; y <= TB - 3; y++) { T(cx - 4, y, 1, TOP); T(cx + 5, y, 0, TOP); }
-        for (let x = cx - 3; x <= cx + 4; x++) T(x, y0 + 1, 3, TOP);
+        // Cordones. A 16 × 24 (el torso, ocho columnas), dos píxeles cortos del tono de la tela: blancos y de
+        // cuatro filas eran dos rayas que partían el pecho.
+        for (let y = TT + 1; y <= TT + (small ? 2 : 4); y++) { F(cx - 1, y, string, TOP); F(cx + 2, y, string, TOP); }
+        // Bolsillo canguro: a 16 × 24, más estrecho que el torso (si no, es una raya de lado a lado).
+        const [y0, pl, pr] = small ? [TB - 4, cx - 2, cx + 3] : [TB - 6, cx - 3, cx + 4];
+        for (let x = pl; x <= pr; x++) T(x, y0, 1, TOP);
+        for (let y = y0 + 1; y <= TB - (small ? 2 : 3); y++) { T(pl - 1, y, 1, TOP); T(pr + 1, y, 0, TOP); }
+        if (!small) for (let x = pl; x <= pr; x++) T(x, y0 + 1, 3, TOP);
       }
       if (k === 'zip-hoodie' || k === 'bomber' || k === 'jacket') {
         for (let y = TT + 1; y <= TB - (k === 'bomber' ? 2 : 0); y++) F(cx, y, y === TT + 2 ? '#e4e6ea' : METAL, TOP);
@@ -448,7 +452,7 @@ export function dress(d: Uint8ClampedArray, parts: Uint8Array, W: number, H: num
         for (let y = TT; y <= TT + 3; y++) { T(TL + 1, y, 3, TOP); T(TL + 2, y, 1, TOP); }
         for (let x = TR - 4; x <= TR - 1; x++) T(x, TB - 6, 1, TOP);
         T(TR - 4, TB - 5, 1, TOP); T(TR - 4, TB - 4, 1, TOP);
-        F(TR - 1, TT + 1, string, TOP); F(TR - 1, TT + 2, string, TOP); F(TR - 1, TT + 3, string, TOP);
+        F(TR - 1, TT + 1, string, TOP); F(TR - 1, TT + 2, string, TOP); if (!small) F(TR - 1, TT + 3, string, TOP);
       }
       if (k === 'zip-hoodie' || k === 'bomber' || k === 'jacket') for (let y = TT + 1; y <= TB; y++) F(TR - 1, y, METAL, TOP);
       if (k === 'jacket') { claim(TR - 2, TT - 1, TOP, 3); claim(TR - 1, TT - 1, TOP, 1); }
@@ -513,7 +517,7 @@ export function dress(d: Uint8ClampedArray, parts: Uint8Array, W: number, H: num
     // Pretina.
     if (k === 'joggers' || k === 'track') {
       for (let x = legs.l; x <= legs.r; x++) { T(x, WT, x % 2 ? 1 : 2, BOT); T(x, WT + 1, 1, BOT); }
-      if (view === 'front') { F(cx - 1, WT + 1, string, BOT); F(cx - 1, WT + 2, string, BOT); F(cx + 2, WT + 1, string, BOT); F(cx + 2, WT + 2, string, BOT); }
+      if (view === 'front' && !small) { F(cx - 1, WT + 1, string, BOT); F(cx - 1, WT + 2, string, BOT); F(cx + 2, WT + 1, string, BOT); F(cx + 2, WT + 2, string, BOT); }
     } else if (k === 'trousers') {
       for (let x = legs.l; x <= legs.r; x++) F(x, WT, '#2a2622', BOT);
       if (view === 'front') { F(cx, WT, METAL, BOT); F(cx + 1, WT, METAL, BOT); }

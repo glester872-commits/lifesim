@@ -106,6 +106,10 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   sneaker: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#cfcabe', shop: 'display', upper: 'windows', lit: '#ffb14a', door: 'glass', sign: 'sneaker' },
   // Navaja & Aro, barbería y piercing: fachada verde casi negra, luz cian de neón, carteles pegados y el poste del barbero.
   piercing: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#26343a', shop: 'display', upper: 'windows', lit: NEON_CYAN, door: 'metal', sign: 'pole', wallArt: 'posters' },
+  // Montón, moda a precio de montón: azul cobalto, toldo amarillo de rebajas y la percha; luz blanca de nave.
+  budget: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#2c5fa8', shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: ['#f2c230', '#2c5fa8'], sign: 'hanger' },
+  // Almacenes Velarde: sillería noble, arcos, banda de cristal arriba, toldo verde y crema y la etiqueta; luz cálida.
+  department: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: PALETTE.stoneLit, shop: 'arched', upper: 'band', lit: PALETTE.amber, door: 'glass', awning: ['#2f6b4a', '#efe6cf'], sign: 'tag', mat: 'ashlar' },
   // Bar Gaviota: ladrillo oscuro, toldo granate y crema, la caña como rótulo y carteles de conciertos.
   bar: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#6e3a30', shop: 'display', upper: 'windows', lit: PALETTE.amber, door: 'wood', awning: ['#8c2f2f', '#e6dcc0'], sign: 'beer', wallArt: 'posters' },
   // Ribera Norte: bloques de vivienda moderna (fachada clara, cristal y balcones corridos, azotea plana), el salón

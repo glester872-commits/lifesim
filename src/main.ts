@@ -24,6 +24,7 @@ import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
 import { CyclistView } from './world/CyclistView';
 import { hdCompare } from './world/HumanArtHD';
+import { LightDepth } from './world/LightDepth';
 import { RIDER_SCALE, riderTexture } from './world/CyclistArt';
 import { sleeperTexture } from './world/SurvivalArt';
 import { BIKES } from './data/bikes';
@@ -36,7 +37,7 @@ import { AlleyDealView } from './world/AlleyDealView';
 let scaleShown: Phaser.GameObjects.GameObject[] = [];
 
 import { SCALE } from './config/scale';
-import { HD_PERSON, PLAYER_COLORS, hdCache, humanKey, personFrame, personScale, personTexture, preparePersonHD, setPremiumClothes } from './world/TextureFactory';
+import { HD_PERSON, PLAYER_COLORS, humanKey, personFrame, personScale, personTexture, preparePerson, fineCache, setPremiumClothes } from './world/TextureFactory';
 import { colorsOf, type Pose } from './world/HumanArt';
 import type { Facing } from './types/game';
 
@@ -117,6 +118,13 @@ css.setProperty('--accent', PALETTE.glassLit);
 new DialogueBox(requireEl('#dialogue'), services.dialogue);
 // Joystick y botón de acción en pantallas táctiles; en un PC con ratón no aparecen.
 new MobileControls(requireEl('#touch'), services.input);
+// La bolsa (I) también con el dedo: el botón pulsa lo mismo que la tecla, así manda la misma escena (no abre encima de nada).
+const bagButton = requireEl('#bag-button') as HTMLButtonElement;
+bagButton.addEventListener('click', () => {
+  bagButton.blur();
+  services.input.press('bag');
+  services.input.release('bag');
+});
 
 // Gastos de casa (systems/Household): cada periodo se anuncia al empezar (importe y vencimiento) y vence al
 // acabar. Se ponen al día al arrancar y en cada medianoche; repetirlo no crea nada: cada periodo, una vez.
@@ -656,7 +664,7 @@ social: {
       worldRoute,
       placeInfo,
       placesOfType,
-      // El jugador a 28 × 42 (world/HumanArtHD.drawPlayerHD): lifesim.hdCompare() pone, junto a él y por parejas,
+      // El jugador y la gente con el acabado (world/HumanArtHD.drawPersonFine): lifesim.hdCompare() pone, junto a él y por parejas,
       // a la izquierda el ORIGINAL de 16 × 24 y a la derecha el HD (la textura que usa su sprite). Otra llamada lo quita.
       // Con ids, esa gente en vez del banco de ropa: lifesim.hdCompare(['pasajero-3', 'pasajero-9', …]).
       hdCompare: (ids: readonly string[] = ['pasajero-22', 'pasajero-14', 'pasajero-2', 'pasajero-1', 'pasajero-4', 'pasajero-7', 'pasajero-13']) => {
@@ -665,16 +673,20 @@ social: {
           { label: 'jugador', colors: withAppearance(PLAYER_COLORS, state.appearanceOf('player')), live: (f, p) => ({ key: humanKey('player', f, p) }) },
           // Banco de ropa: calle, diario, deporte y arreglado, con la textura que llevan en la calle.
           ...ids.map((id) => {
-            // Su ropa de 28 × 42 se hace al aparecer (world/HdCache): aquí, ya.
-            preparePersonHD(id);
+            preparePerson(id);
             const look = PASSENGER_LOOKS.find((l) => l.id === id) ?? PASSENGER_LOOKS[0];
             return { label: `${id} · ${look.outfit?.top ?? '-'} / ${look.outfit?.bottom ?? '-'} / ${look.outfit?.shoes ?? '-'}`, colors: colorsOf(look), live: (f: Facing, p: Pose) => ({ key: personTexture(id), frame: personFrame(id, f, p) }) };
           }),
         ]);
       },
-      // La caché de la ropa de 28 × 42 (world/HdCache): lifesim.hd.size, .bytes, .pending, .refs(id), .ready(id).
-      hd: hdCache,
       // Ropa de verdad (world/Garments) o la de siempre, en el jugador y en quien la lleva: lifesim.clothes(false) / (true).
+      // La luz detrás de quien pasa por delante (world/LightDepth): lifesim.lightDepth(false) la deja como antes, encima.
+      lightDepth: (on = true) => {
+        LightDepth.cutout = on;
+        return on ? 'luz recortada por quien está delante' : 'luz encima de todo (como antes)';
+      },
+      // La caché del acabado de la gente (world/HdCache): lifesim.hd.size, .bytes, .pending, .refs(id), .ready(id).
+      hd: fineCache,
       clothes: (on = true) => {
         const world = game.scene.getScene('World') as WorldSceneType;
         setPremiumClothes(world, on, state.appearanceOf('player'));
@@ -741,12 +753,12 @@ social: {
           x += Math.max(img.displayWidth, 18) + 14;
         };
         const person = (label: string, id: string): void => {
-          preparePersonHD(id);
+          preparePerson(id);
           put(label, personTexture(id), personFrame(id, 'down'), personScale(id));
         };
         put('jugador', humanKey('player', 'down', 0), undefined, 1);
         person('anónimo', PASSENGER_LOOKS[0].id);
-        person('anónimo HD', HD_PERSON ?? PASSENGER_LOOKS[0].id);
+        person('con outfit', HD_PERSON ?? PASSENGER_LOOKS[0].id);
         person('con nombre', 'sara');
         person('servicio', 'uniforme-sala');
         person('seguridad', 'marco');

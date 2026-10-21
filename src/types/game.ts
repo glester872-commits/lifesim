@@ -298,6 +298,9 @@ export type BuildingStyle =
   // Ribera Norte: el salón recreativo y la tienda de deportes.
   | 'arcade'
   | 'sports'
+  // Puerta Central (CV-03): la moda a precio de montón y los grandes almacenes.
+  | 'budget'
+  | 'department'
   // Calle Mayor, tramo este: el horno y la tienda de alimentación de toda la vida.
   | 'bakery'
   | 'grocer'
@@ -390,8 +393,11 @@ export interface SpotDef {
   wardrobe?: true;
   /** Punto de estudio (data/study.ts): practicar una habilidad aquí (scenes/Menus.ts, openStudy). */
   study?: string;
-  /** El catálogo del hogar (data/housing.ts): comprar mejoras para esta casa (scenes/Menus.ts, openHousing). */
-  housing?: true;
+  /**
+   * El catálogo del hogar (data/housing.ts): comprar mejoras para esta casa (scenes/Menus.ts, openHousing).  es el
+   * de casa (también recolocar lo puesto); un id de tienda ('velarde') vende sólo lo suyo (UpgradeDef.sold).
+   */
+  housing?: true | string;
 }
 
 /** Algo que se puede mirar con E: un cartel, una fuente, un escaparate. */
@@ -566,11 +572,11 @@ export interface LocationDef {
    */
   showcase?: { tx: number; ty: number; w: number; h: number };
   /**
-   * HD-03, manzana piloto del acabado urbano, en tiles: dentro, calzada, acera,
-   * bordillo, hierba, vegetación, mobiliario, semáforos y coches usan su versión
-   * `-hd03` (world/UrbanFinish). Fuera, todo como antes. Sin ella, nada cambia.
+   * HD-03, acabado urbano en todo el sitio (world/UrbanFinish.finished): calzada, acera, bordillo, hierba,
+   * vegetación, mobiliario, semáforos y la noche (world/Lighting) con su versión nueva. Todo el sitio a la vez:
+   * antes era una manzana piloto y se veía la costura en su borde.
    */
-  pilot?: { tx: number; ty: number; w: number; h: number };
+  finish?: boolean;
   /**
    * Primer plano con paralaje (world/Foreground): copas que asoman por el borde
    * de la cámara cuando se mira la escena de muestra. x, y: dónde se ven con la

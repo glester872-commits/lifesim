@@ -77,7 +77,7 @@ import {
   type StoryNow,
 } from '../systems/Story';
 import { offCamera, settleNamed, type StuckWatch } from '../systems/Recovery';
-import { pickTarget, wallBetween, type Candidate as PickCandidate } from '../systems/Interaction';
+import { pickTarget, tileAhead, wallBetween, type Candidate as PickCandidate } from '../systems/Interaction';
 import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Agent, type Clock } from '../systems/Crowd';
@@ -135,11 +135,13 @@ import {
 } from '../systems/Social';
 import { NAMED_PEOPLE } from '../data/namedPeople';
 import { NAMED_VOICES } from '../data/chatNamed';
+import { getItem } from '../data/items';
+import { giftBlocker, giftsIn, giveGift } from '../systems/Gifts';
 import { INIT_SLOT, activePlan, lineFor, markRead, tierOf, phoneTick, planFromTalk, postMessage, sendMessage, statusOf, whenLabel, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneNews, type PhoneResult } from '../systems/Phone';
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
-import { PLAYER_H, pumpPeopleHD } from '../world/TextureFactory';
+import { PLAYER_H, pumpPeopleFine } from '../world/TextureFactory';
 import type { Services } from '../services';
 import { LAYER } from '../world/Layers';
 
@@ -167,7 +169,7 @@ type Interactable =
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; housing?: true; lines?: readonly string[] }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; housing?: true | string; lines?: readonly string[] }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
@@ -191,13 +193,13 @@ const ARRIVAL_LOCK_MS = 450;
 /** Cada cuánto se recalcula lo que suena: los fundidos de audio/CityAudio rellenan lo de en medio. */
 const SOUND_EVERY_MS = 250;
 /**
- * Lo que se gasta cada frame horneando la ropa de 28 × 42 de quien aparece (world/HdCache; unos 70 ms cada aspecto):
- * en juego, poco (cabe en el frame, y quien llega por el borde se hornea antes de verse); al entrar en una escena
- * (el fundido y su primer segundo), mucho, para que quien ya está allí salga vestido enseguida.
+ * Lo que se gasta cada frame horneando el acabado de quien aparece (world/HdCache; unos 24 ms cada aspecto): en
+ * juego, poco (cabe en el frame, y quien llega por el borde se hornea antes de verse); al entrar en una escena (el
+ * fundido y su primer segundo), mucho, para que quien ya está allí salga con su acabado enseguida.
  */
-const HD_BAKE_MS = 5;
-const HD_BAKE_ENTRY_MS = 40;
-const HD_ENTRY_MS = 1_200;
+const FINE_BAKE_MS = 4;
+const FINE_BAKE_ENTRY_MS = 40;
+const FINE_ENTRY_MS = 1_200;
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
@@ -829,8 +831,8 @@ export class WorldScene extends Phaser.Scene {
     this.updateSound(time);
     this.matchView?.update(this.absMinute(), time);
     this.updateStand(time);
-    // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
-    pumpPeopleHD(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < HD_ENTRY_MS ? HD_BAKE_ENTRY_MS : HD_BAKE_MS);
+    // El acabado de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
+    pumpPeopleFine(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < FINE_ENTRY_MS ? FINE_BAKE_ENTRY_MS : FINE_BAKE_MS);
 
     // Tras un salto (dormir, un turno, el metro) el reloj espera a que se lea lo que ha pasado; sin nada abierto, sigue.
     if (clock.isHeld && !dialogue.isOpen && !menu.isOpen && !this.leaving) clock.release();
@@ -2461,6 +2463,7 @@ export class WorldScene extends Phaser.Scene {
       .map(wrap);
     const best = pickTarget(origin, cands, {
       facing: this.player.facing,
+      ahead: tileAhead(this.playerTile(), this.player.facing),
       current: this.activeTarget ? wrap(this.activeTarget) : null,
       // Sentado sólo se habla con quien esté cerca.
       allow: (c) => !(this.player.isSeating && c.kind !== 'npc'),
@@ -2551,7 +2554,7 @@ export class WorldScene extends Phaser.Scene {
     else if (target.kind === 'spot') {
       if (target.wardrobe) this.menus.openWardrobe();
       else if (target.study) this.menus.openStudy(target.study, target.name, target.lines ?? []);
-      else if (target.housing) this.menus.openHousing(target.name);
+      else if (target.housing) this.menus.openHousing(target.name, typeof target.housing === 'string' ? target.housing : undefined);
       else this.menus.openSpot(target.name, target.activities);
     }
     else if (target.kind === 'event') this.approachEvent(target.view);
@@ -3057,6 +3060,9 @@ export class WorldScene extends Phaser.Scene {
     // ELECCIÓN DEL JUGADOR
     // ------------------------------------------------------------
 
+    // Un regalo de la bolsa (systems/Gifts), a alguien con nombre: una opción más, al final.
+    const gifts = namedId && NAMED_VOICES[namedId] ? giftsIn(this.services.state.wallet) : [];
+
     dialogue.ask(
       speaker,
 
@@ -3066,12 +3072,13 @@ export class WorldScene extends Phaser.Scene {
         ),
       ],
 
-      turn.options.map(
-        (o) =>
-          o.label,
-      ),
+      [...turn.options.map((o) => o.label), ...(gifts.length ? ['Dar un regalo'] : [])],
 
       (i) => {
+        if (i >= turn.options.length) {
+          this.offerGift(speaker, sprite, talk, namedId!);
+          return;
+        }
         /*
          * Elegir una respuesta cierra DialogueSystem temporalmente.
          * Volvemos a parar al NPC antes de continuar.
@@ -3121,6 +3128,35 @@ export class WorldScene extends Phaser.Scene {
 
         dialogue.close();
       };
+  }
+
+  /**
+   * Dar un regalo (systems/Gifts). La charla se da por terminada antes (noteMeeting la anota con lo hablado) y el regalo
+   * va encima del perfil ya guardado: así la copia del perfil que llevaba la conversación no lo pisa al cerrar.
+   */
+  private offerGift(speaker: string, sprite: Phaser.GameObjects.Sprite, talk: Conversation, id: string): void {
+    const { state, dialogue } = this.services;
+    this.noteMeeting(talk, id);
+    this.startTalk(sprite);
+    // Esc ya no vuelve a anotar la charla: sólo cierra.
+    this.chatEnd = () => dialogue.close();
+    const blocked = giftBlocker(state.socialOf(id), state.day);
+    if (blocked) {
+      dialogue.start(speaker, [blocked]);
+      return;
+    }
+    const gifts = giftsIn(state.wallet);
+    dialogue.ask(speaker, ['¿Qué le das?'], [...gifts.map((g) => `${getItem(g.id).name} (llevas ${g.qty})`), 'Nada, otro día'], (i) => {
+      this.startTalk(sprite);
+      if (i >= gifts.length) return;
+      const r = giveGift(state.socialOf(id), state.wallet, gifts[i].id, { day: state.day, hour: state.hour, minute: state.minute });
+      if (r.ok) {
+        state.wallet = r.wallet;
+        state.setSocialProfile(id, r.profile);
+        this.persist();
+      }
+      dialogue.start(speaker, r.ok ? [r.message, '¿Para mí? No hacía falta... Gracias, de verdad. Me lo quedo.'] : [r.message]);
+    }, gifts.length);
   }
 
   /**
@@ -3675,10 +3711,7 @@ export class WorldScene extends Phaser.Scene {
 
   private persist(): void {
     const { save, state } = this.services;
-    const snapshot = state.snapshot;
-    // Probándose una prenda: lo que se guarda es lo de antes, no la prueba.
-    const outfit = this.menus.fittingOutfit;
-    if (outfit) snapshot.appearance.player = { ...outfit };
-    if (save.save(snapshot)) state.emit('saved');
+    // Probándose una prenda, el snapshot ya lleva lo de antes, no la prueba (state/GameState.fitting).
+    if (save.save(state.snapshot)) state.emit('saved');
   }
 }

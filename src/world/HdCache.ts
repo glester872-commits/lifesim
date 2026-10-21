@@ -1,10 +1,10 @@
 /**
- * Las texturas de 28 × 42 de la gente con ropa de verdad (world/TextureFactory), hechas cuando alguien va a salir en
+ * Las texturas con el acabado HD-03 de la gente (16 × 24, world/TextureFactory), hechas cuando alguien va a salir en
  * escena y no al arrancar. Una por aspecto (la ropa de calle, el abrigo, el verano, la capucha o el gimnasio son
  * aspectos distintos: sólo se hace el que se ve).
  *
  * Cada sprite que la muestra la retiene (acquire) y la suelta al esconderse (release). Se hornea por celdas, unas
- * pocas cada frame (pump), sin parar el juego; mientras, se ve el dibujo de 16 × 24 de la misma persona. Lo que
+ * pocas cada frame (pump), sin parar el juego; mientras, se ve el dibujo simple de la misma persona. Lo que
  * nadie retiene se queda guardado para la próxima vez y, si se pasa del límite de memoria, se tira lo que lleva
  * más tiempo sin usarse. Lo retenido no se tira nunca, aunque haya que pasarse del límite.
  *
@@ -17,7 +17,7 @@ export interface HdBackend {
   paint(id: string, cell: number): void;
   /** La textura está completa: súbela y apunta sus animaciones a ella. */
   done(id: string): void;
-  /** Ya no está: devuelve sus animaciones al dibujo de 16 × 24 y borra la textura. */
+  /** Ya no está: devuelve sus animaciones al dibujo simple y borra la textura. */
   drop(id: string): void;
 }
 

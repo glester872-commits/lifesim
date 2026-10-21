@@ -1,9 +1,9 @@
 import type { Services } from '../services';
-import { getCatalog } from '../data/catalogs';
+import { getCatalog, type Catalog } from '../data/catalogs';
 import { getItem } from '../data/items';
 import { getActivity, getOffMapPlace, type ActivityDef } from '../data/activities';
 import type { TransitStop } from '../data/transit';
-import { consume, euros, payFare, purchase, spend } from '../systems/Commerce';
+import { checkout, consume, euros, maxQty, payFare, productUse, purchase, spend } from '../systems/Commerce';
 import { blocker, perform, type ActivityContext } from '../systems/Activities';
 import { destinationsFrom, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
@@ -31,9 +31,15 @@ import {
   acceptGig, attend, classBlocker, courseAt, courseOffer, deliver, deliverBlocker, demo, demoBlocker, enroll, enrollBlocker, gigAt, gigDeadline, gigStatus, gigTerms,
   hasCamera, knowledge, lessonStatus, levelName, nextSession, practice, practiceAt, practiceBlocker, practiceGain, sessionLabel, sessionNow, type Outcome as StudyOutcome, type StudyState,
 } from '../systems/Study';
-import { closedLines, isOpen, placeInfo } from '../systems/Places';
+import { closedLines, isOpen, placeForInterior, placeInfo } from '../systems/Places';
+
+/** Lo que se tarda en pagar en la caja de una tienda con caja (Catalog.checkout), compres una cosa o diez. */
+const CHECKOUT_MINUTES = 2;
+
+/** Dónde va una prenda, dicho en la ficha antes de probarla o comprarla. */
+const SLOT_LABEL = { top: 'arriba (torso y brazos)', bottom: 'abajo (piernas)', shoes: 'en los pies' } as const;
 import { UPGRADES, getHome, getUpgrade } from '../data/housing';
-import { buy, buyBlocker, fits, installAll, installedIn, move, moveBlocker, movePlans, moveSummary, quote as housingQuote, storedIn } from '../systems/Housing';
+import { buy, buyBlocker, installAll, installedIn, layout, move, moveBlocker, movePlans, moveSummary, optionsOf, quote as housingQuote, relocate, slotName, storedIn, type HousingState } from '../systems/Housing';
 import { owed, statusOf as billStatus, unpaid } from '../systems/Household';
 
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
@@ -59,7 +65,14 @@ export interface MenuHost {
 export class Menus {
   private readonly services: Services;
   private readonly host: MenuHost;
-  private fitting: Appearance | null = null;
+  // La prueba de una prenda vive en GameState: así ningún guardado se queda con la prenda sin pagar.
+  private get fitting(): Appearance | null {
+    return this.services.state.fitting;
+  }
+
+  private set fitting(outfit: Appearance | null) {
+    this.services.state.setFitting(outfit);
+  }
 
   constructor(services: Services, host: MenuHost) {
     this.services = services;
@@ -76,6 +89,10 @@ export class Menus {
   openCatalog(title: string, catalogId: string, note = '', selected = 0, onClose?: () => void, stall?: { closed: () => string | null }): void {
     const { state, menu } = this.services;
     const catalog = getCatalog(catalogId);
+    if (catalog.checkout && !stall) {
+      this.openShop(title, catalog, note, selected);
+      return;
+    }
     const wallet = state.wallet;
     const shut = stall?.closed() ?? null;
     const options: MenuOption[] = catalog.products.map((p) => {
@@ -112,6 +129,80 @@ export class Menus {
       selected,
       !!stall,
     );
+  }
+
+  // ------------------------------------------------------ tienda con caja
+
+  /**
+   * Una tienda con caja (Catalog.checkout, el súper): la lista con precio, uso y lo que ya llevas; al elegir, la ficha.
+   * Elegir no corre el reloj (un menú para el mundo); pagar lleva CHECKOUT_MINUTES.
+   */
+  private openShop(title: string, catalog: Catalog, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    const options: MenuOption[] = catalog.products.map((p) => {
+      const have = 'item' in p.effect ? (state.wallet.inventory[p.effect.item] ?? 0) : 0;
+      return { label: p.label, detail: `${euros(p.price)} · ${productUse(p)}${have ? ` · llevas ${have}` : ''}` };
+    });
+    options.push({ label: 'Salir' });
+    menu.open(title, `${catalog.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
+      if (i === catalog.products.length) menu.close();
+      else this.openProductSheet(title, catalog, i, 1);
+    }, undefined, note, selected);
+  }
+
+  /**
+   * La ficha de un producto: cantidad (Menos/Más, sin pasar de lo que llega o cabe), total y saldo que queda, antes de
+   * pagar. Pagar vuelve a mirar si el local sigue abierto y cobra con systems/Commerce.checkout (todo o nada); después
+   * se vuelve a la lista, así una segunda pulsación sobre «Pagar» ya no cobra otra vez.
+   */
+  private openProductSheet(title: string, catalog: Catalog, index: number, qty: number, note = '', selected = 2): void {
+    const { state, menu, clock } = this.services;
+    const p = catalog.products[index];
+    const max = maxQty(state.wallet, p);
+    const n = Math.min(Math.max(1, qty), Math.max(1, max));
+    const total = p.price * n;
+    const trial = checkout(state.wallet, catalog, p.id, n);
+    const have = 'item' in p.effect ? (state.wallet.inventory[p.effect.item] ?? 0) : 0;
+    const text = `${euros(p.price)} la unidad · ${productUse(p)}. En la bolsa llevas ${have}. Llevas ${euros(state.money)}.`;
+    menu.open(`${p.label}`, text, [
+      { label: 'Menos', detail: `cantidad ${n}`, disabled: n <= 1 ? 'Menos de una no se puede.' : undefined },
+      { label: 'Más', detail: max > n ? `hasta ${max}` : '', disabled: n >= max ? 'No llega el dinero para otra o no cabe en la bolsa.' : undefined },
+      {
+        label: `Pagar ${n} · ${euros(total)}`,
+        detail: trial.ok ? `te quedan ${euros(state.money - total)} · ${CHECKOUT_MINUTES} min en caja` : trial.reason === 'money' ? `faltan ${euros(total - state.money)}` : '',
+        disabled: trial.ok ? undefined : trial.message,
+      },
+      { label: 'Volver' },
+    ], (i) => {
+      if (i === 0) this.openProductSheet(title, catalog, index, n - 1, '', 0);
+      else if (i === 1) this.openProductSheet(title, catalog, index, n + 1, '', 1);
+      else if (i === 3) this.openShop(title, catalog, '', index);
+      else {
+        const shut = this.shutHere();
+        if (shut) {
+          this.openShop(title, catalog, shut, index);
+          return;
+        }
+        const result = checkout(state.wallet, catalog, p.id, n);
+        if (!result.ok) {
+          this.openProductSheet(title, catalog, index, n, result.message);
+          return;
+        }
+        state.as(`${n} × ${p.label}`, () => {
+          state.wallet = result.wallet;
+        });
+        clock.advanceMinutes(CHECKOUT_MINUTES);
+        this.host.persist();
+        this.openShop(title, catalog, result.message, index);
+      }
+    }, () => this.openShop(title, catalog, '', index), note, selected);
+  }
+
+  /** El local en el que estás, cerrado ahora: lo que dice la puerta; abierto (o sin horario), null. */
+  private shutHere(): string | null {
+    const { day, hour, minute, locationId } = this.services.state;
+    const place = placeForInterior(locationId);
+    return place?.type === 'business' && !isOpen(place, day, hour, minute) ? closedLines(place, day, hour, minute).join(' ') : null;
   }
 
   // --------------------------------------------------------------- bolsa
@@ -538,46 +629,91 @@ export class Menus {
   // ------------------------------------------------------------- vivienda
 
   /**
-   * El catálogo del hogar (el ordenador de casa): mejoras con su precio y lo que hacen. Elegir una enseña el precio y
-   * el saldo que queda antes de confirmar; comprarla la instala hoy mismo y cobra una sola vez.
+   * El catálogo del hogar: el ordenador de casa (`shop` vacío) o el mostrador de una tienda (`shop`, p. ej. 'velarde'),
+   * cada uno con lo que vende (UpgradeDef.sold). Elegir una enseña precio, saldo y dónde puede ir; comprarla la instala
+   * hoy mismo, en la ranura elegida, y cobra una sola vez. En casa, además, se cambia de sitio lo que ya está puesto.
    */
-  openHousing(name: string, note = '', selected = 0): void {
+  openHousing(name: string, shop?: string, note = '', selected = 0): void {
     const { state, menu } = this.services;
     const h = state.housing;
-    const again = (n = '', i = 0): void => this.openHousing(name, n, i);
-    const options: MenuOption[] = UPGRADES.map((u) => {
+    const sold = UPGRADES.filter((u) => (u.sold ?? ['casa']).includes(shop ?? 'casa'));
+    const movable = shop ? [] : installedIn(h).filter((id) => optionsOf(getUpgrade(id), h.home).length > 1);
+    const again = (n = '', i = 0): void => this.openHousing(name, shop, n, i);
+    const options: MenuOption[] = sold.map((u) => {
       const owned = h.owned.includes(u.id);
       const blocked = buyBlocker(h, u.id, state.money);
       return {
         label: `${u.name} · ${u.kind}`,
-        detail: owned ? (fits(u, h.home) ? 'instalada' : 'en el trastero') : euros(u.price),
+        detail: owned ? (installedIn(h).includes(u.id) ? 'instalada' : 'en el trastero') : euros(u.price),
         disabled: blocked ?? undefined,
       };
     });
-    options.push({ label: 'Cerrar el catálogo' });
-    const intro = `Mejoras para ${getHome(h.home).name}. Se instalan hoy mismo en su ranura y no se pueden comprar dos veces. Saldo: ${euros(state.money)}.`;
+    for (const id of movable) options.push({ label: `Cambiar de sitio: ${getUpgrade(id).name}`, detail: `ahora en ${slotName(h.home, this.slotOf(id)!)}` });
+    options.push({ label: shop ? 'Volver' : 'Cerrar el catálogo' });
+    const intro = shop
+      ? `Te lo llevan hoy a ${getHome(h.home).name} y eliges dónde va. Cada cosa se tiene una vez. Saldo: ${euros(state.money)}.`
+      : `Mejoras para ${getHome(h.home).name}. Se instalan hoy mismo en su ranura y no se pueden comprar dos veces. Saldo: ${euros(state.money)}.`;
     menu.open(name, intro, options, (i) => {
-      if (i === UPGRADES.length) return menu.close();
-      this.confirmUpgrade(UPGRADES[i].id, name, (n) => again(n, i));
+      if (i < sold.length) this.confirmUpgrade(sold[i].id, name, (n) => again(n, i));
+      else if (i < sold.length + movable.length) this.openRelocate(movable[i - sold.length], (n) => again(n, i));
+      else menu.close();
     }, undefined, note, selected);
   }
 
+  /** La ranura de la casa de ahora en la que está puesta una mejora. */
+  private slotOf(id: string): string | undefined {
+    return [...layout(this.services.state.housing)].find(([, v]) => v.id === id)?.[0];
+  }
+
+  /** Lo comprado, ya en casa: si estás en ella, se vuelve a montar con el mueble puesto; si no, lo encontrarás al llegar. */
+  private installed(h: HousingState, lines: string[], title: string): void {
+    const { state, dialogue } = this.services;
+    state.setHousing(h);
+    installAll(h);
+    this.host.persist();
+    dialogue.start(title, [...lines, `${formatClock(state.day, state.hour, state.minute)}.`]);
+    if (state.locationId === getHome(h.home).location) dialogue.once('close', () => this.host.refreshHome());
+  }
+
+  /** Comprar una mejora: una opción por ranura posible (las ocupadas, apagadas, diciendo qué hay). */
   private confirmUpgrade(id: string, title: string, back: (n?: string) => void): void {
-    const { state, menu, dialogue } = this.services;
+    const { state, menu } = this.services;
     const u = getUpgrade(id);
-    menu.open(u.name, housingQuote(state.housing, id, state.money), [{ label: `Comprar e instalar (${euros(u.price)})` }, { label: 'Volver' }], (i) => {
-      if (i === 1) return back();
-      const r = buy(state.housing, id, state.money);
+    const h = state.housing;
+    const slots = optionsOf(u, h.home);
+    const options: MenuOption[] = slots.map((p) => ({
+      label: slots.length > 1 ? `Comprar y ponerla en ${slotName(h.home, p.slot)}` : `Comprar e instalar (${euros(u.price)})`,
+      detail: euros(u.price),
+      disabled: buyBlocker(h, id, state.money, p.slot) ?? undefined,
+    }));
+    options.push({ label: 'Volver' });
+    menu.open(u.name, housingQuote(h, id, state.money), options, (i) => {
+      if (i === slots.length) return back();
+      const r = buy(state.housing, id, state.money, slots[i].slot);
       if (!r.ok) return back(r.message);
       menu.close();
       state.as(`Mejora · ${u.name}`, () => {
         state.money = r.money;
       });
-      state.setHousing(r.housing);
-      installAll(r.housing);
-      this.host.persist();
-      dialogue.start(title, [`Pedido confirmado: ${u.name}, ${euros(u.price)}. Saldo: ${euros(state.money)}.`, 'El montador la deja puesta en un momento.', `${formatClock(state.day, state.hour, state.minute)}.`]);
-      dialogue.once('close', () => this.host.refreshHome());
+      const home = state.locationId === getHome(r.housing.home).location;
+      this.installed(r.housing, [`Pedido confirmado: ${u.name}, ${euros(u.price)}. Saldo: ${euros(state.money)}.`, home ? `El montador la deja puesta en ${slotName(r.housing.home, slots[i].slot)}.` : `Te la llevan hoy: la encontrarás en ${slotName(r.housing.home, slots[i].slot)}.`], title);
+    }, () => back());
+  }
+
+  /** Cambiar de sitio algo ya puesto: a otra de sus ranuras libres. No cobra ni crea otra. */
+  private openRelocate(id: string, back: (n?: string) => void): void {
+    const { state, menu } = this.services;
+    const h = state.housing;
+    const u = getUpgrade(id);
+    const slots = optionsOf(u, h.home);
+    const options: MenuOption[] = slots.map((p) => ({ label: `Ponerla en ${slotName(h.home, p.slot)}`, disabled: relocate(h, id, p.slot).ok ? undefined : relocate(h, id, p.slot).message }));
+    options.push({ label: 'Volver' });
+    menu.open(u.name, `Ahora está en ${slotName(h.home, this.slotOf(id)!)}. Moverla no cuesta nada.`, options, (i) => {
+      if (i === slots.length) return back();
+      const r = relocate(state.housing, id, slots[i].slot);
+      if (!r.ok) return back(r.message);
+      menu.close();
+      this.installed(r.housing, [r.message], u.name);
     }, () => back());
   }
 
@@ -838,11 +974,6 @@ export class Menus {
     }, undefined, note, selected);
   }
 
-  /** El outfit de antes mientras el jugador se prueba una prenda; null si no se prueba nada. WorldScene lo guarda en vez de la prueba. */
-  get fittingOutfit(): Appearance | null {
-    return this.fitting;
-  }
-
   /**
    * Un perchero de tienda: lo que cuelga ahí (sus categorías), con precio. Al
    * elegir una se ve su ficha y se puede probar, comprar o dejar (openGarment).
@@ -885,7 +1016,10 @@ export class Menus {
     const owned = state.wardrobe.includes(garment);
     const trial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false);
     const title = `${def.name} · ${euros(price)}`;
-    const text = `${CATEGORIES[def.category].label}${def.unique ? ' · pieza única' : ''}. ${def.description} Llevas ${euros(state.money)}.`;
+    // Qué hueco ocupa y qué quita: lo de antes vuelve al armario, nunca se pierde.
+    const before = (this.fitting ?? current)[def.slot];
+    const swap = before && before !== garment ? `, en lugar de ${getGarment(before).name.toLowerCase()}` : !before ? ', en lugar de tu ropa de siempre' : '';
+    const text = `${CATEGORIES[def.category].label}${def.unique ? ' · pieza única' : ''}. Va ${SLOT_LABEL[def.slot]}${swap}. ${def.description} Llevas ${euros(state.money)}.`;
     const buy = (): void => {
       const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false);
       if (!result.ok) {
@@ -1208,7 +1342,7 @@ export class Menus {
     const ctx = this.activityContext();
     const options: MenuOption[] = activities.map((a) => ({
       label: a.name,
-      detail: a.cost ? euros(a.cost) : a.consumes ? 'gasta la compra' : '',
+      detail: a.cost ? euros(a.cost) : a.consumes ? `gasta ${getItem(a.consumes.item).name.toLowerCase()} · te quedan ${this.services.state.wallet.inventory[a.consumes.item] ?? 0}` : '',
       disabled: blocker(a, ctx) ?? undefined,
     }));
     options.push({ label: 'Nada' });

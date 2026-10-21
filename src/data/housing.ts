@@ -56,6 +56,8 @@ export const HOMES: readonly HomeDef[] = [
 ];
 
 export interface Slot {
+  /** Cómo se dice al elegir dónde va algo: «la esquina del salón». */
+  name: string;
   tx: number;
   ty: number;
   w: number;
@@ -65,13 +67,13 @@ export interface Slot {
 /** Ranuras de cada casa: el único sitio donde puede ir lo que se instala. Libres de las rutas a puerta, cama, cocina, ducha y armario. */
 export const SLOTS: Readonly<Record<string, Readonly<Record<string, Slot>>>> = {
   olmo7: {
-    'salon-lectura': { tx: 13, ty: 10, w: 3, h: 3 },
-    'pared-salon': { tx: 18, ty: 7, w: 3, h: 2 },
-    'esquina-salon': { tx: 16, ty: 10, w: 3, h: 3 },
+    'salon-lectura': { name: 'el rincón de lectura', tx: 13, ty: 10, w: 3, h: 3 },
+    'pared-salon': { name: 'la pared del salón', tx: 18, ty: 7, w: 3, h: 2 },
+    'esquina-salon': { name: 'la esquina del salón', tx: 16, ty: 10, w: 3, h: 3 },
   },
   estudio: {
-    'pared-dormitorio': { tx: 7, ty: 1, w: 2, h: 2 },
-    'esquina-salon': { tx: 11, ty: 8, w: 2, h: 2 },
+    'pared-dormitorio': { name: 'la pared de la cama', tx: 7, ty: 1, w: 2, h: 2 },
+    'esquina-salon': { name: 'la esquina del salón', tx: 11, ty: 8, w: 2, h: 2 },
   },
 };
 
@@ -91,8 +93,13 @@ export interface UpgradeDef {
   price: number;
   /** Lo que se ve y se nota, dicho antes de comprarla. */
   text: string;
-  /** Por casa; si falta, no cabe y se guarda. */
-  placements: Readonly<Record<string, Placement>>;
+  /**
+   * Por casa; si falta, no cabe y se guarda. Con varias, el jugador elige en cuál de esas ranuras va (y puede
+   * recolocarla después): una ranura sólo tiene una cosa (systems/Housing.layout).
+   */
+  placements: Readonly<Record<string, Placement | readonly Placement[]>>;
+  /** Dónde se vende: 'casa' (el ordenador del catálogo del hogar) y/o una tienda (SpotDef.housing). Por defecto, 'casa'. */
+  sold?: readonly string[];
 }
 
 export const UPGRADES: readonly UpgradeDef[] = [
@@ -134,6 +141,8 @@ export const UPGRADES: readonly UpgradeDef[] = [
     name: 'Lámpara de pie',
     kind: 'expresiva',
     price: 45,
+    // También en Velarde (hogar), al mismo precio: es la misma lámpara y se tiene una sola.
+    sold: ['casa', 'velarde'],
     text: 'Una lámpara de pie con luz cálida en una esquina del salón: por la noche, un charco de luz en el suelo.',
     placements: {
       olmo7: {
@@ -146,6 +155,27 @@ export const UPGRADES: readonly UpgradeDef[] = [
         props: [{ kind: 'floor-lamp', tx: 12, ty: 9 }],
         inspects: [{ tx: 11, ty: 9, name: 'Lámpara de pie', lines: ['Luz cálida en la esquina. En el estudio, es lo que separa «salón» de «dormitorio».'] }],
       },
+    },
+  },
+  {
+    // Almacenes Velarde, departamento de hogar (CV-03). La primera mejora que se elige dónde va: la esquina del salón o
+    // el rincón de lectura (en el estudio, la esquina o junto a la cama). Cada ranura, una cosa: con la lámpara en la
+    // esquina, la planta va al otro sitio.
+    id: 'monstera',
+    name: 'Monstera en maceta',
+    kind: 'expresiva',
+    price: 39,
+    sold: ['velarde'],
+    text: 'Una monstera grande en maceta de barro. Verde de verdad en casa: se ve desde la puerta y quien venga la va a mirar.',
+    placements: {
+      olmo7: [
+        { slot: 'esquina-salon', props: [{ kind: 'plant', tx: 17, ty: 11 }], inspects: [{ tx: 17, ty: 12, name: 'Monstera', lines: ['Hojas como platos, con sus agujeros. Ocupa la esquina como si fuera suya.'] }] },
+        { slot: 'salon-lectura', props: [{ kind: 'plant', tx: 15, ty: 10 }], inspects: [{ tx: 15, ty: 11, name: 'Monstera', lines: ['Junto al rincón de lectura: leer con una hoja enorme haciendo sombra.'] }] },
+      ],
+      estudio: [
+        { slot: 'esquina-salon', props: [{ kind: 'plant', tx: 12, ty: 9 }], inspects: [{ tx: 11, ty: 9, name: 'Monstera', lines: ['La esquina del estudio ya tiene a alguien. Verde.'] }] },
+        { slot: 'pared-dormitorio', props: [{ kind: 'plant', tx: 8, ty: 2 }], inspects: [{ tx: 8, ty: 3, name: 'Monstera', lines: ['Al lado de la cama. Lo primero que ves al despertar es una hoja.'] }] },
+      ],
     },
   },
 ];

@@ -69,7 +69,8 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('pc-pizza', 'Pizzería Vesubio', 'restaurant', [0, 1, 7, 7], 's', 3, { floors: 3, enter: into('pc-pizza'), point: 'PC_PIZZA_ENTRANCE' }),
   b('pc-recuerdos', 'Recuerdos de la Puerta', 'souvenir', [7, 1, 7, 7], 's', 10, { floors: 3, enter: into('pc-recuerdos'), point: 'PC_RECUERDOS_ENTRANCE' }),
   b('pc-moda', 'Moda Central', 'fashion', [14, 1, 7, 7], 's', 17, { floors: 3, enter: into('pc-moda'), point: 'PC_MODA_ENTRANCE' }),
-  b('pc-puerta-9', 'Calle de la Puerta 9', 'res-stone', [21, 1, 7, 7], 's', 24, { floors: 3, point: 'PC_PUERTA_9_ENTRANCE' }),
+  // Montón (CV-03): la moda a precio de montón, en el bajo de lo que era el 9. Encima siguen los pisos.
+  b('pc-puerta-9', 'Montón · moda', 'budget', [21, 1, 7, 7], 's', 24, { floors: 3, enter: into('pc-monton'), point: 'PC_PUERTA_9_ENTRANCE' }),
   b('pc-hostal', 'Hostal Puerta Central', 'res-plaster', [28, 1, 7, 7], 's', 31, { floors: 3, point: 'PC_HOSTAL_ENTRANCE' }),
   b('pc-puerta-13', 'Calle de la Puerta 13', 'res-brick', [35, 1, 7, 7], 's', 38, { floors: 3, point: 'PC_PUERTA_13_ENTRANCE' }),
   b('pc-puerta-17', 'Calle de la Puerta 17', 'res-noble', [42, 1, 7, 7], 's', 45, { floors: 3, point: 'PC_PUERTA_17_ENTRANCE' }),
@@ -82,7 +83,8 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('pc-cafe', 'Café Central', 'cafe', [7, 31, 7, 8], 'n', 10, { enter: into('pc-cafe'), point: 'PC_CAFE_ENTRANCE' }),
   b('pc-plaza-4', 'Plaza de la Puerta 4', 'res-stone', [14, 31, 7, 8], 'n', 17, { point: 'PC_PLAZA_4_ENTRANCE' }),
   b('pc-plaza-6', 'Plaza de la Puerta 6', 'res-plaster', [21, 31, 7, 8], 'n', 24, { point: 'PC_PLAZA_6_ENTRANCE' }),
-  b('pc-plaza-8', 'Plaza de la Puerta 8', 'res-brick', [28, 31, 7, 8], 'n', 31, { point: 'PC_PLAZA_8_ENTRANCE' }),
+  // Almacenes Velarde (CV-03): los grandes almacenes de la plaza, con hogar y regalos (data/puertaCentralVenues.ts).
+  b('pc-plaza-8', 'Almacenes Velarde', 'department', [28, 31, 7, 8], 'n', 31, { enter: into('pc-velarde'), point: 'PC_PLAZA_8_ENTRANCE' }),
   b('pc-plaza-10', 'Plaza de la Puerta 10', 'res-noble', [35, 31, 7, 8], 'n', 38, { point: 'PC_PLAZA_10_ENTRANCE' }),
   // La comisaría del centro (ficticia: Policía de Distrito): fachada clara con la banda azul y el escudo, puerta de cristal
   // al paseo de los portales. Recepción por dentro (data/puertaCentralVenues.ts) y de aquí salen las patrullas de la plaza.

@@ -15,7 +15,8 @@ import { QUALITY } from '../config/quality';
 import { windowKind, windowRank } from './Detail';
 import { LAMP_LIGHT } from './LampShadows';
 import { LAYER } from './Layers';
-import { inPilot } from './UrbanFinish';
+import { finished } from './UrbanFinish';
+import { LightDepth } from './LightDepth';
 
 /** Canal a canal: `a` por `b` (0xffffff no cambia nada). */
 function multiply(a: number, b: number): number {
@@ -217,7 +218,7 @@ const WARM = 0xffc27a;
 const COOL = 0xa8d4ff;
 
 /**
- * HD-03, paleta de la noche (en los sitios con LocationDef.pilot: por ahora, Vallesco). Una familia por fuente:
+ * HD-03, paleta de la noche (en los sitios con LocationDef.finish). Una familia por fuente:
  * el cielo azul violeta (NIGHT); la farola, blanco cálido; la casa, ámbar, un paso más naranja y más bajo que la
  * farola (se distingue quién alumbra); la tele y lo de neón, frío; el escaparate, el color de su local templado por
  * la farola. Nada blanco puro salvo el filo de la tira de luz.
@@ -392,7 +393,7 @@ export class Lighting {
     this.scene = scene;
     for (const b of def.buildings ?? []) this.footOf.set(b.id, { top: b.ty * TILE, bottom: (b.ty + b.h) * TILE, north: b.front === 'n' });
     this.indoor = def.kind === 'interior';
-    this.fine = !!def.pilot && !this.indoor;
+    this.fine = finished(def);
     this.ambient = def.ambient ? Number.parseInt(def.ambient.slice(1), 16) : 0xffffff;
     this.room = placeForInterior(def.id);
     this.windowSpots = built.windows;
@@ -409,6 +410,7 @@ export class Lighting {
       .setDepth(DEPTH)
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
     this.windows = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
+    const depth = LightDepth.of(scene);
 
     for (const p of def.props) {
       const prop = PROPS[p.kind];
@@ -425,10 +427,14 @@ export class Lighting {
       const light = scene.add.image(Math.round(x), Math.round(y), outdoorHalo ?? 'fx-light').setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
       if (!outdoorHalo && prop.light.pool) light.setScale(0.6);
       this.lights.push(light.setTint(tint));
-      // HD-03: en la manzana piloto, los paños del farol encendidos píxel a píxel (world/UrbanFinish), encima de la noche.
+      // Fuera, quien pasa por delante de la farola tapa su halo (world/LightDepth).
+      if (!this.indoor) depth.light(light, (p.ty + 1) * TILE);
+      // HD-03: con el acabado, los paños del farol encendidos píxel a píxel (world/UrbanFinish), encima de la noche.
       const lit = `glow-${prop.key}-hd03`;
-      if (!this.indoor && inPilot(def.pilot, p.tx, p.ty) && scene.textures.exists(lit)) {
-        this.emissives.push({ img: scene.add.image(x, (p.ty + 1) * TILE, lit).setOrigin(0.5, 1).setDepth(LAYER.emissive) });
+      if (this.fine && scene.textures.exists(lit)) {
+        const img = scene.add.image(x, (p.ty + 1) * TILE, lit).setOrigin(0.5, 1).setDepth(LAYER.emissive);
+        depth.light(img, (p.ty + 1) * TILE);
+        this.emissives.push({ img });
       }
       const baseY = (p.ty + 1) * TILE - 3;
       if (!this.indoor) {
@@ -458,7 +464,9 @@ export class Lighting {
       const prop = PROPS[p.kind];
       if (!prop.emissive) continue;
       const x = p.tx * TILE + ((prop.tilesWide ?? 1) * TILE) / 2;
-      this.emissives.push({ img: scene.add.image(x, (p.ty + 1) * TILE, prop.emissive).setOrigin(0.5, 1).setDepth(LAYER.emissive) });
+      const img = scene.add.image(x, (p.ty + 1) * TILE, prop.emissive).setOrigin(0.5, 1).setDepth(LAYER.emissive);
+      if (!this.indoor) depth.light(img, (p.ty + 1) * TILE);
+      this.emissives.push({ img });
       this.fixedSources.push({ x, y: (p.ty + 1) * TILE - 2, w: 56, h: 30, color: COOL, strength: 0.45 });
     }
     for (const g of built.glows) {
@@ -466,6 +474,8 @@ export class Lighting {
       // Rótulo de un edificio sin lugar (un bloque cualquiera): no hay quien lo encienda.
       if (g.building && !place) continue;
       const img = scene.add.image(g.x, g.y, g.key).setOrigin(0, 0).setDepth(LAYER.emissive);
+      // Un rótulo está en la fachada: lo que se ve delante de él está delante (world/LightDepth).
+      if (!this.indoor) depth.light(img, -Infinity);
       // Neón de la noche y rótulos del Carmen: fijos casi siempre y, de higos a brevas, un tartamudeo (tick). Con movimiento reducido, fijos.
       const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
       this.emissives.push({ img, place, flicker: flickers ? this.emissives.length + 1 : undefined });
@@ -513,6 +523,9 @@ export class Lighting {
       this.reflections = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
       this.fx = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
     }
+
+    // Fuera, la luz de las ventanas, la tele y el reflejo del suelo mojado quedan detrás de quien pasa (world/LightDepth).
+    if (!this.indoor) for (const layer of [this.windowLayer, this.reflections, this.fx]) if (layer) depth.light(layer, -Infinity);
 
     // Los focos son de la sala abierta: a la hora de cierre se apagan aunque sigas dentro.
     const place = this.room;

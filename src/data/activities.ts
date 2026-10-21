@@ -99,6 +99,15 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     effects: { energy: 6 },
     lines: ['Agua caliente hasta que se empaña el espejo. Sales otra persona.', 'El calentador tarda en arrancar. Luego no hay quien te saque.'],
   },
+  // Con el gel del súper (data/items.ts shower-gel): una ducha por unidad, y se nota.
+  {
+    id: 'shower-gel',
+    name: 'Ducharse con gel (20 min)',
+    minutes: 20,
+    consumes: { item: 'shower-gel' },
+    effects: { energy: 10 },
+    lines: ['Espuma hasta las orejas y el baño oliendo a «brisa marina». Sales nuevo.'],
+  },
   // Sólo en la casa con la mejora «Sofá de lectura» (data/housing.ts): descansar sin gastar nada.
   {
     id: 'read-sofa',

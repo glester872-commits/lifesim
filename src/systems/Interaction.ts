@@ -101,7 +101,15 @@ export interface PickOptions<T extends Candidate> {
   allow?: (c: T) => boolean;
   /** ¿Lo tapa una pared? (WorldScene lo cierra sobre la localización.) */
   blocked?: (c: T) => boolean;
+  /**
+   * El tile que el jugador tiene justo delante. Una caja o una barra (terminal) en ese tile gana a todo: la gente
+   * hace cola y paga en ese mismo mostrador, y sin esto en hora punta la E hablaba con un cliente en vez de pedir.
+   */
+  ahead?: { tx: number; ty: number };
 }
+
+/** El tile de delante de quien está en `tile` mirando a `facing`. */
+export const tileAhead = (tile: { tx: number; ty: number }, facing: Facing): { tx: number; ty: number } => ({ tx: tile.tx + FORWARD[facing].x, ty: tile.ty + FORWARD[facing].y });
 
 /** Distancia desde el jugador, restada la ventaja de tenerlo delante. Menos es mejor. */
 function score(origin: Vec2, c: Candidate, facing: Facing | undefined): number {
@@ -131,6 +139,9 @@ export function pickTarget<T extends Candidate>(origin: Vec2, items: readonly T[
     })
     .sort(compare);
   if (ranked.length === 0) return null;
+  const ahead = opts.ahead;
+  const counter = ahead && ranked.find((r) => r.c.kind === 'terminal' && Math.floor(r.c.x / TILE) === ahead.tx && Math.floor(r.c.y / TILE) === ahead.ty);
+  if (counter) return counter.c;
   const best = ranked[0];
   const keep = opts.current ? ranked.find((r) => r.c.id === opts.current!.id) : undefined;
   return keep && keep.s <= best.s + INTERACTION.sticky ? keep.c : best.c;

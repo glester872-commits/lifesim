@@ -127,10 +127,16 @@ function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w:
  *
  * Charla (entities/Character, entities/Walker): 35 de pie hablando, una mano levantada a media
  * altura y hacia fuera; el otro brazo cuelga.
+ *
+ * Carrera (TextureFactory, `-run-`): 36 y 37 las dos zancadas en el aire, con la rodilla alta, el pie
+ * de atrás con el talón arriba y los brazos doblados; entre una y otra, los apoyos de andar (1 y 2),
+ * un píxel más abajo: el cuerpo sube y baja al correr.
  */
-export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35;
+export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37;
 /** Las de la textura común de gente: todas menos las de pelea, que se hornean aparte y sólo para quien pelea. */
-export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 32, 33, 34, 35];
+export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 32, 33, 34, 35, 36, 37];
+/** Corriendo: zancada en el aire. */
+const running = (pose: Pose): boolean => pose === 36 || pose === 37;
 /** Sólo la pelea existente: carga del golpe, esquive, cansancio, victoria y discusión. */
 export const FIGHT_POSES: readonly Pose[] = [0, 7, 8, 9, 10, 27, 28, 29, 30, 31];
 
@@ -428,8 +434,9 @@ function leg(ctx: Ctx, c: HumanColors, color: string, x: number, y: number, w: n
 
 function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): void {
   const b = drop(pose);
-  const stepL = pose === 1 ? 1 : 0;
-  const stepR = pose === 2 ? 1 : 0;
+  // Corriendo, la rodilla sube el doble que al andar.
+  const stepL = pose === 1 ? 1 : pose === 36 ? 2 : 0;
+  const stepR = pose === 2 ? 1 : pose === 37 ? 2 : 0;
   // Pedaleando, la rodilla que sube lleva el pie tres píxeles arriba.
   const liftL = stepL + (pose === 13 ? 3 : 0);
   const liftR = stepR + (pose === 14 ? 3 : 0);
@@ -522,6 +529,11 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     // Sólo el brazo: el antebrazo va doblado hacia el pecho y se pinta encima del tronco.
     px(ctx, sleeve, 3, 11 + b, 1, 3);
     px(ctx, sleeveDark, 12, 11 + b, 1, 3);
+  } else if (running(pose)) {
+    // Corriendo: los brazos doblados por el codo; el del lado de la pierna que sube va atrás (se ve más largo).
+    const left = pose === 37;
+    arm(ctx, c, back ? 'l' : 'r', 3, 11, 1, left ? 4 : 3, sleeve, c.skin);
+    arm(ctx, c, back ? 'r' : 'l', 12, 11, 1, left ? 3 : 4, sleeveDark, shade(c.skin, -0.08));
   } else {
     // De frente, el brazo derecho queda a la izquierda de la imagen; de espaldas, al revés.
     arm(ctx, c, back ? 'l' : 'r', 3, armL, 1, 5, sleeve, c.skin);
@@ -851,6 +863,21 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     px(ctx, c.shoes, 10, 22, 3, 2);
     px(ctx, tone(c.trousers, 0.14), 10, 17, 2, 1);
     px(ctx, tone(c.shoes, -0.3), 10, 23, 3, 1);
+  } else if (running(pose)) {
+    // Zancada: la pierna de atrás estirada y con el talón arriba; la de delante, el muslo adelantado y el pie
+    // apoyando por delante del cuerpo. Más abierta que al andar: de lejos se lee que corre.
+    const [front, rear] = pose === 37 ? [far, c.trousers] : [c.trousers, far];
+    leg(ctx, c, rear, 5, 17, 3, 2);
+    leg(ctx, c, rear, 3, 19, 3, 2);
+    px(ctx, c.shoes, 1, 20, 3, 2);
+    px(ctx, tone(c.shoes, -0.3), 1, 21, 3, 1);
+    leg(ctx, c, front, 8, 17, 4, 2);
+    leg(ctx, c, front, 10, 19, 3, 3);
+    px(ctx, c.shoes, 10, 22, 4, 2);
+    px(ctx, tone(front, 0.14), 11, 18, 1, 1);
+    px(ctx, tone(rear, -0.12), 3, 20, 1, 1);
+    px(ctx, tone(c.shoes, -0.3), 10, 23, 4, 1);
+    if (c.stripe) px(ctx, c.stripe, pose === 37 ? 4 : 11, 19, 1, pose === 37 ? 2 : 3);
   } else if (step) {
     const [front, rear] = pose === 2 ? [far, c.trousers] : [c.trousers, far];
     leg(ctx, c, rear, 5, 17, 3, 2);
@@ -889,7 +916,7 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   px(ctx, shade(c.cloth, 0.16), 5, 10 + b, 4, 1);
   px(ctx, shade(c.cloth, -0.1), 10, 11 + b, 1, 5 - Math.min(b, 4));
   if (b < 3) px(ctx, shade(c.trousers, -0.32), 5, 17, 6, 1);
-  if (!seated(pose)) px(ctx, shade(c.shoes, 0.3), step ? 12 : 10, 22, 1, 1);
+  if (!seated(pose)) px(ctx, shade(c.shoes, 0.3), step || running(pose) ? 12 : 10, 22, 1, 1);
 
   // Cabeza de perfil: nuca, oreja, ojo y nariz hacia delante.
   px(ctx, shade(c.skin, -0.1), 7, 9 + b, 2, 1);
@@ -1058,6 +1085,16 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     // Encaja: echado atrás, el brazo se le va hacia la espalda.
     px(ctx, sleeve, 4, 11, 2, 3);
     px(ctx, c.skin, 3, 14, 2, 1);
+  } else if (pose === 36) {
+    // Corriendo, el brazo de cerca atrás y doblado: el codo sale por la espalda.
+    px(ctx, sleeve, 5, 11 + b, 2, 3);
+    px(ctx, sleeve, 3, 13 + b, 2, 2);
+    px(ctx, c.skin, 3, 15 + b, 2, 1);
+  } else if (pose === 37) {
+    // Y delante, con el puño a la altura del pecho.
+    px(ctx, sleeve, 8, 11 + b, 2, 3);
+    px(ctx, sleeve, 10, 11 + b, 2, 2);
+    px(ctx, c.skin, 12, 11 + b, 1, 2);
   } else if (pose === 1) {
     // El brazo echa su sombra en el tronco, del lado contrario a la luz: se separa de la tela.
     px(ctx, tone(c.cloth, -0.14), 7, 12 + b, 1, Math.max(0, Math.min(3, 4 - b)));
