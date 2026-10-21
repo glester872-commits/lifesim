@@ -4,6 +4,7 @@ import type { BikeType } from '../data/bikes';
 import { PASSENGER_LOOKS } from '../data/npcs';
 import type { Traffic, Vehicle } from '../systems/Traffic';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
+import { LightDepth } from './LightDepth';
 import { DEBUG } from '../config/debug';
 import { RIDER_H, RIDER_LAMPS, RIDER_SCALE, RIDER_STOPPED, RIDER_W, riderTexture, skateFrame, type RiderLook } from './CyclistArt';
 
@@ -108,11 +109,20 @@ export class CyclistView {
   private take(v: Vehicle<BikeType>): Parts {
     const s = this.scene;
     const key = riderTexture(s, riderOf(v));
-    const p = this.pool.pop() ?? {
-      body: s.add.image(0, 0, key, 0).setOrigin(0, 0).setScale(RIDER_SCALE),
-      head: s.add.image(0, 0, 'veh-head').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
-      tail: s.add.image(0, 0, 'veh-tail').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
-    };
+    let p = this.pool.pop();
+    if (!p) {
+      const made: Parts = {
+        body: s.add.image(0, 0, key, 0).setOrigin(0, 0).setScale(RIDER_SCALE),
+        head: s.add.image(0, 0, 'veh-head').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
+        tail: s.add.image(0, 0, 'veh-tail').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
+      };
+      // Sus luces, a la altura de su pie: las tapa quien está delante; la bici tapa lo que tiene detrás (world/LightDepth).
+      const depth = LightDepth.of(s);
+      depth.light(made.head, () => made.body.depth);
+      depth.light(made.tail, () => made.body.depth);
+      depth.occluder(made.body);
+      p = made;
+    }
     p.body.setTexture(key, 0).setFlipX(v.dir < 0);
     this.parts.set(v, p);
     return p;

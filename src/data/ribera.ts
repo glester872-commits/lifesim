@@ -278,4 +278,4 @@ const BASE: LocationDef = {
 };
 
 /** El mobiliario es el de los datos; systems/Dressing sólo añade las papeleras que pide cada sitio. */
-export const RIBERA: LocationDef = { ...BASE, props: [...PROPS, ...dressBins(BASE)] };
+export const RIBERA: LocationDef = { ...BASE, finish: true, props: [...PROPS, ...dressBins(BASE)] };

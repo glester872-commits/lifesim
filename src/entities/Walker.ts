@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
-import { PEOPLE, personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
+import { personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
+import { LightDepth } from '../world/LightDepth';
 import type { Pose } from '../world/HumanArt';
 import { TILE } from '../config/constants';
 import { WALK_REF } from './Character';
@@ -51,6 +52,8 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
 
   constructor(scene: Phaser.Scene, look: NpcLook, facing: Facing) {
     super(scene, 0, 0, personTexture(look.id), personFrame(look.id, facing));
+    // Tapa la luz que tiene detrás: ventanas, halos, rótulos, semáforos (world/LightDepth).
+    LightDepth.of(scene).occluder(this);
     this.currentLook = look;
     this.dir = facing;
     const n = Walker.made++;
@@ -168,7 +171,7 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.speechEl.hidden = true;
     // En el pool suelta su ropa de 28 × 42 y no apunta a ella (se puede tirar): crear o guardar no hornea nada.
     this.shown = showPerson(this.shown, null);
-    this.setTexture(PEOPLE, personFrame(this.currentLook.id, this.dir));
+    this.setTexture(personTexture(this.currentLook.id), personFrame(this.currentLook.id, this.dir));
   }
 
   /** Su ropa de 28 × 42 acaba de estar lista (o se ha tirado): otra textura, la misma talla y el mismo cuerpo en el mundo. */
@@ -308,7 +311,9 @@ export class Walker extends Phaser.Physics.Arcade.Sprite {
     this.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
     // El compás del paso sale de la velocidad de verdad (también al pasar despacio junto al jugador): el pie no resbala.
     const cadence = Math.min(2.4, Math.max(0.5, (this.speed * pace) / (WALK_REF * TILE))) / this.stride;
-    if (pace > 0) this.loop(`npc-${this.currentLook.id}-walk-${this.dir}`, cadence);
+    // Con prisa de verdad (más de 1,6 veces el paso de andar: el tren ya está abierto), corre.
+    const gait = (this.speed * pace) / (WALK_REF * TILE) > 1.6 ? 'run' : 'walk';
+    if (pace > 0) this.loop(`npc-${this.currentLook.id}-${gait}-${this.dir}`, cadence);
     else this.loop(`npc-${this.currentLook.id}-idle-${this.dir}`, this.tempo, true);
     this.sync();
     return false;

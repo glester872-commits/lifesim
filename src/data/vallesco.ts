@@ -626,4 +626,4 @@ const WIDE: LocationDef = { ...WIDENED, props: [...WIDENED.props, ...MEDIAN, at(
 // HD-03: la manzana piloto del acabado urbano, ya en coordenadas ensanchadas. De la mediana de la avenida a la
 // primera mitad del Parque del Olmo, entre la Calle Tintoreros y el Pasaje del Reloj: la plazuela del metro,
 // Olmo 7 y Olmo 11, la acera sur de la avenida con sus dos pasos y la Calle del Olmo con sus coches aparcados.
-export const VALLESCO: LocationDef = { ...WIDE, props: [...WIDE.props, ...dress(WIDE)], pilot: { tx: 22, ty: 35, w: 36, h: 25 } };
+export const VALLESCO: LocationDef = { ...WIDE, props: [...WIDE.props, ...dress(WIDE)], finish: true };

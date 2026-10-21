@@ -139,7 +139,7 @@ import { INIT_SLOT, activePlan, lineFor, markRead, tierOf, phoneTick, planFromTa
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
-import { PLAYER_H, pumpPeopleHD } from '../world/TextureFactory';
+import { PLAYER_H, pumpPeopleFine } from '../world/TextureFactory';
 import type { Services } from '../services';
 import { LAYER } from '../world/Layers';
 
@@ -191,13 +191,13 @@ const ARRIVAL_LOCK_MS = 450;
 /** Cada cuánto se recalcula lo que suena: los fundidos de audio/CityAudio rellenan lo de en medio. */
 const SOUND_EVERY_MS = 250;
 /**
- * Lo que se gasta cada frame horneando la ropa de 28 × 42 de quien aparece (world/HdCache; unos 70 ms cada aspecto):
- * en juego, poco (cabe en el frame, y quien llega por el borde se hornea antes de verse); al entrar en una escena
- * (el fundido y su primer segundo), mucho, para que quien ya está allí salga vestido enseguida.
+ * Lo que se gasta cada frame horneando el acabado de quien aparece (world/HdCache; unos 24 ms cada aspecto): en
+ * juego, poco (cabe en el frame, y quien llega por el borde se hornea antes de verse); al entrar en una escena (el
+ * fundido y su primer segundo), mucho, para que quien ya está allí salga con su acabado enseguida.
  */
-const HD_BAKE_MS = 5;
-const HD_BAKE_ENTRY_MS = 40;
-const HD_ENTRY_MS = 1_200;
+const FINE_BAKE_MS = 4;
+const FINE_BAKE_ENTRY_MS = 40;
+const FINE_ENTRY_MS = 1_200;
 
 function anchor(item: Interactable): Vec2 {
   return item.kind === 'npc' ? { x: item.sprite.x, y: item.sprite.y - 10 } : item;
@@ -829,8 +829,8 @@ export class WorldScene extends Phaser.Scene {
     this.updateSound(time);
     this.matchView?.update(this.absMinute(), time);
     this.updateStand(time);
-    // La ropa de 28 × 42 de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
-    pumpPeopleHD(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < HD_ENTRY_MS ? HD_BAKE_ENTRY_MS : HD_BAKE_MS);
+    // El acabado de quien acaba de aparecer, a ratos (world/HdCache): más mientras la escena entra.
+    pumpPeopleFine(this.cameras.main.fadeEffect.isRunning || time - this.time.startTime < FINE_ENTRY_MS ? FINE_BAKE_ENTRY_MS : FINE_BAKE_MS);
 
     // Tras un salto (dormir, un turno, el metro) el reloj espera a que se lea lo que ha pasado; sin nada abierto, sigue.
     if (clock.isHeld && !dialogue.isOpen && !menu.isOpen && !this.leaving) clock.release();

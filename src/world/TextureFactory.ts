@@ -16,7 +16,7 @@ import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
 import { buildPopUpTextures } from './PopUpArt';
 import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
-import { drawPersonFine, drawPlayerHD, HD_H, HD_SCALE, HD_W, setPremium } from './HumanArtHD';
+import { drawPersonFine, setPremium } from './HumanArtHD';
 import { HdCache, type HdBackend } from './HdCache';
 import type { Appearance } from '../data/appearance';
 import { withAppearance } from '../systems/Appearance';
@@ -528,32 +528,45 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
     }
     return;
   }
-  // Con ropa de verdad: se hornea (o se repinta ya, si tiene textura) con la apariencia de hoy.
-  if (HD_LOOKS.has(id)) {
-    hdAppearance.set(id, changes);
-    hdCache.repaint(id);
-  }
   const look = NPC_DEFS.find((n) => n.id === id);
-  if (!look || !scene.textures.exists(PEOPLE)) return;
-  const atlas = scene.textures.get(PEOPLE) as Phaser.Textures.CanvasTexture;
+  // Con el acabado: se hornea (o se repinta ya, si tiene textura) con la apariencia de hoy.
+  if (FINE_LOOKS.has(id)) {
+    fineAppearance.set(id, changes);
+    fineCache.repaint(id);
+  }
+  const page = PAGE_OF.get(id) ?? PEOPLE;
+  if (!look || !scene.textures.exists(page)) return;
+  const atlas = scene.textures.get(page) as Phaser.Textures.CanvasTexture;
+  repaintRow(atlas, id, withAppearance(colorsOf(look), changes));
+  atlas.refresh();
+}
+
+/** Las poses de alguien en su fila del atlas de gente (el dibujo simple, la reserva), otra vez. */
+function repaintRow(atlas: Phaser.Textures.CanvasTexture, id: string, colors: HumanColors): void {
   const ctx = atlas.getContext();
-  const cell = document.createElement('canvas');
-  cell.width = PLAYER_W;
-  cell.height = PLAYER_H;
-  const c = cell.getContext('2d', { willReadFrequently: true });
-  if (!c) return;
-  const colors = withAppearance(colorsOf(look), changes);
+  const c = personCell();
   for (const facing of FACINGS) {
     for (const pose of POSES) {
       const frame = atlas.get(personFrame(id, facing, pose));
       c.clearRect(0, 0, PLAYER_W, PLAYER_H);
-      if (FINE_PEOPLE.has(id)) drawPersonFine(c, facing, pose, colors);
-      else drawHuman(c, facing, pose, colors);
+      drawHuman(c, facing, pose, colors);
       ctx.clearRect(frame.cutX, frame.cutY, PLAYER_W, PLAYER_H);
-      ctx.drawImage(cell, frame.cutX, frame.cutY);
+      ctx.drawImage(c.canvas, frame.cutX, frame.cutY);
     }
   }
-  atlas.refresh();
+}
+
+/** Cada pose se dibuja sola en un lienzo suelto de 16 × 24: el contorno de una no invade la celda de al lado. */
+let cell: CanvasRenderingContext2D | null = null;
+function personCell(): CanvasRenderingContext2D {
+  if (!cell) {
+    const canvas = document.createElement('canvas');
+    canvas.width = PLAYER_W;
+    canvas.height = PLAYER_H;
+    cell = canvas.getContext('2d', { willReadFrequently: true });
+    if (!cell) throw new Error('Sin canvas 2D');
+  }
+  return cell;
 }
 
 /**
@@ -566,94 +579,85 @@ export const PEOPLE = 'people';
 const ATLAS_MAX = 4096;
 export const personFrame = (id: string, facing: Facing, pose: Pose = 0): string => `${id}-${facing}-${pose}`;
 
+/** El primero con ropa de verdad que sale a la calle (lo usan lifesim.scaleCompare y lifesim.lineup). */
+export const HD_PERSON = PASSENGER_LOOKS.find((l) => l.outfit)?.id;
+
 /**
- * Toda la gente que no es el jugador (anónimos, personajes con nombre, uniformes y sus versiones de abrigo, verano,
- * capucha y gimnasio) con el acabado del jugador: a 28 × 42 con world/HumanArtHD, su mismo dibujo de 16 × 24 llevado
- * píxel a píxel (cara, pelo, ropa y silueta idénticas) con luz y contorno; y quien lleva `outfit` (los 36 vecinos de
- * systems/Population y algunas caras de data/npcs.ts), además, con ropa de verdad (world/Garments). Sin `outfit`
- * nadie cambia de ropa: Sara, los uniformes y quien patrulla se reconocen igual. Una textura por aspecto con los
- * mismos nombres de fotograma que el atlas de siempre. No se hornea al
- * arrancar: world/HdCache la hace cuando alguien va a salir en escena (entities/Character, Walker y NPC la
- * retienen con showPerson mientras se ven) y la guarda con un límite de memoria. Mientras se hornea, esa persona
- * se ve con su dibujo de 16 × 24 del atlas de siempre; personTexture y personScale dicen cuál toca ahora, y sus
- * animaciones se rehacen al pasar de una a otra.
+ * HD-03, escala coherente: toda la gente (personajes con nombre, uniformes, anónimos y sus versiones de abrigo,
+ * verano, capucha y gimnasio) a 16 × 24 y escala 1, la misma densidad de píxel que el mundo y que el jugador, con el
+ * acabado de world/HumanArtHD.drawPersonFine (y la ropa de verdad, world/Garments, quien lleva `outfit`). Antes, quien
+ * llevaba ropa iba a 28 × 42 a escala 16/28, nítido a ningún zoom entero.
+ *
+ * Hornear todo al arrancar son unas 51 000 celdas (unos 10 s): el atlas de siempre (PEOPLE) se pinta con el dibujo
+ * simple, rápido, y el acabado de cada aspecto se hace cuando alguien va a salir en escena (world/HdCache: entities/
+ * Character, Walker y NPC lo retienen con showPerson mientras se ven), en una textura suya de una fila. Mientras se
+ * hornea, esa persona se ve con el dibujo simple: misma talla, mismo sitio, mismas poses. Ni rutinas, ni diálogos, ni
+ * el cuerpo de colisión cambian.
  */
-const HD_LOOKS: ReadonlyMap<string, NpcLook> = new Map(
+const FINE_LOOKS: ReadonlyMap<string, NpcLook> = new Map(
   [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].map((l) => [l.id, l]),
 );
-/** El primero con ropa de verdad que sale a la calle (lo usa lifesim.scaleCompare). */
-export const HD_PERSON = PASSENGER_LOOKS.find((l) => l.outfit)?.id;
-/**
- * HD-03, prueba de escala coherente: el jugador y dos NPC (Sara, sin ropa nueva, y el primer vecino con ella) se
- * dibujan a 16 × 24 y escala 1 con world/HumanArtHD.drawPersonFine, en vez de 28 × 42 a escala 16/28. Los demás,
- * como siempre. Ni rutinas, ni diálogos, ni el cuerpo de colisión cambian: sólo el dibujo y su escala.
- */
-export const FINE_PEOPLE: ReadonlySet<string> = new Set(['player', 'sara', ...(HD_PERSON ? [HD_PERSON] : [])]);
-const hdKey = (id: string): string => `person-hd:${id}`;
-const HD_ROW_W = FACINGS.length * POSES.length * HD_W;
-/** Lo que se guarda, como mucho, de lo que ya nadie muestra (unos 45 aspectos). Lo que se ve no se tira nunca. */
-export const HD_CACHE_MB = 24;
+const fineKey = (id: string): string => `person-fine:${id}`;
+const FINE_ROW_W = FACINGS.length * POSES.length * PLAYER_W;
+/** Lo que se guarda, como mucho, de lo que ya nadie muestra (unos 130 aspectos). Lo que se ve no se tira nunca. */
+export const FINE_CACHE_MB = 24;
 /** La apariencia de hoy de quien persiste (repaintPerson): se hornea con ella. */
-const hdAppearance = new Map<string, Appearance>();
+const fineAppearance = new Map<string, Appearance>();
 /** Texturas y animaciones son del juego, no de una escena: sobreviven a los cambios de escena. */
-let hdGame: Phaser.Game | null = null;
-let hdCell: CanvasRenderingContext2D | null = null;
+let fineGame: Phaser.Game | null = null;
 
-const hdBackend: HdBackend = {
+const fineBackend: HdBackend = {
   create(id) {
-    const atlas = hdGame!.textures.createCanvas(hdKey(id), HD_ROW_W, HD_H)!;
-    FACINGS.forEach((facing, f) => POSES.forEach((pose, i) => atlas.add(personFrame(id, facing, pose), 0, (f * POSES.length + i) * HD_W, 0, HD_W, HD_H)));
+    const atlas = fineGame!.textures.createCanvas(fineKey(id), FINE_ROW_W, PLAYER_H)!;
+    FACINGS.forEach((facing, f) => POSES.forEach((pose, i) => atlas.add(personFrame(id, facing, pose), 0, (f * POSES.length + i) * PLAYER_W, 0, PLAYER_W, PLAYER_H)));
   },
   paint(id, cell) {
-    if (!hdCell) {
-      const canvas = document.createElement('canvas');
-      canvas.width = HD_W;
-      canvas.height = HD_H;
-      hdCell = canvas.getContext('2d', { willReadFrequently: true });
-      if (!hdCell) throw new Error('Sin canvas 2D');
-    }
-    const look = HD_LOOKS.get(id)!;
-    const changes = hdAppearance.get(id);
-    drawPlayerHD(hdCell, FACINGS[Math.floor(cell / POSES.length)], POSES[cell % POSES.length], changes ? withAppearance(colorsOf(look), changes) : colorsOf(look));
-    const ctx = (hdGame!.textures.get(hdKey(id)) as Phaser.Textures.CanvasTexture).getContext();
-    ctx.clearRect(cell * HD_W, 0, HD_W, HD_H);
-    ctx.drawImage(hdCell.canvas, cell * HD_W, 0);
+    const look = FINE_LOOKS.get(id)!;
+    const changes = fineAppearance.get(id);
+    const c = personCell();
+    drawPersonFine(c, FACINGS[Math.floor(cell / POSES.length)], POSES[cell % POSES.length], changes ? withAppearance(colorsOf(look), changes) : colorsOf(look));
+    const ctx = (fineGame!.textures.get(fineKey(id)) as Phaser.Textures.CanvasTexture).getContext();
+    ctx.clearRect(cell * PLAYER_W, 0, PLAYER_W, PLAYER_H);
+    ctx.drawImage(c.canvas, cell * PLAYER_W, 0);
   },
   done(id) {
-    (hdGame!.textures.get(hdKey(id)) as Phaser.Textures.CanvasTexture).refresh();
-    personAnims(hdGame!.anims, id);
+    (fineGame!.textures.get(fineKey(id)) as Phaser.Textures.CanvasTexture).refresh();
+    personAnims(fineGame!.anims, id);
   },
   drop(id) {
     // Primero sus animaciones vuelven al atlas de siempre; luego se borra la textura (nadie la muestra: world/HdCache).
-    personAnims(hdGame!.anims, id);
-    hdGame!.textures.remove(hdKey(id));
+    personAnims(fineGame!.anims, id);
+    fineGame!.textures.remove(fineKey(id));
   },
 };
-export const hdCache = new HdCache(hdBackend, FACINGS.length * POSES.length, HD_ROW_W * HD_H * 4, HD_CACHE_MB * 2 ** 20);
+export const fineCache = new HdCache(fineBackend, FACINGS.length * POSES.length, FINE_ROW_W * PLAYER_H * 4, FINE_CACHE_MB * 2 ** 20);
 
-export const personTexture = (id: string): string => (hdCache.ready(id) ? hdKey(id) : PEOPLE);
-export const personScale = (id: string): number => (hdCache.ready(id) ? HD_SCALE : 1);
+/** La textura de alguien ahora: la suya con el acabado, si ya está, o su página del atlas de siempre. */
+export const personTexture = (id: string): string => (fineCache.ready(id) ? fineKey(id) : (PAGE_OF.get(id) ?? PEOPLE));
+/** Siempre 1: un píxel de arte es uno de mundo (la firma se queda para entities/*). */
+export const personScale = (_id: string): number => 1;
+/** En qué página del atlas de gente está cada aspecto (buildPeople). */
+const PAGE_OF = new Map<string, string>();
 
 /**
- * Un sprite deja de mostrar a `prev` y pasa a mostrar a `next` (null: se esconde). Sólo cuenta quien lleva ropa
- * de verdad. Devuelve `next` para guardarlo: `this.shown = showPerson(this.shown, id)`.
+ * Un sprite deja de mostrar a `prev` y pasa a mostrar a `next` (null: se esconde). Devuelve `next` para guardarlo:
+ * `this.shown = showPerson(this.shown, id)`.
  */
 export function showPerson(prev: string | null, next: string | null): string | null {
   if (prev === next) return next;
-  // HD-03: quien está en la prueba de escala coherente se queda en el atlas de 16 × 24 (FINE_PEOPLE).
-  if (next && HD_LOOKS.has(next) && !FINE_PEOPLE.has(next)) hdCache.acquire(next);
-  if (prev && HD_LOOKS.has(prev) && !FINE_PEOPLE.has(prev)) hdCache.release(prev);
+  if (next && FINE_LOOKS.has(next)) fineCache.acquire(next);
+  if (prev && FINE_LOOKS.has(prev)) fineCache.release(prev);
   return next;
 }
 
 /** Hornea un poco de lo pendiente (scenes/WorldScene, cada frame). */
-export const pumpPeopleHD = (budgetMs: number): number => (hdGame ? hdCache.pump(budgetMs) : 0);
+export const pumpPeopleFine = (budgetMs: number): number => (fineGame ? fineCache.pump(budgetMs) : 0);
 
-/** Desarrollo (lifesim.hdCompare, lifesim.lineup): lo deja hecho ya, retenido hasta recargar. */
-export function preparePersonHD(id: string): void {
-  if (!HD_LOOKS.has(id) || !hdGame || FINE_PEOPLE.has(id)) return;
-  hdCache.acquire(id);
-  hdCache.finish(id);
+/** Desarrollo (lifesim.lineup, lifesim.hdCompare): lo deja hecho ya, retenido hasta recargar. */
+export function preparePerson(id: string): void {
+  if (!FINE_LOOKS.has(id) || !fineGame) return;
+  fineCache.acquire(id);
+  fineCache.finish(id);
 }
 
 /**
@@ -663,42 +667,43 @@ export function preparePersonHD(id: string): void {
 export function setPremiumClothes(scene: Phaser.Scene, on: boolean, player: Appearance): void {
   setPremium(on);
   repaintPerson(scene, 'player', player);
-  hdCache.repaint();
+  fineCache.repaint();
 }
 
 function buildPeople(scene: Phaser.Scene): void {
   if (scene.textures.exists(PEOPLE)) return;
   // Con las versiones de abrigo, verano y capucha de cada cara (world/WeatherLooks): se hornean una vez.
   const looks = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS];
-  // Las filas se reparten en columnas para no pasar de 4096 px de alto (el tope de muchos móviles).
+  // Las filas se reparten en columnas y en páginas para no pasar de 4096 px de lado (el tope de muchos móviles):
+  // antes, una sola textura de 5760 px de ancho. Phaser pinta varias texturas en el mismo lote.
   const rowW = FACINGS.length * POSES.length * PLAYER_W;
-  const columns = Math.ceil((looks.length * PLAYER_H) / ATLAS_MAX);
-  const perColumn = Math.ceil(looks.length / columns);
-  const atlas = scene.textures.createCanvas(PEOPLE, columns * rowW, perColumn * PLAYER_H);
-  if (!atlas) return;
-  const ctx = atlas.getContext();
-  ctx.imageSmoothingEnabled = false;
-  // Cada pose se dibuja sola en un lienzo suelto: el contorno de una no invade la celda de al lado.
-  const cell = document.createElement('canvas');
-  cell.width = PLAYER_W;
-  cell.height = PLAYER_H;
-  const c = cell.getContext('2d', { willReadFrequently: true });
-  if (!c) return;
-  looks.forEach((look, row) => {
-    const colors = colorsOf(look);
-    FACINGS.forEach((facing, f) =>
-      POSES.forEach((pose, i) => {
-        c.clearRect(0, 0, PLAYER_W, PLAYER_H);
-        if (FINE_PEOPLE.has(look.id)) drawPersonFine(c, facing, pose, colors);
-        else drawHuman(c, facing, pose, colors);
-        const x = Math.floor(row / perColumn) * rowW + (f * POSES.length + i) * PLAYER_W;
-        const y = (row % perColumn) * PLAYER_H;
-        ctx.drawImage(cell, x, y);
-        atlas.add(personFrame(look.id, facing, pose), 0, x, y, PLAYER_W, PLAYER_H);
-      }),
-    );
-  });
-  atlas.refresh();
+  const perPage = Math.floor(ATLAS_MAX / rowW) * Math.floor(ATLAS_MAX / PLAYER_H);
+  const c = personCell();
+  for (let start = 0, page = 0; start < looks.length; start += perPage, page++) {
+    const part = looks.slice(start, start + perPage);
+    const columns = Math.ceil((part.length * PLAYER_H) / ATLAS_MAX);
+    const perColumn = Math.ceil(part.length / columns);
+    const key = page === 0 ? PEOPLE : `${PEOPLE}-${page}`;
+    const atlas = scene.textures.createCanvas(key, columns * rowW, perColumn * PLAYER_H);
+    if (!atlas) return;
+    const ctx = atlas.getContext();
+    ctx.imageSmoothingEnabled = false;
+    part.forEach((look, row) => {
+      PAGE_OF.set(look.id, key);
+      const colors = colorsOf(look);
+      FACINGS.forEach((facing, f) =>
+        POSES.forEach((pose, i) => {
+          c.clearRect(0, 0, PLAYER_W, PLAYER_H);
+          drawHuman(c, facing, pose, colors);
+          const x = Math.floor(row / perColumn) * rowW + (f * POSES.length + i) * PLAYER_W;
+          const y = (row % perColumn) * PLAYER_H;
+          ctx.drawImage(c.canvas, x, y);
+          atlas.add(personFrame(look.id, facing, pose), 0, x, y, PLAYER_W, PLAYER_H);
+        }),
+      );
+    });
+    atlas.refresh();
+  }
 }
 
 export function buildTextures(scene: Phaser.Scene): void {
@@ -780,7 +785,7 @@ export function buildTextures(scene: Phaser.Scene): void {
 
   for (const facing of FACINGS) {
     for (const pose of POSES) {
-      // HD-03: a 16 × 24 y escala 1, la densidad del mundo (FINE_PEOPLE; antes 28 × 42 a escala 16/28).
+      // HD-03: a 16 × 24 y escala 1, la densidad del mundo (antes 28 × 42 a escala 16/28).
       make(scene, humanKey('player', facing, pose), PLAYER_W, PLAYER_H, (ctx) => drawPersonFine(ctx, facing, pose, PLAYER_COLORS));
     }
   }
@@ -907,6 +912,10 @@ function humanAnims(anims: Phaser.Animations.AnimationManager, prefix: string, a
     if (!anims.exists(`${prefix}-walk-${facing}`)) {
       anims.create({ key: `${prefix}-walk-${facing}`, frames: [frame(1), frame(0), frame(2), frame(0)], frameRate: 8, repeat: -1 });
     }
+    // Corriendo: zancada en el aire y apoyo, a un lado y al otro (world/HumanArt, 36 y 37); al compás de andar.
+    if (!anims.exists(`${prefix}-run-${facing}`)) {
+      anims.create({ key: `${prefix}-run-${facing}`, frames: [frame(36), frame(1), frame(37), frame(2)], frameRate: 8, repeat: -1 });
+    }
     if (!anims.exists(`${prefix}-idle-${facing}`)) {
       anims.create({ key: `${prefix}-idle-${facing}`, frames: [{ ...frame(0), duration: 1100 }, frame(3)], frameRate: 2, repeat: -1 });
     }
@@ -931,18 +940,18 @@ function npcAnims(anims: Phaser.Animations.AnimationManager, id: string): void {
 }
 
 /**
- * Las animaciones de alguien, hacia la textura que le toca ahora (personTexture): el atlas de siempre o la suya de
- * 28 × 42. Se rehacen al terminar de hornearla y al tirarla (world/HdCache); quien las estuviera reproduciendo se para
+ * Las animaciones de alguien, hacia la textura que le toca ahora (personTexture): el atlas de siempre o la suya con el
+ * acabado. Se rehacen al terminar de hornearla y al tirarla (world/HdCache); quien las estuviera reproduciendo se para
  * (Phaser) y la vuelve a pedir: entities/Character en cada frame, entities/Walker y entities/NPC al notar el cambio.
  */
 function personAnims(anims: Phaser.Animations.AnimationManager, id: string): void {
-  for (const facing of FACINGS) for (const kind of ['walk', 'idle', 'talk', 'sit']) anims.remove(`npc-${id}-${kind}-${facing}`);
+  for (const facing of FACINGS) for (const kind of ['walk', 'run', 'idle', 'talk', 'sit']) anims.remove(`npc-${id}-${kind}-${facing}`);
   humanAnims(anims, `npc-${id}`, (facing, pose) => ({ key: personTexture(id), frame: personFrame(id, facing, pose) }));
   npcAnims(anims, id);
 }
 
 export function registerAnimations(scene: Phaser.Scene): void {
-  hdGame = scene.game;
+  fineGame = scene.game;
   humanAnims(scene.anims, 'player', (facing, pose) => ({ key: humanKey('player', facing, pose) }));
   for (const npc of [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS]) {
     humanAnims(scene.anims, `npc-${npc.id}`, (facing, pose) => ({ key: personTexture(npc.id), frame: personFrame(npc.id, facing, pose) }));

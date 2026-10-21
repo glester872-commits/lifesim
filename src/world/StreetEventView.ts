@@ -9,9 +9,9 @@ import { PASSENGER_LOOKS } from '../data/npcs';
 import { Character } from '../entities/Character';
 import { CrowdView } from './CrowdView';
 import { colorsOf, FIGHT_POSES, type Pose } from './HumanArt';
-import { drawPlayerHD, HD_H, HD_SCALE, HD_W } from './HumanArtHD';
+import { drawPersonFine } from './HumanArtHD';
 import { make, px } from './paint';
-import { PLAYER_W } from './TextureFactory';
+import { PLAYER_H, PLAYER_W } from './TextureFactory';
 import { LAYER } from './Layers';
 
 /**
@@ -26,38 +26,33 @@ import { LAYER } from './Layers';
 
 const fightKey = (look: string, facing: Facing, pose: Pose, side: number): string => `fight-${look}-${side}-${facing}-${pose}`;
 
-/** La celda de pelea, a la escala del mundo (con margen para el gesto) y en píxeles del acabado del jugador (28 × 42 por persona). */
+/** La celda de pelea, a la escala del mundo: la persona de 16 × 24 con margen para el gesto. */
 const FIGHT_W = 24;
 const FIGHT_H = 28;
-const K = HD_W / PLAYER_W;
 
 /**
- * Diez poses de perfil por lado, horneadas una vez con margen para el gesto y el tamaño corporal. Con el acabado del
- * jugador (world/HumanArtHD, el mismo que esa persona tiene andando): se pintan a 28 × 42 y el sprite va a HD_SCALE,
- * así que en el mundo miden lo mismo que la celda de siempre (24 × 28).
+ * Diez poses de perfil por lado, horneadas una vez con margen para el gesto. Con el acabado de la gente a pie
+ * (world/HumanArtHD.drawPersonFine) y a escala 1: un píxel de arte es uno de mundo, como el resto de la calle.
+ * La categoría corporal es la complexión del dibujo (world/HumanArt.reshape), no una celda estirada o encogida.
  */
 function bakeFighter(scene: Phaser.Scene, profile: FighterProfile, side: number): void {
   const look = PASSENGER_LOOKS.find((l) => l.id === profile.look)!;
   if (scene.textures.exists(fightKey(look.id, 'left', 31, side))) return;
   // La misma persona, sin bolso mientras pelea. La categoría corporal se ve,
   // pero la huella de colisión sigue siendo exactamente la del evento anterior.
-  const colors = colorsOf({ ...look, bag: undefined, cap: undefined });
+  const body = profile.body === 1 ? ({ build: 'thin', height: 'short' } as const) : profile.body === 3 ? ({ build: 'muscular', height: 'tall' } as const) : {};
+  const colors = colorsOf({ ...look, ...body, bag: undefined, cap: undefined });
   const cell = document.createElement('canvas');
-  cell.width = HD_W;
-  cell.height = HD_H;
+  cell.width = PLAYER_W;
+  cell.height = PLAYER_H;
   const ctx = cell.getContext('2d', { willReadFrequently: true });
   if (!ctx) return;
-  const width = Math.round((profile.body === 1 ? 14 : profile.body === 3 ? 18 : 16) * K);
-  const height = Math.round((profile.body === 1 ? 23 : profile.body === 3 ? 25 : 24) * K);
-  const W = Math.round(FIGHT_W * K);
-  const H = Math.round(FIGHT_H * K);
   for (const facing of ['left', 'right'] as const) {
-    for (const pose of FIGHT_POSES) make(scene, fightKey(look.id, facing, pose, side), W, H, (dest) => {
-      drawPlayerHD(ctx, facing, pose, colors);
+    for (const pose of FIGHT_POSES) make(scene, fightKey(look.id, facing, pose, side), FIGHT_W, FIGHT_H, (dest) => {
+      drawPersonFine(ctx, facing, pose, colors);
       // Dos cintas discretas permiten seguir a quién anima o apuesta cada vecino.
-      px(ctx, side === 0 ? PALETTE.brickLit : PALETTE.glass, Math.round((facing === 'right' ? 7 : 6) * K), Math.round(12 * K), Math.round(3 * K), Math.round(2 * K));
-      dest.imageSmoothingEnabled = false;
-      dest.drawImage(cell, Math.floor((W - width) / 2), H - height, width, height);
+      px(ctx, side === 0 ? PALETTE.brickLit : PALETTE.glass, facing === 'right' ? 7 : 6, 12, 3, 2);
+      dest.drawImage(cell, (FIGHT_W - PLAYER_W) / 2, FIGHT_H - PLAYER_H);
     });
   }
 }
@@ -234,7 +229,7 @@ export class StreetEventView {
       bakeFighter(this.scene, night.fighters[i], i);
       const f = poses[i];
       sprite.anims.stop();
-      sprite.setTexture(fightKey(look.id, facing, f.pose, i)).setScale(HD_SCALE);
+      sprite.setTexture(fightKey(look.id, facing, f.pose, i)).setScale(1);
       sprite.shiftX(facing === 'right' ? f.dx : -f.dx);
       if (frame.contact && i !== frame.attacker) flash = { x: sprite.x + (facing === 'right' ? 4 : -4), y: sprite.y - 15 };
     });

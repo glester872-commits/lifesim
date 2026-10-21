@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { Facing, NpcDef } from '../types/game';
 import { personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
+import { LightDepth } from '../world/LightDepth';
 
 export class NPC extends Phaser.Physics.Arcade.Sprite {
   readonly def: NpcDef;
@@ -11,6 +12,8 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
 
   constructor(scene: Phaser.Scene, x: number, y: number, def: NpcDef, facing: Facing) {
     super(scene, x, y, personTexture(def.id), personFrame(def.id, facing));
+    // Tapa la luz que tiene detrás: ventanas, halos, rótulos, semáforos (world/LightDepth).
+    LightDepth.of(scene).occluder(this);
     this.def = def;
 
     scene.add.existing(this);

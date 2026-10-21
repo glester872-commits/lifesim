@@ -3,7 +3,7 @@ import { PALETTE } from '../config/constants';
 import type { BikeType } from '../data/bikes';
 import type { NpcLook } from '../types/game';
 import { colorsOf, type HumanColors, type Pose } from './HumanArt';
-import { drawPlayerHD, HD_H, HD_W } from './HumanArtHD';
+import { drawPersonFine } from './HumanArtHD';
 import { px, shade, type Ctx } from './paint';
 
 /**
@@ -15,10 +15,10 @@ import { px, shade, type Ctx } from './paint';
 
 export const RIDER_W = 22;
 /**
- * La textura va al doble (RIDER_SCALE la deja a su tamaño en el mundo): la bici, las piernas y lo que se lleva salen
- * idénticos (cada píxel, 2 × 2) y la persona, con el acabado del jugador (world/HumanArtHD), como cuando va a pie.
+ * HD-03: a 1:1 con el mundo, como la gente a pie (world/HumanArtHD.drawPersonFine). Antes la textura iba al doble
+ * con la persona de 28 × 42 reducida a 32 × 48: píxeles de dos tamaños al lado de los de la bici.
  */
-const RES = 2;
+const RES = 1;
 export const RIDER_SCALE = 1 / RES;
 /** Alto de la celda: TOP_PAD px más que la bici para que la cabeza (que se pinta desde y=-5) no se recorte. */
 export const RIDER_H = 31;
@@ -103,22 +103,15 @@ export function riderTexture(scene: Phaser.Scene, r: RiderLook): string {
 }
 
 /**
- * La persona de perfil con el acabado del jugador (28 × 42, world/HumanArtHD) llevada a la resolución de la textura
- * (16 × 24 por RES): un lienzo suelto del que se recortan cabeza y tronco, en las mismas filas que el dibujo de siempre.
+ * La persona de perfil como va a pie (world/HumanArtHD.drawPersonFine): un lienzo suelto del que se recortan cabeza
+ * y tronco, en las mismas filas que el dibujo de siempre.
  */
 function person(c: HumanColors, pose: Pose): HTMLCanvasElement {
-  const hd = document.createElement('canvas');
-  hd.width = HD_W;
-  hd.height = HD_H;
-  const hctx = hd.getContext('2d', { willReadFrequently: true });
   const canvas = document.createElement('canvas');
   canvas.width = 16 * RES;
   canvas.height = 24 * RES;
-  const ctx = canvas.getContext('2d');
-  if (!hctx || !ctx) return canvas;
-  drawPlayerHD(hctx, 'right', pose, c);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(hd, 0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (ctx) drawPersonFine(ctx, 'right', pose, c);
   return canvas;
 }
 

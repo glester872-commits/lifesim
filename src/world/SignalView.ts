@@ -3,9 +3,10 @@ import { PALETTE, TILE } from '../config/constants';
 import type { LocationDef, SignalDef } from '../types/game';
 import { signalAt } from '../systems/Signals';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
+import { LightDepth } from './LightDepth';
 import { make, px, shade, type Ctx } from './paint';
 import { LAYER } from './Layers';
-import { inPilot } from './UrbanFinish';
+import { finished } from './UrbanFinish';
 
 /**
  * Semáforos de systems/Signals.ts dibujados. Por cada paso: un semáforo de
@@ -182,13 +183,14 @@ export class SignalView {
         }
       }
       // Coches: a la derecha de cada sentido, antes del paso. Peatones: en cada bordillo, a un lado de las bandas.
-      // HD-03: cada poste en la manzana piloto lleva el acabado nuevo (las luces, las mismas).
-      const head = (kind: 'car' | 'ped', tx: number, ty: number, x: number, y: number): Head => this.head(scene, kind, x, y, inPilot(def.pilot, tx, ty));
+      // HD-03: con el acabado del sitio, cada poste lleva el nuevo (las luces, las mismas).
+      const fine = finished(def);
+      const head = (kind: 'car' | 'ped', x: number, y: number): Head => this.head(scene, kind, x, y, fine);
       this.heads.set(sig, [
-        head('car', sig.tx - 1, south, (sig.tx - 1) * TILE + 8, south * TILE + 5),
-        head('car', sig.tx + sig.w, north, (sig.tx + sig.w) * TILE + 8, north * TILE + 15),
-        head('ped', sig.tx - 1, north, (sig.tx - 1) * TILE + 8, north * TILE + 14),
-        head('ped', sig.tx + sig.w, south, (sig.tx + sig.w) * TILE + 8, south * TILE + 6),
+        head('car', (sig.tx - 1) * TILE + 8, south * TILE + 5),
+        head('car', (sig.tx + sig.w) * TILE + 8, north * TILE + 15),
+        head('ped', (sig.tx - 1) * TILE + 8, north * TILE + 14),
+        head('ped', (sig.tx + sig.w) * TILE + 8, south * TILE + 6),
       ]);
     }
     this.update(0);
@@ -196,13 +198,12 @@ export class SignalView {
 
   private head(scene: Phaser.Scene, kind: 'car' | 'ped', x: number, y: number, fine = false): Head {
     scene.add.image(x, y, (kind === 'car' ? 'sig-car' : 'sig-ped') + (fine ? '-hd03' : '')).setOrigin(0.5, 1).setDepth(y);
-    return {
-      kind,
-      x,
-      y,
-      lamp: scene.add.image(x, y, kind === 'car' ? 'sig-car-green' : 'sig-ped-stop').setOrigin(0.5, 1).setDepth(EMISSIVE_DEPTH),
-      glow: scene.add.image(x, y, 'fx-light').setScale(0.22).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
-    };
+    const lamp = scene.add.image(x, y, kind === 'car' ? 'sig-car-green' : 'sig-ped-stop').setOrigin(0.5, 1).setDepth(EMISSIVE_DEPTH);
+    const glow = scene.add.image(x, y, 'fx-light').setScale(0.22).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1);
+    // Quien espera delante del poste tapa su luz (world/LightDepth); quien está detrás, no.
+    LightDepth.of(scene).light(lamp, y);
+    LightDepth.of(scene).light(glow, y);
+    return { kind, x, y, lamp, glow };
   }
 
   update(time: number): void {

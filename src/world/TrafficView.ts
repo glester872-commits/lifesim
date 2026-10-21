@@ -3,6 +3,7 @@ import { TILE } from '../config/constants';
 import type { VehicleType } from '../data/vehicles';
 import type { Traffic, Vehicle } from '../systems/Traffic';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
+import { LightDepth } from './LightDepth';
 import { lampsOf, vehicleKey } from './VehicleArt';
 
 /** Media vuelta de la rotativa, en ms. */
@@ -85,8 +86,17 @@ export class TrafficView {
   }
 
   private take(v: Vehicle<VehicleType>): Parts {
+    const p = this.pool.pop() ?? this.make(v);
+    p.body.setTexture(vehicleKey(v.type, v.color)).setFlipX(v.dir < 0);
+    p.roof.setTexture(v.type.trim?.roof === 'beacon' ? 'veh-roof-beacon' : 'veh-roof-taxi');
+    this.parts.set(v, p);
+    return p;
+  }
+
+  /** Un vehículo nuevo del pozo: sus luces van detrás de quien cruza por delante y el coche tapa lo que tiene detrás (world/LightDepth). */
+  private make(v: Vehicle<VehicleType>): Parts {
     const s = this.scene;
-    const p = this.pool.pop() ?? {
+    const p: Parts = {
       body: s.add.image(0, 0, vehicleKey(v.type, v.color)).setOrigin(0, 0),
       head: s.add.image(0, 0, 'veh-head').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
       tail: s.add.image(0, 0, 'veh-tail').setOrigin(0, 0).setDepth(EMISSIVE_DEPTH),
@@ -95,9 +105,10 @@ export class TrafficView {
       glint: s.add.image(0, 0, 'fx-light').setScale(0.07, 0.42).setTint(0xfff0c8).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
       tailGlint: s.add.image(0, 0, 'fx-light').setScale(0.06, 0.32).setTint(0xff5a44).setBlendMode(Phaser.BlendModes.ADD).setDepth(EMISSIVE_DEPTH - 1),
     };
-    p.body.setTexture(vehicleKey(v.type, v.color)).setFlipX(v.dir < 0);
-    p.roof.setTexture(v.type.trim?.roof === 'beacon' ? 'veh-roof-beacon' : 'veh-roof-taxi');
-    this.parts.set(v, p);
+    const depth = LightDepth.of(s);
+    // Las luces del coche están a la altura de su pie; el haz y los reflejos, en el suelo de delante: los tapa quien está más cerca.
+    for (const l of [p.head, p.tail, p.roof, p.beam, p.glint, p.tailGlint]) depth.light(l, () => p.body.depth);
+    depth.occluder(p.body);
     return p;
   }
 }

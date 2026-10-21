@@ -5,6 +5,7 @@ import { visiblePopUp, type PopUpClock } from '../systems/PopUps';
 import type { LocationDef } from '../types/game';
 import { LAYER, standing } from './Layers';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
+import { LightDepth } from './LightDepth';
 import { PIECE_SIZE, pieceKey } from './PopUpArt';
 
 /**
@@ -74,6 +75,8 @@ export class PopUpView {
             .setOrigin(0.5, 1)
             .setDepth(EMISSIVE_DEPTH)
             .setVisible(false);
+          // Quien baila delante de la cabina la tapa (world/LightDepth).
+          LightDepth.of(scene).light(group.booth, (booth.ty + 1) * TILE);
         }
         // Tres focos de color sobre donde se baila.
         for (let i = 0; i < 3; i++) {
@@ -82,7 +85,10 @@ export class PopUpView {
       } else if (p.glow === 'gallery') {
         // Un foco cálido sobre cada caballete.
         for (const prop of p.props) {
-          group.lights.push(scene.add.image(prop.tx * TILE + TILE / 2, (prop.ty + 1) * TILE - 18, 'fx-light').setDepth(LIGHT_DEPTH).setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd89a).setScale(0.55).setVisible(false));
+          const spot = scene.add.image(prop.tx * TILE + TILE / 2, (prop.ty + 1) * TILE - 18, 'fx-light').setDepth(LIGHT_DEPTH).setBlendMode(Phaser.BlendModes.ADD).setTint(0xffd89a).setScale(0.55).setVisible(false);
+          // El foco alumbra el caballete: quien mira el cuadro desde delante lo tapa.
+          LightDepth.of(scene).light(spot, (prop.ty + 1) * TILE);
+          group.lights.push(spot);
         }
       }
       this.groups.set(p.id, group);
