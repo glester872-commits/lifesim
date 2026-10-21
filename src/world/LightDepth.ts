@@ -132,23 +132,32 @@ export class LightDepth {
       rt.setPosition(x0, y0);
       rt.camera.setScroll(x0, y0);
       rt.clear();
-      rt.draw(items.map((i) => i.obj));
-      // Quién tapa alguna luz que tiene detrás, y qué luces tiene a su vez delante (se repintan encima del hueco).
-      const cut: Occluder[] = [];
-      const redo = new Set<Light>();
-      for (const { o, box } of front) {
-        let hides = false;
-        for (const i of items) {
-          if (!overlap(box, i.box)) continue;
-          if (i.foot < o.depth) hides = true;
-          else redo.add(i.obj);
-        }
-        if (hides) cut.push(o);
+      if (!LightDepth.cutout) {
+        rt.draw(items.map((i) => i.obj));
+        continue;
       }
-      if (!cut.length || !LightDepth.cutout) continue;
-      rt.erase(cut);
-      // ponytail: una luz delante de una persona y detrás de otra, con las dos encima, vuelve sobre la segunda; raro (dos personas y una luz en el mismo píxel).
-      if (redo.size) rt.draw([...redo]);
+      // Barrido de atrás hacia delante: cada silueta borra sólo la luz acumulada detrás.
+      // Así una luz entre dos personas nunca se repinta encima de la más cercana.
+      const events: { obj: Light | Occluder; foot: number; erase: boolean }[] = items.map((i) => ({ obj: i.obj, foot: i.foot, erase: false }));
+      for (const { o, box } of front) {
+        if (items.some((i) => i.foot < o.depth && overlap(box, i.box))) events.push({ obj: o, foot: o.depth, erase: true });
+      }
+      // A igual pie la luz pertenece al objeto: se pinta después de su silueta.
+      events.sort((a, b) => a.foot - b.foot || Number(b.erase) - Number(a.erase));
+      let batch: (Light | Occluder)[] = [];
+      let erasing = false;
+      const flush = (): void => {
+        if (!batch.length) return;
+        if (erasing) rt.erase(batch);
+        else rt.draw(batch);
+        batch = [];
+      };
+      for (const event of events) {
+        if (event.erase !== erasing) flush();
+        erasing = event.erase;
+        batch.push(event.obj);
+      }
+      flush();
     }
   }
 }

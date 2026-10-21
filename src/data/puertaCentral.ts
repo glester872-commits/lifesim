@@ -291,4 +291,4 @@ const BASE: LocationDef = {
   ],
 };
 
-export const PUERTA_CENTRAL: LocationDef = { ...BASE, props: [...BASE.props, ...dress(BASE)] };
+export const PUERTA_CENTRAL: LocationDef = { ...BASE, finish: true, props: [...BASE.props, ...dress(BASE)] };

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { TILE } from '../config/constants';
 import type { BuildingDef, LocationDef } from '../types/game';
 import type { GameState } from '../state/GameState';
-import { PROPS, propKey } from './tiles';
+import { PROPS } from './tiles';
 import type { GlowSpot, WindowSpot } from './BuildingArt';
 import { make } from './paint';
 import { isOpen, placeForInterior, placesOfType, type PlaceInfo } from '../systems/Places';
@@ -314,8 +314,6 @@ interface Caster {
   blob?: readonly [number, number];
 }
 
-/** Siluetas de las texturas de la calle (alfa), entre visitas: las texturas son del juego y no cambian. */
-const SILHOUETTES = new Map<string, ImageData | null>();
 
 export class Lighting {
   private readonly shade: Phaser.GameObjects.Rectangle;
@@ -374,17 +372,10 @@ export class Lighting {
   /** HD-03: la noche nueva (NIGHT_PALETTE, escaparates por dentro, faroles encendidos) donde hay manzana piloto. */
   private readonly fine: boolean;
   /**
-   * HD-03: los píxeles de mundo tapados por algo alto de la calle (copas, farolas, señales), sacados de la silueta
-   * de su textura. La luz de una ventana es aditiva y va por encima de todo: sin esto, el escaparate se pintaba
-   * encima de la copa del árbol que tiene delante.
-   */
-  private occluded: Uint8Array | null = null;
-  /**
    * HD-03: la luz de las ventanas horneada en una textura cada vez que cambia (relight), en vez de repintar cada
    * frame los miles de rectángulos de la capa: de noche, en Vallesco, eran casi 29 000 órdenes y 1,2 ms por frame.
    */
   private windowsBaked: Phaser.GameObjects.RenderTexture | null = null;
-  private maskW = 0;
 
   constructor(scene: Phaser.Scene, def: LocationDef, built: { widthPx: number; heightPx: number; windows: readonly WindowSpot[]; glows: readonly GlowSpot[] }, state: GameState) {
     const { widthPx, heightPx } = built;
@@ -489,7 +480,6 @@ export class Lighting {
     }
 
     if (this.fine) {
-      this.buildOcclusion(scene, def, widthPx, heightPx);
       this.windowsBaked = scene.add.renderTexture(0, 0, widthPx, heightPx).setOrigin(0, 0).setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
       // La capa de siempre sólo sirve de pincel: se pinta en la textura con su alfa, no en pantalla.
       this.windows.setBlendMode(Phaser.BlendModes.NORMAL).setVisible(false);
@@ -734,63 +724,10 @@ export class Lighting {
     return this.windowsBaked ?? this.windows;
   }
 
-  /** La silueta de cada pieza alta de la calle, al píxel, en la máscara de oclusión (una vez, al montar el sitio). */
-  private buildOcclusion(scene: Phaser.Scene, def: LocationDef, widthPx: number, heightPx: number): void {
-    const mask = new Uint8Array(widthPx * heightPx);
-    const alpha = SILHOUETTES;
-    // Sólo cuenta lo que tapa alguna ventana: el resto de la calle no se mira (antes, 90 ms al montar Vallesco).
-    const hits = (l: number, t: number, r: number, b: number): boolean => this.windowSpots.some((w) => w.x < r && w.x + w.w + 1 > l && w.y < b && w.y + w.h + 1 > t);
-    for (const p of def.props) {
-      const prop = PROPS[p.kind];
-      if (prop.flat || prop.overhead || prop.tilesHigh < 2) continue;
-      const pw = (prop.tilesWide ?? 1) * TILE;
-      const top = (p.ty + 1 - prop.tilesHigh) * TILE - TILE * 2;
-      if (!hits(p.tx * TILE - TILE * 2, top, p.tx * TILE + pw + TILE * 2, (p.ty + 1) * TILE)) continue;
-      // La silueta de la versión con acabado y la de siempre es la misma (mismo tamaño y mismo pie).
-      const key = propKey(prop, p.tx, p.ty);
-      let data = alpha.get(key);
-      if (data === undefined) {
-        const tex = scene.textures.exists(key) ? scene.textures.get(key) : null;
-        data = tex instanceof Phaser.Textures.CanvasTexture ? tex.getContext().getImageData(0, 0, tex.width, tex.height) : null;
-        alpha.set(key, data);
-      }
-      if (!data) continue;
-      const x0 = Math.round(p.tx * TILE + ((prop.tilesWide ?? 1) * TILE) / 2 - data.width / 2);
-      const y0 = (p.ty + 1) * TILE - data.height;
-      for (let y = 0; y < data.height; y++) {
-        const wy = y0 + y;
-        if (wy < 0 || wy >= heightPx) continue;
-        for (let x = 0; x < data.width; x++) {
-          const wx = x0 + x;
-          if (wx >= 0 && wx < widthPx && data.data[(y * data.width + x) * 4 + 3] >= 128) mask[wy * widthPx + wx] = 1;
-        }
-      }
-    }
-    this.occluded = mask;
-    this.maskW = widthPx;
-  }
-
-  /** Un rectángulo de luz de ventana. Con la máscara (HD-03), parte las filas donde algo de la calle lo tapa. */
+  /** El recorte usa la silueta actual en LightDepth, también con viento y transparencia. */
   private fill(g: Phaser.GameObjects.Graphics, color: number, a: number, x: number, y: number, w: number, h: number): void {
-    g.fillStyle(color, a);
-    const m = this.occluded;
-    const W = this.maskW;
-    let hit = false;
-    if (m) for (let yy = y; yy < y + h && !hit; yy++) for (let xx = x; xx < x + w; xx++) if (m[yy * W + xx]) { hit = true; break; }
-    if (!hit) {
-      g.fillRect(x, y, w, h);
-      return;
-    }
-    for (let yy = y; yy < y + h; yy++) {
-      let s = x;
-      for (let xx = x; xx <= x + w; xx++) {
-        if (xx < x + w && !m![yy * W + xx]) continue;
-        if (xx > s) g.fillRect(s, yy, xx - s, 1);
-        s = xx + 1;
-      }
-    }
+    g.fillStyle(color, a).fillRect(x, y, w, h);
   }
-
   /** Las sombras del sol en coordenadas del mundo: la barrida de cada huella hacia donde cae la sombra. */
   private castShadows(sun: Sun, color: number): Phaser.GameObjects.Graphics {
     const g = this.shadows!.clear().fillStyle(color, 1);
