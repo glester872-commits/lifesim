@@ -11,6 +11,7 @@ import type { JobProgress } from '../systems/Jobs';
 import { LEDGER_SIZE, type HouseholdState, type Movement } from '../systems/Household';
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { emptyParish, type ParishState } from '../systems/Parish';
+import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
 import { startHousing, type HousingState } from '../systems/Housing';
 import { parseAgenda, type AgendaState } from '../systems/Agenda';
 
@@ -127,6 +128,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** Encuentros con hora a los que se ha ido (systems/Parish). */
   private _parish: ParishState;
 
+  /** Embarazos de las vecinas (systems/Pregnancy). */
+  private _pregnancy: PregnancyState;
+
   /** Motivo del cambio de dinero en curso (as()). */
   private why: string | null = null;
 
@@ -218,6 +222,9 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._agenda = structuredClone(initial.agenda ?? parseAgenda(undefined));
 
     this._parish = structuredClone(initial.parish ?? emptyParish());
+
+    this._pregnancy = structuredClone(initial.pregnancy ?? emptyPregnancy());
+    usePregnancies(this._pregnancy);
   }
 
   // ================================================================
@@ -317,6 +324,21 @@ export class GameState extends Phaser.Events.EventEmitter {
   setParish(p: ParishState): void {
     this._parish = structuredClone(p);
     this.emit('parish');
+  }
+
+  // ================================================================
+  // EMBARAZOS (systems/Pregnancy)
+  // ================================================================
+
+  get pregnancy(): PregnancyState {
+    return structuredClone(this._pregnancy);
+  }
+
+  /** Lo resuelto por systems/Pregnancy.resolve; también refresca la fase que consultan las rutinas. */
+  setPregnancy(p: PregnancyState): void {
+    this._pregnancy = structuredClone(p);
+    usePregnancies(this._pregnancy);
+    this.emit('pregnancy');
   }
 
   // ================================================================
@@ -771,6 +793,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       agenda: structuredClone(this._agenda),
 
       parish: structuredClone(this._parish),
+
+      pregnancy: structuredClone(this._pregnancy),
     };
   }
 }

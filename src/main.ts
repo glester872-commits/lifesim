@@ -16,6 +16,8 @@ import { forceWeather, weatherAt } from './systems/Weather';
 import { dateOf, dayOfDate, formatDate, onNewDay, SEASON_LABEL } from './systems/Calendar';
 import { announce, billOf, sync as syncBills } from './systems/Household';
 import { rentsOf } from './systems/Housing';
+import { birthNotice, resolve as resolvePregnancy } from './systems/Pregnancy';
+import { getNpc } from './data/npcs';
 import { euros } from './systems/Commerce';
 import { handoffs } from './systems/Handoff';
 import { MetroEventManager } from './systems/MetroEventManager';
@@ -138,6 +140,20 @@ const syncHousehold = (): void => {
 };
 syncHousehold();
 onNewDay(state, syncHousehold);
+
+// Embarazos de las vecinas (systems/Pregnancy): al arrancar (una partida anterior empieza aquí sus registros) y en cada
+// medianoche, fase a fase. Se guarda antes de avisar: recargar no repite el nacimiento.
+const syncPregnancy = (): void => {
+  const known = state.pregnancy;
+  const r = resolvePregnancy(known, state.day);
+  if (r.state === known) return;
+  state.setPregnancy(r.state);
+  services.save.save(state.snapshot);
+  const births = r.events.filter((e) => e.birth).map((e) => birthNotice(e.npc, getNpc(e.npc).name, e.birth!.baby));
+  if (births.length) phone.notice('Barrio', births.join(' '), 'today');
+};
+syncPregnancy();
+onNewDay(state, syncPregnancy);
 
 // La agenda (systems/Agenda): en cada minuto de reloj, y una vez tras cada salto (dormir, trabajar, el metro), se
 // mira qué toca avisar, qué se ha perdido entre medias y qué progreso ha cambiado. Lo avisado se guarda en la

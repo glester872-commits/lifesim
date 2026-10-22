@@ -126,6 +126,8 @@ const full: GameStateData = {
   agenda: { tour: 'skipped', seen: { 'job:9': 12_900 }, checked: 12_935, marks: { job: '0:1', body: 'average' } },
   // Parroquia (systems/Parish): un ensayo del coro hasta el final y otro un rato: vuelven igual, sin volver a contar.
   parish: { attended: [{ id: 'coro-6', day: 6, stay: 'full', minutes: 90 }, { id: 'coro-13', day: 13, stay: 'partial', minutes: 30 }] },
+  // Embarazos (systems/Pregnancy): uno a medias, uno ya nacido con su bebé y uno que aún no ha empezado.
+  pregnancy: { amaia: { start: 9, phase: 'early' }, noa: { start: -20, phase: 'post', born: { day: 8, baby: { id: 'bebe-noa', name: 'Alba' } } }, yasmin: { start: 30, phase: 'waiting' } },
 };
 assert.ok(save.save(full));
 assert.deepEqual(save.load(), full, 'el guardado no vuelve igual');

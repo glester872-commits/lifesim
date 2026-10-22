@@ -16,6 +16,7 @@ import { parseJob } from './Jobs.ts';
 import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
+import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
 import { parseAgenda, startAgenda } from './Agenda.ts';
 import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
 
@@ -68,6 +69,7 @@ export function createInitialState(): GameStateData {
     housing: startHousing(),
     agenda: startAgenda(),
     parish: emptyParish(),
+    pregnancy: emptyPregnancy(),
   };
 }
 
@@ -361,6 +363,8 @@ function parseState(value: unknown): GameStateData | null {
     agenda: parseAgenda(s.agenda),
     // Una partida anterior a la parroquia carga sin ensayos: el próximo sábado se puede ir como cualquiera.
     parish: parseParish(s.parish),
+    // Una partida anterior a los embarazos carga sin registros: main.ts los empieza el día que se carga.
+    pregnancy: parsePregnancy(s.pregnancy),
   };
 }
 

@@ -313,6 +313,42 @@ const DEFS: readonly NpcDef[] = [
     earrings: '#e8b84a',
     lines: ['¡Vamosss, que hay plan!'],
   },
+  // Vecinas con rutina que esperan un bebé (data/pregnancy.ts): el vientre lo añaden sus versiones ~p1…~p3.
+  {
+    id: 'noa',
+    name: 'Noa',
+    cloth: '#d98a6a',
+    clothDark: '#b06a4f',
+    hair: '#2a1f18',
+    skin: '#e3b692',
+    trousers: '#2f4563',
+    hairStyle: 'bun',
+    lines: ['Hola. Voy con prisa, como siempre.'],
+  },
+  {
+    id: 'amaia',
+    name: 'Amaia',
+    cloth: '#4f7a6a',
+    clothDark: '#3b5c50',
+    hair: '#8a5a32',
+    skin: '#f0caa8',
+    trousers: '#33374a',
+    longHair: true,
+    glasses: 'clear',
+    lines: ['Perdona, estaba en otra cosa. Dime.'],
+  },
+  {
+    id: 'yasmin',
+    name: 'Yasmin',
+    cloth: '#e6d9b8',
+    clothDark: '#c4b48f',
+    hair: '#1a1614',
+    skin: '#96654a',
+    trousers: '#5b4b3a',
+    headscarf: '#7a3f5a',
+    earrings: '#e8c86a',
+    lines: ['¡Hola! Si me ves con cara de sueño, es el turno.'],
+  },
 ];
 
 const BY_ID = new Map(DEFS.map((npc) => [npc.id, npc]));

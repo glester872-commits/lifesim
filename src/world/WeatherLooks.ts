@@ -1,6 +1,7 @@
 import type { NpcLook } from '../types/game';
 import { getNpc, PASSENGER_LOOKS } from '../data/npcs';
 import { CHARACTERS } from '../data/characters';
+import { PREGNANCIES } from '../data/pregnancy';
 import { HEAVY_RAIN, type Weather } from '../systems/Weather';
 import { colorsOf } from './HumanArt';
 import { shade } from './paint';
@@ -32,7 +33,8 @@ function hash(text: string): number {
 /** Una versión de una cara: la misma persona, con otra ropa encima. */
 function variant(base: NpcLook, layer: Layer): NpcLook {
   const c = colorsOf(base);
-  const h = hash(base.id);
+  // El abrigo de una embarazada (~p1…~p3) es el mismo en todas sus fases: el de su cara de siempre.
+  const h = hash(base.id.replace(/~p\d$/, ''));
   // Lo que es de la persona, no de la ropa, queda fijo aunque cambie el id.
   const same: NpcLook = { ...base, id: `${base.id}~${layer}`, skin: c.skin, trousers: c.trousers, shoes: c.shoes, hairStyle: c.hairStyle };
   if (layer === 'coat') {
@@ -125,12 +127,26 @@ function awayVariant(base: NpcLook, kit: Kit): NpcLook {
 }
 
 /** Todas las versiones, para hornearlas en el atlas de gente con sus animaciones (world/TextureFactory). */
-const BASE_LOOKS = [...PASSENGER_LOOKS, ...CHARACTERS.map((c) => getNpc(c.npc))];
+/**
+ * Las vecinas embarazadas en cada fase visible (systems/Pregnancy): la misma persona (piel, pelo, pantalón fijos) con
+ * el vientre de esa fase. Cada una tiene además sus capas de tiempo, como cualquier cara de BASE_LOOKS.
+ */
+const PREGNANCY_LOOKS: readonly NpcLook[] = PREGNANCIES.flatMap((p) => {
+  const base = getNpc(p.npc);
+  const c = colorsOf(base);
+  return ([1, 2, 3] as const).map((bump): NpcLook => ({ ...base, id: `${base.id}~p${bump}`, bump, skin: c.skin, trousers: c.trousers, shoes: c.shoes, hairStyle: c.hairStyle }));
+});
+const BASE_LOOKS = [...PASSENGER_LOOKS, ...CHARACTERS.map((c) => getNpc(c.npc)), ...PREGNANCY_LOOKS];
 const GYM_LOOKS: readonly NpcLook[] = PASSENGER_LOOKS.map(gymVariant);
 const FAN_LOOKS: readonly NpcLook[] = PASSENGER_LOOKS.map(fanVariant);
 const AWAY_LOOKS: readonly NpcLook[] = Object.values(RIVAL_KITS).flatMap((kit) => AWAY_BASES.map((i) => awayVariant(PASSENGER_LOOKS[i], kit)));
-export const WEATHER_LOOKS: readonly NpcLook[] = [...BASE_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l))), ...GYM_LOOKS, ...FAN_LOOKS, ...AWAY_LOOKS];
+export const WEATHER_LOOKS: readonly NpcLook[] = [...PREGNANCY_LOOKS, ...BASE_LOOKS.flatMap((b) => LAYERS.map((l) => variant(b, l))), ...GYM_LOOKS, ...FAN_LOOKS, ...AWAY_LOOKS];
 const BY_ID = new Map(WEATHER_LOOKS.map((l) => [l.id, l]));
+
+/** Su aspecto con el vientre de esa fase (1–3); 0 o sin versión, el de siempre. */
+export function pregnantLook(base: NpcLook, bump: 0 | 1 | 2 | 3): NpcLook {
+  return (bump && BY_ID.get(`${base.id}~p${bump}`)) || base;
+}
 
 /** Su aspecto con la ropa de entrenar puesta (world/CrowdView, al cambiarse en el vestuario). */
 export function gymLook(base: NpcLook): NpcLook {

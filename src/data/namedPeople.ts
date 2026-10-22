@@ -52,6 +52,10 @@ export const NAMED_PEOPLE: Readonly<Record<string, NamedIdentity>> = {
   lia: w(34, { trans: true, presentation: 'feminine', orientation: 'bisexual', interests: ['tattoos', 'art', 'music'], temperament: 'tranquilo', fashion: 'alternative', work: 'tatúa en Tinta Carmen', from: 'vallesco' }),
   gus: m(57, { trans: false, presentation: 'masculine', orientation: 'heterosexual', interests: ['fashion', 'music', 'travelling'], temperament: 'curioso', fashion: 'vintage', work: 'Retales, vintage del rastro', from: 'vallesco' }),
   bruno: m(42, { trans: false, presentation: 'masculine', orientation: 'gay', interests: ['food', 'travelling', 'reading'], temperament: 'tranquilo', fashion: 'designer', work: 'La Cepa, su vinoteca', from: 'vallesco' }),
+  // Vallesco: vecinas con rutina que esperan un bebé (data/pregnancy.ts). Adultas, con su trabajo y su gente.
+  noa: w(32, { trans: false, presentation: 'feminine', orientation: 'heterosexual', interests: ['reading', 'cinema', 'food'], temperament: 'extrovertido', fashion: 'casual', work: 'maestra de primaria en un cole del centro', from: 'vallesco' }),
+  amaia: w(37, { trans: false, presentation: 'androgynous', orientation: 'lesbian', interests: ['technology', 'reading', 'cycling'], temperament: 'reservado', fashion: 'casual', work: 'programadora en remoto', from: 'vallesco' }),
+  yasmin: w(29, { trans: false, presentation: 'feminine', orientation: 'heterosexual', interests: ['music', 'fitness', 'cinema'], temperament: 'bromista', fashion: 'casual', work: 'enfermera en el hospital del centro', from: 'vallesco' }),
   // Ribera Norte.
   olmo: m(58, { trans: false, presentation: 'masculine', orientation: 'heterosexual', interests: ['food', 'football'], temperament: 'bromista', fashion: 'workwear', work: 'un puesto del mercado de Ribera', from: 'ribera' }),
   sira: w(36, { trans: false, presentation: 'feminine', orientation: 'asexual', interests: ['reading', 'photography', 'art'], temperament: 'reservado', fashion: 'vintage', work: 'archivo municipal', from: 'ribera' }),
@@ -96,4 +100,7 @@ export const NAMED_RELATIONSHIPS: readonly NamedRelationship[] = [
   { a: 'vera', b: 'tomas', type: 'exes' },
   { a: 'tere', b: 'olmo', type: 'acquaintances' },
   { a: 'paula', b: 'iker', type: 'crush' },
+  // Las vecinas de data/pregnancy.ts: Yasmin e Iker esperan a Nour; Noa y Amaia coinciden en la clase de Forja.
+  { a: 'yasmin', b: 'iker', type: 'couple' },
+  { a: 'noa', b: 'amaia', type: 'friends' },
 ];

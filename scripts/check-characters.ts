@@ -7,6 +7,11 @@ import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
 import { isOpen, placeOfPoint } from '../src/systems/Places.ts';
 import { weekday } from '../src/systems/MetroDaily.ts';
 import { weatherAt } from '../src/systems/Weather.ts';
+import { resolve, usePregnancies } from '../src/systems/Pregnancy.ts';
+
+// Como una partida nueva (main.ts los resuelve el día 1): en estas ocho semanas pasan todas las fases de cada
+// embarazo (data/pregnancy.ts), así que sus rutinas con `stage` también salen y se recorren.
+usePregnancies(resolve({}, 1).state);
 
 const STEP = 0.25;
 const DAY = 24 * 60;

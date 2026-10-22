@@ -8,6 +8,7 @@ import { getLocation } from './LocationSystem.ts';
 import { crossingOf, minutesUntilWalk } from './Signals.ts';
 import { isOpen, placeOfPoint } from './Places.ts';
 import { weatherAt } from './Weather.ts';
+import { phaseOn } from './Pregnancy.ts';
 
 /**
  * Dónde está un personaje con nombre es una función del reloj: nada que
@@ -127,6 +128,9 @@ function progress(trip: Trip, speed: number, elapsed: number): { walked: number;
 
 const minutesOf = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
 
+/** Tiles por minuto con esa rutina: la de siempre por su paso del día (Routine.pace). */
+const speedOf = (def: CharacterDef, routine: Routine): number => def.speed * (routine.pace ?? 1);
+
 function facingOf(dx: number, dy: number): Facing {
   return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
 }
@@ -154,14 +158,15 @@ function plan(def: CharacterDef, routine: Routine): Trip[] {
     }
 
     const arrive = minutesOf(stop.at);
-    const travel = walked / def.speed;
+    const speed = speedOf(def, routine);
+    const travel = walked / speed;
     // Con una sola parada (un día entero en casa), la estancia es el día.
     const gap = (arrive - minutesOf(prev.at) + DAY) % DAY || DAY;
     if (gap - travel < MIN_STAY) {
       throw new Error(`${who} de ${prev.point} a ${stop.point} son ${Math.ceil(travel)} min andando: no le da tiempo a llegar a las ${stop.at}`);
     }
     // Los semáforos alargan el camino lo justo, sin comerse la estancia mínima de la parada anterior.
-    const timed = scheduleCrossings(segments, def.speed, arrive, gap - travel - MIN_STAY_AT_LIGHTS);
+    const timed = scheduleCrossings(segments, speed, arrive, gap - travel - MIN_STAY_AT_LIGHTS);
     return { stop, arrive, travel: timed.travel, segments, crossings: timed.crossings };
   });
 }
@@ -221,7 +226,7 @@ for (const def of CHARACTERS) {
     const trips = plan(def, routine);
     PLANS.set(routine, trips);
     // Todas duermen en casa al cambiar de día: así una rutina empalma con la siguiente sin saltos.
-    const dawn = locate(trips, def.speed, DAY_STARTS, routine.id);
+    const dawn = locate(trips, speedOf(def, routine), DAY_STARTS, routine.id);
     if (dawn.moving || dawn.stop.point !== def.home) {
       throw new Error(`[${def.npc}/${routine.id}] a las 06:00 tiene que estar en casa (${def.home}), está en ${dawn.stop.point}`);
     }
@@ -229,7 +234,7 @@ for (const def of CHARACTERS) {
   }
   for (let d = 0; d < 7; d++) {
     // La de lluvia y las de su historia no cuentan: tiene que haber una para cualquier día seco y sin nada especial.
-    if (!def.routines.some((r) => !r.outing && !r.rain && !r.story && r.days.includes(d))) throw new Error(`[${def.npc}] sin rutina suelta para el día ${d}`);
+    if (!def.routines.some((r) => !r.outing && !r.rain && !r.story && !r.stage && r.days.includes(d))) throw new Error(`[${def.npc}] sin rutina suelta para el día ${d}`);
   }
 }
 
@@ -307,7 +312,7 @@ function viable(def: CharacterDef, routine: Routine, day: number): Trip[] | null
   } catch {
     return null;
   }
-  const dawn = locate(trips, def.speed, DAY_STARTS, routine.id);
+  const dawn = locate(trips, speedOf(def, routine), DAY_STARTS, routine.id);
   if (dawn.moving || dawn.stop.point !== def.home) return null;
   for (let i = 0; i < trips.length; i++) {
     const next = trips[(i + 1) % trips.length];
@@ -384,10 +389,12 @@ export function characterDay(absMinute: number): number {
 
 function solo(def: CharacterDef, day: number, salt: string, rainy = false): Routine {
   // Las de su historia nunca salen solas; la de lluvia, sólo si llueve.
-  const today = def.routines.filter((r) => !r.outing && !r.story && (!r.rain || rainy) && r.days.includes(weekIndex(day)));
-  // Una excepción de ese día manda sobre las rutinas normales (Routine.override).
+  const phase = phaseOn(def.npc, day);
+  const today = def.routines.filter((r) => !r.outing && !r.story && (!r.rain || rainy) && (!r.stage || r.stage.includes(phase)) && r.days.includes(weekIndex(day)));
+  // La de su fase de embarazo manda ese día (Routine.stage); si no, una excepción sobre las normales (Routine.override).
+  const staged = today.filter((r) => r.stage);
   const overrides = today.filter((r) => r.override);
-  const options = overrides.length ? overrides : today;
+  const options = staged.length ? staged : overrides.length ? overrides : today;
   const total = options.reduce((s, r) => s + r.weight, 0);
   let roll = seededRng(hashSeed('routine', def.npc, day, salt))() * total;
   for (const r of options) {
@@ -425,7 +432,7 @@ export function whereabouts(def: CharacterDef, absMinute: number, pick?: Routine
   const day = characterDay(absMinute);
   // Sin quien fije el día (Ada, el móvil), también cuenta la lluvia: el mismo día para todos.
   const routine = pick ? pick(day) : routineFor(def, day, { rainy: rainyDay(day) });
-  return locate(tripsOf(routine), def.speed, absMinute, routine.id);
+  return locate(tripsOf(routine), speedOf(def, routine), absMinute, routine.id);
 }
 
 /** Minutos de retraso que recupera por minuto de juego mientras está parado. */
@@ -451,5 +458,5 @@ export function catchUp(def: CharacterDef, now: number, lag: number, minutes: nu
 
 /** Lo mismo, con la rutina fijada: para probar cada rutina aunque su día no salga. */
 export function whereaboutsIn(def: CharacterDef, routine: Routine, minuteOfDay: number): Whereabouts {
-  return locate(tripsOf(routine), def.speed, minuteOfDay, routine.id);
+  return locate(tripsOf(routine), speedOf(def, routine), minuteOfDay, routine.id);
 }

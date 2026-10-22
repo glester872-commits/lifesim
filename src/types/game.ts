@@ -661,6 +661,8 @@ export interface NpcLook {
   headscarf?: string;
   /** Bastón al andar o estar de pie. */
   cane?: boolean;
+  /** Embarazo (systems/Pregnancy): 1–3, cuánto se nota el vientre. */
+  bump?: 1 | 2 | 3;
 }
 
 export interface NpcDef extends NpcLook {
@@ -734,6 +736,8 @@ export interface GameStateData {
   agenda?: import('../systems/Agenda.ts').AgendaState;
   /** Encuentros a los que se ha ido (systems/Parish): uno por ensayo. Opcional: una partida anterior carga sin ninguno. */
   parish?: import('../systems/Parish.ts').ParishState;
+  /** Embarazos de las vecinas (systems/Pregnancy): inicio, fase resuelta y nacimiento. Opcional: una partida anterior empieza sus registros al cargar. */
+  pregnancy?: import('../systems/Pregnancy.ts').PregnancyState;
 }
 
 export interface SaveFile {

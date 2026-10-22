@@ -1,4 +1,5 @@
 import { on, WEEKDAYS, WEEKEND } from '../systems/Calendar.ts';
+import type { Phase } from './pregnancy.ts';
 
 /** Cualquier día de la semana: las rutinas que fija la historia (Routine.story). */
 const ANY_DAY: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
@@ -65,6 +66,13 @@ export interface Routine {
    * día malo. Por eso puede tocar cualquier día.
    */
   story?: true;
+  /**
+   * Sólo en esas fases de su embarazo (data/pregnancy.ts, systems/Pregnancy.phaseOn): ese día manda sobre las
+   * rutinas sin fase, como un override. Fuera de ellas no sale.
+   */
+  stage?: readonly Phase[];
+  /** Su paso ese día frente al de siempre (CharacterDef.speed): al final del embarazo, más despacio. */
+  pace?: number;
 }
 
 export interface CharacterDef {
@@ -86,6 +94,9 @@ const inside = (at: string, point: string, ...going: string[]): Stop => ({ at, p
 
 const SARA_HOME = 'RES_MAYOR_3_ENTRANCE';
 const ADA_HOME = 'RES_OLMO_3_ENTRANCE';
+const NOA_HOME = 'RES_MAYOR_15_ENTRANCE';
+const AMAIA_HOME = 'RES_OLMO_11_ENTRANCE';
+const YASMIN_HOME = 'RES_AVENIDA_2_ENTRANCE';
 
 export const CHARACTERS: readonly CharacterDef[] = [
   {
@@ -522,6 +533,276 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('22:00', ADA_HOME, 'A casa. Mañana, academia.'),
         ],
       })),
+    ],
+  },
+  // Vecinas que esperan un bebé (data/pregnancy.ts). Las rutinas con `stage` mandan en esas fases: la clase de
+  // preparación en Forja una vez por semana, al final más calma y más despacio, y en el postparto un paseo corto.
+  {
+    // Noa Ferrer, 32: maestra de primaria; va al cole en metro.
+    npc: 'noa',
+    speed: 1.7,
+    home: NOA_HOME,
+    routines: [
+      {
+        id: 'cole',
+        days: WEEKDAYS,
+        weight: 3,
+        stops: [
+          inside('08:10', 'METRO_ENTRANCE', 'Al cole, que los lunes entran como motos.'),
+          { at: '17:00', point: 'PLAZA_BENCH_06', lines: ['Treinta críos toda la mañana. Aquí no grita nadie.'], going: ['Me siento un rato en la plaza antes de subir.'] },
+          { at: '17:50', point: 'SUPERMARKET_PRODUCE', optional: true, lines: ['Fruta para la semana. Y algo de chocolate, que me lo he ganado.'], going: ['Paso por el súper un momento.'] },
+          inside('19:10', NOA_HOME, 'A casa, a corregir cuadernos.'),
+        ],
+      },
+      {
+        // Claustro o tutorías por la tarde: vuelve directa a casa.
+        id: 'claustro',
+        days: on('wednesday', 'thursday'),
+        weight: 1,
+        stops: [
+          inside('08:10', 'METRO_ENTRANCE', 'Hoy hay claustro. Llegaré tarde y sin voz.'),
+          inside('19:30', NOA_HOME, 'Directa a casa, que no puedo más.'),
+        ],
+      },
+      {
+        id: 'finde-casa-noa',
+        days: WEEKEND,
+        weight: 1,
+        stops: [inside('06:00', NOA_HOME)],
+      },
+      {
+        id: 'finde-noa',
+        days: WEEKEND,
+        weight: 2,
+        stops: [
+          { at: '10:30', point: 'CAFE_TABLE_02', lines: ['El café del sábado no se toca.'], going: ['Bajo al Pausa a desayunar.'] },
+          { at: '12:00', point: 'PARK_BENCH_03', lines: ['Me gusta ver a los críos de otros. Los míos los veo toda la semana.'], going: ['Doy una vuelta por el parque.'] },
+          // Hasta casa hay un paso con semáforo de ciclo largo (48 min de juego): margen para esperar su verde.
+          inside('14:00', NOA_HOME, 'A comer.'),
+          { at: '18:30', point: 'PLAZA_BENCH_06', optional: true, lines: ['Un rato de plaza y a casa.'], going: ['Salgo a que me dé el aire.'] },
+          inside('20:00', NOA_HOME, 'A casa, que mañana hay que preparar clase.'),
+        ],
+      },
+      {
+        // Preparación al parto: los martes por la mañana, en la colchoneta de Forja; luego, vitaminas en la farmacia.
+        id: 'preparacion-noa',
+        days: on('tuesday'),
+        weight: 1,
+        stage: ['mid', 'late'],
+        pace: 0.85,
+        stops: [
+          { at: '10:00', point: 'GYM_MAT_03', lines: ['Respirar, soltar los hombros, respirar. Si me duermo, despiértame.'], going: ['Voy a Forja, a la clase de preparación.'] },
+          { at: '11:20', point: 'PHARMACY_COUNTER', optional: true, lines: ['Las vitaminas de siempre. Ya me conocen.'], going: ['Paso por la farmacia antes de subir.'] },
+          inside('12:30', NOA_HOME, 'A casa, a poner los pies en alto.'),
+          { at: '17:30', point: 'PLAZA_BENCH_06', lines: ['Hoy he venido sin prisa. Como todo, últimamente.'], going: ['Bajo un rato a la plaza.'] },
+          inside('19:00', NOA_HOME, 'A casa.'),
+        ],
+      },
+      {
+        // De baja al final: paseo corto por la mañana, banco y siesta.
+        id: 'baja-noa',
+        days: on('monday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'),
+        weight: 1,
+        stage: ['late'],
+        pace: 0.8,
+        stops: [
+          { at: '10:30', point: 'CAFE_TABLE_02', lines: ['Descafeinado y un rato de libro. La baja tiene cosas buenas.'], going: ['Bajo al Pausa, despacito.'] },
+          { at: '11:40', point: 'PLAZA_BENCH_06', lines: ['Me siento, que ya no aguanto mucho de pie.'], going: ['Paro en la plaza un momento.'] },
+          inside('12:40', NOA_HOME, 'Siesta. Sin discusión.'),
+          { at: '18:00', point: 'PARK_BENCH_03', optional: true, lines: ['A esta hora el parque es otra cosa.'], going: ['Un paseo corto por el parque.'] },
+          inside('19:30', NOA_HOME, 'A casa.'),
+        ],
+      },
+      {
+        // Postparto: casi todo el día en casa; a media tarde, diez minutos de plaza.
+        id: 'postparto-noa',
+        days: ANY_DAY,
+        weight: 1,
+        stage: ['post'],
+        pace: 0.8,
+        stops: [
+          { at: '17:30', point: 'PLAZA_BENCH_06', lines: ['Diez minutos de aire y subo, que Alba se despierta.'], going: ['Bajo un momento, que me hace falta.'] },
+          inside('18:30', NOA_HOME, 'Me subo, que ya llora.'),
+        ],
+      },
+      { id: 'postparto-casa-noa', days: ANY_DAY, weight: 1, stage: ['post'], stops: [inside('06:00', NOA_HOME)] },
+    ],
+  },
+  {
+    // Amaia Etxeberria, 37: programadora en remoto; trabaja media mañana desde el Pausa.
+    npc: 'amaia',
+    speed: 1.9,
+    home: AMAIA_HOME,
+    routines: [
+      {
+        id: 'remoto',
+        days: WEEKDAYS,
+        weight: 3,
+        stops: [
+          { at: '09:00', point: 'CAFE_TABLE_03', lines: ['Teletrabajo desde el Pausa hasta que me echen.', 'Si me ves con cascos, estoy en una reunión. Saluda igual.'], going: ['Voy al Pausa a trabajar un rato.'] },
+          inside('11:30', AMAIA_HOME, 'A casa, que a las doce tengo llamada.'),
+          { at: '13:30', point: 'SUPERMARKET_FRIDGES', optional: true, lines: ['Algo rápido para comer. Hoy no cocino.'], going: ['Bajo al súper un segundo.'] },
+          inside('14:50', AMAIA_HOME, 'A comer delante del portátil. Lo sé.'),
+          { at: '19:00', point: 'PARK_BENCH_04', lines: ['Desconectar. Lo dicen todos, nadie sabe cómo.'], going: ['Me bajo al parque a despejarme.'] },
+          inside('20:30', AMAIA_HOME, 'A cenar.'),
+        ],
+      },
+      {
+        // Un día a la semana va a la oficina del centro.
+        id: 'oficina-amaia',
+        days: on('tuesday', 'wednesday'),
+        weight: 1,
+        stops: [
+          inside('09:30', 'METRO_ENTRANCE', 'Hoy toca oficina. Me pongo zapatos y todo.'),
+          inside('18:30', AMAIA_HOME, 'A casa. Echaba de menos el silencio.'),
+        ],
+      },
+      {
+        id: 'finde-casa-amaia',
+        days: WEEKEND,
+        weight: 2,
+        stops: [inside('06:00', AMAIA_HOME)],
+      },
+      {
+        id: 'finde-amaia',
+        days: WEEKEND,
+        weight: 2,
+        stops: [
+          { at: '11:00', point: 'PLAZA_BENCH_07', lines: ['Sábado sin pantallas. Bueno, casi.'], going: ['Bajo a la plaza.'] },
+          inside('12:10', 'FRUIT_SHOP_ENTRANCE', 'A por fruta, que en casa no queda nada.'),
+          inside('13:00', AMAIA_HOME, 'A comer.'),
+          { at: '18:00', point: 'CAFE_TABLE_03', optional: true, lines: ['Un rato de lectura con algo caliente.'], going: ['Me voy al Pausa con el libro.'] },
+          inside('19:30', AMAIA_HOME, 'A casa.'),
+        ],
+      },
+      {
+        // Preparación al parto: los jueves por la mañana, en Forja.
+        id: 'preparacion-amaia',
+        days: on('thursday'),
+        weight: 1,
+        stage: ['mid', 'late'],
+        pace: 0.85,
+        stops: [
+          { at: '10:00', point: 'GYM_MAT_04', lines: ['Clase de preparación. La monitora dice que lo hago bien. Miente con cariño.'], going: ['Voy a Forja, a la clase de los jueves.'] },
+          { at: '11:20', point: 'CAFE_TABLE_03', lines: ['Manzanilla y el portátil. Hoy trabajo poco.'], going: ['Al Pausa a trabajar un rato.'] },
+          inside('13:00', AMAIA_HOME, 'A comer.'),
+          { at: '19:00', point: 'PARK_BENCH_04', optional: true, lines: ['Aquí, sentada, que es lo mío ahora.'], going: ['Bajo al parque un rato.'] },
+          inside('20:30', AMAIA_HOME, 'A casa.'),
+        ],
+      },
+      {
+        // Al final: menos horas fuera, más sentada y más despacio.
+        id: 'calma-amaia',
+        days: on('monday', 'tuesday', 'wednesday', 'friday', 'saturday', 'sunday'),
+        weight: 1,
+        stage: ['late'],
+        pace: 0.8,
+        stops: [
+          { at: '10:00', point: 'CAFE_TABLE_03', lines: ['Sigo trabajando, pero sentada y con los pies en alto.'], going: ['Bajo al Pausa, sin prisa.'] },
+          inside('12:00', AMAIA_HOME, 'A casa, a descansar un poco.'),
+          { at: '18:30', point: 'PARK_BENCH_04', lines: ['Un rato de banco. Me lo ha mandado la matrona. Bueno, casi.'], going: ['Paseo corto al parque.'] },
+          inside('19:40', AMAIA_HOME, 'A casa.'),
+        ],
+      },
+      {
+        id: 'postparto-amaia',
+        days: ANY_DAY,
+        weight: 1,
+        stage: ['post'],
+        pace: 0.8,
+        stops: [
+          { at: '11:00', point: 'PARK_BENCH_04', lines: ['Leo come cada dos horas. Tengo cuarenta minutos de mundo.'], going: ['Bajo un momento a por aire.'] },
+          inside('12:00', AMAIA_HOME, 'Me subo, que toca toma.'),
+        ],
+      },
+      { id: 'postparto-casa-amaia', days: ANY_DAY, weight: 1, stage: ['post'], stops: [inside('06:00', AMAIA_HOME)] },
+    ],
+  },
+  {
+    // Yasmin Haddad, 29: enfermera en el hospital del centro, con turnos de mañana y de tarde.
+    npc: 'yasmin',
+    speed: 2,
+    home: YASMIN_HOME,
+    routines: [
+      {
+        id: 'turno-manana',
+        days: on('monday', 'tuesday', 'wednesday'),
+        weight: 2,
+        stops: [
+          inside('07:00', 'METRO_ENTRANCE', 'Turno de mañana. Luego hablamos.'),
+          { at: '16:00', point: 'PLAZA_BENCH_08', lines: ['Ocho horas de pie. Este banco es mío.'], going: ['Me siento en la plaza antes de subir.'] },
+          inside('17:00', YASMIN_HOME, 'A casa, a ducharme y a no hacer nada.'),
+        ],
+      },
+      {
+        id: 'turno-tarde',
+        days: on('thursday', 'friday'),
+        weight: 2,
+        stops: [
+          { at: '10:30', point: 'CAFE_TABLE_04', lines: ['Desayuno tarde porque hoy entro tarde. Lógica de turnos.'], going: ['Al Pausa a desayunar.'] },
+          inside('11:40', YASMIN_HOME, 'A casa, a preparar la comida.'),
+          inside('13:40', 'METRO_ENTRANCE', 'Me voy al hospital. Hasta mañana.'),
+          inside('23:00', YASMIN_HOME, 'Vengo reventada. A dormir.'),
+        ],
+      },
+      {
+        id: 'libre-yasmin',
+        days: WEEKEND,
+        weight: 2,
+        stops: [
+          { at: '11:30', point: 'SUPERMARKET_PRODUCE', optional: true, lines: ['La compra de la semana, ahora que puedo.'], going: ['Al súper, que no hay nada en casa.'] },
+          { at: '12:30', point: 'PLAZA_BENCH_08', lines: ['Día libre. Iker viene luego.'], going: ['Bajo a la plaza.'] },
+          inside('14:00', YASMIN_HOME, 'A comer.'),
+          { at: '19:00', point: 'CAFE_TABLE_04', optional: true, lines: ['Un café con calma, que entre semana no hay.'], going: ['Me voy al Pausa un rato.'] },
+          inside('21:00', YASMIN_HOME, 'A casa.'),
+        ],
+      },
+      {
+        id: 'libre-casa-yasmin',
+        days: WEEKEND,
+        weight: 1,
+        stops: [inside('06:00', YASMIN_HOME)],
+      },
+      {
+        // Preparación al parto: los sábados por la mañana, en Forja.
+        id: 'preparacion-yasmin',
+        days: on('saturday'),
+        weight: 1,
+        stage: ['mid', 'late'],
+        pace: 0.85,
+        stops: [
+          { at: '10:30', point: 'GYM_MAT_01', lines: ['Preparación al parto. Iker se apunta los ejercicios en el móvil.'], going: ['Voy a Forja, a la clase de los sábados.'] },
+          { at: '11:40', point: 'PHARMACY_COUNTER', optional: true, lines: ['Hierro y ácido fólico. Lo sé, soy enfermera.'], going: ['Paso por la farmacia.'] },
+          inside('13:20', YASMIN_HOME, 'A casa.'),
+          { at: '19:00', point: 'PLAZA_BENCH_08', optional: true, lines: ['Un rato de plaza al fresco.'], going: ['Bajo un rato.'] },
+          inside('20:30', YASMIN_HOME, 'A casa.'),
+        ],
+      },
+      {
+        // Al final: consultas sin turnos, menos horas y más descanso.
+        id: 'consultas-yasmin',
+        days: on('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'sunday'),
+        weight: 1,
+        stage: ['late'],
+        pace: 0.8,
+        stops: [
+          inside('08:30', 'METRO_ENTRANCE', 'A consultas. Sin noches, por fin.'),
+          { at: '15:30', point: 'PLAZA_BENCH_08', lines: ['Me siento, que se me hinchan los pies.'], going: ['Paro en la plaza antes de subir.'] },
+          inside('17:20', YASMIN_HOME, 'A casa, a tumbarme.'),
+        ],
+      },
+      {
+        id: 'postparto-yasmin',
+        days: ANY_DAY,
+        weight: 1,
+        stage: ['post'],
+        pace: 0.8,
+        stops: [
+          { at: '18:00', point: 'PLAZA_BENCH_08', lines: ['Nour se ha quedado con Iker. Diez minutos para mí.'], going: ['Bajo un momento a la plaza.'] },
+          inside('19:50', YASMIN_HOME, 'Me subo, que ya la oigo.'),
+        ],
+      },
+      { id: 'postparto-casa-yasmin', days: ANY_DAY, weight: 1, stage: ['post'], stops: [inside('06:00', YASMIN_HOME)] },
     ],
   },
 ];

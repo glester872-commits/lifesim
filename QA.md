@@ -244,3 +244,38 @@ nada desaparece delante del jugador); no hay claxon ni rodeo porque los carriles
 
 **Punto de continuación.** Último cambio: registro en QA.md. Siguiente comprobación: mirar el cupé de noche (faros
 del perfil bajo) y en lluvia.
+
+## CV-06 · vecinas embarazadas y continuidad familiar (2026-10-22)
+
+**Qué hay.** Tres vecinas adultas nuevas con rutina (Noa 32, maestra; Amaia 37, programadora en remoto; Yasmin 29,
+enfermera con turnos, pareja de Iker). `data/pregnancy.ts` fija fases ficticias (decisión de diseño, no médica):
+early 0–9 · mid 10–19 · late 20–27 · nacimiento el día 28 · postparto 28–48 · done. El inicio se ancla el primer
+día que la partida conoce el sistema (`offset` por datos, sin tiradas): Noa ya a mitad, Amaia al principio y Yasmin
+empieza 21 días después. Lo guardado (`state.pregnancy`): inicio, última fase resuelta y nacimiento con el bebé
+(`bebe-<madre>`, nombre). `systems/Pregnancy.resolve` avanza fase a fase; main.ts lo llama al arrancar y en cada
+medianoche y guarda antes del aviso «Barrio». Aspecto: `bump` 1–3 en `world/HumanArt` (vientre de perfil; cintura de
+frente en 2–3 y de espaldas en 3), con versiones `~p1…~p3` horneadas y sus capas de tiempo. Rutinas con `stage`
+(clase de preparación semanal en Forja con farmacia, días de calma al final con `pace` 0,8–0,85, postparto con un
+paseo corto o en casa) y una frase contextual por fase al hablar. Sin crianza: el bebé es un hito y una referencia.
+
+**Comprobado.** `tsc` limpio; `scripts/check-pregnancy.ts` (adultez, fases, salto de 120 días = día a día, un
+nacimiento por vecina con su día, guardar y cargar antes y después sin duplicar, partida antigua sin campo, rutina
+por fase). Navegador (contexto aislado `cv06`, partida nueva): registros guardados al arrancar; Noa en su banco con
+`noa~p2~light`; hoja de las tres fases × 4 direcciones × de pie/andando/sentada, también con abrigo; salto de 45 días
+por `clock.advanceMinutes` → 45 medianoches, un único aviso con los tres nacimientos (días 15, 26, 50) y guardado;
+recarga → mismo estado y ningún aviso. Con la fase final preparada por fixture: Yasmin en su banco con `~p3`, al
+hablar dice su frase de parada y la de su fase; vuelve a casa más despacio; dentro de la farmacia sigue su rutina
+fuera de pantalla. Tras el ciclo, Noa sin vientre y hablando de Alba.
+
+**Hallazgos durante el trabajo.** `check-characters` detectó semanas calcadas (Noa con una sola rutina por tipo de
+día): se añadieron claustro, fin de semana en casa y postparto en casa. `check-signals` detectó cruces en rojo al
+volver a casa: el semáforo de la avenida tiene un ciclo de 48 min de juego y `scheduleCrossings` sólo puede salir
+antes tanto como margen tenga la parada anterior; se dio ese margen a cuatro tramos.
+
+**Sin verificar / pendiente.** `setClock` de depuración no emite medianoches: no resuelve fases hasta la siguiente
+medianoche real. Controles táctiles: no hay UI nueva y la charla usa la misma interacción; no se repasó en viewport
+táctil. No hay carrito ni bebé dibujado en el postparto. Las versiones diarias (`dailyRoutine`, ±10 min) no se
+comprueban contra semáforos, igual que antes para Sara y Ada.
+
+**Punto de continuación.** Último cambio: registro en QA.md. Siguiente comprobación: verlas andar de perfil en la
+calle a zoom de juego, de día y de noche.

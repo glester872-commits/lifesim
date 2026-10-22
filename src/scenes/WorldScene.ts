@@ -104,7 +104,8 @@ import type { PlayerCall, TableService } from '../systems/TableService';
 import { say, type MenuItem, type MoreOption } from '../data/menus';
 import { euros } from '../systems/Commerce';
 import { WeatherView } from '../world/WeatherView';
-import { awayFanLook, characterLook, umbrellaFor } from '../world/WeatherLooks';
+import { awayFanLook, characterLook, pregnantLook, umbrellaFor } from '../world/WeatherLooks';
+import { bumpOf, phaseOn, pregnancyLine } from '../systems/Pregnancy';
 import { hashSeed, seededRng, type Rng } from '../systems/MetroDaily';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
@@ -486,7 +487,13 @@ export class WorldScene extends Phaser.Scene {
     this.characters = CHARACTERS.map((c, i) => {
       const entry = { def: c, sprite: new Character(this, getNpc(c.npc), i), now: null as Whereabouts | null, heldAt: null as number | null, lag: 0 };
       // Lo que dice depende de dónde está o a dónde va.
-      const lines = (): readonly string[] => (entry.now?.moving ? entry.now.stop.going : entry.now?.stop.lines) ?? entry.sprite.def.lines;
+      const lines = (): readonly string[] => {
+        const said = (entry.now?.moving ? entry.now.stop.going : entry.now?.stop.lines) ?? entry.sprite.def.lines;
+        // Su embarazo (systems/Pregnancy): lo que cuenta en la fase de hoy, después de lo de su parada.
+        const day = characterDay(this.absMinute());
+        const extra = pregnancyLine(c.npc, phaseOn(c.npc, day), day);
+        return extra ? [...said, extra] : said;
+      };
       this.interactables.push({ kind: 'npc', sprite: entry.sprite, def: entry.sprite.def, lines });
       return entry;
     });
@@ -1179,7 +1186,9 @@ export class WorldScene extends Phaser.Scene {
       this.watchStoryPlan(c, w, player);
       const visible = w.location === here && !w.inside;
       const seed = hashSeed('weather', c.def.npc);
-      const look = outdoor ? characterLook(c.sprite.def, seed, weather) : c.sprite.def;
+      // Con el vientre de su fase de hoy (systems/Pregnancy): sale de lo guardado, nunca de una tirada al entrar.
+      const body = pregnantLook(c.sprite.def, bumpOf(phaseOn(c.def.npc, characterDay(now))));
+      const look = outdoor ? characterLook(body, seed, weather) : body;
       c.sprite.setLook(look.id);
       c.sprite.umbrella = outdoor ? umbrellaFor(seed, weather, !!look.hood) : null;
       if (visible && !w.moving) claimed.add(w.stop.point);

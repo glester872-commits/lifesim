@@ -56,6 +56,8 @@ export interface HumanColors {
   piercing?: NpcLook['piercing'];
   headphones?: string;
   cane?: boolean;
+  /** Embarazo: cuánto se nota el vientre (belly() de perfil, reshape() de frente). */
+  bump?: NpcLook['bump'];
   /** Qué prenda es cada cosa (data/outfits.ts): con él, world/Garments la pinta como ropa a 28 × 42. */
   outfit?: import('../data/outfits').Outfit;
 }
@@ -196,6 +198,29 @@ export function drawHuman(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors):
   outline(ctx);
 }
 
+/**
+ * El vientre de perfil (NpcLook.bump), delante del tronco y por encima del cinturón: con la ropa de arriba, la
+ * parte de abajo en su sombra. 1 apenas un píxel, 2 se nota, 3 asoma dos píxeles y cae sobre el cinturón.
+ * `top` es la primera fila por debajo del hombro (baja al sentarse). De frente y de espaldas lo hace reshape().
+ */
+function belly(ctx: Ctx, c: HumanColors, bump: 1 | 2 | 3, top: number): void {
+  const column = (x: number, y0: number, y1: number): void => {
+    const from = Math.max(y0, top);
+    if (y1 < from) return;
+    px(ctx, c.cloth, x, from, 1, y1 - from + 1);
+    px(ctx, c.clothDark, x, y1, 1, 1);
+  };
+  if (bump === 1) column(11, 14, 15);
+  else if (bump === 2) {
+    column(11, 12, 16);
+    column(12, 13, 15);
+  } else {
+    column(11, 12, 16);
+    column(12, 12, 16);
+    column(13, 13, 15);
+  }
+}
+
 /** De pie o andando: con bastón. Sentado, en el gimnasio o peleando, no. */
 const CANE_POSES: ReadonlySet<Pose> = new Set<Pose>([0, 1, 2, 3, 5, 32, 34]);
 
@@ -210,7 +235,9 @@ function reshape(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors): void {
   const build = c.build ?? 'average';
   const height = c.height ?? 'average';
   const stoop = c.posture === 'stooped' && (facing === 'left' || facing === 'right');
-  if ((build === 'average' && height === 'average' && !stoop) || pose === 11 || pose === 12) return;
+  // El vientre de frente: la cintura un píxel más ancha a cada lado; de espaldas, sólo al final (de perfil, belly()).
+  const front = (c.bump ?? 0) >= 2 && (facing === 'down' || (facing === 'up' && c.bump === 3));
+  if ((build === 'average' && height === 'average' && !stoop && !front) || pose === 11 || pose === 12) return;
   const { width: w, height: h } = ctx.canvas;
   if (w !== 16 || h !== 24) return;
   const img = ctx.getImageData(0, 0, w, h);
@@ -240,6 +267,12 @@ function reshape(ctx: Ctx, facing: Facing, pose: Pose, c: HumanColors): void {
   else if (build === 'heavy') {
     widen(11, 18);
     widen(13, 16);
+  }
+  if (front) {
+    const b = drop(pose);
+    if (c.bump === 3 && facing === 'up') widen(14, 15);
+    else if (c.bump === 3) widen(13 + Math.min(b, 2), 16);
+    else widen(14 + Math.min(b, 1), 15);
   }
   if (height === 'tall') for (let y = 0; y < 16; y++) put(y, row(y + 1));
   else if (height === 'short') for (let y = 17; y > 0; y--) put(y, row(y - 1));
@@ -917,6 +950,7 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   px(ctx, shade(c.cloth, -0.1), 10, 11 + b, 1, 5 - Math.min(b, 4));
   if (b < 3) px(ctx, shade(c.trousers, -0.32), 5, 17, 6, 1);
   if (!seated(pose)) px(ctx, shade(c.shoes, 0.3), step || running(pose) ? 12 : 10, 22, 1, 1);
+  if (c.bump) belly(ctx, c, c.bump, 11 + b);
 
   // Cabeza de perfil: nuca, oreja, ojo y nariz hacia delante.
   px(ctx, shade(c.skin, -0.1), 7, 9 + b, 2, 1);
