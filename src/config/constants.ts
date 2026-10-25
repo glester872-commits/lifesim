@@ -6,14 +6,14 @@ export const TILE = 16;
  */
 export const CAMERA_ZOOM = 2;
 /**
- * Mundo que se ve como poco, en px: unos 20 × 17 tiles. Algo más cerca que el
- * primer encuadre (21 × 18): la gente tiene presencia y la boca de metro manda
- * en la escena, sin perder la calle de alrededor. El zoom sale del eje que más
+ * Encuadre de diseño, en px: unos 30 × 25 tiles. Con 20 × 17 el mundo se veía
+ * demasiado cerca en escritorio; así cada paso de zoom entero baja uno (1366 ×
+ * 768: 3 → 2, Full HD: 4 → 3) y se ve la calle entera. El zoom sale del eje que más
  * aprieta (en vertical manda el ancho) y es entero (world/PixelScale): cada
  * píxel de arte ocupa los mismos píxeles de pantalla. Entre dos enteros se ve algo más de mundo.
  */
-export const VIEW_WIDTH = 315;
-export const VIEW_HEIGHT = 270;
+export const VIEW_WIDTH = 480;
+export const VIEW_HEIGHT = 405;
 export const MAX_CAMERA_ZOOM = 12;
 export const CAMERA_LERP = 0.14;
 /**

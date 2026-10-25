@@ -124,6 +124,20 @@ export function isOpen(place: PlaceInfo, day: number, hour: number, minute = 0):
   return overnight(today) ? t >= today[0] : t >= today[0] && t < today[1];
 }
 
+/** Reserva conservadora de trabajo para identidades sin turno individual.
+ * Reutiliza el horario del sitio y reserva también el viaje previo; no es otro reloj ni planificador. */
+export function workingAt(work: string | undefined, now: number): boolean {
+  const place = work ? placeInfo(work) : undefined;
+  if (!place) return false;
+  for (const delta of [0, 30]) {
+    const t = Math.floor(now + delta);
+    const day = Math.floor(t / 1440) + 1;
+    const minute = ((t % 1440) + 1440) % 1440;
+    if (isOpen(place, day, Math.floor(minute / 60), minute % 60)) return true;
+  }
+  return false;
+}
+
 const hh = (h: number): string => `${String(Math.floor(h) % 24).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 
 /** Cuándo vuelve a abrir, desde su propio horario: el día y la hora de la próxima apertura. Sin horario o sin ningún día que abra, nunca. */

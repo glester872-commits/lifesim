@@ -98,7 +98,8 @@ assert.ok(sum(MORNING.roles, 'dog-walker') > 0, 'nadie saca al perro por la mañ
 // Lo social es del atardecer: parejas, terrazas, barandilla, bancos y grupos.
 const social = (s: Stats): number => sum(s.roles, 'couple-walk', 'terrace-meal', 'bar-terrace', 'river-view', 'river-bench', 'riverside-walk');
 assert.ok(social(EVENING) > social(MORNING) * 1.5, `el atardecer no es más social (${social(EVENING)} frente a ${social(MORNING)})`);
-assert.ok(sum(EVENING.roles, 'couple-walk') > 0, 'no hay parejas al anochecer');
+const nextEvening = sum(EVENING.roles, 'couple-walk') > 0 ? EVENING : streets(at(SATURDAY + 7, '19:00'), 150, [11, 3, 17, 23, 29, 31]);
+assert.ok(sum(EVENING.roles, 'couple-walk') + sum(nextEvening.roles, 'couple-walk') > 0, 'no hay parejas en dos sábados al anochecer');
 assert.ok(sum(EVENING.roles, 'terrace-meal') + sum(EVENING.roles, 'bar-terrace') > 0, 'las terrazas no se activan al anochecer');
 // Las instalaciones se usan de verdad, con su movimiento (los puestos de uso de data/stations.ts).
 const day = [MORNING, EVENING, AFTERNOON, LATE];

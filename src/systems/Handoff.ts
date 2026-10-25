@@ -86,6 +86,8 @@ export function handoffPlace(placeId: string | undefined): PlaceInfo | undefined
 /** Alguien cruza la puerta de `placeId` desde la calle `from` a ese minuto. `roll` (0–1) fija cuánto se queda. */
 export function enterPlace(p: {
   place: string; from: string; door: string; look: number; dressSeed: number; role: string; label: string; line: string; at: number; roll: number;
+  /** Continuidad de visitantes observados al abandonar un interior: acotada por su aforo. */
+  remaining?: number;
 }): Handoff | undefined {
   const place = handoffPlace(p.place);
   if (!place) return undefined;
@@ -94,13 +96,13 @@ export function enterPlace(p: {
     token: `${p.from}#${p.look}@${Math.floor(p.at)}`,
     look: p.look, dressSeed: p.dressSeed, role: p.role, label: p.label, line: p.line,
     place: place.id, interior: place.interior!, from: p.from, door: p.door,
-    enteredAt: p.at, leaveAt: p.at + lo + p.roll * (hi - lo), transit: place.type === 'transit',
+    enteredAt: p.at, leaveAt: p.at + (p.remaining === undefined ? lo + p.roll * (hi - lo) : Math.max(1, Math.min(90, p.remaining))), transit: place.type === 'transit',
   };
   // La misma persona no está en dos sitios: si tenía otra ficha abierta, esa se cierra.
   for (const o of QUEUE) if (o.look === p.look && !o.done) o.done = true;
   QUEUE.push(h);
   const here = QUEUE.filter((o) => o.place === place.id && !o.done);
-  for (const o of here.slice(0, Math.max(0, here.length - MAX_PER_PLACE))) o.done = true;
+  for (const o of here.slice(0, Math.max(0, here.length - (p.remaining === undefined ? MAX_PER_PLACE : place.capacity)))) o.done = true;
   prune(p.at);
   return h;
 }

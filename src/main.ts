@@ -170,7 +170,7 @@ const reviewAgenda = (): void => {
   reviewedAt = now;
   const s = state.snapshot;
   const position = { location: state.locationId, x: state.position.x, y: state.position.y, offMap: state.offMap ?? undefined };
-  const input = { now, job: s.job ?? null, study: s.study!, household: s.household!, phone: s.phone!, stories: s.stories ?? {}, tickets: s.tickets ?? [] };
+  const input = { now, job: s.job ?? null, study: s.study!, household: s.household!, phone: s.phone!, stories: s.stories ?? {}, tickets: s.tickets ?? [], parish: s.parish };
   const r = fresh ? review(s.agenda!, { ...input, position }, { now, job: input.job, study: input.study, household: input.household, money: s.money, wardrobe: s.wardrobe, social: s.social ?? {}, fitness: s.fitness! }) : { agenda: s.agenda!, due: [], missed: [], progress: [] };
   if (fresh) state.setAgenda(r.agenda);
 
@@ -192,7 +192,7 @@ const reviewAgenda = (): void => {
     services.save.save(state.snapshot);
   }
 
-  const next = commitments(input).find((c) => !c.deadline || c.start - now < 24 * 60);
+  const next = commitments(input).find((c) => c.kind !== 'gathering' && (!c.deadline || c.start - now < 24 * 60));
   // Sin nada con hora: lo primero que se puede hacer (data/opportunities.ts); el resto, en Hoy.
   const idea = next ? undefined : opportunities(opportunityInput(s, now))[0];
   if (!next) services.hud.setNext(idea ? `Libre · Puedes: ${idea.title}. Más en el móvil (P) → Hoy.` : 'Libre. Ideas y guía: móvil (P) → Hoy.', 'ok');

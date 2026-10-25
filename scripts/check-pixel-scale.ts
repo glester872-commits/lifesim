@@ -6,19 +6,19 @@ import { pixelZoom } from '../src/world/PixelScale.ts';
 
 // Pantallas en píxeles físicos (CSS × devicePixelRatio).
 const screens: Record<string, [number, number, number]> = {
-  'portátil 1366 × 768': [1366, 768, 3],
-  'Full HD': [1920, 1080, 4],
-  'Full HD al 125 %': [Math.round(1536 * 1.25), Math.round(864 * 1.25), 4],
-  '1440p': [2560, 1440, 5],
-  'MacBook 2560 × 1600': [2560, 1600, 6],
-  '4K': [3840, 2160, 8],
-  '4K al 150 %': [Math.round(2560 * 1.5), Math.round(1440 * 1.5), 8],
-  '5K': [5120, 2880, 11],
-  'móvil de pie 390 × 844 a 3×': [1170, 2532, 4],
-  'móvil tumbado 844 × 390 a 3×': [2532, 1170, 4],
-  'tableta 820 × 1180 a 2×': [1640, 2360, 6],
-  'ventana de revisión 1100 × 680': [1100, 680, 3],
-  'móvil de pie 390 × 844 a 2×': [780, 1688, 3],
+  'portátil 1366 × 768': [1366, 768, 2],
+  'Full HD': [1920, 1080, 3],
+  'Full HD al 125 %': [Math.round(1536 * 1.25), Math.round(864 * 1.25), 3],
+  '1440p': [2560, 1440, 4],
+  'MacBook 2560 × 1600': [2560, 1600, 4],
+  '4K': [3840, 2160, 5],
+  '4K al 150 %': [Math.round(2560 * 1.5), Math.round(1440 * 1.5), 5],
+  '5K': [5120, 2880, 7],
+  'móvil de pie 390 × 844 a 3×': [1170, 2532, 3],
+  'móvil tumbado 844 × 390 a 3×': [2532, 1170, 3],
+  'tableta 820 × 1180 a 2×': [1640, 2360, 4],
+  'ventana de revisión 1100 × 680': [1100, 680, 2],
+  'móvil de pie 390 × 844 a 2×': [780, 1688, 2],
 };
 for (const [name, [w, h, expected]] of Object.entries(screens)) {
   const z = pixelZoom(w, h);

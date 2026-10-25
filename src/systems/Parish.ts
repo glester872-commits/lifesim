@@ -3,7 +3,7 @@ import { CHOIR, type GatheringDef, type GatheringEffect } from '../data/parish.t
 import { formatDate, weekIndex } from './Calendar.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
 import { IDENTITIES, relationsOf } from './People.ts';
-import { isOpen, placeInfo } from './Places.ts';
+import { workingAt } from './Places.ts';
 import { applyDelta, noteSocialMemory, type SocialMoment, type SocialProfile } from './Social.ts';
 
 /**
@@ -98,8 +98,9 @@ export interface GatheringOutcome {
  * Llegar pasados `onTime` minutos cuenta como un rato aunque se quede al final. Quien llama comprueba joinBlocker.
  */
 export function attend(g: GatheringDef, s: ParishState, host: SocialProfile, now: number, choice: 'full' | 'short'): GatheringOutcome {
-  const o = occurrenceOn(g, dayOf(now));
-  if (!o) throw new Error(`Hoy no hay ${g.id}`);
+  const blocked = joinBlocker(g, s, now);
+  if (blocked) throw new Error(blocked);
+  const o = occurrenceOn(g, dayOf(now))!;
   const left = o.end - now;
   const minutes = choice === 'full' ? left : Math.min(g.shortStay, left);
   const stay: Attendance['stay'] = choice === 'full' && now <= o.start + g.onTime ? 'full' : 'partial';
@@ -131,14 +132,10 @@ export function lastAttendance(g: GatheringDef, s: ParishState): string | null {
 
 // ------------------------------------------------------------ quién viene
 
-/** Trabaja a esa hora: su sitio de trabajo (Identity.work) está abierto en algún momento del ensayo. */
+/** Trabajo y desplazamiento tienen prioridad durante toda la ventana del encuentro. */
 function busy(work: string | undefined, day: number, from: number, minutes: number): boolean {
-  const place = work ? placeInfo(work) : undefined;
-  if (!place) return false;
-  for (let m = 0; m <= minutes; m += 30) {
-    const t = from * 60 + m;
-    if (isOpen(place, day, Math.floor(t / 60), t % 60)) return true;
-  }
+  const start = abs(day, from) - ARRIVE_EARLY;
+  for (let t = start; t <= abs(day, from) + minutes + 30; t++) if (workingAt(work, t)) return true;
   return false;
 }
 
@@ -196,6 +193,14 @@ export function guestsInside(place: string, now: number): { looks: number[]; unt
 /** Todas las caras que ahora están en un encuentro, en cualquier sitio: la calle no las saca (StreetLife.usedLooks). */
 export function gatheringLooks(now: number): number[] {
   return GATHERINGS.flatMap((g) => guestsInside(g.place, now).looks);
+}
+
+/** Ida y vuelta: esas identidades no empiezan un recado incompatible antes/después del encuentro. */
+export function gatheringReservedLooks(now: number): number[] {
+  return GATHERINGS.flatMap((g) => {
+    const o = occurrenceOn(g, dayOf(now));
+    return o && now >= o.start - ARRIVE_EARLY - 30 && now < o.end + 30 ? guestsOf(g, o.day) : [];
+  });
 }
 
 export function parseParish(v: unknown): ParishState {

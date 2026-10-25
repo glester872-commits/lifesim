@@ -70,7 +70,7 @@ export class TimeSystem {
    * cargar una partida no avisa (no se cruza nada).
    */
   advanceMinutes(minutes: number): void {
-    if (minutes <= 0) return;
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
     // Un paso de frame es un minuto suelto; un salto (≥ 10 min) es algo que ha pasado y se cuenta.
     if (this.holdJumps && minutes >= 10) this.held = true;
     const from = this.state.day;

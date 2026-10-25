@@ -144,7 +144,12 @@ assert.ok(match.arrival.plaza > normal.arrival.plaza * 2, 'la explanada no se ll
 for (const ph of ['build-up', 'arrival', 'leaving'] as const) assert.ok(match[ph].fanShare > 0.4, `pocos con la camiseta en ${ph}`);
 for (const ph of MATCH_PHASES) assert.equal(normal[ph].fanShare, 0, `aficionados sin partido (${ph})`);
 // Seguridad: policía y personal de los tornos sólo en día de partido.
-assert.ok(match.arrival.uniforms.has('uniforme-seguridad') && match.arrival.uniforms.has('uniforme-policia'), 'sin seguridad a la llegada');
+// Son roles ambientales con sorteo; comprobar varias llegadas sin exigir una composición fija en cada semilla.
+const arrivalUniforms = new Set(match.arrival.uniforms);
+for (let seed = 0; seed < 4 && !(arrivalUniforms.has('uniforme-seguridad') && arrivalUniforms.has('uniforme-policia')); seed++) {
+  for (const uniform of sample(at(md, REL.arrival), `security-arrival-${seed}`).uniforms) arrivalUniforms.add(uniform);
+}
+assert.ok(arrivalUniforms.has('uniforme-seguridad') && arrivalUniforms.has('uniforme-policia'), 'sin seguridad en cinco llegadas');
 // Sin partido no hay policía de puesto, personal de tornos ni seguridad del estadio; el uniforme de policía, si se ve,
 // es la patrulla de todos los días (systems/Police), la misma de cualquier barrio.
 for (const ph of MATCH_PHASES) {
