@@ -220,7 +220,7 @@ function atStop(here: Stop, routine: string): Whereabouts {
   };
 }
 
-const PLANS = new Map<Routine, Trip[]>();
+const PLANS = new WeakMap<Routine, Trip[]>();
 for (const def of CHARACTERS) {
   for (const routine of def.routines) {
     const trips = plan(def, routine);
@@ -375,7 +375,6 @@ export function dailyRoutine(def: CharacterDef, routine: Routine, day: number, r
     }
   }
   if (VARIANTS.size >= MAX_VARIANTS) {
-    for (const v of VARIANTS.values()) if (!def.routines.includes(v)) PLANS.delete(v);
     VARIANTS.clear();
   }
   VARIANTS.set(key, chosen);

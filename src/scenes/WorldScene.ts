@@ -816,6 +816,7 @@ export class WorldScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
       autosave.remove();
       this.services.metroDebug?.hide();
+      this.crowd?.rememberVisitors(this.clockNow());
       this.metro?.shutdown();
       // Lo que sonaba aquí se apaga con un fundido corto: el sitio nuevo sube lo suyo. Las capas son las mismas, no se crean otras.
       this.services.audio.silence();

@@ -28,6 +28,8 @@ import { opportunities, opportunityInput } from '../systems/Opportunities';
  * el dedo o el teclado (W/S, E, 1–9; Esc vuelve atrás y, en el inicio, lo cierra).
  */
 
+const stampTime = (now: number): string => `${String(Math.floor((now % 1440) / 60)).padStart(2, '0')}:${String(now % 60).padStart(2, '0')}`;
+
 export interface PhoneHost {
   /** Minuto absoluto del juego. */
   now(): number;
@@ -386,7 +388,7 @@ export class PhoneScreen {
   /** Lo pendiente, leído de donde vive cada cosa (systems/Agenda): no hay otra lista de planes. */
   private agenda(now: number): Commitment[] {
     const s = this.state.snapshot;
-    return commitments({ now, job: s.job ?? null, study: s.study!, household: s.household!, phone: s.phone!, stories: s.stories ?? {}, tickets: s.tickets ?? [] });
+    return commitments({ now, job: s.job ?? null, study: s.study!, household: s.household!, phone: s.phone!, stories: s.stories ?? {}, tickets: s.tickets ?? [], parish: s.parish });
   }
 
   /**
@@ -407,7 +409,7 @@ export class PhoneScreen {
       const label = marginLabel(c, now, hint);
       const li = el('li', `phone__row${label ? ' is-unread' : ''}`);
       const when = dueText(c, now);
-      li.append(rowText(c.title, `${when}${c.where ? ` · ${c.where.name}` : ''} · ${hint.text}`), el('span', 'phone__row-meta', label));
+      li.append(rowText(c.title, `${when}${c.where ? ` · ${c.where.name}` : ''} · ${hint.text}${c.kind === 'gathering' ? ' · Opcional; admisión hasta ' + stampTime(c.close) : ''}`), el('span', 'phone__row-meta', label));
       const to = OPENS[c.kind];
       this.item(li, to ? () => this.go(to) : () => undefined);
       ul.append(li);

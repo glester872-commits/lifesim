@@ -63,11 +63,12 @@ class Street {
   private readonly loc: LocationDef;
   private readonly player: TilePoint;
 
-  constructor(seed: number, hhmm: string, where: Terrace = CASA_TOMAS, day = 6) {
+  constructor(seed: number, hhmm: string, where: Terrace = CASA_TOMAS, day = 6, reserved: readonly string[] = []) {
     this.loc = getLocation(where.location);
     this.player = where.player;
     this.life = new StreetLife(this.loc, streetProfileFor(where.location)!, seededRng(seed));
     this.clock = at(day, hhmm);
+    this.life.claim(new Set(reserved));
     this.life.populate(this.clock, this.player);
     this.service = this.life.serviceAt(where.seats[0])!;
     this.place = where.place;
@@ -133,7 +134,7 @@ class Street {
 function openTerrace(where: Terrace = CASA_TOMAS, free: readonly string[] = where.seats): Street {
   for (const hhmm of where.open) {
     for (let seed = 1; seed <= 40; seed++) {
-      const street = new Street(seed, hhmm, where);
+      const street = new Street(seed, hhmm, where, 6, free);
       if (street.waiter() && free.every((seat) => street.table(seat).party === null)) return street;
     }
   }

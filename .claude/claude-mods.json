@@ -1,0 +1,26 @@
+{
+ "coordinator": {
+  "repos": ".",
+  "backend": "wt",
+  "shell": "auto",
+  "workerCommand": "claude --model {model} \"{prompt}\"",
+  "workerPrompt": "Read {brief} and execute it. Your role is {role}.",
+  "workerModel": "sonnet",
+  "maxLanes": 2,
+  "retireTokens": 250000,
+  "pauseSessionPercent": 97,
+  "pauseWeeklyPercent": 80,
+  "probeIntervals": "0:60,70:20,78:10",
+  "probeCommand": "claude --model haiku",
+  "pauseReminderMin": 10.0,
+  "pauseGraceMin": 20.0,
+  "busDir": ".claude/bus",
+  "trackerDb": ".claude/tasks/tasks.db",
+  "rulesFile": ".claude/coord/RULES_CORE.md",
+  "briefsDir": ".claude/coord/briefs",
+  "cardsDir": ".claude/coord/lanes",
+  "reportsDir": ".claude/coord/reports",
+  "minFreeRamGb": 4.0,
+  "minBattery": 40
+ }
+}

@@ -15,8 +15,8 @@ import { CAMERA_ZOOM, MAX_CAMERA_ZOOM, VIEW_HEIGHT, VIEW_WIDTH } from '../config
  * diseñado, nunca más de medio paso de diferencia. Lo mismo en todos los
  * sitios: cruzar una puerta no cambia el tamaño de nadie.
  *
- *   1366 × 768 → 3 · 1920 × 1080 → 4 · 2560 × 1440 → 5 · 3840 × 2160 → 8
- *   móvil 390 × 844 a 2× → 3 · a 3× → 4
+ *   1366 × 768 → 2 · 1920 × 1080 → 3 · 2560 × 1440 → 4 · 3840 × 2160 → 5
+ *   móvil 390 × 844 a 2× → 2 · a 3× → 3
  */
 export function pixelZoom(width: number, height: number): number {
   const [long, short] = width >= height ? [width, height] : [height, width];

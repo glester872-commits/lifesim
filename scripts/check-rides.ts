@@ -93,6 +93,8 @@ function watch(location: string, day: number, hour: number, hours: number, seed:
     assert.ok(s.life.rides.length <= RIDE.cap, `${location}: ${s.life.rides.length} recogidas a la vez`);
     const stops = s.life.rides.map((r) => r.stop);
     assert.equal(new Set(stops).size, stops.length, `${location}: dos grupos en la misma parada`);
+    // Un taxi libre puede recoger de nuevo después; la exclusividad se exige entre recogidas activas.
+    for (const [car, owner] of cars) if (!s.life.rides.includes(owner)) cars.delete(car);
     for (const r of s.life.rides) {
       const e = seen.get(r) ?? { phases: [], stoppedAtBoard: true };
       if (e.phases[e.phases.length - 1] !== r.phase) e.phases.push(r.phase);
@@ -159,6 +161,8 @@ function watch(location: string, day: number, hour: number, hours: number, seed:
     waited ??= s.life.rides[0];
     if (waited && !s.life.rides.includes(waited)) cancelled = true;
   });
+  // La búsqueda puede encontrar la recogida al final de su ventana: medir el timeout desde esa espera.
+  if (waited && !cancelled) s.step(RIDE.waitMs + 1_000, () => { if (!s.life.rides.includes(waited!)) cancelled = true; });
   assert.ok(waited, 'nadie espera un VTC en Puerta Central un sábado por la noche');
   assert.ok(cancelled, 'sin coches, la espera no acaba');
   assert.ok(s.life.rideStats.boarded === 0 && s.life.rideStats.cancelled > 0);

@@ -7,6 +7,7 @@ import { COURSES, getGig, getSkill } from '../data/study.ts';
 import { STORIES } from '../data/saraStory.ts';
 import { STOPS } from '../data/transit.ts';
 import { getNpc } from '../data/npcs.ts';
+import { GATHERINGS, attendedTo, nextOccurrence, occurrenceOn, type ParishState } from './Parish.ts';
 import type { TilePoint } from '../types/game.ts';
 import { allLocations, getLocation, hasLocation } from './LocationSystem.ts';
 import { findPoint } from './Navigation.ts';
@@ -86,7 +87,7 @@ export type Where =
   | { name: string; stop: string }
   | null;
 
-export type CommitmentKind = 'job' | 'class' | 'gig' | 'bill' | 'plan' | 'visit' | 'match';
+export type CommitmentKind = 'job' | 'class' | 'gig' | 'bill' | 'plan' | 'visit' | 'match' | 'gathering';
 
 export interface Commitment {
   /** Estable entre recargas: con él se recuerda qué se ha avisado. */
@@ -110,6 +111,7 @@ export interface AgendaInput {
   phone: PhoneState;
   stories: StoryState;
   tickets: readonly Ticket[];
+  parish?: ParishState;
 }
 
 const pointWhere = (name: string, id: string): Where => {
@@ -210,6 +212,17 @@ export function commitments(input: AgendaInput): Commitment[] {
     if (t.admitted) continue;
     const start = at(t.day, 0) + t.kickoff;
     out.push({ key: `match:${t.fixture}`, kind: 'match', title: `Partido contra ${t.rival}`, start, close: start + 45, where: pointWhere('Estadio del Halcón', t.point) });
+  }
+
+  // Actividad optativa: se muestra en Hoy, sin convertir perderla en una falta.
+  for (const g of GATHERINGS) {
+    const today = occurrenceOn(g, dayOfAbs(now));
+    const current = today && now <= today.start + g.lateMax && !input.parish?.attended.some((a) => a.id === today.id);
+    const o = current ? today : nextOccurrence(g, today ? Math.max(now, today.end) : now);
+    if (input.parish && attendedTo(input.parish, o.id)) continue;
+    const place = placeInfo(g.place);
+    out.push({ key: `gathering:${o.id}`, kind: 'gathering', title: g.name, start: o.start, close: o.start + g.lateMax,
+      where: place ? pointWhere(place.name, place.entrances[0]) : null });
   }
 
   return out.filter((c) => c.close >= now).sort((a, b) => a.start - b.start);
@@ -409,6 +422,7 @@ export function review(source: AgendaState, input: ReviewInput, progress: Progre
   const first = agenda.checked < 0;
   const due: Commitment[] = [];
   for (const c of commitments(input)) {
+    if (c.kind === 'gathering') continue;
     if (agenda.seen[c.key] !== undefined) continue;
     if (now < c.start - leadOf(c, travelHint(input.position, c.where))) continue;
     agenda.seen[c.key] = now;

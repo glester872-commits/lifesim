@@ -133,6 +133,8 @@ resetIncidents();
 {
   const s = street('puerta-central', SAT, 12, 11);
   s.step(20_000);
+  // La disponibilidad de víctima es preparación: esperar hasta una parada real, no exigir la semilla antigua.
+  for (let i = 0; i < 60 && !s.life.agents.some(a => a.kind === 'visitor' && a.role !== PATROL && a.role !== 'terrace' && !a.leader && a.path.length === 0 && a.staying && zoneAt('puerta-central', Math.floor(a.x), Math.floor(a.y))?.type === 'plaza'); i++) s.step(500);
   // Alguien quieto en la plaza (el aviso dice «Plaza de la Puerta»), no en una mesa de terraza: a esa la suelta el
   // servicio de la terraza cuando acaba, aviso o no. Al recibir el aviso espera a la policía (dispatch le alarga el rato y
   // el recorte de gente no lo echa): antes, con más gente de la cuenta, se iba y el aviso se cancelaba.

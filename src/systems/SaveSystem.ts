@@ -157,11 +157,9 @@ export class LocalStorageAdapter
         key,
         value,
       );
-    } catch {
-      /*
-       * Modo privado o cuota llena:
-       * la partida continúa aunque no persista.
-       */
+    } catch (error) {
+      // SaveSystem.save debe informar false: nunca confirmar una escritura que no ocurrió.
+      throw error;
     }
   }
 

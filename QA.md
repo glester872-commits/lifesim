@@ -279,3 +279,29 @@ comprueban contra semáforos, igual que antes para Sara y Ada.
 
 **Punto de continuación.** Último cambio: registro en QA.md. Siguiente comprobación: verlas andar de perfil en la
 calle a zoom de juego, de día y de noche.
+
+
+## CV-07 · ciudad viva e integración (2026-10-24)
+
+Integración en rama local `cv07-ciudad-viva` desde 9f85ab6 limpio. Auditoría de
+CV-02–06 y cola 102–106, decisiones, límites y reproducción en
+`CV07-VERIFICATION.md`. Se mantienen Phaser/TS/Vite, estado y guardado únicos,
+aspecto/animación del jugador, escala y controles.
+
+Reservas de identidades para trabajo/encuentros/visitas, continuidad acotada al
+volver a un local, afluencia con margen para servicios, coro opcional en Hoy,
+reintentos protegidos, reloj inválido ignorado y caché de planes con WeakMap.
+Corregidos rodeo del semáforo, recado del Carmen a destino cerrado y falso éxito
+del adaptador de guardado. Las fixtures estadísticas actualizadas se explican en
+el informe, sin rebajar la exclusividad ni forzar espectadores.
+
+Comprobado: los 91 comandos de npm run check, tipos/build, tres días en Chrome
+con acciones UI y recarga, recuperación de cierre, migración sintética y táctil
+emulado. Simulación de siete días separada: saldo mínimo €45,20, final €50,70 y
+tarjeta €8; 650 agentes inspeccionados sin identidades duplicadas en las muestras.
+
+Pendientes: partida antigua real, teléfono físico, vidas domésticas individuales
+para toda la población ambiental y validación visual exhaustiva de 103–106.
+Último cambio: destino de recado cerrado → ruta a casa. Siguiente comprobación:
+repetir trabajo → súper → guardar/recargar con una copia histórica real aislada.
+Sin push, despliegue ni publicación.

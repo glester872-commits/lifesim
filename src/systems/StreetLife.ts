@@ -10,7 +10,7 @@ import { PLACES } from '../data/places.ts';
 import type { Facing, LocationDef, SignalDef, TilePoint } from '../types/game.ts';
 import { between, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { nightOwner, rhythmAt, weekIndex } from './Calendar.ts';
-import { isOpen, placeInfo, placeOfPoint, type PlaceInfo } from './Places.ts';
+import { workingAt, isOpen, placeInfo, placeOfPoint, type PlaceInfo } from './Places.ts';
 import { route, tilePath } from './Navigation.ts';
 import { besideTile, identity, nextCustomer } from './Service.ts';
 import { ROADWAY, isWalkable } from './LocationSystem.ts';
@@ -36,7 +36,7 @@ import { aheadBlocked, nearestReachable, offCamera, RECOVERY, StuckWatch, tileKe
 import { Litter } from './Litter.ts';
 import { PROPS } from '../world/tiles.ts';
 import { absMinute, dueOut, enterPlace, insideLooks, type Handoff } from './Handoff.ts';
-import { gatheringLooks } from './Parish.ts';
+import { gatheringReservedLooks } from './Parish.ts';
 
 /**
  * El tiempo en la calle: con lluvia o frío hay menos gente (quien puede, se
@@ -374,8 +374,11 @@ export class StreetLife {
   ceiling = Infinity;
 
   /** Paseantes que caben de verdad: el objetivo, sin pasar del tope duro contando a todos los demás. */
+  /** Cupo de identidades revisado con las decisiones de afluencia; deja hueco a servicios y sucesos. */
+  private identityBudget = IDENTITIES.length;
+
   private within(walkers: number): number {
-    return Math.max(0, Math.min(walkers, this.ceiling - (this.agents.length - this.walkers().length)));
+    return Math.max(0, Math.min(walkers, Math.floor(this.identityBudget * this.budget), this.ceiling - (this.agents.length - this.walkers().length)));
   }
 
   /** Los robos de la calle (systems/Pickpocket): raros, sólo con mucha gente alrededor y en zonas que lo permiten. */
@@ -518,7 +521,9 @@ export class StreetLife {
     for (const a of this.agents) {
       if (a.kind !== 'visitor' || a.leader || !looks.has(a.look) || !offCamera({ tx: a.x, ty: a.y }, this.player)) continue;
       const used = this.usedLooks();
-      a.look = this.pickLook(a.rule, a.path[a.path.length - 1] ?? { tx: a.x, ty: a.y }, used);
+      const replacement = this.pickLook(a.rule, a.path[a.path.length - 1] ?? { tx: a.x, ty: a.y }, used);
+      if (replacement < 0) { a.vanish = true; continue; }
+      a.look = replacement;
       // Quien iba con esa persona sigue siendo quien era: el grupo ya no es «de» nadie concreto.
       a.bond = undefined;
       a.tie = undefined;
@@ -531,7 +536,8 @@ export class StreetLife {
     for (const l of this.elsewhere) used.add(l);
     for (const l of insideLooks(this.now)) used.add(l);
     // Quien está en un encuentro con hora (el coro de la parroquia, systems/Parish): dentro hasta que acabe.
-    for (const l of gatheringLooks(this.now)) used.add(l);
+    for (const l of gatheringReservedLooks(this.now)) used.add(l);
+    for (const p of IDENTITIES) if (workingAt(p.work, this.now)) used.add(p.index);
     return used;
   }
 
@@ -561,6 +567,7 @@ export class StreetLife {
     const path = to ? route(h.door, to) : null;
     if (!path) return;
     const w = this.newWalker(undefined, this.pointAt(h.door), path.slice(1), h.look);
+    if (!w) return;
     Object.assign(w, { role: h.role, label: h.label, line: h.line, dressSeed: h.dressSeed, vanish: true, dest: to });
   }
 
@@ -596,6 +603,7 @@ export class StreetLife {
     this.tickSignals(clock, 0);
     const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
     this.rng = seededRng(hashSeed('street-populate', this.loc.id, clock.day, slot));
+    this.refresh(clock);
     const target = this.within(Math.round(streetTargetAt(this.profile, clock) * this.budget));
     this.staffShift(clock);
     this.survivorShift(clock, true);
@@ -679,6 +687,18 @@ export class StreetLife {
   private reconcile(clock: Clock, player: TilePoint): void {
     this.refresh(clock);
     this.staffShift(clock);
+    const reserved = new Set([...insideLooks(this.now), ...gatheringReservedLooks(this.now)]);
+    for (const a of this.agents) {
+      if (a.kind !== 'visitor' || a.vanish || a.talking) continue;
+      if (!reserved.has(a.look) && !workingAt(IDENTITIES[a.look]?.work, this.now)) continue;
+      // Una charla no cambia identidad; al terminar continúa hasta una salida fuera de cámara.
+      const edge = this.nearestEdge({ tx: a.x, ty: a.y });
+      if (!edge) continue;
+      this.release(a);
+      a.staying = false; a.settled = false; a.timer = 0; a.delay = 0;
+      a.state = 'WALK'; a.vanish = true;
+      a.path = this.detour({ tx: a.x, ty: a.y }, this.pointAt(edge)) ?? [];
+    }
     this.survivorShift(clock, false);
     this.actShift(clock, false);
     const target = this.within(Math.round(this.stats.target * this.budget));
@@ -734,6 +754,10 @@ export class StreetLife {
   }
 
   private refresh(clock: Clock): void {
+    const blocked = new Set([...this.elsewhere, ...insideLooks(this.now), ...gatheringReservedLooks(this.now)]);
+    for (const p of IDENTITIES) if (workingAt(p.work, this.now)) blocked.add(p.index);
+    for (const a of this.agents) if (a.kind !== 'visitor') blocked.add(a.look);
+    this.identityBudget = Math.max(0, IDENTITIES.length - blocked.size - AMBIENT_CAP);
     this.stats = {
       level: streetLevelAt(this.profile, clock),
       target: streetTargetAt(this.profile, clock),
@@ -957,7 +981,8 @@ export class StreetLife {
   /** Se acaba la parada: a otro sitio (then) o a casa o fuera; el grupo detrás, en fila. */
   private moveOn(a: Walker, clock: Clock): void {
     const from = a.stayPoint!;
-    const to = this.pickEnd(a.rule!.then ?? { types: ['residence'], edge: true }, clock, from, false);
+    const home: Ends = { types: ['residence'], edge: true };
+    const to = this.pickEnd(a.rule!.then ?? home, clock, from, false) ?? this.pickEnd(home, clock, from, false);
     const path = to ? route(from, to) : null;
     this.release(a);
     a.staying = false;
@@ -1051,6 +1076,14 @@ export class StreetLife {
         a.moving = false;
         return true;
       }
+      // Vuelve al eje del paso por la acera: esperar a un lado no autoriza cruzar en diagonal por un poste.
+      const sig = a.hold;
+      const target = a.path[0];
+      if (target) {
+        const curb = { tx: Math.max(sig.tx, Math.min(sig.tx + sig.w - 1, Math.round(target.tx))), ty: a.y < sig.ty ? sig.ty - 1 : sig.ty + sig.h };
+        a.path = [...this.gridPath(a, curb), ...a.path];
+        a.crossFor = undefined;
+      }
       a.hold = undefined;
       a.state = 'WALK';
     }
@@ -1069,8 +1102,12 @@ export class StreetLife {
     // Sólo sigue quien ya pisa la calzada (acabar de cruzar es más seguro que pararse en medio).
     const spot = this.waitSpot(c.signal, c.dir, c.at) ?? this.standHere(a) ?? this.sidewalkHere(a);
     if (!spot) return false;
+    const approach = this.gridPath(a, spot);
+    if (!approach.length && Math.hypot(a.x - spot.tx, a.y - spot.ty) > 0.6) return true;
+    // walk reconoce la llegada por identidad del punto, también cuando el rodeo creó objetos nuevos.
+    if (approach.length) approach[approach.length - 1] = spot;
     a.waitAt = spot;
-    a.path.unshift(spot);
+    a.path = [...(approach.length ? approach : [spot]), ...a.path];
     return false;
   }
 
@@ -1145,6 +1182,7 @@ export class StreetLife {
   private addStaff(post: StreetPost): void {
     const who = identity(post);
     const w = this.newWalker(undefined, this.pointAt(post.base), []);
+    if (!w) return;
     Object.assign(w, { kind: 'staff', role: post.service, label: who.label, line: who.line, uniform: who.look, post, state: 'WORK', dir: 'down' });
     w.timer = between(this.rng, 2_000, 5_000);
   }
@@ -1254,6 +1292,7 @@ export class StreetLife {
     this.rng = seededRng(hashSeed('street-survivor-walk', s.id));
     const a = this.newWalker(undefined, instant || !edge ? at : this.pointAt(edge), [], look);
     this.rng = shared;
+    if (!a) return;
     Object.assign(a, { kind: 'street', role: `street-${s.profiles[0]}`, label: s.label, survivor: s, belongings: s.belongings, dog: s.dog, goal: plan.state });
     a.speed *= 0.8;
     this.claimSpot(a, spot);
@@ -1329,6 +1368,7 @@ export class StreetLife {
     const look = this.pickLook(undefined, at, this.usedLooks());
     const a = this.newWalker(undefined, instant || !edge ? at : this.pointAt(edge), [], look);
     this.rng = shared;
+    if (!a) return;
     Object.assign(a, { kind: 'street', role: `act-${def.kind}`, label: def.label, line: def.line, gig: { def, member }, act: { kind: def.kind, kit: def.kit[member] ?? [] } });
     // Cargado con la manta, el altavoz o la guitarra: un poco más despacio.
     a.speed *= 0.85;
@@ -1581,9 +1621,11 @@ export class StreetLife {
     // Primero qué grupo es (el primero de la regla, el más típico, pesa más); luego alguien que tenga con quién.
     const bond = bonds ? pick(this.rng, bonds.map((b, i) => [b, bonds.length - i] as const)) : undefined;
     const leaderLook = this.pickLook(rule, dest, used, bond, size);
+    if (leaderLook < 0) return;
     used.add(leaderLook);
     const company = bonds && bond ? this.company(leaderLook, [bond, ...bonds.filter((b) => b !== bond)], size - 1, used) : { bond: undefined, mates: [] };
     const leader = this.newWalker(rule, at, path, leaderLook);
+    if (!leader) return;
     leader.bond = company.bond;
     if (!stays) leader.dest = to;
     if (stays) {
@@ -1615,6 +1657,7 @@ export class StreetLife {
     for (let i = 1; i < size; i++) {
       const mate = company.mates[i - 1];
       const c = this.newWalker(rule, at, [...path], mate?.index);
+      if (!c) break;
       if (mate) {
         // Al hablarle nombra a quien lleva el grupo: así se sabe qué son.
         c.tie = mate.type;
@@ -1794,7 +1837,7 @@ export class StreetLife {
       if (bond && size > 1 && bondMates(i, bond).every((m) => used.has(m.index))) k *= 0.05;
       return k;
     });
-    return pick(this.rng, (weights.some((w) => w > 0) ? weights : style).map((w, i) => [i, w] as const)) ?? 0;
+    return pick(this.rng, weights.map((w, i) => [i, w] as const)) ?? -1;
   }
 
   /** Con quién va: el primer tipo de grupo de la lista para el que tiene gente libre. */
@@ -1811,8 +1854,9 @@ export class StreetLife {
 
   // -------------------------------------------------------- altas y bajas
 
-  private newWalker(rule: TripRule | undefined, at: TilePoint, path: TilePoint[], chosen?: number): Walker {
+  private newWalker(rule: TripRule | undefined, at: TilePoint, path: TilePoint[], chosen?: number): Walker | undefined {
     const look = chosen ?? this.pickLook(rule, path[path.length - 1] ?? at, this.usedLooks());
+    if (look < 0) return undefined;
     const walker: Walker = {
       id: this.nextId++, kind: 'visitor', role: rule?.role ?? '', label: rule?.label ?? '', line: rule?.line ?? '', look,
       x: at.tx, y: at.ty, dir: 'down', moving: false, state: 'WALK',
