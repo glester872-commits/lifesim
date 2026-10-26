@@ -10,7 +10,7 @@ ella y usa sus mismas piezas y reglas. Todo sigue dibujándose por código desde
 | Regla | Valor |
 |---|---|
 | Tile | **16 × 16 px de mundo**. Un píxel de arte = un píxel de mundo. |
-| Zoom | Entero, `round(alto de ventana / 280)` entre 3 y 5: se ven ~280 px de mundo en vertical (≈17 tiles). Nunca zoom fraccionario. |
+| Zoom | Entero y en píxeles físicos (lienzo a CSS × devicePixelRatio): `round(min(lado largo / 480, lado corto / 405))` entre 2 y 12 (`world/PixelScale`), igual en todos los sitios. Se ven ~480 × 405 px de mundo (≈30 × 25 tiles), algo más o menos según el redondeo: 1366 × 768 → 2, Full HD → 3, 1440p → 4, 4K → 5. Nunca zoom fraccionario. |
 | Escala real | Una persona de 24 px mide ~1,70 m → **1 px ≈ 7 cm**. Todo objeto se dimensiona con esa regla. |
 | Suavizado | Ninguno: `pixelArt`, `roundPixels`, texturas sin interpolar. |
 

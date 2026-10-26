@@ -1,3 +1,4 @@
+import { TILE, WIDEST_VIEW } from '../config/constants.ts';
 import type { QualityLevel } from '../config/quality.ts';
 
 /**
@@ -75,5 +76,11 @@ export const STAND_BUDGET: Readonly<Record<QualityLevel, { flags: number; swayMs
   low: { flags: 2, swayMs: 1_800 },
 };
 
+/** El recinto del estadio, 24 × 24 tiles: lo de alrededor llena hasta la vista más grande (config/constants WIDEST_VIEW). */
+const STADIUM_TILES = 24;
 /** Columnas de decoración a cada lado del recinto (tiles): lo que asoma por los lados de la cámara. */
-export const SIDE_TILES = 6;
+export const SIDE_TILES = Math.ceil((WIDEST_VIEW.width / TILE - STADIUM_TILES) / 2);
+/** Muro por encima y por debajo del recinto y sus gradas (tiles): un móvil de pie ve mucho más alto que el recinto. */
+export const APRON_TILES = Math.ceil((WIDEST_VIEW.height / TILE - STADIUM_TILES) / 2);
+/** Las banderas, en las columnas junto al campo: con más gradas a los lados no se van al borde de fuera. */
+export const FLAG_TILES = 6;

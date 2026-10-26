@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PALETTE, TILE } from '../config/constants';
+import { PALETTE, TILE, WIDEST_VIEW } from '../config/constants';
 import type { LocationDef } from '../types/game';
 import { PROPS, propKey, TILES, variantKey } from './tiles';
 import { LAYER, seat, standing } from './Layers';
@@ -199,6 +199,35 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
 }
 
 /**
+ * El suelo de más allá del borde de un exterior. Un barrio más estrecho que la vista (Ribera mide 640 px y un portátil
+ * 1366 × 768 ve 683, world/PixelScale) enseñaría el lienzo vacío: la ciudad sigue, cada tile el del borde más cercano,
+ * pintado como el del mapa (world/Surfaces), hasta la vista más grande (WIDEST_VIEW). Cuatro franjas, sólo las que
+ * hacen falta; sin colisión: el mundo acaba en el mapa.
+ */
+function bakeOutskirts(scene: Phaser.Scene, def: LocationDef): void {
+  const cols = def.ground[0].length;
+  const rows = def.ground.length;
+  const ox = Math.max(0, Math.ceil((WIDEST_VIEW.width / TILE - cols) / 2));
+  const oy = Math.max(0, Math.ceil((WIDEST_VIEW.height / TILE - rows) / 2));
+  const at = (tx: number, ty: number): string => def.ground[Math.min(rows - 1, Math.max(0, ty))][Math.min(cols - 1, Math.max(0, tx))];
+  const strips: [number, number, number, number][] = [[-ox, -oy, cols + 2 * ox, oy], [-ox, rows, cols + 2 * ox, oy], [-ox, 0, ox, rows], [cols, 0, ox, rows]];
+  for (const [x0, y0, w, h] of strips) {
+    if (!w || !h) continue;
+    const ground = Array.from({ length: h }, (_, ty) => Array.from({ length: w }, (_, tx) => at(x0 + tx, y0 + ty)).join(''));
+    const rt = scene.add.renderTexture(x0 * TILE, y0 * TILE, w * TILE, h * TILE).setOrigin(0, 0).setDepth(LAYER.ground);
+    paintSurfaces(scene, rt, { ground, props: [], buildings: [], showcase: undefined, finish: finished(def) });
+    rt.beginDraw();
+    ground.forEach((row, ty) => {
+      for (let tx = 0; tx < w; tx++) {
+        const tile = TILES[row[tx]];
+        if (tile && !painted(row[tx])) rt.batchDraw(variantKey(tile, x0 + tx, y0 + ty), tx * TILE, ty * TILE);
+      }
+    });
+    rt.endDraw();
+  }
+}
+
+/**
  * Construye una localización a partir de sus datos: hornea suelo y edificios
  * en una sola RenderTexture, coloca los props ordenados por Y y genera los
  * cuerpos de colisión desde solidMask, la misma regla que valida el mundo.
@@ -209,6 +238,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   const widthPx = cols * TILE;
   const heightPx = rows * TILE;
 
+  if (def.kind === 'exterior') bakeOutskirts(scene, def);
   const ground = scene.add.renderTexture(0, 0, widthPx, heightPx).setOrigin(0, 0).setDepth(LAYER.ground);
   const solids = scene.physics.add.staticGroup();
 
