@@ -472,12 +472,16 @@ export class Crowd {
     // Quien viene al encuentro y aún no está, entra por la puerta (uno por vez) y va a sentarse hasta que acabe.
     const meeting = guestsInside(this.place.id, this.now);
     const missing = meeting.gathering ? meeting.looks.find((look) => !this.agents.some((a) => a.look === look)) : undefined;
+    // Mientras falte alguien, se vuelve a mirar la puerta enseguida: al ritmo normal (uno cada 5–10 min de juego)
+    // medio coro llegaba ya empezado si el jugador esperaba dentro, y entrando después estaban todos sentados.
+    if (missing !== undefined) this.tick = between(this.rng, ...POPULATION.reaction);
     if (missing !== undefined && meeting.gathering && doorClear && this.agents.length < this.place.capacity) {
       const agent = this.newAgent('visitor', 'guest', meeting.gathering.guest.label, meeting.gathering.guest.line, this.door, missing);
       if (!agent) return;
       agent.guest = true;
       agent.plan = [this.guestStep(meeting.gathering.seats, meeting.until)];
-      agent.timer = between(this.rng, ...POPULATION.reaction);
+      // Sabe adónde va: no se para en la puerta, que es la que deja pasar al siguiente.
+      agent.timer = 0;
       return;
     }
     const active = this.agents.filter((a) => a.kind === 'visitor' && !a.guest && !a.leaving && !a.leaveSoon);

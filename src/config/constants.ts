@@ -41,7 +41,13 @@ export const MAX_FRAME_MS = 100;
 
 export const INTERACT_RADIUS = 26;
 
-/** Billete de metro en euros y duracion del trayecto en minutos de juego. */
+/**
+ * AUD-001: lo que tarda una pantalla nueva de menú o del móvil en aceptar una elección. Un doble toque (o E dos veces)
+ * cae en menos: sin esto, el segundo toque elegía lo que acababa de aparecer debajo (otro producto, «Confirmar pago»).
+ */
+export const PICK_LOCK_MS = 300;
+
+/** Billete de metro en euros (fijo, se vaya a donde se vaya) y minutos de juego entre dos paradas seguidas. */
 export const METRO_FARE = 2;
 export const METRO_MINUTES = 15;
 

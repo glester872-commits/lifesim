@@ -121,6 +121,17 @@ body {
   color: var(--amber);
 }
 
+/* Viendo el partido desde la grada (ui/HUD.setWatching): sólo hora, dinero y energía, sin tapar el área de la portería. */
+#hud[data-watch] .hud__mark,
+#hud[data-watch] .hud__card,
+#hud[data-watch] .hud__next {
+  display: none;
+}
+
+#hud[data-watch] .hud__clock {
+  margin-top: 0 !important;
+}
+
 /* Lo próximo de la agenda: una línea corta, ámbar si hay que salir ya, roja si ya no se llega. */
 .hud__next {
   max-width: 270px;
@@ -1078,6 +1089,24 @@ body.has-touch #hint {
 /* El marcador del estadio, por encima de los botones y del aviso de abajo: no tapa «Volver» ni «Elegir». */
 body.has-touch #match-board {
   bottom: calc(max(25px, calc(env(safe-area-inset-bottom) + 10px)) + clamp(64px, 18vmin, 84px) + 84px);
+}
+
+/*
+ * Apaisado (poca altura): el joystick y los botones van en las esquinas y abajo al centro queda hueco. Subidos por
+ * encima de los botones, el marcador y la pista caían en mitad de la grada y tapaban el asiento del jugador (ARENA 07).
+ * Abajo el marcador; la pista encima, en dos líneas si no cabe entre el joystick y «Volver».
+ */
+@media (orientation: landscape) and (max-height: 480px) {
+  body.has-touch #match-board {
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  body.has-touch #hint {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 52px);
+    max-width: 46vw;
+    white-space: normal;
+    text-align: center;
+  }
 }
 
 body.has-touch #announce {

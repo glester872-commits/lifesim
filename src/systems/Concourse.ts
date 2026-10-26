@@ -83,14 +83,15 @@ const fill = (text: string, m: FanMoment): string => text.replace('{us}', m.us).
 
 /**
  * Una frase del tema para quien habla: de las que le valen (su lado, cómo va el marcador), la primera que no ha dicho
- * aún (`heard`, lo que esta persona ya le ha dicho al jugador) ni se acaba de oír a otro (`recent`), en un orden suyo
- * (`seed`). Si ya lo ha dicho todo, la que dijo hace más.
+ * aún (`heard`, lo que esta persona ya le ha dicho al jugador), en un orden suyo (`seed`), y de ésas la que hace más que no
+ * se oye en la grada (`recent`, de lo más viejo a lo último): con cuatro frases por tema, cuatro aficionados seguidos no
+ * repiten (EST-002). Si ya lo ha dicho todo, la que dijo hace más.
  */
 export function fanLine(topic: FanTopic, m: FanMoment, who: Supporter, seed: number, heard: readonly string[], recent: readonly string[]): { id: string; text: string } {
   const side = who === 'away' ? 'away' : 'home';
   const pool = FAN_LINES.filter((l) => l.topic === topic && (!l.side || l.side === side) && (!l.standing || l.standing === m.standing));
   const order = [...pool].sort((x, y) => hashSeed(seed, x.id) - hashSeed(seed, y.id));
-  const fresh = order.find((l) => !heard.includes(l.id) && !recent.includes(l.id)) ?? order.find((l) => !heard.includes(l.id));
+  const fresh = order.filter((l) => !heard.includes(l.id)).sort((x, y) => recent.lastIndexOf(x.id) - recent.lastIndexOf(y.id))[0];
   const pick: FanLine = fresh ?? [...order].sort((x, y) => heard.indexOf(x.id) - heard.indexOf(y.id))[0];
   return { id: pick.id, text: fill(pick.text, m) };
 }

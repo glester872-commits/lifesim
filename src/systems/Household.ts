@@ -220,6 +220,29 @@ export interface Movement {
 
 export const LEDGER_SIZE = 40;
 
+const QTY = /^(\d+) × (.+)$/;
+
+/**
+ * Apunta un movimiento (lo usa GameState al cambiar la cartera). El mismo motivo el mismo día suma en una línea; si el
+ * motivo lleva cantidad («2 × Barra de pan»), la línea suma también la cantidad (AUD-005: antes quedaba «1 ×» con el
+ * importe de dos). Se conservan los LEDGER_SIZE últimos.
+ */
+export function recordMovement(ledger: Movement[], m: Movement): void {
+  const last = ledger.at(-1);
+  const a = last ? QTY.exec(last.label) : null;
+  const b = QTY.exec(m.label);
+  const same = !!last && last.day === m.day && (last.label === m.label || (!!a && !!b && a[2] === b[2]));
+  if (last && same) {
+    last.amount = Math.round((last.amount + m.amount) * 100) / 100;
+    last.hour = m.hour;
+    last.minute = m.minute;
+    if (a && b) last.label = `${Number(a[1]) + Number(b[1])} × ${a[2]}`;
+    return;
+  }
+  ledger.push({ ...m, amount: Math.round(m.amount * 100) / 100 });
+  if (ledger.length > LEDGER_SIZE) ledger.shift();
+}
+
 export function parseLedger(v: unknown): Movement[] {
   if (!Array.isArray(v)) return [];
   const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);

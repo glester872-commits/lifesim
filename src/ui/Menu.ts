@@ -6,6 +6,8 @@
  * abra «en vivo»: pedir en una mesa o pagar la cuenta pasa con el local en
  * marcha, como una conversación.
  */
+import { PICK_LOCK_MS } from '../config/constants.ts';
+
 export interface MenuOption {
   label: string;
   /** Precio, duración o saldo, alineado a la derecha. */
@@ -29,6 +31,9 @@ export class Menu {
   private readonly noteEl: HTMLElement;
   private current: Open | null = null;
   private selected = 0;
+  /** Título de la pantalla a la vista y cuándo apareció: una pantalla nueva no acepta elecciones durante PICK_LOCK_MS. */
+  private shownTitle = '';
+  private shownAt = -Infinity;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -63,6 +68,9 @@ export class Menu {
 
   /** Abre (o rehace, si ya estaba abierto) con estas opciones. `note` es el resultado de lo último. */
   open(title: string, text: string, options: readonly MenuOption[], onPick: (index: number) => void, onCancel?: () => void, note = '', selected = 0, live = false): void {
+    // Rehacer la misma pantalla (cantidad, una nota) no bloquea; otra pantalla, sí.
+    if (!this.current || title !== this.shownTitle) this.shownAt = performance.now();
+    this.shownTitle = title;
     this.current = { options, onPick, onCancel, live };
     this.selected = Math.min(Math.max(0, selected), options.length - 1);
     this.titleEl.textContent = title;
@@ -97,6 +105,7 @@ export class Menu {
   confirm(index = this.selected): void {
     const open = this.current;
     if (!open || index < 0 || index >= open.options.length) return;
+    if (performance.now() - this.shownAt < PICK_LOCK_MS) return;
     this.selected = index;
     const option = open.options[index];
     if (option.disabled) {

@@ -232,3 +232,162 @@ E interactúa, flechas/WASD caminan, P abre Hoy, I abre Bolsa y Esc vuelve.
 No se ha hecho push, publicación, despliegue ni merge. Trabajo local en
 `cv07-ciudad-viva`, partiendo de un árbol limpio. La instancia de desarrollo usa
 `http://127.0.0.1:5297`, un origen separado del habitual 5173.
+
+## Reverificación del 26-10-2026 (partida antigua real)
+
+Base `4872ade`, árbol limpio en `cv07-ciudad-viva`. Se reejecutó todo en vez de
+fiarse de este informe. Suite `npm run check` con un runner por comando (el
+lanzador de npm puede devolver 0 sin ejecutar nada): 91/91 PASS sin reintentos.
+
+**Partida antigua real.** Copia del guardado del usuario del 19-10 (día 665,
+domingo 21:49, en casa, €1184,20, café; sin `job`, `household`, `agenda`,
+`parish`, `pregnancy` ni `housing`). Se cargó en un contexto de Chrome aislado
+(puerto 5298); el guardado personal no se leyó ni se escribió y el original
+sigue en disco. Migración: carga sin `.unreadable`, facturas desde el día 665
+sin cargos retroactivos, guía de la agenda dada por vista, embarazos con fase.
+
+Recorrido jugado sobre esa copia, con E/flechas/menús reales. Las fixtures sólo
+colocan al jugador ante una puerta o un puesto y avanzan el reloj
+(`advanceMinutes`, con sus medianoches); no se caminaron los trayectos enteros.
+
+1. **Lun 666, ropa/hogar + plaza.** Dormir en la cama (8 h). Metro L2 a
+   Decathlon (30 min, tarjeta €4→€2), firmar con Marta; «Fichar» bloqueado con
+   «Hoy no tienes turno. El siguiente: miércoles a las 10:00.». Recarga de €10
+   (€1174,20) y vuelta. Puerta Central: camiseta de rayas en Montón, probar y
+   comprar (€4, puesta y en el armario); monstera en Velarde (€39, esquina del
+   salón); sentarse con E en el banco PC_BENCH_01 (calle con 33–36 peatones,
+   6–8 coches, 0 ids repetidos). En casa, la planta dibujada en (17,12).
+   Irse y volver a la calle (43 min dentro): 28→24 peatones, 22 son los mismos ids,
+   coches 18→18, 0 duplicados. Recargar: todo conservado.
+2. **Mié 668, trabajo + súper.** El HUD avisa del turno y del viaje (~53 min).
+   Fichar a las 09:08 → fin 16:00, +€60, energía 100→59, un turno `done`; un
+   segundo intento se bloquea («El turno de hoy ya está hecho…»). Un suceso de
+   metro con elección, resuelto por UI. Súper a las 17:01 (9 agentes, 0 dup):
+   compra para cocinar €9 + plato €3,20 = €1179; plato comido desde la Bolsa (+16);
+   cocinar en casa 45 min (+30 hasta el tope), y sin compra la cocina se bloquea con
+   «Te falta: bolsa de la compra.». Recargar: un solo sueldo, €1179.
+3. **Dom 672, comunidad + ocio.** El turno del viernes perdido avisa una vez
+   («Te lo has perdido»). Hoy: coro 12:00, ~31 min a pie, admisión hasta 12:45.
+   Encarna a las 11:58: «Empieza a las 12:00 (faltan 2 min)…». Quedarse
+   hasta el final: 12:03→13:30, energía +6, amistad +5, confianza +3, una
+   asistencia. Lamparillas 20 min (+4). Recargar: sin duplicar.
+4. **Imprevisto.** Dom 15:10, puerta del súper: «Está cerrado. Ya ha cerrado por
+   hoy. / Abre mañana a las 09:00. / horario». Lunes 673 09:07: agua €0,60,
+   guardar y recargar → €1178,40, conservado. 0 errores de página.
+
+**Defecto encontrado y corregido.** Con el jugador esperando dentro de la parroquia
+(lo que sugiere la propia nota), los invitados del coro entraban de uno en uno cada
+5–10 min de juego y se paraban en la puerta: medio coro llegaba empezado, el último
+hacia las 12:20–12:30. Entrando después ya estaban todos sentados, así que lo que
+se veía dependía de si se miraba. `Crowd.reconcile`: mientras falte un invitado,
+se vuelve a mirar la puerta tras el tiempo de reacción, y el invitado no se para en
+el umbral. Medido en 20 domingos: completos entre las 11:49 y las 12:04. Navegador
+(día 693): 5/5 a las 11:58, 0 caras duplicadas. No se tocó `ARRIVE_EARLY` (cambiaría
+quién está libre para ir y, con ello, reservas y calle). Regresión nueva en
+`check-city-life.ts` (falla sin el arreglo).
+
+**Observaciones sin cambio.** «Hoy» no lista facturas ya vencidas (sólo en Cuentas
+como «vencido»); con una semana sin pagar puede leerse como si sólo hubiera las del
+sábado siguiente. Revisado el 26-10 (sección siguiente): es la regla prevista.
+Con la ventana de Chrome tapada el bucle va a ~1 fps y se
+pierden pulsaciones de un fotograma (de la prueba, no del juego).
+
+**Sin reverificar en esta sesión:** táctil y teléfono (hechos en emulación en la
+sección siguiente), dispositivo físico y los siete días jugados sin ayudas.
+
+## Táctil y móvil en emulación (26-10-2026, segunda pasada)
+
+**Entorno.** Chrome de escritorio vía DevTools MCP, contexto aislado `cv07-touch`
+(partida nueva propia; el guardado del usuario ni se lee ni se escribe), Vite en
+127.0.0.1:5298 con el código actual (incluida la corrección de `Crowd`).
+Emulación `390×844 @3x, mobile, touch` (vertical) y `844×390 @3x, mobile, touch,
+landscape`; `(pointer: coarse)` activo. **No es un dispositivo físico**: no se ha
+usado ningún teléfono real y no se declara validado.
+
+**Cómo se tocó.** Botones del HUD, opciones de menú y botones del móvil: toques de
+CDP (`click` sobre el elemento). Joystick, botón E y Volver: `PointerEvent`
+sintéticos con `pointerType: 'touch'` e ids distintos, despachados a los propios
+elementos (`.touch__stick/.touch__base`, `.touch__action`, `.touch__back`), es decir,
+por los manejadores reales del juego pero sin la capa de gestos del navegador. El MCP
+no expone `Input.dispatchTouchEvent`, así que un deslizamiento con el dedo de verdad
+(desplazar listas, gestos del sistema) no se ha podido reproducir.
+
+**Controles táctiles — resultados.**
+
+| Prueba | Vertical | Horizontal |
+|---|---|---|
+| Caminar en 4 direcciones y 2 diagonales, mirar hacia donde se va | OK (≈3,3 casillas en 0,7 s; arriba frenó en una pared real, y=49) | OK |
+| Soltar: se detiene | deriva 0 en todos los casos | deriva 0 |
+| Cambiar de dirección sin levantar el dedo | OK (derecha → izquierda, gira) | — |
+| Zona muerta | 18 % de radio 34 px = 6,1 px: a 3–5 px quieto, a 7 px anda con intensidad parcial (correcto) | — |
+| Multitoque (dedo 1 en el joystick + dedo 2 en E) | OK: E «ENTRAR» entra en casa con el joystick pulsado; dentro no camina solo; al soltar, deriva 0 | — |
+| Entrar/salir de edificios | casa, súper, Hilo, gimnasio; E cambia a ENTRAR / SALIR / COMPRAR / ENTRENAR / TERMINAR | OK |
+| Abrir menú con el joystick pulsado | no se mueve; E → «ELEGIR», aparece Volver | — |
+| Navegar menú con el joystick y elegir con E | la selección baja y queda a la vista hasta «13. Salir»; «Nada» cierra sin efecto | — |
+| Volver cierra el menú | sin acción en el mundo, ningún control queda `is-active` | — |
+| Charla con respuestas | se elige tocando la respuesta; E queda sin acción (previsto, `WorldScene.ts:918`); Volver termina la charla | OK |
+| Gimnasio | E «TERMINAR» corta la sesión (previsto); sesión completa: 1 sesión, energía 100 → 89 | — |
+| HUD y cámara | el panel del menú más largo (súper) acaba en y=678, el joystick empieza en 682: no se tapan; listas con `overflow-y: auto` | el interior completo centrado; HUD arriba a la izquierda, botones a la derecha, joystick y E en las esquinas inferiores |
+| Girar con la partida en marcha | canvas y controles se recolocan y el joystick responde | ídem |
+
+**Móvil del juego — resultados.**
+
+- Abrir/cerrar con los botones táctiles «Abrir el móvil (P)» y ✕ (toques CDP): OK en
+  ambas orientaciones. Al abrirlo se suelta el joystick (no se mueve con el móvil
+  abierto ni al cerrarlo; el mando vuelve a 0). Con un diálogo abierto no se abre.
+- Apps Hoy, Mensajes, Contactos, Trabajo, Estudios y Cuentas: se abren; Atrás e
+  Inicio vuelven al menú. Ningún texto recortado, ningún objetivo táctil < 32 px,
+  sin desbordamiento horizontal. Hoy desplaza (1370 px de contenido en 736 en vertical
+  y en 282 en horizontal) y el último elemento se alcanza; Cuentas desplaza en
+  horizontal. Cámara y Música salen desactivadas con «Próximamente» (ya existían así).
+- Vertical: el móvil ocupa la pantalla y oculta joystick/E. Horizontal: el móvil
+  (380×366) queda centrado y E/Volver siguen visibles; con el móvil abierto E no
+  actúa en el mundo (había un cliente con «Hablar» al alcance y no se abrió la
+  charla) y Volver hace de Atrás.
+- Acción involuntaria: el ✕ del móvil (296–340, 792–826 en vertical) cae encima del
+  botón E (295–365, 749–819), que mostraba «COMPRAR» ante la caja. Al cerrar con un
+  toque CDP real: ni menú, ni diálogo, ni movimiento, mismo saldo y bolsa.
+
+**Guardar y recargar (misma partida aislada).** Todo con toques: 2 panes en el
+súper (€120 → €118,20, un apunte, 2 min), camiseta de algodón en Hilo (€25 →
+€93,20; COMPRAR sin PROBAR la guarda en el armario, como documenta `Menus.ts`), ponerla en
+el armario de casa, cinta de correr 30 min y comer un pan (89 → 95). El
+autoguardado del juego coincidía con el estado vivo; tras dos recargas: €93,20,
+energía 95, bolsa vacía, camiseta en armario y puesta, 2 apuntes, 1 sesión,
+forma 18,27, guía saltada sin volver a salir. Nada duplicado ni aplicado dos veces.
+0 errores y 0 avisos en consola.
+
+**«Hoy» y facturas vencidas.** Es la regla prevista, no un defecto: la agenda es «lo
+próximo que el jugador tiene que hacer» (cabecera de `Agenda.ts`, README «Ritmo del
+día, agenda y progreso») y una cuenta entra hasta acabar su día de vencimiento
+(`Agenda.ts:182`, `if (end < now) continue`). Vencida, pasa a Cuentas como «vencido ·
+margen hasta el …» con 7 días de gracia y un recargo único (`Household.dueLabel`,
+README «Cuentas»). No se cambia. Ninguna prueba fija esa omisión.
+
+**Observaciones (sin cambio, no reproducidas como fallo):**
+- La página mide 2 px más que la ventana en ambas orientaciones (846/844, 392/390)
+  con `overflow: hidden` en html/body; sólo se desplaza por programa. Si se nota con el
+  dedo, sólo un teléfono real puede decirlo.
+- Comer con la energía a 100 gasta el alimento sin efecto, sin aviso.
+- La pista de las charlas dice «Elige con 1–4» (teclado) también en táctil.
+
+**Archivos.** Sin cambios de código en esta pasada; sólo este informe. Pruebas
+automáticas reejecutadas: `check-input`, `check-phone`, `check-agenda`,
+`check-household`, `check-interaction`, `check-city-life`: todas OK. La corrección
+de `Crowd.ts` y su prueba se confirmaron con `check-city-life` sin rehacerlas.
+
+**Capturas (fuera del repositorio):**
+`C:/Users/glest/AppData/Local/Temp/claude/C--Users-glest--claude/ce5dbb98-d972-4395-b214-38d7e3966a6d/scratchpad/`
+`touch-portrait-start.png`, `phone-portrait-home.png`, `touch-landscape-super.png`,
+`phone-landscape-hoy.png`.
+
+**Pendiente.** Dispositivo físico (iOS/Android): gestos reales, desplazamiento con
+el dedo, zonas seguras, rendimiento y los 2 px de más. Semana jugada a mano (la de
+siete días sigue siendo la simulación `check:city`).
+
+## Seguimiento de la auditoría (26-10-2026)
+
+Los pendientes de esta verificación (táctil y móvil en un dispositivo real, pestaña oculta, embarazo en
+pantalla, contraste, semana jugada) y los hallazgos AUD-001…010 se registran en `CV08-AUDIT.md`, §10–§12.
+Resumen: embarazo en pantalla y contraste comprobados; dispositivo físico, pestaña oculta real y semana
+jugada siguen pendientes.

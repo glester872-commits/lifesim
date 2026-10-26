@@ -1,7 +1,8 @@
 # LIFE//SIM — reglas del proyecto
 
 Simulador de vida 2D cenital. Phaser 3 + TypeScript + Vite. Sin React, sin
-backend, sin assets binarios.
+backend, sin assets binarios (excepción registrada en `design/ART_BIBLE.md`:
+`sara-hd.png`, AUD-007).
 
 Lee `README.md` antes de tocar nada: contiene la arquitectura y el alcance real.
 
@@ -9,7 +10,10 @@ Lee `README.md` antes de tocar nada: contiene la arquitectura y el alcance real.
 
 - **Nada de funcionalidad falsa.** Un gráfico provisional vale; un botón o una
   puerta que no hace nada, no. Si una feature no está implementada, no debe
-  existir su afordancia.
+  existir su afordancia. Excepción registrada (AUD-009, CV-08/CV-09): en el
+  móvil, «Cámara» y «Música» se ven como marcadores, deshabilitados y con
+  «Próximamente»; no son elegibles con teclado ni con el dedo. No se añade
+  ninguna más sin registrarla aquí.
 - **Sin condicionales por localización.** No `if (location === 'home')`. Calle,
   piso, cafetería, andenes y el segundo distrito salen de la misma `WorldScene`
   alimentada por `data/locations.ts`. Un sitio nuevo es una entrada de datos, y
@@ -41,8 +45,8 @@ npm run dev       # y comprobarlo en el navegador de verdad
 ```
 
 Comprueba a mano: caminar, colisiones, entrar y salir de un edificio, hablar con
-un NPC, coger el metro (cobra €2 y 15 min), que el reloj avanza, recargar y
-recuperar la partida.
+un NPC, coger el metro (€2 fijos y 15 min por parada: Vallesco–Ribera 15,
+Vallesco–Arena 60), que el reloj avanza, recargar y recuperar la partida.
 
 ## Estética
 

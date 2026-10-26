@@ -8,7 +8,7 @@ import { createStory, type NamedStory, type StoryState } from '../systems/Story'
 import { createPhone, type PhoneNews, type PhoneState } from '../systems/Phone';
 import type { Ticket } from '../systems/Tickets';
 import type { JobProgress } from '../systems/Jobs';
-import { LEDGER_SIZE, type HouseholdState, type Movement } from '../systems/Household';
+import { recordMovement, type HouseholdState, type Movement } from '../systems/Household';
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { emptyParish, type ParishState } from '../systems/Parish';
 import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
@@ -269,19 +269,10 @@ export class GameState extends Phaser.Events.EventEmitter {
     }
   }
 
-  /** Apunta un cambio de la cartera. Sin motivo, «Otros». El mismo motivo el mismo día suma en una línea. */
+  /** Apunta un cambio de la cartera. Sin motivo, «Otros». Cómo se suman las líneas: systems/Household.recordMovement. */
   private record(delta: number): void {
     if (Math.abs(delta) < 0.005) return;
-    const label = this.why ?? 'Otros';
-    const last = this._ledger.at(-1);
-    if (last && last.label === label && last.day === this._day) {
-      last.amount = Math.round((last.amount + delta) * 100) / 100;
-      last.hour = this._hour;
-      last.minute = this._minute;
-    } else {
-      this._ledger.push({ day: this._day, hour: this._hour, minute: this._minute, label, amount: Math.round(delta * 100) / 100 });
-      if (this._ledger.length > LEDGER_SIZE) this._ledger.shift();
-    }
+    recordMovement(this._ledger, { day: this._day, hour: this._hour, minute: this._minute, label: this.why ?? 'Otros', amount: delta });
   }
 
   // ================================================================

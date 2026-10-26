@@ -5,6 +5,12 @@ es la escena de referencia: cualquier zona que se mejore después se compara con
 ella y usa sus mismas piezas y reglas. Todo sigue dibujándose por código desde
 `PALETTE` (`config/constants.ts`); no hay arte binario.
 
+> **Excepción registrada (AUD-007, CV-08/CV-09):** `src/assets/characters/sara-hd.png` (hoja de caminar
+> de Sara, 4×4 frames de 48×72, «Prompt 52», 05-10) es **material de reserva y referencia** del pase HD.
+> `BootScene` la carga como `sara-hd`, pero ningún personaje la usa: Sara se dibuja por código como el
+> resto. No se borra ni se usa sin decisión del autor; si se adopta, entra con su propia excepción y su
+> prueba, y si se descarta, se quita también su `preload`.
+
 ## 1. Resolución y densidad
 
 | Regla | Valor |

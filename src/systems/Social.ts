@@ -131,6 +131,12 @@ export interface SocialProfile
 
   lastInteraction?: SocialMoment;
 
+  /**
+   * Día del último regalo (systems/Gifts): un regalo al día por persona. Aparte de `memories`, que guarda las 40
+   * últimas: con 40 charlas el mismo día el recuerdo del regalo se perdía y se podía dar otro (AUD-006).
+   */
+  giftDay?: number;
+
   memories: SocialMemory[];
 }
 
@@ -594,6 +600,11 @@ export function parseSocialProfile(
           59,
         ),
     };
+  }
+
+  // Una partida anterior no lo trae: el límite del día lo sigue dando el recuerdo del regalo.
+  if (typeof value.giftDay === 'number' && Number.isInteger(value.giftDay) && value.giftDay >= 1) {
+    profile.giftDay = value.giftDay;
   }
 
   return profile;
@@ -2025,6 +2036,8 @@ export function cloneProfile(
               .lastInteraction,
           }
         : undefined,
+
+    ...(profile.giftDay !== undefined ? { giftDay: profile.giftDay } : {}),
 
     memories:
       profile.memories.map(

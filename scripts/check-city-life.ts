@@ -123,6 +123,13 @@ assert.ok(reviewed.due.every(x=>x.kind!=='gathering'));
 assert.ok(gatheringReservedLooks(absMinute(7,11,20)).length>0,'viaje de ida reservado');
 assert.ok(gatheringReservedLooks(absMinute(7,13,45)).length>0,'viaje de vuelta reservado');
 for(const i of guestsOf(CHOIR,7))for(let m=11*60+15;m<14*60;m++)assert.ok(!workingAt(IDENTITIES[i].work,absMinute(7,0,m)));
+// Esperando dentro desde antes: el coro entra por la puerta, de uno en uno, y a las 12:05 está completo (antes el
+// último llegaba hacia las 12:20-12:30; entrando después, ya estaban todos sentados).
+for(let day=7;day<=140;day+=7){const p=placeInfo('parish')!,hall=new Crowd(getLocation(p.interior!),p,profileFor('parish')!,seededRng(day));hall.populate({day,hour:11,minute:30},FAR);
+ for(let ms=0;ms<35*500;ms+=16){const m=11*60+30+Math.floor(ms/500);hall.update(16,{day,hour:Math.floor(m/60),minute:m%60},FAR);}
+ const looks=hall.agents.map(a=>a.look),seated=new Set(hall.agents.filter(a=>a.guest).map(a=>a.look));
+ assert.deepEqual(guestsOf(CHOIR,day).filter(l=>!seated.has(l)),[],`día ${day}: a las 12:05 falta gente del coro`);
+ assert.equal(new Set(looks).size,looks.length,`día ${day}: una cara dos veces en la parroquia`);}
 
 // Saltos de embarazo y carga: el mismo resultado que siete medianoches, sin nacimientos repetidos.
 let preg=resolve({},1).state;
