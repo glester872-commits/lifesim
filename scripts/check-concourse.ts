@@ -93,6 +93,23 @@ for (const who of ['home', 'away', 'neutral'] as Supporter[]) {
     assert.ok(firsts.size >= 2, `todos dicen lo mismo a ${m}`);
   }
 }
+// EST-002: varios aficionados seguidos, cada uno con su charla (abrir, animar dos veces, despedirse), con la grada de por medio:
+// ninguna frase de «animar» se repite hasta que se han oído las cuatro.
+{
+  const fm = fanMoment(tl, at(-30), 'home');
+  const recent: string[] = [];
+  const cheers: string[] = [];
+  for (const seed of [101, 202, 303, 404, 505, 606]) {
+    const heard: string[] = [];
+    for (const topic of [fm.topic, 'cheer-us', 'cheer-us', 'bye'] as const) {
+      const l = fanLine(topic, fm, 'home', seed, heard, recent);
+      heard.push(l.id);
+      recent.push(l.id);
+      if (topic === 'cheer-us') cheers.push(l.id);
+    }
+  }
+  for (let i = 0; i + 4 <= cheers.length; i++) assert.equal(new Set(cheers.slice(i, i + 4)).size, 4, `animar se repite en la grada: ${cheers.join(' ')}`);
+}
 assert.equal(reactionTopic('celebrate', 'away'), 'celebrate-them');
 assert.equal(reactionTopic('cheer', 'neutral'), 'cheer-us');
 

@@ -920,3 +920,11 @@ social: {
 window.addEventListener('beforeunload', () => {
   save.save(state.snapshot);
 });
+// AUD-008 (CV-08): en el móvil el navegador puede cerrar una pestaña en segundo plano sin `beforeunload`, y el
+// autoguardado (tiempo de escena) se para mientras está oculta: se guarda al ocultarse y al salir de la página.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') save.save(state.snapshot);
+});
+window.addEventListener('pagehide', () => {
+  save.save(state.snapshot);
+});

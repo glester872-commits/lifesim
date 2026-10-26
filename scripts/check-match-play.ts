@@ -126,6 +126,8 @@ for (const d of days.slice(0, 20)) {
   }
   assert.equal(stops[0], 'el saque');
   assert.ok(stops.includes('la segunda parte') && stops[stops.length - 1] === 'el final', `día ${d}: ${stops.join(', ')}`);
+  // EST-003: se para al empezar el descanso, justo antes de la segunda parte.
+  assert.equal(stops[stops.indexOf('la segunda parte') - 1], 'el descanso', `día ${d}: no se para en el descanso: ${stops.join(', ')}`);
   assert.equal(nextMoment(tl, tl.kickoff + LIVE_END), null, 'se puede avanzar tras el final');
 }
 

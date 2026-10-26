@@ -4,6 +4,7 @@ import type { EventMemory, Facing, GameStateData, SaveFile } from '../types/game
 import { emptyMemory } from './MetroEventManager.ts';
 import { HAIR_IDS, type Appearance, type HairStyle, type TattooMark } from '../data/appearance.ts';
 import { GARMENT_IDS, getGarment } from '../data/retail.ts';
+import { ITEMS } from '../data/items.ts';
 import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
 import { parseFitness, START_FITNESS } from './Fitness.ts';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations.ts';
@@ -324,9 +325,11 @@ function parseState(value: unknown): GameStateData | null {
   const total = Math.max(0, Math.floor((Math.max(1, Math.floor(s.day)) - 1) * 1440 + Math.floor(s.hour) * 60 + Math.floor(s.minute)));
   const fresh = createInitialState();
   const located = typeof s.locationId === 'string' && pos && isNumber(pos.x) && isNumber(pos.y);
+  const wardrobe = Array.isArray(s.wardrobe) ? [...new Set(s.wardrobe.filter((g): g is string => typeof g === 'string' && GARMENT_IDS.has(g)))] : [];
 
   return {
-    money: s.money,
+    // AUD-004: ni saldo negativo ni fracciones de céntimo, aunque el archivo los traiga.
+    money: Math.max(0, cents(s.money)),
     energy: isNumber(s.energy) ? Math.min(100, Math.max(0, s.energy)) : INITIAL_ENERGY,
     day: Math.floor(total / 1440) + 1,
     hour: Math.floor((total % 1440) / 60),
@@ -335,10 +338,12 @@ function parseState(value: unknown): GameStateData | null {
     position: located ? { x: pos.x as number, y: pos.y as number } : fresh.position,
     facing: typeof s.facing === 'string' && FACINGS.has(s.facing) ? (s.facing as Facing) : 'down',
     events: parseEvents(s.events),
-    inventory: parseCounts(s.inventory),
-    cards: parseCounts(s.cards),
-    appearance: parseAppearance(s.appearance),
-    wardrobe: Array.isArray(s.wardrobe) ? [...new Set(s.wardrobe.filter((g): g is string => typeof g === 'string' && GARMENT_IDS.has(g)))] : [],
+    // AUD-003: un objeto que ya no existe en data/items.ts no entra (la bolsa no se abriría); las unidades son enteras.
+    inventory: parseCounts(s.inventory, (id) => ITEM_IDS.has(id), Math.floor),
+    cards: parseCounts(s.cards, (id) => CARD_IDS.has(id), cents, true),
+    // La ropa puesta del jugador sale de su armario (una prueba en el probador no se queda al cargar).
+    appearance: ownOutfit(parseAppearance(s.appearance), wardrobe),
+    wardrobe,
     fitness: parseFitness(s.fitness),
     // Prompt 57: una partida anterior al sistema social carga sin nadie conocido (parseSocialState(undefined) = {}).
     social: parseSocialState(s.social),
@@ -519,29 +524,40 @@ function parseAppearance(
 // INVENTARIO / TARJETAS
 // ================================================================
 
+const ITEM_IDS = new Set(ITEMS.filter((i) => i.kind !== 'card').map((i) => i.id));
+const CARD_IDS = new Set(ITEMS.filter((i) => i.kind === 'card').map((i) => i.id));
+const cents = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * Cuentas por id: sólo ids que existen (`known`) y cantidades válidas tras `normalize`. Lo que queda en 0 no se guarda, salvo con
+ * `keepZero`: una tarjeta a €0 sigue siendo la tarjeta y se recarga (EST-001).
+ */
 function parseCounts(
   value: unknown,
+  known: (id: string) => boolean,
+  normalize: (n: number) => number,
+  keepZero = false,
 ): Record<string, number> {
   if (!isRecord(value)) {
     return {};
   }
 
-  return Object.fromEntries(
-    Object.entries(
-      value,
-    ).filter(
-      (
-        e,
-      ): e is [
-        string,
-        number,
-      ] =>
-        isNumber(
-          e[1],
-        ) &&
-        e[1] >= 0,
-    ),
-  );
+  const out: Record<string, number> = {};
+  for (const [id, n] of Object.entries(value)) {
+    if (!known(id) || !isNumber(n) || n < 0) continue;
+    const v = normalize(n);
+    if (v > 0 || (keepZero && v === 0)) out[id] = v;
+  }
+  return out;
+}
+
+/** Lo puesto del jugador sólo con prendas de su armario; peinado, tatuajes y los demás personajes, tal cual. */
+function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly string[]): Record<string, Appearance> {
+  const player = appearance.player;
+  if (!player) return appearance;
+  const own = { ...player };
+  for (const slot of ['top', 'bottom', 'shoes'] as const) if (own[slot] !== undefined && !wardrobe.includes(own[slot]!)) delete own[slot];
+  return { ...appearance, player: own };
 }
 
 // ================================================================

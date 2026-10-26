@@ -32,9 +32,11 @@ export class HUD {
   private clockMode: 'running' | 'paused' | 'phone' = 'running';
 
   private readonly state: GameState;
+  private readonly root: HTMLElement;
 
   constructor(root: HTMLElement, state: GameState) {
     this.state = state;
+    this.root = root;
     root.innerHTML = `
       <p class="hud__mark">LIFE<i>//</i>SIM</p>
       <p class="hud__clock"></p>
@@ -81,6 +83,20 @@ export class HUD {
     this.nextEl.textContent = text;
     this.nextEl.dataset.urgency = urgency;
     this.nextEl.hidden = !text;
+  }
+
+  /**
+   * Viendo un partido desde la grada (WorldScene.frameMatch): la placa se queda en la hora, el dinero y la energía, sin
+   * rótulo, tarjeta ni agenda, para no tapar el área de la portería izquierda (EST-004). Al levantarse, vuelve entera.
+   */
+  setWatching(on: boolean): void {
+    this.root.toggleAttribute('data-watch', on);
+  }
+
+  /** Hasta dónde baja (px de CSS desde arriba) lo que tapa la parte de arriba: esta placa y los botones de las esquinas. */
+  topInset(): number {
+    const corner = ['#map-button', '#phone-button', '#sound-button', '#bag-button'].map((s) => document.querySelector(s));
+    return Math.max(0, ...[this.root, ...corner].map((el) => (el instanceof HTMLElement && el.offsetParent ? el.getBoundingClientRect().bottom : 0)));
   }
 
   /** El reloj parado (menú, mapa, leyendo lo que ha pasado) o corriendo con el móvil abierto: se dice junto a la hora. */

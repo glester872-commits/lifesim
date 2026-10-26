@@ -376,6 +376,13 @@ export class Lighting {
    * frame los miles de rectángulos de la capa: de noche, en Vallesco, eran casi 29 000 órdenes y 1,2 ms por frame.
    */
   private windowsBaked: Phaser.GameObjects.RenderTexture | null = null;
+  /**
+   * AUD-002 (CV-08): objetivos de captura propios, uno por tamaño de textura horneada. En Phaser 3.90 cada
+   * RenderTexture pinta en el objetivo de captura del renderer, que se ajusta al tamaño de la textura; el mapa de luz
+   * (tamaño del mundo) y las capas de world/LightDepth (de la vista, cada frame) lo hacían crecer y encoger en cada
+   * repintado, y rehacer el framebuffer costaba 50–80 ms (al anochecer, varias veces por segundo).
+   */
+  private readonly captures = new Map<string, Phaser.Renderer.WebGL.RenderTarget>();
 
   constructor(scene: Phaser.Scene, def: LocationDef, built: { widthPx: number; heightPx: number; windows: readonly WindowSpot[]; glows: readonly GlowSpot[] }, state: GameState) {
     const { widthPx, heightPx } = built;
@@ -529,6 +536,8 @@ export class Lighting {
       this.reflections?.destroy();
       this.fx?.destroy();
       this.roofBrush?.destroy();
+      for (const target of this.captures.values()) target.destroy();
+      this.captures.clear();
     });
     LAMP_LIGHT.lamps = this.lampFeet;
     this.update();
@@ -755,6 +764,28 @@ export class Lighting {
   }
 
   /**
+   * Pinta en `rt` con un objetivo de captura de su tamaño (AUD-002), y deja el del renderer como estaba: así nadie
+   * lo redimensiona. Sin WebGL (canvas) o sin textura, pinta tal cual.
+   */
+  private ownCapture(rt: Phaser.GameObjects.RenderTexture | null, paint: () => void): void {
+    const renderer = this.scene.renderer;
+    if (!rt || !(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer)) return paint();
+    const key = `${rt.width}x${rt.height}`;
+    let target = this.captures.get(key);
+    if (!target) {
+      target = new Phaser.Renderer.WebGL.RenderTarget(renderer, rt.width, rt.height, 1, 0, true, true);
+      this.captures.set(key, target);
+    }
+    const shared = renderer.renderTarget;
+    renderer.renderTarget = target;
+    try {
+      paint();
+    } finally {
+      renderer.renderTarget = shared;
+    }
+  }
+
+  /**
    * El mapa de luz: el cielo de la hora, las sombras del sol, cada luz en su
    * color y los tejados con el cielo limpio. Multiplicado con la escena, lo
    * iluminado recupera su color y lo demás se queda en la sombra.
@@ -831,8 +862,8 @@ export class Lighting {
     const key = `${sky}|${sun.dx.toFixed(3)}|${sun.length.toFixed(3)}|${sun.strength.toFixed(2)}|${homes}|${open}|${night > 0.05}|${wet}|${this.zones.map((z) => gradeAt(z.profile, hour)).join()}`;
     if (key !== this.lastKey) {
       this.lastKey = key;
-      this.relight(night, homes, wet);
-      this.paintLightmap(sky, night, sun, wet);
+      this.ownCapture(this.windowsBaked, () => this.relight(night, homes, wet));
+      this.ownCapture(this.lightmap, () => this.paintLightmap(sky, night, sun, wet));
     }
     this.windowLayer.setAlpha(night).setVisible(night > 0.05);
     for (const light of this.lights) light.setAlpha(night).setVisible(night > 0.05);

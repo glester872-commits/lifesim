@@ -207,6 +207,8 @@ export function parseParish(v: unknown): ParishState {
   const raw = (v && typeof v === 'object' ? v : {}) as { attended?: unknown };
   const attended = Array.isArray(raw.attended)
     ? raw.attended.filter((a): a is Attendance => !!a && typeof a.id === 'string' && Number.isFinite(a.day) && (a.stay === 'full' || a.stay === 'partial') && Number.isFinite(a.minutes))
+      // AUD-004: un ensayo cuenta una vez aunque el archivo lo repita.
+      .filter((a, i, all) => all.findIndex((b) => b.id === a.id) === i)
     : [];
   return { attended: attended.slice(-KEEP) };
 }

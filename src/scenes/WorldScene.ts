@@ -423,7 +423,7 @@ export class WorldScene extends Phaser.Scene {
   private readonly chatLog = new ChatLog();
   /** Cierra ya la charla de calle en curso (Esc o Q), sin pasar por ninguna respuesta. Sólo mientras hay una. */
   private chatEnd: (() => void) | null = null;
-  /** Lo último que se ha oído en la grada (talkSpectator): dos al lado no dicen la misma frase seguida. */
+  /** Lo último que se ha oído en la grada (talkSpectator), de lo más viejo a lo último: se repite lo que hace más que no se oye. */
   private fanRecent: string[] = [];
   /**
    * Lo que el jugador está entrenando ahora (systems/Fitness): el puesto es suyo desde que lo elige hasta que baja
@@ -670,6 +670,7 @@ export class WorldScene extends Phaser.Scene {
     });
     this.watching = false;
     this.matchFramed = false;
+    this.services.hud.setWatching(false);
     const now = this.clockNow();
     this.wildlife = this.street ? new WildlifeView(this, def, this.street, now.day, now.hour + now.minute / 60, this.playerTile()) : null;
     this.crowdTargets = new WeakMap();
@@ -1083,12 +1084,20 @@ export class WorldScene extends Phaser.Scene {
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);
     const boundsHeight = Math.max(this.mapHeight, height / zoom);
+    // Viendo el partido (frameMatch), la cámara puede subir por encima del mapa lo que tapan el HUD y los botones.
+    const above = this.matchFramed ? this.topReserve() : 0;
     camera.setBounds(
       (this.mapWidth - boundsWidth) / 2,
-      (this.mapHeight - boundsHeight) / 2,
+      (this.mapHeight - boundsHeight) / 2 - above,
       boundsWidth,
-      boundsHeight,
+      boundsHeight + above,
     );
+  }
+
+  /** Lo que tapan arriba el HUD y los botones de las esquinas (ui/HUD.topInset), en píxeles de mundo, con un margen. */
+  private topReserve(): number {
+    const css = this.services.hud.topInset() - this.game.canvas.getBoundingClientRect().top;
+    return Math.max(0, css + 8) * (this.scale.gameSize.width / this.scale.displaySize.width) / this.cameras.main.zoom;
   }
 
   private bindKeys(): void {
@@ -1957,6 +1966,8 @@ export class WorldScene extends Phaser.Scene {
   private frameMatch(on: boolean): void {
     const pitch = getLocation(this.services.state.locationId).pitch;
     this.matchFramed = on && !!pitch;
+    this.services.hud.setWatching(this.matchFramed);
+    this.fitCamera();
     const cam = this.cameras.main;
     this.tweens.killTweensOf(cam.followOffset);
     if (!this.matchFramed || !pitch) {
@@ -1964,7 +1975,11 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     const cx = (pitch.tx + pitch.w / 2) * TILE;
-    const cy = Math.max((pitch.ty + pitch.h / 2) * TILE, this.player.y - cam.height / cam.zoom / 2 + PLAYER_H);
+    // El césped, centrado si cabe bajo el HUD y los botones de arriba; si no, justo debajo de ellos (en una ventana
+    // estrecha lo tapaban casi entero: ARENA 07). Sin que el jugador salga por abajo.
+    const halfView = cam.height / cam.zoom / 2;
+    const belowUi = pitch.ty * TILE - this.topReserve() + halfView;
+    const cy = Math.max(Math.min((pitch.ty + pitch.h / 2) * TILE, belowUi), this.player.y - halfView + PLAYER_H);
     this.tweens.add({ targets: cam.followOffset, x: this.player.x - cx, y: this.player.y - cy, duration: 600, ease: 'Sine.easeInOut' });
   }
 
@@ -3622,7 +3637,7 @@ export class WorldScene extends Phaser.Scene {
       heard.push(l.id);
       if (heard.length > 40) heard.shift();
       this.fanRecent.push(l.id);
-      if (this.fanRecent.length > 6) this.fanRecent.shift();
+      if (this.fanRecent.length > 40) this.fanRecent.shift();
       return l.text;
     };
     let turns = 0;

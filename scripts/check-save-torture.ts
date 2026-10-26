@@ -9,6 +9,7 @@ import { getCatalog } from '../src/data/catalogs.ts';
 import { getActivity } from '../src/data/activities.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
 import { GARMENTS } from '../src/data/retail.ts';
+import { getItem } from '../src/data/items.ts';
 import { STREET_EVENTS } from '../src/data/streetEvents.ts';
 import { ALLEY_SPOTS } from '../src/data/alleyDeals.ts';
 import { createInitialState, restore, SaveSystem, UNREADABLE_KEY, type SaveStorage } from '../src/systems/SaveSystem.ts';
@@ -239,6 +240,25 @@ for (const raw of ['{roto', JSON.stringify({ version: SAVE_VERSION + 1, savedAt:
   assert.equal(store.get(UNREADABLE_KEY), raw, 'una partida ilegible no se aparta');
   assert.equal(store.get(SAVE_KEY), raw, 'cargar no toca la partida');
 }
+// AUD-003/AUD-004 (CV-08): un id que ya no existe no rompe la bolsa; nada imposible entra al cargar.
+file({
+  ...base, money: -50,
+  inventory: { water: 2, 'tarta-retirada': 1, coffee: 2.5, bread: 0 }, cards: { transport: 4.567, 'bono-viejo': 3 },
+  wardrobe: ['camiseta-raya'], appearance: { player: { top: 'camiseta-raya', bottom: 'vaquero-70' } },
+  parish: { attended: [{ id: 'coro-7', day: 7, stay: 'full', minutes: 87 }, { id: 'coro-7', day: 7, stay: 'full', minutes: 87 }] },
+});
+const tampered = restore(save.load());
+assert.equal(tampered.money, 0, 'dinero negativo al cargar');
+assert.deepEqual(tampered.inventory, { water: 2, coffee: 2 }, 'objetos desconocidos, fraccionarios o vacíos en la bolsa');
+assert.deepEqual(tampered.cards, { transport: 4.57 }, 'tarjetas desconocidas o con céntimos sueltos');
+for (const id of [...Object.keys(tampered.inventory), ...Object.keys(tampered.cards)]) assert.doesNotThrow(() => getItem(id), `la bolsa no abre con ${id}`);
+assert.deepEqual(tampered.appearance.player, { top: 'camiseta-raya' }, 'puesta una prenda que no está en el armario');
+assert.equal(tampered.parish!.attended.length, 1, 'el mismo ensayo contado dos veces');
+// EST-001: la tarjeta que se quedó a €0 tras la vuelta del estadio sigue en la bolsa (se recarga, no se compra otra).
+file({ ...base, cards: { transport: 0 } });
+assert.deepEqual(restore(save.load()).cards, { transport: 0 }, 'la tarjeta a €0 desaparece al cargar');
+file({ ...base, money: 12.3456 });
+assert.equal(restore(save.load()).money, 12.35, 'dinero con fracciones de céntimo');
 ok('partidas viejas, mínimas, renombradas, en pared, en vía, con valores raros, rotas y futuras');
 
 console.log(results.map((r, i) => `${String(i + 1).padStart(2)}. ${r}`).join('\n'));

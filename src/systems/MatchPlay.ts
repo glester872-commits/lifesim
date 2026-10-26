@@ -153,7 +153,8 @@ export function announcement(tl: Timeline, last: number | null, abs: number): { 
 
 /**
  * «Ver hasta el próximo momento»: a qué minuto absoluto se salta y qué se verá. El saque, cada ocasión (se llega justo
- * antes de que empiece la jugada), la segunda parte y el final; nunca más allá del final. Null si ya ha acabado.
+ * antes de que empiece la jugada), el descanso (cuando abre el quiosco: EST-003), la segunda parte y el final; nunca más
+ * allá del final. Null si ya ha acabado.
  */
 export function nextMoment(tl: Timeline, abs: number): { abs: number; minutes: number; what: string } | null {
   const t = abs - tl.kickoff;
@@ -164,6 +165,7 @@ export function nextMoment(tl: Timeline, abs: number): { abs: number; minutes: n
   const marks: [number, number, string][] = [
     [HALVES.first.from, HALVES.first.from, 'el saque'],
     ...tl.moments.map((m): [number, number, string] => [m.start - 0.5, m.start, 'la próxima ocasión']),
+    [HALVES.first.to, HALVES.first.to, 'el descanso'],
     [HALVES.second.from, HALVES.second.from, 'la segunda parte'],
     [LIVE_END, LIVE_END, 'el final'],
   ];

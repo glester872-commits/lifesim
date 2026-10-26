@@ -1,4 +1,5 @@
 import { formatDate, SEASON_LABEL, seasonOf } from '../systems/Calendar';
+import { PICK_LOCK_MS } from '../config/constants';
 import type { GameState } from '../state/GameState';
 import { getNpc } from '../data/npcs';
 import { NAMED_PEOPLE } from '../data/namedPeople';
@@ -135,6 +136,9 @@ export class PhoneScreen {
   private items: Item[] = [];
   private selected = 0;
   private opened = false;
+  /** La pantalla a la vista y cuándo apareció (AUD-001): una nueva no acepta toques durante PICK_LOCK_MS. */
+  private shownKey = '';
+  private shownAt = -Infinity;
   private toastTimer: number | undefined;
   /** Lo que se cuenta una vez arriba de Cuentas (el pago hecho, por qué no se pudo). */
   private flash = '';
@@ -245,6 +249,7 @@ export class PhoneScreen {
   close(): void {
     if (!this.opened) return;
     this.opened = false;
+    this.shownKey = '';
     this.root.classList.remove('is-open');
     this.button.classList.remove('is-active');
   }
@@ -265,12 +270,18 @@ export class PhoneScreen {
   }
 
   confirm(): void {
+    if (this.settling()) return;
     this.items[this.selected]?.run();
+  }
+
+  /** Recién cambiada la pantalla: el toque o la E que llega ahora iba para la anterior. */
+  private settling(): boolean {
+    return performance.now() - this.shownAt < PICK_LOCK_MS;
   }
 
   /** Teclas 1–9 en una conversación: cada respuesta tiene su número. */
   pick(index: number): void {
-    if (this.screen.app !== 'thread') return;
+    if (this.screen.app !== 'thread' || this.settling()) return;
     this.items.filter((i) => i.el.classList.contains('phone__reply'))[index]?.run();
   }
 
@@ -333,6 +344,12 @@ export class PhoneScreen {
     this.renderClock();
     this.items = [];
     const s = this.screen;
+    // El refresco de la misma pantalla (reloj, mensajes) no bloquea; ir a otra, sí.
+    const key = JSON.stringify(s);
+    if (key !== this.shownKey) {
+      this.shownKey = key;
+      this.shownAt = performance.now();
+    }
     this.screenEl.dataset.app = s.app;
     if (s.app === 'home') this.renderHome();
     else if (s.app === 'contacts') this.renderContacts();
@@ -752,6 +769,7 @@ export class PhoneScreen {
     node.classList.add('phone__item');
     node.addEventListener('click', (e) => {
       (e.currentTarget as HTMLElement).blur();
+      if (this.settling()) return;
       this.selected = index;
       run();
     });

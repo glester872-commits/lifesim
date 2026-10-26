@@ -12,7 +12,7 @@ import { checkout, consume } from '../src/systems/Commerce.ts';
 import { buy, buyBlocker, freeSlots, installAll, installedIn, layout, optionsOf, parseHousing, reaches, relocate, startHousing, storedIn, type HousingState } from '../src/systems/Housing.ts';
 import { getLocation } from '../src/systems/LocationSystem.ts';
 import { GIFTS, giftBlocker, giftsIn, giveGift } from '../src/systems/Gifts.ts';
-import { createSocialProfile } from '../src/systems/Social.ts';
+import { createSocialProfile, parseSocialState, resolveSocialAction } from '../src/systems/Social.ts';
 import { placeInfo } from '../src/systems/Places.ts';
 
 const wallet = (money: number, inventory: Record<string, number> = {}) => ({ money, inventory, cards: {} });
@@ -115,5 +115,19 @@ const twice = giveGift(given.profile, given.wallet, 'gift-chocolates', moment);
 assert.ok(!twice.ok && twice.wallet === given.wallet && twice.profile === given.profile, 'dos regalos el mismo día: suma o gasta');
 assert.ok(giveGift(given.profile, given.wallet, 'gift-chocolates', { ...moment, day: 4 }).ok, 'al día siguiente se puede');
 assert.ok(!giveGift(friend, wallet(0), 'gift-cologne', moment).ok, 'regalar algo que no llevas');
+// AUD-006 (CV-08): el límite es por persona y día, y no se pierde con 40 charlas más ese día ni al guardar y cargar.
+{
+  let talked = given.profile;
+  for (let i = 0; i < 40; i++) talked = resolveSocialAction(talked, 'compliment', { day: 3, hour: 19, minute: i, place: 'street', act: 'idle', mood: 'neutral' } as never, () => 0.01).profile;
+  assert.ok(!talked.memories.some((m) => m.note === 'regalo: caja de bombones'), 'la prueba necesita que el recuerdo del regalo se haya perdido');
+  const again = giveGift(talked, given.wallet, 'gift-chocolates', { ...moment, hour: 20 });
+  assert.ok(!again.ok && again.wallet === given.wallet && again.wallet.inventory['gift-chocolates'] === 1, 'tras 40 charlas el mismo día se regala otra vez o se pierde la caja');
+  const reloaded = parseSocialState(JSON.parse(JSON.stringify({ sara: talked }))).sara;
+  assert.equal(reloaded.giftDay, 3, 'guardar y cargar olvida el día del regalo');
+  assert.ok(!giveGift(reloaded, given.wallet, 'gift-chocolates', moment).ok, 'recargar deja regalar otra vez el mismo día');
+  assert.ok(giveGift(reloaded, given.wallet, 'gift-chocolates', { ...moment, day: 4 }).ok, 'al día siguiente, tras cargar, no se puede');
+  assert.ok(giveGift({ ...friend, encounters: 2 }, given.wallet, 'gift-chocolates', moment).ok, 'el límite de una persona bloquea a otra');
+  assert.equal(parseSocialState({ ana: { ...createSocialProfile(), giftDay: 'ayer' } }).ana.giftDay, undefined, 'un día de regalo inválido entra al cargar');
+}
 
 console.log(`OK: Montón (${monton.stock.length} prendas, media €${avg('monton').toFixed(2)}, la más barata), Velarde (${hogar.length} de hogar + ${regalos.products.length} regalos), ranuras elegidas/ocupadas/recolocadas sin copias en ${HOMES.map((x) => getHome(x.id).name).join(' y ')}, regalos una vez al día y partida antigua intacta.`);

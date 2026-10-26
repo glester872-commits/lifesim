@@ -3,10 +3,25 @@
 import assert from 'node:assert/strict';
 import { BILLS, GOALS, GRACE_DAYS } from '../src/data/household.ts';
 import {
-  goalAdvice, goalView, owed, parseHousehold, parseLedger, pay, startHousehold, statusOf, sync, total, unpaid, type HouseholdState,
+  goalAdvice, goalView, owed, parseHousehold, parseLedger, pay, recordMovement, startHousehold, statusOf, sync, total, unpaid, type HouseholdState, type Movement,
 } from '../src/systems/Household.ts';
 import { SaveSystem } from '../src/systems/SaveSystem.ts';
 import { SAVE_KEY } from '../src/config/constants.ts';
+
+// AUD-005 (CV-08): dos compras iguales el mismo día suman importe y cantidad; otro producto u otro día, línea aparte.
+{
+  const ledger: Movement[] = [];
+  const at = (day: number, minute: number, label: string, amount: number): Movement => ({ day, hour: 10, minute, label, amount });
+  recordMovement(ledger, at(5, 0, '1 × Barra de pan', -0.9));
+  recordMovement(ledger, at(5, 2, '1 × Barra de pan', -0.9));
+  recordMovement(ledger, at(5, 3, '2 × Barra de pan', -1.8));
+  assert.deepEqual(ledger.map((m) => [m.label, m.amount]), [['4 × Barra de pan', -3.6]], 'la cantidad de la línea no cuadra con su importe');
+  recordMovement(ledger, at(5, 4, '1 × Sándwich envasado', -2.2));
+  recordMovement(ledger, at(6, 0, '1 × Sándwich envasado', -2.2));
+  recordMovement(ledger, at(6, 1, 'Alquiler', -45));
+  recordMovement(ledger, at(6, 2, 'Alquiler', -10));
+  assert.deepEqual(ledger.map((m) => [m.day, m.label, m.amount]), [[5, '4 × Barra de pan', -3.6], [5, '1 × Sándwich envasado', -2.2], [6, '1 × Sándwich envasado', -2.2], [6, 'Alquiler', -55]]);
+}
 
 const rent = BILLS.find((b) => b.id === 'rent')!;
 const home = BILLS.find((b) => b.id === 'home')!;

@@ -28,7 +28,8 @@ export const giftsIn = (w: Wallet): { id: string; qty: number }[] =>
 /** Por qué no se puede regalar ahora a esta persona, o null. */
 export function giftBlocker(profile: SocialProfile, day: number): string | null {
   if (profile.encounters < 1) return 'Aún no os conocéis lo bastante para regalarle nada.';
-  if (profile.memories.some((m) => m.day === day && m.note?.startsWith(NOTE))) return 'Hoy ya le has dado algo. Mejor otro día.';
+  // `giftDay` no se pierde con los recuerdos; el recuerdo sigue valiendo para partidas de antes de ese campo.
+  if (profile.giftDay === day || profile.memories.some((m) => m.day === day && m.note?.startsWith(NOTE))) return 'Hoy ya le has dado algo. Mejor otro día.';
   return null;
 }
 
@@ -50,5 +51,5 @@ export function giveGift(profile: SocialProfile, w: Wallet, itemId: string, at: 
   const name = getItem(itemId).name;
   const { given, ...delta } = effect;
   const next = noteSocialMemory(applyDelta(profile, { romance: 0, attraction: 0, ...delta }), { kind: 'SHARED_EVENT', ...at, outcome: 'positive', note: `${NOTE}: ${name.toLowerCase()}` });
-  return { ok: true, message: given, profile: next, wallet: spend(w, itemId) };
+  return { ok: true, message: given, profile: { ...next, giftDay: at.day }, wallet: spend(w, itemId) };
 }
