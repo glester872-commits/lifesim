@@ -257,6 +257,15 @@ const fitCanvas = (): void => {
 };
 new ResizeObserver(fitCanvas).observe(stage);
 window.addEventListener('resize', fitCanvas);
+// Pasar la ventana a un monitor de otra escala (125 % ↔ 150 %) con el mismo tamaño en px CSS no dispara ninguno de
+// los dos: el lienzo se quedaría a la densidad vieja y el navegador lo estiraría. La consulta vale para un solo ratio.
+const watchDensity = (): void => {
+  matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener('change', () => {
+    fitCanvas();
+    watchDensity();
+  }, { once: true });
+};
+watchDensity();
 
 // Gancho de desarrollo para inspeccionar la partida desde la consola.
 // Vite lo elimina del bundle de produccion.

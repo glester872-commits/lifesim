@@ -3,7 +3,7 @@ import { TILE } from '../config/constants';
 import { QUALITY } from '../config/quality';
 import { ARENA_CLUB } from '../data/cityEvents';
 import { RIVAL_KITS } from '../data/matchPlay';
-import { SIDE_TILES, STAND_BUDGET } from '../data/standLife';
+import { APRON_TILES, FLAG_TILES, SIDE_TILES, STAND_BUDGET } from '../data/standLife';
 import { hashSeed } from '../systems/MetroDaily';
 import type { Chant, StandMood } from '../systems/StandLife';
 import { LAYER } from './Layers';
@@ -94,6 +94,14 @@ export class StandView {
     this.reduced = reduced;
     const w = SIDE_TILES * TILE;
     this.blocks = [-w, mapWidthPx].map((x) => scene.add.image(x, 0, '__DEFAULT').setOrigin(0, 0).setDepth(LAYER.decal).setVisible(false));
+    // Arriba y abajo, el muro del recinto de lado a lado: una pantalla alta no ve el vacío por encima del césped.
+    const apronW = mapWidthPx + 2 * w;
+    const apronH = APRON_TILES * TILE;
+    make(scene, `stand-apron-${apronW}`, apronW, apronH, (ctx) => {
+      px(ctx, WALL, 0, 0, apronW, apronH);
+      sprinkle(ctx, shade(WALL, -0.06), apronW, apronH, 97, 40);
+    });
+    for (const y of [-apronH, ROWS * TILE]) scene.add.image(-w, y, `stand-apron-${apronW}`).setOrigin(0, 0).setDepth(LAYER.decal);
     for (let v = 0; v < 2; v++) {
       make(scene, `stand-flag-home-${v}`, 9, 12, (ctx) => drawFlag(ctx, TEAL, ORANGE, v));
       make(scene, `stand-flag-orange-${v}`, 9, 12, (ctx) => drawFlag(ctx, ORANGE, TEAL, v));
@@ -102,7 +110,7 @@ export class StandView {
     for (let i = 0; i < n; i++) {
       const left = i % 2 === 0;
       const k = Math.floor(i / 2);
-      const x = left ? -w + 12 + k * 26 : mapWidthPx + 10 + k * 22;
+      const x = left ? -FLAG_TILES * TILE + 12 + k * 26 : mapWidthPx + 10 + k * 22;
       this.flags.push(scene.add.image(x, 18 + ((k * 37) % 60), 'stand-flag-home-0').setOrigin(0, 1).setDepth(LAYER.decal + 0.5).setVisible(false));
     }
   }

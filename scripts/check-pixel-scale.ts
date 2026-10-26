@@ -1,7 +1,7 @@
 // Escala de píxel entera (world/PixelScale, HD-03): en cualquier pantalla un píxel del mundo mide un número entero de
 // píxeles físicos, el más cercano al encuadre de diseño (VIEW_WIDTH × VIEW_HEIGHT), y la resolución del arte no cambia. `node scripts/check-pixel-scale.ts`.
 import assert from 'node:assert/strict';
-import { CAMERA_ZOOM, MAX_CAMERA_ZOOM, VIEW_HEIGHT, VIEW_WIDTH } from '../src/config/constants.ts';
+import { CAMERA_ZOOM, MAX_CAMERA_ZOOM, VIEW_HEIGHT, VIEW_WIDTH, WIDEST_VIEW } from '../src/config/constants.ts';
 import { pixelZoom } from '../src/world/PixelScale.ts';
 
 // Pantallas en píxeles físicos (CSS × devicePixelRatio).
@@ -37,4 +37,17 @@ for (let w = 320; w <= 8000; w += 7) {
   assert.ok(z >= last, `${w}: el zoom baja al crecer la pantalla`);
   last = z;
 }
-console.log('check-pixel-scale: OK —', Object.entries(screens).map(([n, [w, h]]) => `${n} ×${pixelZoom(w, h)}`).join(' · '));
+// WIDEST_VIEW cubre toda vista: escritorios de 16:9 a 32:9 y móviles de 16:9 a 20:9, de pie y tumbados.
+let widest = [0, 0];
+const view = (w: number, h: number): void => {
+  const z = pixelZoom(w, h);
+  widest = [Math.max(widest[0], w / z), Math.max(widest[1], h / z)];
+  assert.ok(w / z <= WIDEST_VIEW.width && h / z <= WIDEST_VIEW.height, `${w} × ${h}: se ven ${w / z} × ${h / z} px, más que WIDEST_VIEW`);
+};
+for (const r of [16 / 9, 16 / 10, 64 / 27, 32 / 9]) for (let h = 600; h <= 2880; h++) view(Math.round(h * r), h);
+for (const r of [16 / 9, 2, 2.167, 20 / 9]) for (let css = 360; css <= 440; css++) for (const dpr of [2, 2.625, 2.75, 3]) {
+  const [w, h] = [Math.round(css * dpr), Math.round(css * r * dpr)];
+  view(w, h);
+  view(h, w);
+}
+console.log('check-pixel-scale: OK — vista más grande', widest.map(Math.ceil).join(' × '), '·', Object.entries(screens).map(([n, [w, h]]) => `${n} ×${pixelZoom(w, h)}`).join(' · '));

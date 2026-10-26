@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { TILE } from '../config/constants';
+import { TILE, WIDEST_VIEW } from '../config/constants';
 import type { BuildingDef, LocationDef } from '../types/game';
 import type { GameState } from '../state/GameState';
 import { PROPS } from './tiles';
@@ -393,8 +393,8 @@ export class Lighting {
       const lamp = profileAt(def, Math.floor(x / TILE), Math.floor(y / TILE))?.lamp;
       return lamp ? [hex(lamp[0]), lamp[1]] : [WARM, 1];
     };
-    // Con margen: la cámara puede enseñar algo más allá del borde del mapa.
-    const m = TILE * 24;
+    // Con margen: la cámara puede enseñar algo más allá del borde del mapa (hasta WIDEST_VIEW, lo que se pinta alrededor).
+    const m = Math.max(WIDEST_VIEW.width, WIDEST_VIEW.height);
     this.shade = scene.add
       .rectangle(-m, -m, widthPx + m * 2, heightPx + m * 2, 0xffffff)
       .setOrigin(0, 0)

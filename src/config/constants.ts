@@ -15,6 +15,11 @@ export const CAMERA_ZOOM = 2;
 export const VIEW_WIDTH = 480;
 export const VIEW_HEIGHT = 405;
 export const MAX_CAMERA_ZOOM = 12;
+/**
+ * Lo más que llega a verse de mundo, en px (scripts/check-pixel-scale lo barre): de ancho, un 32:9 a zoom 2 justo
+ * antes de redondear a 3; de alto, un móvil de pie. Lo que se pinta alrededor de un sitio pequeño llega hasta aquí.
+ */
+export const WIDEST_VIEW = { width: 1800, height: 1125 };
 export const CAMERA_LERP = 0.14;
 /**
  * Cuánto por encima del jugador mira la cámara (px de mundo). Las fachadas al
