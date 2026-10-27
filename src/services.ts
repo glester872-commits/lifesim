@@ -13,6 +13,7 @@ import type { MapScreen } from './ui/MapScreen';
 import type { PlayerInput } from './systems/PlayerInput';
 import type { PhoneScreen } from './ui/Phone';
 import type { CityAudio } from './audio/CityAudio';
+import type { OnlinePanel } from './ui/OnlinePanel';
 
 /** Sistemas compartidos; se inyectan en las Scenes por constructor. */
 export interface Services {
@@ -38,4 +39,6 @@ export interface Services {
   phone: PhoneScreen;
   /** El sonido de ambiente (audio/CityAudio): cuatro capas, volumen con N o su botón. Lo que suena lo decide la escena. */
   audio: CityAudio;
+  /** Alpha-06: la sala online (opcional). Sin entrar en ninguna, no hace nada y el juego es el de siempre. */
+  online: OnlinePanel;
 }
