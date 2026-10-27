@@ -921,6 +921,9 @@ export class WorldScene extends Phaser.Scene {
         const digit = DIGITS.findIndex((name) => this.pressedAny([name]));
         if (digit >= 0) menu.confirm(digit);
       }
+      // El mundo espera, pero quien atiende acaba de girarse hacia el jugador: sólo se pinta (no se simula), así la media
+      // vuelta termina en vez de quedarse en el perfil mientras el menú esté abierto.
+      if (!liveMenu && this.offerTalk) for (const view of this.crowdViews) view.sync(time);
       if (!liveMenu) return;
     }
 

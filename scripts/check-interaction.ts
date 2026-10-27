@@ -330,4 +330,38 @@ for (const loc of allLocations()) {
 }
 assert.ok(tills >= 19, `sólo ${tills} mostradores atendidos: ¿ha cambiado cómo se nombran los puntos?`);
 
+// Quien atiende se vuelve hacia el jugador por el perfil, como cualquier media vuelta (entities/Character necesita Phaser
+// y no se carga aquí: se mira el código). Antes, la dirección de la charla se ponía después del giro y pasaba de espaldas
+// a de cara en un fotograma; y con un menú abierto el mundo no se pinta, así que la vuelta se quedaba a medias.
+{
+  const character = src('entities/Character.ts');
+  assert.match(character, /this\.turned\(talkDir \?\? where\.dir, time\)/, 'la charla no gira por turned(): de espaldas a de cara en un fotograma');
+  const scene = src('scenes/WorldScene.ts');
+  assert.match(scene, /if \(!liveMenu && this\.offerTalk\) for \(const view of this\.crowdViews\) view\.sync\(time\);/, 'con el menú abierto, quien atiende no termina de girarse');
+  assert.match(scene, /this\.startTalk\(target\.sprite\);\s*this\.offerTalk = true;/, 'quien ofrece algo no se vuelve hacia el jugador al abrir su menú');
+}
+
+// Gente apiñada (un camarero entre clientes, a menos de una franja de distancia unos de otros): la E elige siempre al
+// más cercano de verdad, se llamen como se llamen y vengan en el orden que vengan. El id de una persona sale del orden
+// en que el juego la vio por primera vez: antes, dentro de una franja de empate, eso decidía.
+{
+  const rng = seededRng(4242);
+  const me = { x: 200, y: 200 };
+  for (let round = 0; round < 300; round++) {
+    const people = Array.from({ length: 2 + Math.floor(rng() * 4) }, (_, i) => {
+      const angle = rng() * Math.PI * 2;
+      const d = 12 + rng() * 4; // todos entre 12 y 16 px: dentro de dos o tres franjas de 1.5 px
+      return { id: `npc:${i + 1}`, kind: 'npc' as const, x: me.x + Math.cos(angle) * d, y: me.y + Math.sin(angle) * d, d };
+    });
+    const nearest = people.reduce((a, b) => (b.d < a.d ? b : a));
+    for (let k = 0; k < 4; k++) {
+      // Otros ids (otro orden de creación) y otra lista: el elegido es la misma persona.
+      const order = [...people].sort(() => rng() - 0.5);
+      const renamed = order.map((p, i) => ({ ...p, id: `npc:${(i * 7 + k) % 23}` }));
+      const got = pickTarget(me, renamed);
+      assert.ok(got && got.x === nearest.x && got.y === nearest.y, `apiñados: la E elige a uno a ${got && Math.hypot(got.x - me.x, got.y - me.y).toFixed(2)} px, no al de ${nearest.d.toFixed(2)} px`);
+    }
+  }
+}
+
 console.log('\nOK: una sola regla decide qué se ofrece, todo se alcanza, nada a través de paredes, se sale de cualquier charla y el móvil es igual.');
