@@ -101,7 +101,8 @@ export function solidMask(loc: LocationDef, bodies = false): boolean[][] {
   }
   for (const p of loc.props) {
     if (PROPS[p.kind].overhead || PROPS[p.kind].flat) continue; // cuelga o está pintado: se pasa
-    if (bodies && PROPS[p.kind].post) continue; // un poste choca con su caja estrecha, no con el tile (world/LocationBuilder)
+    // Un poste o lo que tiene su caja al pie choca con esa caja estrecha, no con el tile (world/LocationBuilder).
+    if (bodies && (PROPS[p.kind].post || PROPS[p.kind].foot)) continue;
     const w = PROPS[p.kind].tilesWide ?? 1;
     for (let x = p.tx; x < p.tx + w; x++) set(x, p.ty, true);
   }

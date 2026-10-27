@@ -7,6 +7,7 @@ import { buildGymTextures } from './GymArt';
 import { buildSeatTextures } from './SeatArt';
 import { buildDiningTextures } from './DiningArt';
 import { buildRiverTextures } from './RiverArt';
+import { drawParkedBike } from './CyclistArt';
 
 /**
  * Terreno y props del barrio y de los interiores nuevos. Mismo idioma que
@@ -339,15 +340,12 @@ function drawVan(ctx: Ctx): void {
   px(ctx, PALETTE.ink, w - 11, 26, 6, 4);
 }
 
-function drawBike(ctx: Ctx): void {
-  px(ctx, PALETTE.metal, 1, 9, 14, 1);
-  for (const cx of [4, 12]) {
-    px(ctx, PALETTE.ink, cx - 3, 8, 6, 6);
-    px(ctx, shade(PALETTE.metal, -0.1), cx - 2, 9, 4, 4);
-  }
-  px(ctx, '#c0493f', 5, 6, 7, 2);
-  px(ctx, PALETTE.ink, 5, 4, 3, 2);
-  px(ctx, PALETTE.metalLit, 11, 3, 3, 1);
+/** Colores de cuadro de las bicis aparcadas: cada sitio la suya (tiles: `variants`), dos vecinas nunca iguales. */
+const BIKE_FRAMES = ['#c0493f', '#3f8f8a', '#d9a03c', '#3f5f8a'] as const;
+
+/** Bici aparcada (16 × 16): la de los ciclistas sin nadie encima, apoyada en la fila de abajo (world/CyclistArt). */
+function drawBike(ctx: Ctx, frame: string = BIKE_FRAMES[0]): void {
+  drawParkedBike(ctx, 0, 15, frame, 3.4, 8);
 }
 
 function drawBin(ctx: Ctx): void {
@@ -971,7 +969,8 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-car-b', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'sedan', 1));
   make(scene, 'prop-car-c', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'compact', 1));
   make(scene, 'prop-van', TILE * 3, TILE * 2, drawVan);
-  make(scene, 'prop-bike', TILE, TILE, drawBike);
+  make(scene, 'prop-bike', TILE, TILE, (ctx) => drawBike(ctx));
+  BIKE_FRAMES.forEach((c, v) => make(scene, `prop-bike-${v}`, TILE, TILE, (ctx) => drawBike(ctx, c)));
   make(scene, 'prop-bin', TILE, TILE, drawBin);
   make(scene, 'prop-bin-tall', TILE, TILE * 2, drawBinTall);
   make(scene, 'prop-bin-pair', TILE * 2, TILE * 2, drawBinPair);

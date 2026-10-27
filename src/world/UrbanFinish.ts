@@ -3,6 +3,7 @@ import { PALETTE, TILE } from '../config/constants';
 import type { LocationDef } from '../types/game';
 import { make, px, shade, type Ctx } from './paint';
 import { drawMetroHero, drawTotemSign, HERO_H, HERO_W } from './UrbanArt';
+import { drawParkedBike } from './CyclistArt';
 
 /**
  * HD-03, acabado urbano de todo el sitio (LocationDef.finish). Las mismas
@@ -360,24 +361,9 @@ function drawMetroTotemFine(ctx: Ctx): void {
 
 // ------------------------------------------------------------ decorativos
 
-/** Una bici pequeña (11 × 9): ruedas en aro (se ve el suelo por dentro), cuadro con su luz, sillín y manillar. */
+/** Una bici pequeña (12 × 9) en su arco: la misma construcción que la aparcada suelta, a la escala del aparcabicis. */
 function bikeFine(ctx: Ctx, x: number, y: number, frame: string): void {
-  for (const cx of [x + 2, x + 9]) {
-    for (let dy = -3; dy <= 3; dy++) {
-      for (let dx = -3; dx <= 3; dx++) {
-        const d = Math.hypot(dx, dy);
-        if (d > 2.2 && d < 3.2) px(ctx, dy < -1 ? '#3a3a42' : PALETTE.ink, cx + dx, y + 6 + dy);
-      }
-    }
-    px(ctx, STEEL_LIT, cx, y + 6, 1, 1);
-  }
-  px(ctx, frame, x + 3, y + 5, 6, 1);
-  px(ctx, shade(frame, 0.25), x + 4, y + 2, 4, 1);
-  px(ctx, frame, x + 4, y + 3, 1, 2);
-  px(ctx, shade(frame, -0.2), x + 8, y + 2, 1, 3);
-  px(ctx, PALETTE.ink, x + 3, y + 1, 3, 1);
-  px(ctx, '#3a3a42', x + 3, y + 1, 1, 1);
-  px(ctx, STEEL_LIT, x + 8, y + 1, 3, 1);
+  drawParkedBike(ctx, x, y + 9, frame, 2.8, 6);
 }
 
 /** Aparcabicis (32 × 20): tres arcos de tubo con su luz arriba y la pata de la derecha en sombra, y las tres bicis de siempre. */

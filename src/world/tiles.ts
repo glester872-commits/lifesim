@@ -87,6 +87,12 @@ export interface PropDef {
    */
   post?: true;
   /**
+   * Caja de choque al pie [ancho, fondo] en px, centrada, para lo que es más estrecho que su tile sin ser un poste
+   * (papelera, tótem): se choca con lo que se ve y no con un borde invisible a 4 px. Como `post`, el tile sigue
+   * ocupado para colocar y planificar (world/LocationBuilder, systems/LocationSystem.solidMask).
+   */
+  foot?: readonly [number, number];
+  /**
    * Papelera: lo que se mira con E (`name`, `lines`), ancla de la limpieza viaria (StreetLife) y, cerca, la gente
    * tira menos al suelo (systems/Litter). `attach: 'post'` va colgada de una farola, en el mismo tile (systems/Dressing).
    */
@@ -161,8 +167,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'car-b': { key: 'prop-car-b', tilesHigh: 2, tilesWide: 3 },
   'car-c': { key: 'prop-car-c', tilesHigh: 2, tilesWide: 3 },
   van: { key: 'prop-van', tilesHigh: 2, tilesWide: 3 },
-  bike: { key: 'prop-bike', tilesHigh: 1 },
-  bin: { key: 'prop-bin', tilesHigh: 1, waste: { name: 'Papelera', lines: ['Verde, con la boca algo mellada de tanto uso. Casi vacía.'] } },
+  bike: { key: 'prop-bike', tilesHigh: 1, variants: 4, foot: [14, 6] },
+  bin: { key: 'prop-bin', tilesHigh: 1, foot: [8, 6], waste: { name: 'Papelera', lines: ['Verde, con la boca algo mellada de tanto uso. Casi vacía.'] } },
   'bin-tall': { key: 'prop-bin-tall', tilesHigh: 2, shadow: [10, 3], waste: { name: 'Papelera', lines: ['Alta, de chapa verde oscura y boca arriba. Alguien ha dejado un periódico doblado encima.'] } },
   'bin-pair': {
     key: 'prop-bin-pair', tilesHigh: 2, tilesWide: 2, shadow: [26, 4],
@@ -172,7 +178,7 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   vending: { key: 'prop-vending', tilesHigh: 2 },
   produce: { key: 'prop-produce', tilesHigh: 1 },
   'menu-board': { key: 'prop-menu-board', tilesHigh: 1 },
-  hoop: { key: 'prop-hoop', tilesHigh: 2 },
+  hoop: { key: 'prop-hoop', tilesHigh: 2, post: true },
   wardrobe: { key: 'prop-wardrobe', tilesHigh: 2 },
   sofa: { key: 'prop-sofa', tilesHigh: 1, tilesWide: 2, mount: true },
   // De espaldas a la cámara (el sofá mira al sur): de noche, la pantalla tiñe de frío la pared.
@@ -223,7 +229,7 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'street-lamp-art': { key: 'prop-street-lamp-art', tilesHigh: 4, light: { dy: 49, pool: [60, 28] }, shadow: [8, 3], cast: 22, post: true },
   'bike-rack': { key: 'prop-bike-rack', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
   'planter-box': { key: 'prop-planter-box', tilesHigh: 2, tilesWide: 2, shadow: [30, 5] },
-  'metro-totem': { key: 'prop-metro-totem', tilesHigh: 3, shadow: [8, 3], cast: 18, emissive: 'glow-metro-totem' },
+  'metro-totem': { key: 'prop-metro-totem', tilesHigh: 3, foot: [8, 6], shadow: [8, 3], cast: 18, emissive: 'glow-metro-totem' },
   'info-board': { key: 'prop-info-board', tilesHigh: 2, shadow: [14, 4], cast: 10, emissive: 'glow-info-board' },
   manhole: { key: 'prop-manhole', tilesHigh: 1, flat: true },
   drain: { key: 'prop-drain', tilesHigh: 1, flat: true },
