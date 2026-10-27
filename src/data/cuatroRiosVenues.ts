@@ -33,6 +33,8 @@ export interface Shop {
   /** Puntos donde se para a mirar o coger algo (PRE_BROWSE_01…). */
   browse: readonly (readonly [number, number, NonNullable<PointDef['facing']>])[];
   catalog?: string;
+  /** Se paga en un terminal que el local pone aparte, con su propio nombre (Velarde): la planta de caja con terminal. */
+  terminalApart?: boolean;
   racks?: readonly RackDef[];
   inspects?: readonly InspectDef[];
 }
@@ -40,11 +42,11 @@ export interface Shop {
 /** Tienda pequeña: mostrador (10–11, 7) con la caja, quien cobra detrás, la cola al lado y la puerta abajo. */
 export function shopRoom(s: Shop): LocationDef {
   const P = s.pre;
-  // Donde se paga hablando con quien atiende (tiendas de ropa: percheros y sin terminal), como en las del Carmen: quien
-  // atiende al final del mostrador (9, 7) y la caja justo delante (9, 8). Así la E le elige a él aunque haya cola al
-  // lado (16 px y de frente, contra 16 px de lado). Detrás del mostrador quedaba a 36 px, fuera de alcance. Con
-  // terminal se paga en la caja misma (10, 7) y quien atiende se queda detrás.
-  const sells = !s.catalog && !!s.racks?.length;
+  // Quien atiende, siempre detrás del mostrador (11, 6). Con terminal se paga en él: la caja del cliente, delante del
+  // terminal (10, 8). Sin terminal (ropa, joyería, la recepción de la comisaría) se habla con quien atiende: el cliente,
+  // justo delante de él al otro lado del mostrador (11, 8), y se le habla por encima (systems/Interaction, `across`).
+  // Antes quedaba en diagonal, a 36 px: fuera de alcance.
+  const attended = !s.catalog && !s.terminalApart;
   return {
     id: s.id,
     name: s.name,
@@ -61,9 +63,9 @@ export function shopRoom(s: Shop): LocationDef {
     inspects: s.inspects,
     points: {
       [`${P}_EXIT`]: p(7, 8, 'exit', 'up'),
-      [`${P}_STAFF`]: sells ? p(9, 7, 'work', 'down') : p(11, 6, 'work', 'down'),
-      [`${P}_TILL`]: sells ? p(9, 8, 'interact', 'up') : p(10, 8, 'interact', 'up'),
-      [`${P}_QUEUE_01`]: sells ? p(10, 8, 'wait', 'left') : p(9, 8, 'wait', 'right'),
+      [`${P}_STAFF`]: p(11, 6, 'work', 'down'),
+      [`${P}_TILL`]: attended ? p(11, 8, 'interact', 'up') : p(10, 8, 'interact', 'up'),
+      [`${P}_QUEUE_01`]: attended ? p(10, 8, 'wait', 'right') : p(9, 8, 'wait', 'right'),
       ...Object.fromEntries(s.browse.map(([x, y, f], i) => [`${P}_BROWSE_${TWO(i)}`, p(x, y, 'interact', f)])),
     },
   };

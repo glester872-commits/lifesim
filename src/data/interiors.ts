@@ -230,10 +230,9 @@ export const FASHION: LocationDef = {
   ],
   points: {
     CLOTHING_STORE_EXIT: p(9, 10, 'exit', 'up'),
-    // Iván, al final del mostrador, y la caja justo delante de él (como en las tiendas del Carmen): la E le elige aunque
-    // haya alguien en la cola (en diagonal). Detrás de la caja, en (16, 4), quedaba a 32 px, fuera de alcance.
-    CLOTHING_STORE_TILL: p(17, 6, 'interact', 'up'),
-    CLOTHING_STORE_STAFF: p(17, 5, 'work', 'down'),
+    // Iván, detrás de la caja (16, 5); quien paga, delante: se le habla por encima del mostrador (systems/Interaction, `across`).
+    CLOTHING_STORE_TILL: p(16, 6, 'interact', 'up'),
+    CLOTHING_STORE_STAFF: p(16, 4, 'work', 'down'),
     CLOTHING_STORE_RACK_01: p(7, 5, 'interact', 'up'),
     CLOTHING_STORE_RACK_02: p(11, 5, 'interact', 'up'),
     CLOTHING_STORE_RACK_03: p(7, 9, 'interact', 'up'),
@@ -959,6 +958,7 @@ export function arcadeRoom(id: string, name: string, exit: { location: string; s
     ],
     points: {
       [`${pre}EXIT`]: p(10, 11, 'exit', 'up'),
+      // Quien da las fichas, detrás del mostrador; quien viene a hablarle, delante: se le habla por encima (`across`).
       [`${pre}STAFF`]: p(16, 9, 'work', 'down'),
       [`${pre}TILL`]: p(16, 11, 'interact', 'up'),
       ...Object.fromEntries(ARCADE_FIGHT_X.map((x, i) => [`${pre}FIGHT_${TWO(i)}`, use(x, 3, 'arcade', 'up')])),
@@ -1070,10 +1070,9 @@ export const RIBERA_SPORT: LocationDef = {
   ],
   points: {
     SPORT_EXIT: p(7, 8, 'exit', 'up'),
-    // Quien atiende, al final del mostrador, y la caja justo delante (como en las tiendas del Carmen): la E le elige
-    // aunque alguien esté pagando o en la cola. Detrás, en (11, 5), quedaba a 32 px de la caja, fuera de alcance.
-    SPORT_STAFF: p(10, 6, 'work', 'down'),
-    SPORT_TILL: p(10, 7, 'interact', 'up'),
+    // Quien atiende, detrás del mostrador (11, 6); quien paga, delante: se le habla por encima (`across`).
+    SPORT_STAFF: p(11, 5, 'work', 'down'),
+    SPORT_TILL: p(11, 7, 'interact', 'up'),
     SPORT_QUEUE_01: p(10, 8, 'wait', 'up'),
     SPORT_WALL_01: p(2, 2, 'interact', 'up'),
     SPORT_WALL_02: p(5, 2, 'interact', 'up'),

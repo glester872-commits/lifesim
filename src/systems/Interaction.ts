@@ -109,7 +109,15 @@ export interface PickOptions<T extends Candidate> {
    * la E hablaba con el cliente que paga (pegado al jugador) en vez de con quien cobra.
    */
   ahead?: { tx: number; ty: number };
+  /**
+   * Si lo de delante es un mostrador (un mueble, no se pisa), el tile de detrás: quien atiende (`serves`) ahí se alcanza
+   * por encima aunque quede más lejos que `range` (un mostrador de un tile ya son 32 px) y gana como una caja. Es la
+   * regla 2 («se habla por encima del mostrador») llevada a quien está al otro lado.
+   */
+  across?: { tx: number; ty: number };
 }
+
+const onTile = (c: Candidate, t: { tx: number; ty: number } | undefined): boolean => !!t && Math.floor(c.x / TILE) === t.tx && Math.floor(c.y / TILE) === t.ty;
 
 /** El tile de delante de quien está en `tile` mirando a `facing`. */
 export const tileAhead = (tile: { tx: number; ty: number }, facing: Facing): { tx: number; ty: number } => ({ tx: tile.tx + FORWARD[facing].x, ty: tile.ty + FORWARD[facing].y });
@@ -135,15 +143,14 @@ const compare = (a: { c: Candidate; band: number }, b: { c: Candidate; band: num
  */
 export function pickTarget<T extends Candidate>(origin: Vec2, items: readonly T[], opts: PickOptions<T> = {}): T | null {
   const ranked = items
-    .filter((c) => Math.hypot(c.x - origin.x, c.y - origin.y) < INTERACTION.range && (opts.allow?.(c) ?? true) && !(opts.blocked?.(c) ?? false))
+    .filter((c) => (Math.hypot(c.x - origin.x, c.y - origin.y) < INTERACTION.range || (!!c.serves && onTile(c, opts.across))) && (opts.allow?.(c) ?? true) && !(opts.blocked?.(c) ?? false))
     .map((c) => {
       const s = score(origin, c, opts.facing);
       return { c, s, band: Math.floor(s / INTERACTION.tie) };
     })
     .sort(compare);
   if (ranked.length === 0) return null;
-  const ahead = opts.ahead;
-  const counter = ahead && ranked.find((r) => (r.c.kind === 'terminal' || r.c.serves) && Math.floor(r.c.x / TILE) === ahead.tx && Math.floor(r.c.y / TILE) === ahead.ty);
+  const counter = ranked.find((r) => ((r.c.kind === 'terminal' || r.c.serves) && onTile(r.c, opts.ahead)) || (r.c.serves && onTile(r.c, opts.across)));
   if (counter) return counter.c;
   const best = ranked[0];
   const keep = opts.current ? ranked.find((r) => r.c.id === opts.current!.id) : undefined;

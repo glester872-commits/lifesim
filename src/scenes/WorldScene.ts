@@ -15,7 +15,7 @@ import {
 } from '../config/constants';
 import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, TerminalDef, TilePoint, Vec2 } from '../types/game';
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
-import { allLocations, doorRow, getLocation, getSpawn, isStandable, spawnToWorld } from '../systems/LocationSystem';
+import { allLocations, doorRow, getLocation, getSpawn, isStandable, isWalkable, spawnToWorld } from '../systems/LocationSystem';
 import { QUALITY, type QualityLevel } from '../config/quality';
 import { BUDGETS, type Budget } from '../config/budgets';
 import { Ambience } from '../world/Ambience';
@@ -361,6 +361,8 @@ export class WorldScene extends Phaser.Scene {
   private characterAmbient: AmbientDirector | null = null;
   /** Suelta a quien atiende al jugador: al cerrar el diálogo vuelve a lo suyo. */
   private endTalk: (() => void) | null = null;
+  /** Hay alguien de un local vuelto hacia el jugador mientras su menú está abierto (openOffer). */
+  private offerTalk = false;
   /** Gente del local (data/population.ts), sólo en interiores con perfil y mientras el jugador está dentro. */
   private crowd: Crowd | null = null;
   /** Gente de la calle (data/streets.ts), sólo en exteriores con perfil. */
@@ -849,6 +851,13 @@ export class WorldScene extends Phaser.Scene {
 
     // Tras un salto (dormir, un turno, el metro) el reloj espera a que se lea lo que ha pasado; sin nada abierto, sigue.
     if (clock.isHeld && !dialogue.isOpen && !menu.isOpen && !this.leaving) clock.release();
+    // Cerrado el menú de quien atiende (y sin nada más abierto), vuelve a lo suyo.
+    if (this.offerTalk && !menu.isOpen && !dialogue.isOpen) {
+      this.offerTalk = false;
+      this.endTalk?.();
+      this.endTalk = null;
+      this.talkSprite = null;
+    }
     // Junto a la hora se dice si corre: el mapa, un menú que no es «en vivo» y la lectura tras un salto lo paran; el móvil, no.
     const stopped = map.isOpen || clock.isHeld || clock.isPaused || (menu.isOpen && !menu.isLive && !dialogue.isOpen);
     this.services.hud.setClockMode(stopped ? 'paused' : phone.isOpen ? 'phone' : 'running');
@@ -1731,7 +1740,11 @@ export class WorldScene extends Phaser.Scene {
       const agent = named ? undefined : this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
       sprite.talkingTo = dir;
       if (named) named.heldAt ??= this.absMinute() - named.lag;
-      if (agent) agent.talking = true;
+      if (agent) {
+        agent.talking = true;
+        // Se vuelve ya: con un menú abierto el mundo no se mueve y, sin esto, seguiría de espaldas hasta cerrarlo.
+        for (const view of this.crowdViews) view.sync(this.time.now);
+      }
       this.endTalk = () => {
         sprite.talkingTo = null;
         if (agent) agent.talking = false;
@@ -2493,15 +2506,18 @@ export class WorldScene extends Phaser.Scene {
     const events: Interactable[] = this.streetEvents
       .filter((e) => e.noticedFrom(this.playerTile()))
       .map((e) => ({ kind: 'event', x: e.def.vantage.tx * TILE + TILE / 2, y: e.def.vantage.ty * TILE + TILE / 2, view: e }));
-    // Quien vende o sirve en un local (tiene oferta): delante del jugador, gana al cliente que paga a su lado.
-    const wrap = (item: Interactable): PickCandidate & { item: Interactable } => ({ id: this.idOf(item), kind: item.kind, ...anchor(item), serves: item.kind === 'npc' && !!this.offerOf(item.sprite), item });
+    // Quien atiende un local (personal: vende, da fichas, recibe denuncias): delante del jugador, gana al cliente que paga a su lado.
+    const wrap = (item: Interactable): PickCandidate & { item: Interactable } => ({ id: this.idOf(item), kind: item.kind, ...anchor(item), serves: item.kind === 'npc' && this.attends(item.sprite), item });
     const cands = [...this.interactables, ...this.crowdInteractables(), ...events]
       // Un asiento ocupado no se ofrece; las puertas del tren, sólo con las puertas abiertas; un NPC oculto, no existe.
       .filter((item) => !(item.kind === 'seat' && this.seatTaken(item.seat)) && !(item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) && !(item.kind === 'npc' && !item.sprite.visible))
       .map(wrap);
+    const ahead = tileAhead(this.playerTile(), this.player.facing);
     const best = pickTarget(origin, cands, {
       facing: this.player.facing,
-      ahead: tileAhead(this.playerTile(), this.player.facing),
+      ahead,
+      // Delante, un mostrador (no se pisa): quien atiende al otro lado se alcanza por encima.
+      across: isWalkable(loc, ahead.tx, ahead.ty) ? undefined : tileAhead(ahead, this.player.facing),
       current: this.activeTarget ? wrap(this.activeTarget) : null,
       // Sentado sólo se habla con quien esté cerca.
       allow: (c) => !(this.player.isSeating && c.kind !== 'npc'),
@@ -2602,7 +2618,12 @@ export class WorldScene extends Phaser.Scene {
       const offer = this.offerOf(target.sprite);
       const survivor = this.survivorOf(target.sprite);
       const officer = this.officerOf(target.sprite);
-      if (offer) this.menus.openOffer(offer, target.def.name);
+      if (offer) {
+        // Quien atiende se vuelve hacia el jugador mientras dura su menú (lo suelta el bucle al cerrarse).
+        this.startTalk(target.sprite);
+        this.offerTalk = true;
+        this.menus.openOffer(offer, target.def.name);
+      }
       else if (officer) {
         // Un agente de patrulla: saludo, cómo está la calle ahora y el robo de hoy si lo hay (systems/Police). No charla.
         this.startTalk(target.sprite);
@@ -2723,6 +2744,12 @@ export class WorldScene extends Phaser.Scene {
     if (!(sprite instanceof Character)) return undefined;
     const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
     return agent?.staffRole ? identity(agent.staffRole).offers : undefined;
+  }
+
+  /** Personal de un local (tiene puesto): quien atiende el mostrador, venda algo o no. */
+  private attends(sprite: Phaser.GameObjects.Sprite): boolean {
+    if (!(sprite instanceof Character)) return false;
+    return this.crowdViews.some((v) => !!v.agentOf(sprite)?.staffRole);
   }
 
   /** Un agente de policía de la calle (patrulla o puesto del partido, systems/Police), no personal de un local. */
