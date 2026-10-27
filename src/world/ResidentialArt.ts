@@ -1,5 +1,5 @@
 import { PALETTE, TILE } from '../config/constants';
-import { px, shade, type Ctx } from './paint';
+import { despeckle, materialTone, px, shade, type Ctx } from './paint';
 import { batch, hash, mix } from './Surfaces';
 
 /**
@@ -50,9 +50,49 @@ export interface FacadePlan {
   leaf: string;
   /** Balcón con geranios en cada hueco alto. */
   flowers: boolean;
+  /** Acabado de pixel art clásico (Alpha-03, BuildingDef.art 'clasico'): rampas por material escogidas a mano (MATERIAL_RAMPS) y sin píxeles huérfanos. */
+  classic?: boolean;
+}
+
+export interface RoofOpts {
+  clay: boolean;
+  laundry: boolean;
+  bare?: boolean;
+  classic?: boolean;
 }
 
 const r = (seed: number, a: number, b: number, k: number): number => hash(seed + a * 7919 + k * 104729, b, k);
+
+
+/**
+ * Cómo se aclara u oscurece cada tono mientras se pinta una pieza: `shade` (RGB, el de siempre) o, con el acabado
+ * clásico, la rampa con desplazamiento de tono en escalones. Lo fija `classicly` sólo mientras dura el dibujo.
+ */
+let sh: (hex: string, amount: number) => string = shade;
+
+/** Pinta con el acabado clásico si `on`: rampa en escalones durante el dibujo y, al acabar, la textura sin huérfanos. */
+function classicly(ctx: Ctx, on: boolean | undefined, w: number, h: number, paint: () => void): void {
+  if (!on) {
+    paint();
+    return;
+  }
+  sh = materialTone;
+  try {
+    paint();
+  } finally {
+    sh = shade;
+  }
+  const img = ctx.getImageData(0, 0, w, h);
+  if (despeckle(img.data, w, h) > 0) ctx.putImageData(img, 0, 0);
+}
+
+export function drawResidentialFacade(ctx: Ctx, plan: FacadePlan): void {
+  classicly(ctx, plan.classic, plan.bays.length * TILE, plan.floors * STOREY, () => paintFacade(ctx, plan));
+}
+
+export function drawResidentialRoof(ctx: Ctx, w: number, h: number, base: string, seed: number, opts: RoofOpts = { clay: false, laundry: false }): void {
+  classicly(ctx, opts.classic, w, h, () => paintRoof(ctx, w, h, base, seed, opts));
+}
 
 function ink(ctx: Ctx, alpha: number, x: number, y: number, w: number, h: number): void {
   if (w <= 0 || h <= 0) return;
@@ -75,19 +115,19 @@ function masonry(ctx: Ctx, x0: number, y0: number, w: number, h: number, base: s
       const a = Math.max(x, x0);
       const e = Math.min(x + len, x0 + w);
       if (e > a) {
-        let tone = shade(base, (r(seed, row, k, 3) - 0.5) * 0.07 + (r(seed, row, k, 4) < 0.05 ? -0.05 : 0));
+        let tone = sh(base, (r(seed, row, k, 3) - 0.5) * 0.07 + (r(seed, row, k, 4) < 0.05 ? -0.05 : 0));
         if (r(seed, row, k, 5) < 0.04) tone = mix(tone, '#c9b48e', 0.25); // pieza repuesta, más cálida
         px(ctx, tone, a, y, e - a, ch);
         if (rustic) {
-          px(ctx, shade(tone, 0.1), a, y, e - a, 1);
-          if (a === x) px(ctx, shade(tone, 0.05), a, y + 1, 1, Math.max(0, ch - 3));
-          px(ctx, shade(tone, -0.07), a, y + ch - 2, e - a, 1);
-          px(ctx, shade(base, -0.22), a, y + ch - 1, e - a, 1);
-          if (x + len <= x0 + w) px(ctx, shade(base, -0.2), x + len - 1, y, 1, ch - 1);
+          px(ctx, sh(tone, 0.1), a, y, e - a, 1);
+          if (a === x) px(ctx, sh(tone, 0.05), a, y + 1, 1, Math.max(0, ch - 3));
+          px(ctx, sh(tone, -0.07), a, y + ch - 2, e - a, 1);
+          px(ctx, sh(base, -0.22), a, y + ch - 1, e - a, 1);
+          if (x + len <= x0 + w) px(ctx, sh(base, -0.2), x + len - 1, y, 1, ch - 1);
         } else {
-          px(ctx, shade(tone, 0.05), a, y, e - a, 1);
-          px(ctx, shade(base, -0.15), a, y + ch - 1, e - a, 1);
-          if (x + len <= x0 + w) px(ctx, shade(base, -0.13), x + len - 1, y, 1, ch - 1);
+          px(ctx, sh(tone, 0.05), a, y, e - a, 1);
+          px(ctx, sh(base, -0.15), a, y + ch - 1, e - a, 1);
+          if (x + len <= x0 + w) px(ctx, sh(base, -0.13), x + len - 1, y, 1, ch - 1);
         }
       }
       x += len;
@@ -107,10 +147,10 @@ function streaks(ctx: Ctx, x: number, y: number, w: number, seed: number, maxLen
 }
 
 function frameAndGlass(ctx: Ctx, x: number, y: number, w: number, h: number, on: boolean, lit: string, blind: number): void {
-  const glass = on ? shade(lit, -0.32) : '#2e4650';
+  const glass = on ? sh(lit, -0.32) : '#2e4650';
   px(ctx, glass, x, y, w, h);
   if (on) {
-    px(ctx, shade(lit, -0.14), x + 1, y + 2, w - 2, h - 3);
+    px(ctx, sh(lit, -0.14), x + 1, y + 2, w - 2, h - 3);
     px(ctx, lit, x + 1, y + h - 5, w - 2, 3);
   } else {
     // El cielo en el cristal: dos rayas en diagonal, una más viva.
@@ -128,12 +168,12 @@ function frameAndGlass(ctx: Ctx, x: number, y: number, w: number, h: number, on:
   px(ctx, frame, x, y + h - 1, w, 1);
   px(ctx, frame, x + Math.floor(w / 2) - 1, y, 1, h);
   px(ctx, frame, x, tr, w, 1);
-  px(ctx, shade(frame, -0.24), x + Math.floor(w / 2), y + 1, 1, h - 1);
+  px(ctx, sh(frame, -0.24), x + Math.floor(w / 2), y + 1, 1, h - 1);
   if (blind > 0) {
     const slat = '#cdbb9c';
     px(ctx, slat, x, y, w, blind);
-    for (let yy = y + 1; yy < y + blind; yy += 2) px(ctx, shade(slat, -0.16), x, yy, w, 1);
-    px(ctx, shade(slat, -0.32), x, y + blind, w, 1);
+    for (let yy = y + 1; yy < y + blind; yy += 2) px(ctx, sh(slat, -0.16), x, yy, w, 1);
+    px(ctx, sh(slat, -0.32), x, y + blind, w, 1);
   }
   // El dintel y la jamba izquierda tapan el sol; la jamba derecha recibe luz en su canto.
   ink(ctx, 0.46, x, y, w, 2);
@@ -144,23 +184,23 @@ function frameAndGlass(ctx: Ctx, x: number, y: number, w: number, h: number, on:
 /** Recercado con jambas, dintel volado (y clave en las plantas altas). */
 function surround(ctx: Ctx, trim: string, x: number, y: number, w: number, h: number, keystone: boolean): void {
   px(ctx, trim, x - 2, y - 1, w + 4, h + 1);
-  px(ctx, shade(trim, 0.09), x - 2, y - 1, 1, h + 1);
-  px(ctx, shade(trim, -0.17), x + w + 1, y - 1, 1, h + 1);
-  px(ctx, shade(trim, 0.04), x - 3, y - 4, w + 6, 3);
-  px(ctx, shade(trim, 0.17), x - 3, y - 4, w + 6, 1);
-  px(ctx, shade(trim, -0.22), x - 3, y - 2, w + 6, 1);
+  px(ctx, sh(trim, 0.09), x - 2, y - 1, 1, h + 1);
+  px(ctx, sh(trim, -0.17), x + w + 1, y - 1, 1, h + 1);
+  px(ctx, sh(trim, 0.04), x - 3, y - 4, w + 6, 3);
+  px(ctx, sh(trim, 0.17), x - 3, y - 4, w + 6, 1);
+  px(ctx, sh(trim, -0.22), x - 3, y - 2, w + 6, 1);
   ink(ctx, 0.24, x - 2, y - 1, w + 5, 1);
   if (keystone) {
-    px(ctx, shade(trim, 0.2), x + Math.floor(w / 2) - 1, y - 4, 2, 3);
-    px(ctx, shade(trim, -0.12), x + Math.floor(w / 2), y - 3, 1, 2);
+    px(ctx, sh(trim, 0.2), x + Math.floor(w / 2) - 1, y - 4, 2, 3);
+    px(ctx, sh(trim, -0.12), x + Math.floor(w / 2), y - 3, 1, 2);
   }
   // Canto interior de la jamba derecha, de cara al oeste: luz.
-  px(ctx, shade(trim, 0.15), x + w, y + 1, 1, h - 1);
+  px(ctx, sh(trim, 0.15), x + w, y + 1, 1, h - 1);
 }
 
 function sill(ctx: Ctx, trim: string, x: number, y: number, w: number): void {
-  px(ctx, shade(trim, 0.2), x - 3, y, w + 6, 1);
-  px(ctx, shade(trim, -0.08), x - 3, y + 1, w + 6, 1);
+  px(ctx, sh(trim, 0.2), x - 3, y, w + 6, 1);
+  px(ctx, sh(trim, -0.08), x - 3, y + 1, w + 6, 1);
   ink(ctx, 0.36, x - 2, y + 2, w + 5, 1);
   ink(ctx, 0.15, x - 1, y + 3, w + 4, 1);
 }
@@ -170,15 +210,15 @@ function balconette(ctx: Ctx, trim: string, x: number, y: number, w: number): vo
   const iron = PALETTE.iron;
   ink(ctx, 0.3, x - 2, y - 5, w + 5, 1);
   for (let bx = x - 2; bx < x + w + 3; bx += 2) ink(ctx, 0.26, bx + 1, y - 4, 1, 4);
-  px(ctx, shade(iron, 0.42), x - 3, y - 7, w + 6, 1);
+  px(ctx, sh(iron, 0.42), x - 3, y - 7, w + 6, 1);
   px(ctx, iron, x - 3, y - 6, w + 6, 1);
   for (let bx = x - 3; bx < x + w + 3; bx += 2) px(ctx, iron, bx, y - 5, 1, 5);
   // Volutas en las esquinas: un píxel curvado a cada lado.
   px(ctx, iron, x - 2, y - 4, 1, 1);
   px(ctx, iron, x + w + 1, y - 4, 1, 1);
-  px(ctx, shade(trim, 0.18), x - 4, y, w + 8, 1);
+  px(ctx, sh(trim, 0.18), x - 4, y, w + 8, 1);
   px(ctx, trim, x - 4, y + 1, w + 8, 1);
-  px(ctx, shade(trim, -0.24), x - 4, y + 2, w + 8, 1);
+  px(ctx, sh(trim, -0.24), x - 4, y + 2, w + 8, 1);
   ink(ctx, 0.42, x - 3, y + 3, w + 7, 1);
   ink(ctx, 0.18, x - 2, y + 4, w + 5, 1);
 }
@@ -193,7 +233,7 @@ function grille(ctx: Ctx, x: number, y: number, w: number, h: number): void {
   for (const bx of bars) px(ctx, iron, bx, y - 1, 1, h + 1);
   px(ctx, iron, x - 2, y + 2, w + 4, 1);
   px(ctx, iron, x - 2, y + h - 3, w + 4, 1);
-  px(ctx, shade(iron, 0.35), x - 2, y + 2, w + 4, 1);
+  px(ctx, sh(iron, 0.35), x - 2, y + 2, w + 4, 1);
 }
 
 function door(ctx: Ctx, trim: string, x: number, top: number, number: number, leaf: string): void {
@@ -202,33 +242,33 @@ function door(ctx: Ctx, trim: string, x: number, top: number, number: number, le
   ink(ctx, 0.22, x + TILE, top + 3, 1, STOREY - 5);
   // Recercado y dintel con su placa.
   px(ctx, trim, x, top + 2, TILE, STOREY - 4);
-  px(ctx, shade(trim, 0.1), x, top + 2, 1, STOREY - 4);
-  px(ctx, shade(trim, -0.18), x + TILE - 1, top + 2, 1, STOREY - 4);
-  px(ctx, shade(trim, 0.05), x, top + 1, TILE, 4);
-  px(ctx, shade(trim, 0.18), x, top + 1, TILE, 1);
-  px(ctx, shade(trim, -0.22), x, top + 4, TILE, 1);
+  px(ctx, sh(trim, 0.1), x, top + 2, 1, STOREY - 4);
+  px(ctx, sh(trim, -0.18), x + TILE - 1, top + 2, 1, STOREY - 4);
+  px(ctx, sh(trim, 0.05), x, top + 1, TILE, 4);
+  px(ctx, sh(trim, 0.18), x, top + 1, TILE, 1);
+  px(ctx, sh(trim, -0.22), x, top + 4, TILE, 1);
   px(ctx, '#2c3d55', x + 6, top + 2, 4, 2);
   // El número del portal, en blanco: un trazo de 1 × 2 por dígito.
   const digits = String(number).slice(0, 2).length;
   for (let i = 0; i < digits; i++) px(ctx, '#e9e3d6', x + 7 + i * 2 - (digits - 1), top + 2, 1, 2);
   // Hueco, montante con su reja y hojas de cuarterones.
   px(ctx, PALETTE.woodDark, x + 2, top + 5, TILE - 4, STOREY - 8);
-  px(ctx, shade(PALETTE.amber, -0.32), x + 3, top + 5, TILE - 6, 4);
+  px(ctx, sh(PALETTE.amber, -0.32), x + 3, top + 5, TILE - 6, 4);
   px(ctx, PALETTE.amber, x + 3, top + 7, TILE - 6, 2);
   for (const bx of [x + 5, x + 8, x + 10]) px(ctx, PALETTE.woodDark, bx, top + 5, 1, 4);
   px(ctx, PALETTE.woodDark, x + 3, top + 7, TILE - 6, 1);
   px(ctx, leaf, x + 3, top + 10, TILE - 6, STOREY - 14);
-  px(ctx, shade(leaf, 0.1), x + 3, top + 10, TILE - 6, 1);
+  px(ctx, sh(leaf, 0.1), x + 3, top + 10, TILE - 6, 1);
   for (const py of [top + 12, top + 20]) {
     for (const lx of [x + 4, x + 9]) {
-      px(ctx, shade(leaf, -0.05), lx, py, 3, 6);
-      px(ctx, shade(leaf, 0.17), lx, py, 3, 1);
-      px(ctx, shade(leaf, 0.09), lx, py, 1, 6);
-      px(ctx, shade(leaf, -0.25), lx, py + 5, 3, 1);
-      px(ctx, shade(leaf, -0.18), lx + 2, py + 1, 1, 5);
+      px(ctx, sh(leaf, -0.05), lx, py, 3, 6);
+      px(ctx, sh(leaf, 0.17), lx, py, 3, 1);
+      px(ctx, sh(leaf, 0.09), lx, py, 1, 6);
+      px(ctx, sh(leaf, -0.25), lx, py + 5, 3, 1);
+      px(ctx, sh(leaf, -0.18), lx + 2, py + 1, 1, 5);
     }
   }
-  px(ctx, shade(leaf, -0.32), x + 8, top + 10, 1, STOREY - 14);
+  px(ctx, sh(leaf, -0.32), x + 8, top + 10, 1, STOREY - 14);
   px(ctx, '#c9a45a', x + 7, top + 18, 1, 2);
   px(ctx, '#c9a45a', x + 9, top + 18, 1, 2);
   px(ctx, '#f0d896', x + 9, top + 18, 1, 1);
@@ -237,13 +277,13 @@ function door(ctx: Ctx, trim: string, x: number, top: number, number: number, le
   ink(ctx, 0.25, x + 2, top + 6, TILE - 4, 1);
   ink(ctx, 0.32, x + 2, top + 6, 1, STOREY - 10);
   // Escalón de piedra, y delante la acera: se entra caminando.
-  px(ctx, shade(PALETTE.stoneLit, 0.06), x + 1, H - 4, TILE - 2, 1);
-  px(ctx, shade(PALETTE.stone, -0.1), x + 1, H - 3, TILE - 2, 1);
+  px(ctx, sh(PALETTE.stoneLit, 0.06), x + 1, H - 4, TILE - 2, 1);
+  px(ctx, sh(PALETTE.stone, -0.1), x + 1, H - 3, TILE - 2, 1);
   ink(ctx, 0.3, x + 1, H - 2, TILE - 1, 1);
   px(ctx, PALETTE.pavement, x, H - 1, TILE, 1);
 }
 
-export function drawResidentialFacade(ctx: Ctx, plan: FacadePlan): void {
+function paintFacade(ctx: Ctx, plan: FacadePlan): void {
   const { bays, floors, seed } = plan;
   const W = bays.length * TILE;
   const H = floors * STOREY;
@@ -251,10 +291,10 @@ export function drawResidentialFacade(ctx: Ctx, plan: FacadePlan): void {
   const stucco = plan.mat === 'stucco';
   // Ladrillo: el bajo, el recercado y las esquinas, de piedra; el ladrillo, sólo en las plantas altas.
   const brick = plan.mat === 'brick';
-  const lime = shade(mix(plan.wall, '#cfc6b2', 0.4), 0.03);
-  const rustic = brick ? shade(mix(PALETTE.stone, plan.wall, 0.15), 0.02) : shade(mix(plan.wall, '#9c998f', 0.25), 0.01);
+  const lime = sh(mix(plan.wall, '#cfc6b2', 0.4), 0.03);
+  const rustic = brick ? sh(mix(PALETTE.stone, plan.wall, 0.15), 0.02) : sh(mix(plan.wall, '#9c998f', 0.25), 0.01);
   const granite = mix(brick ? PALETTE.stone : plan.wall, '#6c7079', 0.55);
-  const trim = brick ? shade(PALETTE.stoneLit, 0.06) : shade(mix(plan.wall, '#ddd6c6', 0.65), 0.04);
+  const trim = brick ? sh(PALETTE.stoneLit, 0.06) : sh(mix(plan.wall, '#ddd6c6', 0.65), 0.04);
 
   // Muro: sillería caliza (o revoco de cal) arriba, almohadillado en el bajo, zócalo de granito. Primero el
   // fondo entero: ninguna fila de la fachada puede quedar transparente (dejaría ver el suelo bajo la sombra).
@@ -262,12 +302,12 @@ export function drawResidentialFacade(ctx: Ctx, plan: FacadePlan): void {
   px(ctx, rustic, 0, g0, W, STOREY);
   if (stucco) {
     limeWash(ctx, 0, 0, W, g0, plan.wall, seed);
-    limeWash(ctx, 0, g0, W, STOREY, shade(plan.wall, -0.03), seed + 1);
+    limeWash(ctx, 0, g0, W, STOREY, sh(plan.wall, -0.03), seed + 1);
     // Bajo de revoco almohadillado: llagas corridas, hondas, con su canto de luz debajo.
     for (let y = g0 + 8; y < H - 8; y += 5) {
-      px(ctx, shade(plan.wall, -0.2), 0, y, W, 1);
+      px(ctx, sh(plan.wall, -0.2), 0, y, W, 1);
       ink(ctx, 0.08, 0, y + 1, W, 1);
-      px(ctx, shade(plan.wall, 0.05), 0, y + 2, W, 1);
+      px(ctx, sh(plan.wall, 0.05), 0, y + 2, W, 1);
     }
   } else {
     if (g0 > 0 && brick) brickBond(ctx, W, g0, plan.wall, seed);
@@ -275,30 +315,30 @@ export function drawResidentialFacade(ctx: Ctx, plan: FacadePlan): void {
     masonry(ctx, 0, g0 + 4, W, STOREY - 10, rustic, seed + 1, 5, 10, 16, true);
   }
   masonry(ctx, 0, H - 6, W, 6, granite, seed + 2, 6, 12, 22, true);
-  px(ctx, shade(granite, 0.22), 0, H - 6, W, 1);
-  px(ctx, shade(granite, 0.1), 0, H - 5, W, 1);
+  px(ctx, sh(granite, 0.22), 0, H - 6, W, 1);
+  px(ctx, sh(granite, 0.1), 0, H - 5, W, 1);
   // La humedad sube por el pie del bajo, por encima del zócalo, a manchas.
   for (let x = 0; x < W; x++) {
     const up = 3 + Math.floor(batch(x, 0, 9, seed + 3) * 7);
     ink(ctx, 0.07, x, H - 6 - up, 1, up);
   }
   // Esquinas de sillares a soga y tizón: el borde del edificio se lee como volumen, no como recorte.
-  const quoin = brick ? trim : stucco ? shade(mix(plan.wall, '#d8d2c4', 0.7), 0.02) : shade(lime, 0.06);
+  const quoin = brick ? trim : stucco ? sh(mix(plan.wall, '#d8d2c4', 0.7), 0.02) : sh(lime, 0.06);
   quoins(ctx, 0, 0, H - 6, quoin, seed, false);
   quoins(ctx, W - 7, 0, H - 6, quoin, seed, true);
   // Imposta de piedra entre el bajo y la planta alta: vuela 4 px y deja su sombra en el muro.
-  px(ctx, shade(trim, 0.2), 0, g0 - 1, W, 1);
-  px(ctx, shade(trim, 0.06), 0, g0, W, 1);
+  px(ctx, sh(trim, 0.2), 0, g0 - 1, W, 1);
+  px(ctx, sh(trim, 0.06), 0, g0, W, 1);
   px(ctx, trim, 0, g0 + 1, W, 1);
-  px(ctx, shade(trim, -0.26), 0, g0 + 2, W, 1);
+  px(ctx, sh(trim, -0.26), 0, g0 + 2, W, 1);
   ink(ctx, 0.36, 0, g0 + 3, W, 1);
   ink(ctx, 0.18, 0, g0 + 4, W, 1);
   ink(ctx, 0.07, 0, g0 + 5, W, 1);
   // Entre plantas altas, una imposta más fina.
   for (let f = 2; f < floors; f++) {
     const y = (floors - f) * STOREY;
-    px(ctx, shade(trim, 0.14), 0, y, W, 1);
-    px(ctx, shade(trim, -0.2), 0, y + 1, W, 1);
+    px(ctx, sh(trim, 0.14), 0, y, W, 1);
+    px(ctx, sh(trim, -0.2), 0, y + 1, W, 1);
     ink(ctx, 0.28, 0, y + 2, W, 1);
     ink(ctx, 0.1, 0, y + 3, W, 1);
   }
@@ -352,8 +392,8 @@ function limeWash(ctx: Ctx, x0: number, y0: number, w: number, h: number, base: 
   for (let y = y0; y < y0 + h; y++) {
     for (let x = x0; x < x0 + w; x++) {
       const b = batch(x, y, 13, seed);
-      if (b > 0.7) px(ctx, shade(base, 0.03), x, y);
-      else if (b < 0.22) px(ctx, shade(base, -0.035), x, y);
+      if (b > 0.7) px(ctx, sh(base, 0.03), x, y);
+      else if (b < 0.22) px(ctx, sh(base, -0.035), x, y);
     }
   }
 }
@@ -364,12 +404,12 @@ function quoins(ctx: Ctx, x: number, top: number, bottom: number, stone: string,
     const len = k % 2 ? 7 : 4;
     const qx = right ? x + 7 - len : x;
     const ch = Math.min(6, bottom - y);
-    const t = shade(stone, (r(seed, k, right ? 1 : 0, 140) - 0.5) * 0.06);
+    const t = sh(stone, (r(seed, k, right ? 1 : 0, 140) - 0.5) * 0.06);
     px(ctx, t, qx, y, len, ch);
-    px(ctx, shade(t, 0.13), qx, y, len, 1);
-    px(ctx, shade(t, 0.06), qx, y + 1, 1, ch - 2);
-    px(ctx, shade(t, -0.16), qx + len - 1, y + 1, 1, ch - 2);
-    px(ctx, shade(stone, -0.3), qx, y + ch - 1, len, 1);
+    px(ctx, sh(t, 0.13), qx, y, len, 1);
+    px(ctx, sh(t, 0.06), qx, y + 1, 1, ch - 2);
+    px(ctx, sh(t, -0.16), qx + len - 1, y + 1, 1, ch - 2);
+    px(ctx, sh(stone, -0.3), qx, y + ch - 1, len, 1);
     if (!right) ink(ctx, 0.2, qx + len, y + 1, 1, ch - 1);
     else ink(ctx, 0.1, qx - 1, y + 1, 1, ch - 1);
   }
@@ -381,11 +421,11 @@ function shutters(ctx: Ctx, color: string, x: number, y: number, w: number, h: n
     ink(ctx, 0.3, sx + 3, y, 1, h + 1);
     ink(ctx, 0.14, sx + 1, y + h, 3, 1);
     px(ctx, color, sx, y - 1, 3, h + 1);
-    for (let yy = y + 1; yy < y + h - 1; yy += 2) px(ctx, shade(color, -0.22), sx, yy, 3, 1);
-    px(ctx, shade(color, 0.22), sx, y - 1, 3, 1);
-    px(ctx, shade(color, 0.12), sx, y - 1, 1, h + 1);
-    px(ctx, shade(color, -0.34), sx + 2, y, 1, h);
-    px(ctx, shade(color, -0.3), sx, y + h - 1, 3, 1);
+    for (let yy = y + 1; yy < y + h - 1; yy += 2) px(ctx, sh(color, -0.22), sx, yy, 3, 1);
+    px(ctx, sh(color, 0.22), sx, y - 1, 3, 1);
+    px(ctx, sh(color, 0.12), sx, y - 1, 1, h + 1);
+    px(ctx, sh(color, -0.34), sx + 2, y, 1, h);
+    px(ctx, sh(color, -0.3), sx, y + h - 1, 3, 1);
   }
 }
 
@@ -394,8 +434,8 @@ function geraniums(ctx: Ctx, x: number, y: number, w: number, seed: number): voi
   const pot = '#a8553a';
   for (const mx of [x - 2, x + w - 3]) {
     px(ctx, pot, mx, y - 4, 5, 4);
-    px(ctx, shade(pot, 0.16), mx, y - 4, 5, 1);
-    px(ctx, shade(pot, -0.24), mx + 4, y - 3, 1, 3);
+    px(ctx, sh(pot, 0.16), mx, y - 4, 5, 1);
+    px(ctx, sh(pot, -0.24), mx + 4, y - 3, 1, 3);
     px(ctx, '#2e4d25', mx - 1, y - 8, 7, 4);
     px(ctx, '#4f7a38', mx, y - 9, 5, 3);
     px(ctx, '#7fa94f', mx, y - 9, 2, 1);
@@ -417,15 +457,15 @@ function downpipe(ctx: Ctx, x: number, top: number, cast: number, bottom: number
   ink(ctx, 0.12, x + 4, top + 3, 1, bottom - top - 4);
   for (const [c, y0, y1] of [[zinc, top, cast], [iron, cast, bottom]] as const) {
     px(ctx, c, x, y0, 3, y1 - y0);
-    px(ctx, shade(c, 0.28), x, y0, 1, y1 - y0);
-    px(ctx, shade(c, -0.32), x + 2, y0, 1, y1 - y0);
+    px(ctx, sh(c, 0.28), x, y0, 1, y1 - y0);
+    px(ctx, sh(c, -0.32), x + 2, y0, 1, y1 - y0);
   }
   for (let y = top + 8; y < bottom - 4; y += 13) {
-    px(ctx, shade(iron, 0.2), x - 1, y, 5, 1);
+    px(ctx, sh(iron, 0.2), x - 1, y, 5, 1);
     px(ctx, iron, x - 1, y + 1, 5, 1);
   }
-  px(ctx, shade(iron, 0.3), x - 1, cast - 1, 5, 1);
-  px(ctx, shade(iron, -0.2), x - 1, cast, 5, 1);
+  px(ctx, sh(iron, 0.3), x - 1, cast - 1, 5, 1);
+  px(ctx, sh(iron, -0.2), x - 1, cast, 5, 1);
 }
 
 /** Aparato de aire acondicionado colgado del muro: caja, rejilla del ventilador, escuadras y su churrete. */
@@ -450,29 +490,29 @@ function acUnit(ctx: Ctx, x: number, y: number): void {
  * de suciedad, musgo en el rincón húmedo y los aparatos (condensadora, chimenea
  * de ventilación, trampilla y antena) con su sombra al sureste.
  */
-export function drawResidentialRoof(ctx: Ctx, w: number, h: number, base: string, seed: number, opts: { clay: boolean; laundry: boolean; bare?: boolean } = { clay: false, laundry: false }): void {
-  const stone = shade(PALETTE.stoneLit, 0.02);
+function paintRoof(ctx: Ctx, w: number, h: number, base: string, seed: number, opts: RoofOpts): void {
+  const stone = sh(PALETTE.stoneLit, 0.02);
   if (opts.clay) clayTiles(ctx, w, h, mix(base, '#b8704f', 0.62), seed);
   // Baldosa.
   else for (let y = 0, row = 0; y < h; y += 16, row++) {
     for (let x = row % 2 ? -8 : 0, k = 0; x < w; x += 16, k++) {
-      const t = shade(base, 0.05 + batch(x, y, 48, seed) * 0.05 + (r(seed, row, k, 70) - 0.5) * 0.04);
+      const t = sh(base, 0.05 + batch(x, y, 48, seed) * 0.05 + (r(seed, row, k, 70) - 0.5) * 0.04);
       const x0 = Math.max(0, x);
       const pw = Math.min(w, x + 16) - x0;
       const ph = Math.min(h, y + 16) - y;
-      px(ctx, shade(t, -0.15), x0, y, pw, ph);
+      px(ctx, sh(t, -0.15), x0, y, pw, ph);
       px(ctx, t, x0, y, pw - (x + 16 <= w ? 1 : 0), ph - 1);
-      px(ctx, shade(t, 0.04), x0, y, pw - 1, 1);
-      if (x >= 0) px(ctx, shade(t, 0.025), x0, y + 1, 1, ph - 2);
-      for (let g = 0; g < 3; g++) px(ctx, shade(t, g ? -0.05 : 0.04), x0 + 1 + Math.floor(r(seed, row, k, 80 + g) * (pw - 2)), y + 1 + Math.floor(r(seed, row, k, 90 + g) * 13));
+      px(ctx, sh(t, 0.04), x0, y, pw - 1, 1);
+      if (x >= 0) px(ctx, sh(t, 0.025), x0, y + 1, 1, ph - 2);
+      for (let g = 0; g < 3; g++) px(ctx, sh(t, g ? -0.05 : 0.04), x0 + 1 + Math.floor(r(seed, row, k, 80 + g) * (pw - 2)), y + 1 + Math.floor(r(seed, row, k, 90 + g) * 13));
     }
   }
   // Suciedad contenida: manchas amplias y tenues donde se queda el agua.
   for (let y = 5; y < h - 6; y++) for (let x = 5; x < w - 5; x++) if (batch(x, y, 17, seed + 5) > 0.66) ink(ctx, 0.05, x, y, 1, 1);
   // Junta de dilatación: sellado oscuro con su canto.
   const xj = Math.floor(w * 0.48 + r(seed, 1, 1, 100) * 12);
-  px(ctx, shade(base, -0.15), xj, 5, 1, h - 11);
-  px(ctx, shade(base, 0.06), xj + 1, 5, 1, h - 11);
+  px(ctx, sh(base, -0.15), xj, 5, 1, h - 11);
+  px(ctx, sh(base, 0.06), xj + 1, 5, 1, h - 11);
 
   // Sumideros con su cerco de suciedad y el reguero que llega a ellos.
   for (const [dx, dy] of [[w - 13, 9], [9, h - 16]] as const) {
@@ -483,8 +523,8 @@ export function drawResidentialRoof(ctx: Ctx, w: number, h: number, base: string
     px(ctx, PALETTE.metalLit, dx, dy, 6, 1);
     px(ctx, PALETTE.metalLit, dx, dy, 1, 6);
     px(ctx, '#2a2c31', dx + 1, dy + 1, 4, 4);
-    px(ctx, shade(PALETTE.metal, -0.08), dx + 1, dy + 3, 4, 1);
-    px(ctx, shade(PALETTE.metal, -0.08), dx + 3, dy + 1, 1, 4);
+    px(ctx, sh(PALETTE.metal, -0.08), dx + 1, dy + 3, 4, 1);
+    px(ctx, sh(PALETTE.metal, -0.08), dx + 3, dy + 1, 1, 4);
   }
 
   // Sin «bare», los aparatos; con él, sólo la base (las cubiertas de oficina, gimnasio o súper ponen los suyos).
@@ -545,18 +585,18 @@ export function drawResidentialRoof(ctx: Ctx, w: number, h: number, base: string
 
   // Pretil al norte, al oeste y al este: albardilla con juntas irregulares.
   px(ctx, stone, 0, 0, w, 4);
-  px(ctx, shade(stone, 0.1), 0, 0, w, 1);
-  px(ctx, shade(stone, -0.12), 4, 3, w - 8, 1);
+  px(ctx, sh(stone, 0.1), 0, 0, w, 1);
+  px(ctx, sh(stone, -0.12), 4, 3, w - 8, 1);
   px(ctx, stone, 0, 0, 4, h - 6);
-  px(ctx, shade(stone, 0.08), 0, 0, 1, h - 6);
-  px(ctx, shade(stone, -0.12), 3, 4, 1, h - 10);
-  px(ctx, shade(stone, -0.09), w - 4, 0, 4, h - 6);
-  px(ctx, shade(stone, -0.24), w - 1, 0, 1, h - 6);
-  px(ctx, shade(stone, 0.12), w - 4, 4, 1, h - 10);
-  for (let x = 6 + Math.floor(r(seed, 3, 3, 120) * 8); x < w - 4; x += 12 + Math.floor(r(seed, x, 0, 121) * 9)) px(ctx, shade(stone, -0.17), x, 0, 1, 3);
+  px(ctx, sh(stone, 0.08), 0, 0, 1, h - 6);
+  px(ctx, sh(stone, -0.12), 3, 4, 1, h - 10);
+  px(ctx, sh(stone, -0.09), w - 4, 0, 4, h - 6);
+  px(ctx, sh(stone, -0.24), w - 1, 0, 1, h - 6);
+  px(ctx, sh(stone, 0.12), w - 4, 4, 1, h - 10);
+  for (let x = 6 + Math.floor(r(seed, 3, 3, 120) * 8); x < w - 4; x += 12 + Math.floor(r(seed, x, 0, 121) * 9)) px(ctx, sh(stone, -0.17), x, 0, 1, 3);
   for (let y = 7 + Math.floor(r(seed, 4, 4, 122) * 8); y < h - 8; y += 12 + Math.floor(r(seed, 0, y, 123) * 9)) {
-    px(ctx, shade(stone, -0.17), 0, y, 3, 1);
-    px(ctx, shade(stone, -0.24), w - 4, y, 4, 1);
+    px(ctx, sh(stone, -0.17), 0, y, 3, 1);
+    px(ctx, sh(stone, -0.24), w - 4, y, 4, 1);
   }
   // Sombra de los pretiles del norte y del oeste hacia dentro; la base del del este, en penumbra.
   [0.4, 0.3, 0.22, 0.14, 0.08, 0.04].forEach((a, d) => {
@@ -574,16 +614,16 @@ export function drawResidentialRoof(ctx: Ctx, w: number, h: number, base: string
     }
   }
   // Cornisa sobre la fachada: albardilla al sol, frente, dentículos y vuelo en sombra.
-  px(ctx, shade(stone, 0.12), 0, h - 7, w, 1);
-  px(ctx, shade(stone, 0.16), 0, h - 6, w, 1);
+  px(ctx, sh(stone, 0.12), 0, h - 7, w, 1);
+  px(ctx, sh(stone, 0.16), 0, h - 6, w, 1);
   px(ctx, stone, 0, h - 5, w, 1);
   for (let x = 0; x < w; x += 3) {
-    px(ctx, shade(stone, -0.2), x, h - 4, 2, 1);
-    px(ctx, shade(stone, 0.06), x + 2, h - 4, 1, 1);
+    px(ctx, sh(stone, -0.2), x, h - 4, 2, 1);
+    px(ctx, sh(stone, 0.06), x + 2, h - 4, 1, 1);
   }
-  px(ctx, shade(stone, -0.08), 0, h - 3, w, 1);
-  px(ctx, shade(stone, -0.24), 0, h - 2, w, 1);
-  px(ctx, shade(stone, -0.4), 0, h - 1, w, 1);
+  px(ctx, sh(stone, -0.08), 0, h - 3, w, 1);
+  px(ctx, sh(stone, -0.24), 0, h - 2, w, 1);
+  px(ctx, sh(stone, -0.4), 0, h - 1, w, 1);
 }
 
 /**
@@ -597,16 +637,16 @@ function clayTiles(ctx: Ctx, w: number, h: number, clay: string, seed: number): 
   for (let y = 0, row = 0; y < h; y += 8, row++) {
     for (let x = 0, k = 0; x < w; x += 8, k++) {
       const v = r(seed, row, k, 160);
-      let t = shade(clay, (v - 0.5) * 0.1 + (batch(x, y, 40, seed + 9) - 0.5) * 0.12);
-      if (v < 0.06) t = shade(t, -0.1);
+      let t = sh(clay, (v - 0.5) * 0.1 + (batch(x, y, 40, seed + 9) - 0.5) * 0.12);
+      if (v < 0.06) t = sh(t, -0.1);
       else if (v > 0.95) t = mix(t, '#d9b48e', 0.3);
       const x0 = Math.max(0, x);
       const pw = Math.min(w, x + 7) - x0;
       if (pw <= 0) continue;
       px(ctx, t, x0, y, pw, 7);
-      px(ctx, shade(t, 0.08), x0, y, pw, 1);
-      if (x >= 0) px(ctx, shade(t, 0.04), x0, y + 1, 1, 5);
-      px(ctx, shade(t, -0.09), x0, y + 6, pw, 1);
+      px(ctx, sh(t, 0.08), x0, y, pw, 1);
+      if (x >= 0) px(ctx, sh(t, 0.04), x0, y + 1, 1, 5);
+      px(ctx, sh(t, -0.09), x0, y + 6, pw, 1);
     }
   }
 }
@@ -624,35 +664,35 @@ function housing(ctx: Ctx, x: number, y: number, cw: number, top: number, wall: 
   ink(ctx, 0.14, x + cw + 6, y + 6, 2, top + wall + 2);
   ink(ctx, 0.14, x + 6, bottom + 5, cw + 2, 2);
   // Losa: el techo del casetón, más claro que la azotea, con su albardilla.
-  const slab = shade(mix(base, PALETTE.stoneLit, 0.55), 0.06);
+  const slab = sh(mix(base, PALETTE.stoneLit, 0.55), 0.06);
   px(ctx, slab, x, y, cw, top);
-  for (let yy = y + 2; yy < y + top - 1; yy++) for (let xx = x + 2; xx < x + cw - 2; xx++) if (batch(xx, yy, 7, seed + 21) > 0.72) px(ctx, shade(slab, -0.03), xx, yy);
-  px(ctx, shade(slab, 0.16), x, y, cw, 2);
-  px(ctx, shade(slab, 0.1), x, y, 2, top);
-  px(ctx, shade(slab, -0.14), x + cw - 2, y, 2, top);
+  for (let yy = y + 2; yy < y + top - 1; yy++) for (let xx = x + 2; xx < x + cw - 2; xx++) if (batch(xx, yy, 7, seed + 21) > 0.72) px(ctx, sh(slab, -0.03), xx, yy);
+  px(ctx, sh(slab, 0.16), x, y, cw, 2);
+  px(ctx, sh(slab, 0.1), x, y, 2, top);
+  px(ctx, sh(slab, -0.14), x + cw - 2, y, 2, top);
   ink(ctx, 0.18, x + 2, y + 2, cw - 4, 1);
   ink(ctx, 0.12, x + 2, y + 2, 1, top - 3);
   // Canto de la losa sobre el muro.
-  px(ctx, shade(slab, 0.04), x - 1, y + top - 1, cw + 2, 1);
-  px(ctx, shade(slab, -0.2), x - 1, y + top, cw + 2, 1);
+  px(ctx, sh(slab, 0.04), x - 1, y + top - 1, cw + 2, 1);
+  px(ctx, sh(slab, -0.2), x - 1, y + top, cw + 2, 1);
   // Muro al sur: revoco, con la sombra del canto arriba.
-  const face = shade(mix(base, '#d8d0c0', 0.6), -0.04);
+  const face = sh(mix(base, '#d8d0c0', 0.6), -0.04);
   px(ctx, face, x, y + top + 1, cw, wall - 1);
   ink(ctx, 0.3, x, y + top + 1, cw, 1);
   ink(ctx, 0.12, x, y + top + 2, cw, 1);
-  px(ctx, shade(face, -0.16), x + cw - 1, y + top + 1, 1, wall - 1);
+  px(ctx, sh(face, -0.16), x + cw - 1, y + top + 1, 1, wall - 1);
   // Puerta de chapa con su marco, y la rejilla de ventilación.
   const dx = x + 8;
   const steel = '#5f6f6a';
-  px(ctx, shade(steel, -0.3), dx - 1, y + top + 2, 9, wall - 2);
+  px(ctx, sh(steel, -0.3), dx - 1, y + top + 2, 9, wall - 2);
   px(ctx, steel, dx, y + top + 3, 7, wall - 3);
-  px(ctx, shade(steel, 0.2), dx, y + top + 3, 7, 1);
-  px(ctx, shade(steel, 0.1), dx, y + top + 3, 1, wall - 3);
+  px(ctx, sh(steel, 0.2), dx, y + top + 3, 7, 1);
+  px(ctx, sh(steel, 0.1), dx, y + top + 3, 1, wall - 3);
   px(ctx, '#c9c2b0', dx + 5, y + top + 7, 1, 1);
   for (let k = 0; k < 3; k++) px(ctx, '#3e4246', x + cw - 12, y + top + 4 + k * 2, 6, 1);
-  px(ctx, shade(face, 0.08), x + cw - 12, y + top + 3, 6, 1);
+  px(ctx, sh(face, 0.08), x + cw - 12, y + top + 3, 6, 1);
   // El pie contra la azotea.
-  px(ctx, shade(face, -0.24), x, bottom - 1, cw, 1);
+  px(ctx, sh(face, -0.24), x, bottom - 1, cw, 1);
 }
 
 /** Depósito de agua de fibra: tapa elíptica al sol, cuerpo cilíndrico de cuatro tonos y su sombra. */
@@ -661,16 +701,16 @@ function tank(ctx: Ctx, x: number, y: number): void {
   ink(ctx, 0.28, x + 12, y + 3, 3, 9);
   const body = '#c9cbc6';
   px(ctx, body, x, y + 3, 12, 9);
-  px(ctx, shade(body, 0.12), x + 1, y + 3, 2, 9);
-  px(ctx, shade(body, -0.12), x + 8, y + 3, 2, 9);
-  px(ctx, shade(body, -0.26), x + 10, y + 3, 2, 9);
-  px(ctx, shade(body, -0.06), x, y + 7, 12, 1);
-  px(ctx, shade(body, -0.3), x + 1, y + 11, 10, 1);
+  px(ctx, sh(body, 0.12), x + 1, y + 3, 2, 9);
+  px(ctx, sh(body, -0.12), x + 8, y + 3, 2, 9);
+  px(ctx, sh(body, -0.26), x + 10, y + 3, 2, 9);
+  px(ctx, sh(body, -0.06), x, y + 7, 12, 1);
+  px(ctx, sh(body, -0.3), x + 1, y + 11, 10, 1);
   const lid = '#e4e5e0';
   px(ctx, lid, x + 2, y, 8, 1);
   px(ctx, lid, x, y + 1, 12, 2);
   px(ctx, '#f4f4f0', x + 1, y + 1, 5, 1);
-  px(ctx, shade(lid, -0.14), x + 7, y + 2, 5, 1);
+  px(ctx, sh(lid, -0.14), x + 7, y + 2, 5, 1);
   px(ctx, '#8b8e90', x + 5, y + 1, 2, 1);
 }
 
@@ -688,7 +728,7 @@ function laundry(ctx: Ctx, x0: number, x1: number, y: number, seed: number): voi
   for (const x of [x0, x1]) {
     ink(ctx, 0.3, x + 1, y + 1, 1, 10);
     px(ctx, PALETTE.iron, x, y - 1, 1, 11);
-    px(ctx, shade(PALETTE.iron, 0.4), x, y - 1, 1, 1);
+    px(ctx, sh(PALETTE.iron, 0.4), x, y - 1, 1, 1);
   }
   px(ctx, '#d6d4cc', x0, y, x1 - x0 + 1, 1);
   for (let x = x0 + 3, k = 0; x < x1 - 4; k++) {
@@ -696,9 +736,9 @@ function laundry(ctx: Ctx, x0: number, x1: number, y: number, seed: number): voi
     const ph = 4 + Math.floor(r(seed, k, 1, 171) * 4);
     const c = clothes[(k + seed) % clothes.length];
     px(ctx, c, x, y + 1, pw, ph);
-    px(ctx, shade(c, 0.12), x, y + 1, pw, 1);
-    px(ctx, shade(c, -0.18), x + pw - 1, y + 2, 1, ph - 1);
-    px(ctx, shade(c, -0.1), x, y + ph, pw, 1);
+    px(ctx, sh(c, 0.12), x, y + 1, pw, 1);
+    px(ctx, sh(c, -0.18), x + pw - 1, y + 2, 1, ph - 1);
+    px(ctx, sh(c, -0.1), x, y + ph, pw, 1);
     px(ctx, '#c9a45a', x + 1, y, 1, 1);
     px(ctx, '#c9a45a', x + pw - 2, y, 1, 1);
     x += pw + 2;
@@ -717,13 +757,13 @@ function brickBond(ctx: Ctx, w: number, h: number, base: string, seed: number): 
     let x = -Math.floor(r(seed, row, 0, 180) * 5);
     for (let k = 0; x < w; k++) {
       const len = 4 + Math.floor(r(seed, row, k, 181) * 3);
-      let t = shade(base, (r(seed, row, k, 182) - 0.5) * 0.12 + (batch(x, y, 30, seed + 4) - 0.5) * 0.08);
-      if (r(seed, row, k, 183) < 0.07) t = shade(t, -0.14);
+      let t = sh(base, (r(seed, row, k, 182) - 0.5) * 0.12 + (batch(x, y, 30, seed + 4) - 0.5) * 0.08);
+      if (r(seed, row, k, 183) < 0.07) t = sh(t, -0.14);
       const a = Math.max(0, x);
       const e = Math.min(w, x + len - 1);
       if (e > a) {
         px(ctx, t, a, y, e - a, 2);
-        px(ctx, shade(t, 0.07), a, y, e - a, 1);
+        px(ctx, sh(t, 0.07), a, y, e - a, 1);
       }
       x += len;
     }

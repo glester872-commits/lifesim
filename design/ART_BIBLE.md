@@ -203,3 +203,82 @@ Lo que no es del mapa sino de todos (y por eso ya vale en todo el barrio):
   faros y pilotos en el suelo.
 - **Boca de metro**: peldaños con vuelo y desgaste, paredes de la bajada en
   sombra, marco de acero del rótulo, pilares con fondo, luz fría que sube.
+
+## 16. Pixel art clásico · Alpha-03 (guía de dirección y estado del piloto)
+
+Pixel art clásico, no HD-2D: nada de 3D, profundidad de campo, bloom, desenfoque,
+post-proceso fotográfico ni luz volumétrica. El salto de calidad se busca con las
+técnicas de siempre, aplicadas al arte que ya se dibuja por código.
+
+### Reglas
+
+| Tema | Regla |
+|---|---|
+| Escala | La del §1: 1 px de arte = 1 px de mundo, zoom entero. Ningún arte nuevo a otra densidad. |
+| Contorno | 1 px, oscuro cálido (`PALETTE.outline`), sólo en la silueta y donde dos volúmenes se cruzan. Nunca dos líneas paralelas ni dientes sueltos en una curva: escalones regulares (2-2-1-1, nunca 2-1-2). |
+| Luz | Noroeste (§5). Cantos de arriba y de la izquierda con luz; abajo y a la derecha, sombra. Igual de día y en interiores; de noche la luz local manda (§7). |
+| Rampas | **Por material, a mano** (`MATERIAL_RAMPS`, abajo): 4 tonos escogidos (hondo, sombra, base, luz; brillo sólo en metal y cristal). La sombra baja hacia el frío y gana algo de saturación; la luz sube hacia el cálido y la pierde. No se deriva cada tono con un `shade()` del color base. |
+| Volumen | 2–4 tonos por volumen. Sombra de contacto bajo todo lo que toca el suelo (§5) y auto-sombra coherente (alero, dintel, alféizar). Sin degradados suaves ni tramado repartido por toda una superficie. |
+| Clusters | La superficie se describe con manchas de 2 px o más de un mismo tono. Ningún píxel suelto que no sea un detalle con nombre (un remache, un brillo). `despeckle` (world/paint) limpia los huérfanos al hornear. |
+| Materiales | Por forma, no por ruido: sillar (piezas con bisel y junta), ladrillo (hiladas a matajunta), revoco (planos lisos con imposta y zócalo), cristal (reflejo en diagonal de 2 tonos), metal (brillo puntual), madera (veta en bandas), asfalto y acera (§8). |
+| Vegetación | §9: masas por lóbulos, luces agrupadas arriba-izquierda, sombra interior, silueta legible; variantes por especie, no el mismo árbol repetido. |
+| Personas | §3–§5: escala real, ropa y pelo con volumen propio, pie y sombra alineados, oclusión por profundidad (§4). |
+| Interactivo | Lo que se usa (puertas con portal, mostradores, máquinas, percheros, asientos) se lee **en movimiento**: más contraste local y un remate de luz arriba-izquierda; lo decorativo queda un escalón más apagado. |
+| Render | Nearest-neighbor, `roundPixels`, sin escalado fraccionario; arte estable horneado una vez (`make`), nunca regenerado por fotograma. |
+
+### Rampas por material (`world/paint` MATERIAL_RAMPS)
+
+Cuatro tonos escogidos a mano por material: hondo, sombra, base, luz. La sombra baja al frío y gana algo de
+saturación; la luz sube al cálido y la pierde. Un tono de un material (a menos de 14 de distancia RGB de su rampa) cae
+en el tono de la rampa con la claridad más parecida (`materialTone`); lo que no es de ningún material (geranios,
+contraventanas, madera, luz de ventana) se pinta como siempre.
+
+| Material | Hondo | Sombra | Base | Luz |
+|---|---|---|---|---|
+| Revoco crema | `#9a8478` | `#c4ad8f` | `#e7cfaa` | `#f6e6c6` |
+| Sillería caliza | `#625f66` | `#857f80` | `#a8a194` | `#c8bfa9` |
+| Azotea | `#3f3d4a` | `#57545f` | `#737078` | `#8e8a8c` |
+| Teja | `#5e3b3c` | `#80524a` | `#9e705f` | `#bf8a6a` |
+| Cristal | `#1f2f3f` | `#2e4756` | `#3d5f6b` | `#6f97a0` |
+
+Un material nuevo entra con su fila aquí y en `MATERIAL_RAMPS`, lejos (>14) de los acentos que no deben cambiar
+(`scripts/check-art.ts` lo vigila).
+
+### Piloto (calle residencial de Vallesco) · resultado
+
+- Alcance por datos: `BuildingDef.art: 'clasico'` en «Tu portal · Olmo 7» y «Olmo 11»; sin él, el dibujo es el de
+  siempre. Fachada y azotea: rampas por material y `despeckle` al hornear.
+- Medido (mismo encuadre, hora y semilla): huérfanos por textura 12–65 → 1; colores distintos de la fachada/azotea de
+  Olmo 7 342/768 → 248/340 y de Olmo 11 562/436 → 167/209 (manchas de tono, no grano).
+- Visto: v1 (giro automático de 24°) dejaba rayas rojas en las juntas; v2 (giro suave) rayas anaranjadas; v3 (rampas a
+  mano) las quita, y la sillería de Olmo 11 se lee por bloques con su sombra; la puerta de madera salía rosa por un
+  umbral de 18 (cogía la teja) y con 14 queda en su color. A escala de juego la mejora es visible pero moderada; donde
+  más se nota es en la piedra.
+- Evidencia: `design/alpha03/panel-v1-rayas.png`, `panel-v2.png`, `panel-v3-rampas-material.png`,
+  `calle-antes-dia.png`, `calle-despues-dia.png`.
+- Noche (22:00, mismo encuadre): la luz de la hora multiplica igual; sin halos, rayas ni costuras; la sillería conserva
+  sus juntas. Evidencia: `calle-antes-noche.png`, `calle-despues-noche.png`.
+- Rendimiento (node, peor caso: una consulta de tono por píxel en 160 × 80): `materialTone` 19,5 ms frente a 5,1 ms de
+  `shade`, `despeckle` 0,8 ms: ≈15 ms más por textura, ≈60 ms para las cuatro del piloto, una vez al entrar en el mapa;
+  nada por fotograma. Si al extenderlo pesa, se memoiza `materialTone` (pocas entradas distintas).
+
+### Plan por lotes
+
+Cada lote, con la misma regla: escena de muestra con antes/después en el mismo encuadre, hora y semilla
+(`scripts/hd01/preview.mjs`), huérfanos y colores medidos, `npm run check` y recorrido en el navegador. Si no se ve
+claramente mejor a escala de juego, no se amplía.
+
+1. **Piloto** (calle residencial de Vallesco): hecho con rampas por material, de día y de noche, y medido. **Puerta de entrada al resto: que el autor lo dé por bueno.**
+2. **Resto del residencial**: la tercera fachada `finish: 'hd03'` (la boca de metro de Vallesco) sólo necesita el dato
+   `art`; las manzanas por segmentos de los mapas con `finish: 'hd04'` pasan por las otras dos llamadas a
+   `drawResidentialFacade` (world/BuildingArt) y hay que llevarles `classic: b.art === 'clasico'` antes de marcar sus datos.
+3. **Suelo y mobiliario del piloto** (acera, alcorque, banco, farola, jardinera): rampas propias en `Surfaces` y
+   `TextureFactory`, con un acabado por zona que no cambie el resto del mundo.
+4. **Vegetación** (`Vegetation`): lóbulos, luces agrupadas y especies; medir el atlas antes y después.
+5. **Comercio** (fachadas de tienda, rótulos, escaparates) y **mostradores** (lo interactivo, un escalón más legible).
+6. **Metro** (bocas, andenes) e **interiores** (casa, Hilo, Decathlon): el mismo estándar con la luz interior siempre
+   encendida (§7).
+7. **NPC y vehículos**: ropa y carrocerías con rampas por material, sin cambiar escala, hitbox ni animación.
+
+En cada lote, rendimiento medido con el mismo recorrido antes y después (tiempo de horneado al entrar en el mapa y
+coste por fotograma), y nada de HD-2D.
