@@ -231,7 +231,9 @@ export const FASHION: LocationDef = {
   points: {
     CLOTHING_STORE_EXIT: p(9, 10, 'exit', 'up'),
     CLOTHING_STORE_TILL: p(16, 6, 'interact', 'up'),
-    CLOTHING_STORE_STAFF: p(16, 4, 'work', 'down'),
+    // Al final del mostrador, junto a la caja: desde la caja (16, 6) se le habla (a ~23 px, dentro del alcance de
+    // 26). Detrás de la caja, en (16, 4), quedaba a 32 px y sólo se le alcanzaba rodeando el mostrador.
+    CLOTHING_STORE_STAFF: p(17, 5, 'work', 'down'),
     CLOTHING_STORE_RACK_01: p(7, 5, 'interact', 'up'),
     CLOTHING_STORE_RACK_02: p(11, 5, 'interact', 'up'),
     CLOTHING_STORE_RACK_03: p(7, 9, 'interact', 'up'),

@@ -299,4 +299,12 @@ for (const loc of allLocations()) {
   console.log('recorridos: mostrador ofrecido y compra sin efectos de más · metro: cancelar no cobra, viajar cobra una vez, sin saldo se niega');
 }
 
+// Se compra hablando con quien atiende desde la caja (no rodeando el mostrador): Hilo y las tiendas del Carmen.
+// (Hilo tenía a Iván detrás de la caja, a 32 px: sólo se le alcanzaba desde dentro del mostrador.)
+for (const [loc, till, staff] of [['fashion', 'CLOTHING_STORE_TILL', 'CLOTHING_STORE_STAFF'], ['retales', 'RETALES_TILL', 'RETALES_STAFF'], ['archivo', 'ARCHIVO_TILL', 'ARCHIVO_STAFF'], ['vuelta', 'VUELTA_TILL', 'VUELTA_STAFF'], ['suela', 'SUELA_TILL', 'SUELA_STAFF']] as const) {
+  const pts = allLocations().find((l) => l.id === loc)!.points!;
+  const d = Math.hypot((pts[staff].tx - pts[till].tx) * TILE, (pts[staff].ty - pts[till].ty) * TILE);
+  assert.ok(d <= INTERACTION.range, `${loc}: quien atiende queda a ${Math.round(d)} px de la caja (alcance ${INTERACTION.range})`);
+}
+
 console.log('\nOK: una sola regla decide qué se ofrece, todo se alcanza, nada a través de paredes, se sale de cualquier charla y el móvil es igual.');
