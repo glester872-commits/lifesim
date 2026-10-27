@@ -30,6 +30,8 @@ export interface Site {
   showcase?: { tx: number; ty: number; w: number; h: number };
   /** HD-03, acabado del sitio (LocationDef.finish): calzada, acera, bordillo, mediana y hierba con el acabado nuevo. */
   finish?: boolean;
+  /** HD-04 (LocationDef.finish 'hd04'): el camino de adoquín con su encintado. */
+  hd04?: boolean;
 }
 
 interface Paint {
@@ -45,6 +47,7 @@ interface Paint {
   showcase?: Site['showcase'];
   /** Si la celda es de la manzana piloto (HD-03). */
   fine: (tx: number, ty: number) => boolean;
+  hd04?: boolean;
 }
 
 interface Material {
@@ -755,7 +758,9 @@ function bikeCrossing(at: (tx: number, ty: number) => string, tx: number, ty: nu
  * Adoquín: piedras pequeñas en hiladas de 5 px, de ancho variable y esquinas
  * romas, cada una con su tono. Alguna falta y deja ver tierra.
  */
-function cobble({ ctx, x0, y0, x1, y1 }: Paint): void {
+function cobble(p: Paint): void {
+  if (p.hd04) return settsFine(p);
+  const { ctx, x0, y0, x1, y1 } = p;
   const base = PALETTE.cobble;
   px(ctx, shade(base, -0.12), x0, y0, x1 - x0, y1 - y0);
   for (let row = Math.floor(y0 / 5); row * 5 < y1; row++) {
@@ -778,6 +783,58 @@ function cobble({ ctx, x0, y0, x1, y1 }: Paint): void {
         px(ctx, shade(tone, -0.03), x + 1, y + 3, w - 3, 1);
       }
       x += w;
+    }
+  }
+}
+
+/**
+ * HD-04: adoquín de granito cuadrado, de 4 px con llaga de 1, en hiladas que
+ * se desplazan a medias. Visto desde arriba: cada pieza con su tono y un
+ * bisel suave (luz arriba a la izquierda, sombra abajo a la derecha), llaga de
+ * arena, musgo en alguna y, donde el camino acaba, un encintado de piedra
+ * enrasado que lo remata contra la hierba.
+ */
+function settsFine({ ctx, x0, y0, x1, y1, at, cells }: Paint): void {
+  const base = shade(PALETTE.cobble, 0.05);
+  px(ctx, shade(base, -0.17), x0, y0, x1 - x0, y1 - y0);
+  for (let row = Math.floor(y0 / 5); row * 5 < y1; row++) {
+    const y = row * 5;
+    const off = Math.floor(hash(row, 5) * 5);
+    for (let x = x0 - off; x < x1; x += 5) {
+      const r = (k: number): number => hash(row, Math.floor((x + 1000) / 5), k + 41);
+      let tone = shade(base, (batch(x, y, 40, 29) - 0.5) * 0.08 + (r(2) - 0.5) * 0.08);
+      if (r(3) < 0.14) tone = mix(tone, WARM_TINT, 0.2);
+      else if (r(3) > 0.9) tone = mix(tone, COOL_TINT, 0.18);
+      px(ctx, tone, x, y, 4, 4);
+      px(ctx, shade(tone, 0.06), x, y, 3, 1);
+      px(ctx, shade(tone, -0.06), x + 1, y + 3, 3, 1);
+      px(ctx, shade(tone, -0.05), x + 3, y + 1, 1, 2);
+      if (r(4) < 0.05) px(ctx, '#66733f', x + 4, y + Math.floor(r(5) * 4), 1, 1);
+    }
+  }
+  const edging = shade(PALETTE.kerb, -0.06);
+  for (const [tx, ty] of cells) {
+    const X = tx * TILE;
+    const Y = ty * TILE;
+    const me = at(tx, ty);
+    if (at(tx, ty - 1) !== me) {
+      px(ctx, edging, X, Y, TILE, 2);
+      px(ctx, shade(edging, 0.08), X, Y, TILE, 1);
+      px(ctx, shade(edging, -0.16), X + 7, Y, 1, 2);
+      px(ctx, shade(base, -0.24), X, Y + 2, TILE, 1);
+    }
+    if (at(tx, ty + 1) !== me) {
+      px(ctx, edging, X, Y + TILE - 2, TILE, 2);
+      px(ctx, shade(edging, 0.06), X, Y + TILE - 2, TILE, 1);
+      px(ctx, shade(edging, -0.16), X + 7, Y + TILE - 2, 1, 2);
+    }
+    if (at(tx - 1, ty) !== me) {
+      px(ctx, edging, X, Y, 2, TILE);
+      px(ctx, shade(edging, 0.08), X, Y, 1, TILE);
+    }
+    if (at(tx + 1, ty) !== me) {
+      px(ctx, edging, X + TILE - 2, Y, 2, TILE);
+      px(ctx, shade(edging, -0.1), X + TILE - 1, Y, 1, TILE);
     }
   }
 }
@@ -1054,7 +1111,7 @@ export function paintSurfaces(scene: Phaser.Scene, rt: Phaser.GameObjects.Render
     any = true;
     const box = { x0: cx0 * TILE, y0: cy0 * TILE, x1: cx1 * TILE, y1: cy1 * TILE };
     lctx.clearRect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
-    m.paint({ ctx: lctx, ...box, at, built, cells, showcase: site.showcase, fine });
+    m.paint({ ctx: lctx, ...box, at, built, cells, showcase: site.showcase, fine, hd04: site.hd04 });
     // Sólo sus celdas pasan al lienzo final.
     ctx.save();
     ctx.beginPath();

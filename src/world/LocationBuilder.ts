@@ -243,7 +243,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   const solids = scene.physics.add.staticGroup();
 
   // Losas, baldosa y asfalto se pintan en coordenadas de mundo (world/Surfaces); el resto, por tile.
-  paintSurfaces(scene, ground, { ground: def.ground, props: def.props, buildings: def.buildings ?? [], showcase: def.showcase, finish: finished(def) });
+  paintSurfaces(scene, ground, { ground: def.ground, props: def.props, buildings: def.buildings ?? [], showcase: def.showcase, finish: finished(def), hd04: finished(def) && def.finish === 'hd04' });
   ground.beginDraw();
   for (let ty = 0; ty < rows; ty++) {
     const row = def.ground[ty];
@@ -269,6 +269,17 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   ground.beginDraw();
   const glows: GlowSpot[] = [];
   const windows = bakeBuildings(ground, def.buildings ?? [], glows);
+  // HD-04: la boca de metro de suelo (tiles M, con su puerta D dentro), en los exteriores, con la marquesina, la
+  // escalera y el rótulo de las bocas de 3 × 3; de noche, su rótulo y sus apliques encendidos como en las demás.
+  if (finished(def)) {
+    def.ground.forEach((row, ty) => {
+      for (let tx = 0; tx < cols; tx++) {
+        if (row[tx] !== 'M' || row[tx - 1] === 'M' || def.ground[ty - 1]?.[tx] === 'M') continue;
+        ground.batchDraw('bs-metro-entrance', tx * TILE, ty * TILE);
+        glows.push({ key: 'bs-metro-entrance-glow', x: tx * TILE, y: ty * TILE });
+      }
+    });
+  }
   ground.endDraw();
   bakeKerbsAndShadows(scene, ground, def);
   // Lo que hace que la calle parezca usada y las casas habitadas (world/Detail): cortinas, bajantes, desgaste.

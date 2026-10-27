@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from '../config/constants';
 import type { LocationDef } from '../types/game';
-import type { WindowSpot } from './BuildingArt';
+import { hdFacade, type WindowSpot } from './BuildingArt';
 import { backRows, facadeRows } from '../systems/LocationSystem';
 import { PROPS } from './tiles';
 
@@ -137,7 +137,7 @@ function showcaseDepth(g: Phaser.GameObjects.Graphics, def: LocationDef, windows
   const y1 = (s.ty + s.h) * TILE;
   const inside = (x: number, y: number): boolean => x >= x0 && x < x1 && y >= y0 && y < y1;
 
-  const finished = new Set((def.buildings ?? []).filter((b) => b.finish).map((b) => b.id));
+  const finished = new Set((def.buildings ?? []).filter(hdFacade).map((b) => b.id));
   windows.forEach((w, i) => {
     if (!inside(w.x, w.y) || finished.has(w.building)) return;
     g.fillStyle(INK, 0.3).fillRect(w.x, w.y, w.w, 1);
@@ -160,8 +160,8 @@ function showcaseDepth(g: Phaser.GameObjects.Graphics, def: LocationDef, windows
     const bottom = (b.ty + b.h) * TILE;
     if (bx + bw < x0 || bx > x1 || bottom < y0 || by > y1) continue;
     const rows = b.front === 's' ? facadeRows(b) : backRows(b);
-    // Una casa con acabado propio (BuildingDef.finish) ya pinta su alero, su imposta y su humedad.
-    if (rows > 0 && !b.finish) {
+    // Una casa con fachada HD (BuildingArt.hdFacade) ya pinta su alero, su imposta y su humedad.
+    if (rows > 0 && !hdFacade(b)) {
       const top = bottom - rows * TILE;
       // Sombra del alero sobre la fachada.
       [0.2, 0.11, 0.05].forEach((a, k) => g.fillStyle(INK, a).fillRect(bx, top + k, bw, 1));

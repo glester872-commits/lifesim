@@ -298,4 +298,4 @@ const BASE: LocationDef = {
   ],
 };
 
-export const VELARIA: LocationDef = { ...BASE, finish: true, props: [...BASE.props, ...dress(BASE)] };
+export const VELARIA: LocationDef = { ...BASE, finish: 'hd04', props: [...BASE.props, ...dress(BASE)] };

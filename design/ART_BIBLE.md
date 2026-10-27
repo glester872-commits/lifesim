@@ -194,7 +194,7 @@ siguiente antes de llevarlo al resto del mapa:
 
 Lo que no es del mapa sino de todos (y por eso ya vale en todo el barrio):
 
-- **Cámara** algo más cerca: encuadre mínimo 315 × 270 px (≈ 20 × 17 tiles), zoom a medios pasos (3, 3,5, 4…). Se probó 4 (demasiado cerca) y se eligió 3,5 en una pantalla de 948 px de alto: a 3,5 un píxel de arte ocupa 3 o 4 de pantalla, alternos, y al jugar no se nota.
+- **Cámara**: la regla de la tabla del §1 (encuadre de 480 × 405 px, zoom entero en píxeles físicos). El encuadre de 315 × 270 con medios pasos (3,5) de esta escena se retiró: a 3,5 un píxel de arte ocupaba 3 o 4 de pantalla, alternos.
 - **Personas**: sombra de contacto en tres anillos (18 × 6), sombra larga de la
   farola más cercana de noche (`world/LampShadows`), hombro con luz, cuello,
   cinturón, pierna iluminada, puntera y volumen de pelo.

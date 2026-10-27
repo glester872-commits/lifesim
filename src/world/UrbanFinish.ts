@@ -23,6 +23,8 @@ export const finished = (def: Pick<LocationDef, 'finish' | 'kind'>): boolean => 
 /** La textura de una pieza en ese tile: con el acabado, su versión `-hd03` si la hay. */
 export function finishKey(scene: Phaser.Scene, def: LocationDef, key: string, tx: number, ty: number): string {
   if (!finished(def)) return key;
+  // HD-04, de momento sólo donde el sitio lo pide (LocationDef.finish 'hd04'): su versión, si la hay.
+  if (def.finish === 'hd04' && scene.textures.exists(`${key}-hd04`)) return `${key}-hd04`;
   // Si la pieza tiene variantes con acabado (`-hd03-0`…), cada sitio la suya, siempre la misma.
   const variant = `${key}-hd03-${(tx * 7 + ty * 13) % BUSH_VARIANTS}`;
   if (scene.textures.exists(variant)) return variant;

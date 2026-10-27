@@ -259,6 +259,10 @@ function drawInfoBoardGlow(ctx: Ctx): void {
  * con el rótulo METRO y la franja de la línea, y la escalera que baja entre dos
  * murettes de granito con barandilla. La fila de abajo es la de la puerta.
  */
+/** Dónde va la M en la boca de 3 × 3: sobre el último paño de la marquesina. */
+const METRO_M_X = 35;
+const METRO_M_Y = 3;
+
 function drawMetroEntrance(ctx: Ctx): void {
   const w = TILE * 3;
   // Marquesina: bastidor de acero y paños de cristal con reflejo en diagonal.
@@ -270,10 +274,20 @@ function drawMetroEntrance(ctx: Ctx): void {
     px(ctx, shade(PALETTE.glass, 0.08), x, 2, 10, 1);
     for (let d = 0; d < 5; d++) px(ctx, shade(PALETTE.glassLit, -0.25), x + 2 + d, 12 - d * 2, 1, 1);
   }
+  // HD-04: la M, sobre la marquesina a la derecha (en la banda, a la izquierda, la tapaba el árbol de la plaza de
+  // Ribera), con su sombra en el cristal.
+  ctx.globalAlpha = 0.35;
+  px(ctx, PALETTE.ink, METRO_M_X + 1, METRO_M_Y + 11, 11, 1);
+  px(ctx, PALETTE.ink, METRO_M_X + 11, METRO_M_Y + 1, 1, 10);
+  ctx.globalAlpha = 1;
+  metroLogo(ctx, METRO_M_X, METRO_M_Y, false);
   // Frontal: rótulo sobre la franja de la línea, con aire arriba y abajo.
-  px(ctx, PALETTE.ink, 0, 16, w, 12);
-  px(ctx, shade(PALETTE.night, 0.06), 1, 17, w - 2, 9);
-  drawWord(ctx, 'METRO', 7, 18, PALETTE.amberDim);
+  // HD-04: el mismo rótulo que las bocas grandes (drawMetroHero): banda azul marino y METRO en blanco.
+  px(ctx, PALETTE.ink, 0, 15, w, 13);
+  px(ctx, NAVY, 0, 16, w, 11);
+  px(ctx, shade(NAVY, 0.1), 0, 16, w, 1);
+  px(ctx, shade(NAVY, -0.15), 0, 26, w, 1);
+  drawWord(ctx, 'METRO', 13, 18, shade(PALETTE.white, -0.15));
   px(ctx, LINE_RED, 0, 27, w, 1);
   // Escalera en perspectiva: los peldaños se estrechan y oscurecen hasta la boca negra del túnel.
   px(ctx, PALETTE.ink, 10, 28, w - 20, 20);
@@ -307,16 +321,20 @@ function drawMetroEntrance(ctx: Ctx): void {
 /** Lo que brilla de la boca de metro: el rótulo, los apliques y la luz que baja por la escalera. */
 function drawMetroEntranceGlow(ctx: Ctx): void {
   const w = TILE * 3;
-  drawWord(ctx, 'METRO', 7, 18, PALETTE.amber);
+  // HD-04: encendido como el de las bocas grandes (drawMetroHeroGlow): la M y METRO en luz, el filete rojo vivo.
+  metroLogo(ctx, METRO_M_X, METRO_M_Y, true);
+  drawWord(ctx, 'METRO', 13, 18, '#fff0c8');
   px(ctx, '#ff7a6a', 0, 27, w, 1);
   px(ctx, WARM, 4, 34, 2, 2);
   px(ctx, WARM, w - 6, 34, 2, 2);
   glow(ctx, 5, 35, 4, 0.25, PALETTE.amber);
   glow(ctx, w - 5, 35, 4, 0.25, PALETTE.amber);
-  // Luz de dentro de la estación subiendo por los primeros escalones.
-  for (let k = 0; k < 4; k++) {
-    ctx.globalAlpha = 0.3 - k * 0.07;
-    px(ctx, '#bfe8ff', 11 + k, 29 + k * 3, w - 22 - k * 2, 1);
+  // La luz fría de la estación sube por la escalera: cada canto de peldaño la atrapa, más cerca del túnel más fuerte.
+  for (let k = 0; k < 6; k++) {
+    const y = 29 + k * 3;
+    const inset = Math.floor(k * 0.8);
+    ctx.globalAlpha = 0.1 + k * 0.05;
+    px(ctx, '#cfeeff', 11 + inset, y, w - 22 - inset * 2, 1);
   }
   ctx.globalAlpha = 1;
 }

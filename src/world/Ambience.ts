@@ -39,7 +39,7 @@ export class Ambience {
       for (const o of scene.children.list) {
         if (!(o instanceof Phaser.GameObjects.Image)) continue;
         const key = o.texture.key;
-        const m = /^(prop-(?:plane-|bed-)?tree-\d+(?:-hd03)?)$/.exec(key);
+        const m = /^(prop-(?:plane-|bed-)?tree-\d+(?:-hd0[34])?)$/.exec(key);
         const windy = m ? `${m[1]}-gust` : '';
         if (m && scene.textures.exists(windy)) this.trees.push({ img: o, still: key, windy });
       }
