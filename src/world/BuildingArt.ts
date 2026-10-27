@@ -46,6 +46,8 @@ interface Look {
    * carpintería. Los demás estilos, por ahora, con el acabado de siempre.
    */
   mat?: WallMat;
+  /** Balcón corrido con barandilla de vidrio delante de la banda de cristal (vivienda moderna). */
+  railing?: boolean;
 }
 
 type WallMat = 'ashlar' | 'stucco' | 'brick';
@@ -114,7 +116,7 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   bar: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#6e3a30', shop: 'display', upper: 'windows', lit: PALETTE.amber, door: 'wood', awning: ['#8c2f2f', '#e6dcc0'], sign: 'beer', wallArt: 'posters' },
   // Ribera Norte: bloques de vivienda moderna (fachada clara, cristal y balcones corridos, azotea plana), el salón
   // recreativo (negro, neón rosa detrás del cristal y el mando de rótulo) y la tienda de deportes (azul, toldo naranja y la pelota).
-  'res-modern': { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#dde2e3', shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass' },
+  'res-modern': { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#dde2e3', shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass', railing: true },
   arcade: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#2a2640', shop: 'glass', upper: 'band', lit: NEON_PINK, door: 'glass', sign: 'joystick', wallArt: 'mural' },
   sports: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#3f6f9a', shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: ['#d9772e', PALETTE.white], sign: 'ball' },
   // Horno San Blas: revoco crema, toldo de rayas marrón y crema, escaparate de panes con luz cálida y la barra de pan.
@@ -831,17 +833,22 @@ function drawGround(ctx: Ctx, look: Look, variant: number): void {
       break;
     case 'glass':
       if (variant === 0) {
-        px(ctx, shade(look.wall, -0.07), 0, 6, TILE, H - 10);
-        px(ctx, shade(look.wall, 0.05), 0, 6, TILE, 1);
+        // Paño ciego: placa de fachada con su canto y su junta.
+        px(ctx, shade(look.wall, -0.06), 0, 6, TILE, H - 10);
+        px(ctx, shade(look.wall, 0.1), 0, 6, TILE, 1);
+        px(ctx, shade(look.wall, -0.16), 15, 7, 1, H - 11);
+        ink(ctx, 0.18, 0, 7, TILE, 1);
         break;
       }
-      px(ctx, PALETTE.ink, 0, 6, TILE, H - 10);
-      px(ctx, dark ? PALETTE.glass : shade(PALETTE.glass, 0.12), 1, 7, 14, H - 12);
-      px(ctx, shade(look.lit, dark ? -0.3 : 0), 1, 7, 14, 1);
-      px(ctx, shade(PALETTE.glassLit, -0.3), 3, 9, 1, 8);
-      px(ctx, shade(PALETTE.glassLit, -0.3), 4, 9, 1, 3);
-      px(ctx, PALETTE.ink, 8, 7, 1, H - 12);
-      px(ctx, PALETTE.ink, 1, 17, 14, 1);
+      // HD-04: escaparate de aluminio con el dintel en sombra, montante central, barra y el vidrio con su interior.
+      px(ctx, ALU_LIT, 0, 5, TILE, 1);
+      px(ctx, ALU, 0, 6, TILE, 1);
+      modernGlass(ctx, 1, 7, 14, H - 12, !dark, look.lit);
+      px(ctx, ALU_LIT, 0, 6, 1, H - 11);
+      px(ctx, ALU_DK, 15, 6, 1, H - 11);
+      px(ctx, ALU_LIT, 8, 7, 1, H - 12);
+      px(ctx, ALU_DK, 1, 17, 14, 1);
+      px(ctx, ALU_DK, 0, H - 5, TILE, 1);
       break;
     case 'shutter':
       px(ctx, shade(PALETTE.metal, -0.1), 0, 7, TILE, 2);
@@ -880,25 +887,99 @@ function drawGround(ctx: Ctx, look: Look, variant: number): void {
  * bajada a su manera), balcón de hierro con maceta, o cristal corrido con el
  * canto del forjado.
  */
+/** Aluminio de la carpintería moderna: canto al sol, perfil y cara en sombra. */
+const ALU = '#aeb4ba';
+const ALU_LIT = '#d8dcdf';
+const ALU_DK = '#6c727a';
+
+/**
+ * HD-04: vidrio de fachada moderna. Apagado, el cielo arriba y hondo abajo, con
+ * dos reflejos en diagonal; encendido, el interior con su luz y una franja
+ * más viva abajo. El dintel deja su sombra en las dos primeras filas.
+ */
+function modernGlass(ctx: Ctx, x: number, y: number, w: number, h: number, on: boolean, lit: string): void {
+  for (let yy = 0; yy < h; yy++) {
+    const k = yy / Math.max(1, h - 1);
+    px(ctx, on ? mix(shade(lit, -0.5), shade(lit, -0.2), k) : mix(mix(PALETTE.glass, PALETTE.glassLit, 0.42), shade(PALETTE.glass, -0.14), k), x, y + yy, w, 1);
+  }
+  if (on) px(ctx, shade(lit, -0.05), x, y + h - 3, w, 2);
+  else {
+    for (let yy = 0; yy < h; yy++) {
+      for (const [off, a] of [[2, 0.35], [9, 0.18]] as const) {
+        const sx = x + ((h - yy + off) % (w + 6)) - 3;
+        if (sx >= x && sx < x + w) {
+          ctx.globalAlpha = a;
+          px(ctx, '#e8f4f2', sx, y + yy, 1, 1);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+  }
+  ink(ctx, 0.38, x, y, w, 1);
+  ink(ctx, 0.16, x, y + 1, w, 1);
+}
+
 function drawUpperTall(ctx: Ctx, look: Look, variant: number, seed: number): void {
   const H = STOREY;
-  storeyWall(ctx, look.wall, 31 + variant + seed * 7, look.mat);
+  // HD-04: las plantas de vivienda de los locales, de revoco liso como las casas (el material, si lo tiene).
+  const homeLike = look.upper === 'windows' || look.upper === 'balcony';
+  storeyWall(ctx, look.wall, 31 + variant + seed * 7, look.mat ?? (homeLike ? 'stucco' : undefined));
   const lit = variant === 1;
   switch (look.upper) {
-    case 'glass':
-      px(ctx, PALETTE.ink, 0, 3, TILE, H - 5);
-      px(ctx, shade(PALETTE.glass, lit ? 0.14 : 0.04), 1, 4, 14, H - 7);
-      if (lit) px(ctx, PALETTE.glassLit, 1, 4, 14, 1);
-      px(ctx, PALETTE.ink, 8, 4, 1, H - 7);
-      px(ctx, shade(PALETTE.metal, 0.1), 0, 17, TILE, 1);
-      px(ctx, shade(PALETTE.glassLit, -0.3), 3, 6, 1, 6);
+    case 'glass': {
+      // HD-04: muro cortina. Antepecho de vidrio opaco, montantes de aluminio (canto al sol a la izquierda,
+      // sombra a la derecha), travesaño a media altura y el vidrio con su cielo, sus reflejos y su interior.
+      px(ctx, shade(look.wall, -0.28), 0, 0, TILE, H);
+      px(ctx, ALU_LIT, 0, 0, TILE, 1);
+      px(ctx, shade(look.wall, -0.4), 0, 1, TILE, 2);
+      modernGlass(ctx, 1, 4, 14, 25, lit, look.lit);
+      px(ctx, ALU, 0, 3, TILE, 1);
+      px(ctx, ALU_LIT, 0, 3, 1, 27);
+      px(ctx, ALU_DK, 15, 3, 1, 27);
+      px(ctx, ALU, 1, 16, 14, 1);
+      px(ctx, ALU_DK, 1, 17, 14, 1);
+      px(ctx, ALU_DK, 0, 29, TILE, 1);
+      ink(ctx, 0.25, 0, 30, TILE, 1);
       return;
-    case 'band':
-      px(ctx, PALETTE.ink, 0, 9, TILE, 13);
-      px(ctx, shade(PALETTE.glass, 0.12), 0, 10, TILE, 11);
-      px(ctx, PALETTE.glassLit, 0, 21, TILE, 1);
-      glow(ctx, 8, 21, 7, 0.12, PALETTE.glassLit);
+    }
+    case 'band': {
+      // HD-04: fachada de paneles con el canto del forjado, ventana corrida de aluminio y vidrio con su cielo;
+      // la vivienda moderna, además, con su balcón corrido de vidrio (Look.railing).
+      const wall = look.wall;
+      px(ctx, wall, 0, 0, TILE, H);
+      px(ctx, shade(wall, -0.1), 15, 6, 1, H - 6);
+      px(ctx, shade(wall, 0.05), 0, 6, 1, H - 6);
+      px(ctx, shade(wall, 0.14), 0, 0, TILE, 1);
+      px(ctx, shade(wall, 0.04), 0, 1, TILE, 2);
+      px(ctx, shade(wall, -0.18), 0, 3, TILE, 1);
+      ink(ctx, 0.28, 0, 4, TILE, 1);
+      ink(ctx, 0.12, 0, 5, TILE, 1);
+      px(ctx, ALU_LIT, 0, 8, TILE, 1);
+      px(ctx, ALU, 0, 9, TILE, 1);
+      modernGlass(ctx, 0, 10, TILE, 11, lit, look.lit);
+      px(ctx, ALU_LIT, 0, 10, 1, 11);
+      px(ctx, ALU_LIT, 8, 10, 1, 11);
+      px(ctx, ALU_DK, 9, 10, 1, 11);
+      px(ctx, ALU, 0, 21, TILE, 1);
+      if (look.railing) {
+        // Balcón corrido: pasamanos de acero, vidrio esmerilado con sus montantes y la losa con su sombra.
+        ctx.globalAlpha = 0.6;
+        px(ctx, mix(PALETTE.glassLit, '#ffffff', 0.45), 0, 23, TILE, 4);
+        ctx.globalAlpha = 1;
+        px(ctx, ALU_LIT, 0, 22, TILE, 1);
+        px(ctx, ALU_DK, 0, 23, TILE, 1);
+        for (const x of [0, 8]) px(ctx, ALU, x, 23, 1, 4);
+        px(ctx, shade(wall, 0.12), 0, 27, TILE, 1);
+        px(ctx, wall, 0, 28, TILE, 1);
+        px(ctx, shade(wall, -0.22), 0, 29, TILE, 1);
+        ink(ctx, 0.3, 0, 30, TILE, 1);
+        ink(ctx, 0.12, 0, 31, TILE, 1);
+      } else {
+        ink(ctx, 0.3, 0, 22, TILE, 1);
+        ink(ctx, 0.12, 0, 23, TILE, 1);
+      }
       return;
+    }
     case 'windows':
     case 'balcony': {
       if (variant === 0) {
@@ -909,28 +990,10 @@ function drawUpperTall(ctx: Ctx, look: Look, variant: number, seed: number): voi
         }
         return;
       }
-      if (look.mat) {
-        const balcony = look.upper === 'balcony' && variant === 2;
-        windowFine(ctx, look, 4, 7, 8, 16, lit, !balcony, [3, 6, 9, 5][seed % 4]);
-        if (balcony) balconyFine(ctx, seed);
-        return;
-      }
-      windowHole(ctx, look.wall, look.lit, 4, 7, 8, 16, lit);
-      // Persiana enrollable, bajada un tanto distinto en cada ventana; y su cajón.
-      const blind = [3, 6, 9, 5][seed % 4];
-      px(ctx, shade(look.wall, 0.06), 3, 5, 10, 2);
-      px(ctx, '#c9b9a0', 4, 7, 8, blind);
-      for (let y = 8; y < 7 + blind; y += 2) px(ctx, shade('#c9b9a0', -0.12), 4, y, 8, 1);
-      if (look.upper === 'balcony' && variant === 2) {
-        // Balcón: losa, barandilla de hierro y una maceta.
-        px(ctx, shade(PALETTE.stone, 0.04), 0, 25, TILE, 2);
-        px(ctx, shade(PALETTE.stone, -0.2), 0, 27, TILE, 1);
-        px(ctx, PALETTE.iron, 1, 18, 14, 1);
-        for (let x = 2; x < 15; x += 2) px(ctx, PALETTE.iron, x, 19, 1, 6);
-        px(ctx, PALETTE.brick, 11, 16, 3, 3);
-        px(ctx, PALETTE.leafLit, 11, 14, 3, 2);
-        px(ctx, PALETTE.leaf, 12, 13, 2, 1);
-      }
+      // HD-04: todas las ventanas de vivienda con hueco hondo, recercado, alféizar y balcón de forja.
+      const balcony = look.upper === 'balcony' && variant === 2;
+      windowFine(ctx, look, 4, 7, 8, 16, lit, !balcony, [3, 6, 9, 5][seed % 4]);
+      if (balcony) balconyFine(ctx, seed);
     }
   }
 }
@@ -1001,28 +1064,38 @@ function drawDoorTall(ctx: Ctx, look: Look, open: boolean): void {
 
 /** Planta baja: muro, alero y el hueco propio del tipo de local. variant 0 = muro. */
 function drawFront(ctx: Ctx, look: Look, variant: number): void {
-  const eave = shade(look.wall, 0.08);
-  px(ctx, look.wall, 0, 0, TILE, TILE);
-  px(ctx, eave, 0, 0, TILE, 2);
-  px(ctx, shade(look.wall, -0.1), 0, 15, TILE, 1);
-  sprinkle(ctx, shade(look.wall, 0.04), TILE, TILE, 61 + variant, 6);
+  // HD-04: la franja de calle de los bloques del norte, con el lenguaje de las fachadas: su material, la
+  // albardilla al sol con su sombra, el pie contra la azotea y cada hueco con recercado, dintel y sombra.
+  const glassy = look.shop === 'glass' && !look.mat;
+  if (glassy) px(ctx, look.wall, 0, 0, TILE, TILE);
+  else wallFace(ctx, look.wall, look.mat ?? 'stucco', TILE, false);
+  px(ctx, shade(look.wall, 0.16), 0, 0, TILE, 1);
+  px(ctx, shade(look.wall, 0.07), 0, 1, TILE, 1);
+  ink(ctx, 0.3, 0, 2, TILE, 1);
+  ink(ctx, 0.12, 0, 3, TILE, 1);
+  px(ctx, shade(look.wall, -0.18), 0, 15, TILE, 1);
   const dark = variant === 2;
+  const trim = trimOf(look);
   switch (look.shop) {
     case 'windows':
       if (variant === 0) break;
-      px(ctx, shade(look.wall, -0.14), 3, 5, 10, 8);
-      px(ctx, dark ? PALETTE.glass : shade(look.lit, -0.35), 4, 6, 8, 6);
-      if (!dark) {
-        px(ctx, look.lit, 4, 6, 8, 1);
-        px(ctx, look.lit, 4, 6, 1, 6);
-      }
-      px(ctx, shade(look.wall, 0.1), 3, 13, 10, 1);
+      px(ctx, trim, 3, 5, 10, 8);
+      px(ctx, shade(trim, 0.16), 2, 4, 12, 1);
+      px(ctx, shade(trim, -0.2), 12, 5, 1, 8);
+      px(ctx, dark ? PALETTE.glass : shade(look.lit, -0.3), 4, 6, 8, 6);
+      if (!dark) px(ctx, look.lit, 5, 9, 6, 3);
+      else px(ctx, mix(PALETTE.glass, PALETTE.glassLit, 0.4), 5, 7, 1, 2);
+      px(ctx, '#e6e0d4', 7, 6, 1, 6);
+      ink(ctx, 0.4, 4, 6, 8, 1);
+      ink(ctx, 0.25, 4, 7, 1, 5);
+      px(ctx, shade(trim, 0.2), 2, 12, 12, 1);
+      ink(ctx, 0.3, 3, 13, 11, 1);
       break;
     case 'display':
       if (variant === 0) break;
-      px(ctx, PALETTE.ink, 0, 4, TILE, 11);
-      px(ctx, shade(PALETTE.glass, 0.1), 1, 5, 14, 9);
-      glow(ctx, 8, 8, 7, 0.14, look.lit);
+      px(ctx, shade(look.wall, -0.3), 0, 3, TILE, 1);
+      px(ctx, ALU, 0, 4, TILE, 1);
+      modernGlass(ctx, 1, 5, 14, 9, true, look.lit);
       // Siluetas de lo expuesto: prendas en la moda, frutas en la frutería, tambores en la lavandería.
       if (dark) {
         px(ctx, '#8c5a6e', 3, 7, 3, 6);
@@ -1033,33 +1106,42 @@ function drawFront(ctx: Ctx, look: Look, variant: number): void {
         px(ctx, PALETTE.amber, 3, 10, 3, 3);
         px(ctx, RUST, 7, 10, 3, 3);
         px(ctx, PALETTE.leafLit, 11, 10, 3, 3);
-        px(ctx, shade(look.lit, -0.2), 4, 6, 8, 2);
       }
-      px(ctx, look.lit, 1, 5, 14, 1);
+      px(ctx, ALU_LIT, 0, 4, 1, 10);
+      px(ctx, ALU_DK, 15, 4, 1, 10);
+      px(ctx, ALU_DK, 0, 14, TILE, 1);
       break;
     case 'glass':
       if (variant === 0) {
-        px(ctx, shade(look.wall, -0.06), 0, 3, TILE, 12);
+        px(ctx, shade(look.wall, -0.06), 0, 4, TILE, 11);
+        px(ctx, shade(look.wall, -0.16), 15, 4, 1, 11);
         break;
       }
-      px(ctx, PALETTE.ink, 0, 3, TILE, 12);
-      px(ctx, dark ? PALETTE.glass : shade(PALETTE.glass, 0.12), 1, 4, 14, 10);
-      px(ctx, shade(look.lit, dark ? -0.3 : 0), 1, 4, 14, 1);
-      px(ctx, shade(PALETTE.glassLit, -0.3), 3, 6, 1, 6);
-      px(ctx, PALETTE.ink, 8, 4, 1, 10);
+      px(ctx, ALU, 0, 3, TILE, 1);
+      modernGlass(ctx, 1, 4, 14, 10, !dark, look.lit);
+      px(ctx, ALU_LIT, 0, 3, 1, 12);
+      px(ctx, ALU_DK, 15, 3, 1, 12);
+      px(ctx, ALU_LIT, 8, 4, 1, 10);
+      px(ctx, ALU_DK, 0, 14, TILE, 1);
       break;
     case 'shutter':
-      px(ctx, PALETTE.metal, 1, 3, 14, 12);
-      for (let y = 4; y < 15; y += 2) px(ctx, shade(PALETTE.metal, variant === 2 ? -0.12 : -0.06), 1, y, 14, 1);
+      px(ctx, shade(PALETTE.metal, -0.2), 1, 3, 14, 2);
+      px(ctx, PALETTE.metal, 1, 5, 14, 10);
+      for (let y = 6; y < 15; y += 2) px(ctx, shade(PALETTE.metal, variant === 2 ? -0.12 : -0.06), 1, y, 14, 1);
+      px(ctx, shade(PALETTE.metal, 0.18), 1, 5, 14, 1);
+      ink(ctx, 0.3, 1, 5, 14, 1);
       if (variant === 2) px(ctx, PALETTE.ink, 1, 12, 14, 3);
       break;
     case 'arched':
       if (variant === 0) break;
-      px(ctx, shade(look.wall, -0.14), 4, 3, 8, 12);
+      px(ctx, trim, 4, 3, 8, 12);
+      px(ctx, shade(trim, -0.2), 11, 4, 1, 11);
       px(ctx, dark ? PALETTE.glass : shade(look.lit, -0.35), 5, 5, 6, 10);
-      px(ctx, look.wall, 5, 4, 1, 1);
-      px(ctx, look.wall, 10, 4, 1, 1);
-      px(ctx, shade(look.lit, dark ? -0.3 : -0.1), 5, 5, 6, 1);
+      px(ctx, trim, 5, 5, 1, 1);
+      px(ctx, trim, 10, 5, 1, 1);
+      px(ctx, shade(trim, 0.2), 7, 3, 2, 2);
+      ink(ctx, 0.35, 6, 5, 4, 1);
+      ink(ctx, 0.22, 5, 6, 1, 9);
       break;
     case 'metro':
       px(ctx, PALETTE.night, 0, 0, TILE, TILE);
@@ -1071,10 +1153,6 @@ function drawFront(ctx: Ctx, look: Look, variant: number): void {
   if (look.shop !== 'metro') drawAwning(ctx, look);
 }
 
-/**
- * Grafiti controlado y cartelería: manchas de color con contorno en el mural,
- * papeles superpuestos y medio arrancados en los carteles. Por debajo del alero.
- */
 function drawWallArt(ctx: Ctx, art: 'mural' | 'posters', wall: string): void {
   if (art === 'mural') {
     const ink = [NEON_PINK, NEON_CYAN, PALETTE.amber, '#c8d84a', PALETTE.white];
@@ -1111,7 +1189,9 @@ function drawDoor(ctx: Ctx, look: Look): void {
       px(ctx, shade(PALETTE.glass, 0.15), 3, 4, 10, 12);
       px(ctx, PALETTE.ink, 8, 4, 1, 12);
       px(ctx, shade(look.lit, -0.1), 3, 4, 10, 1);
-      glow(ctx, 8, 12, 6, 0.18, look.lit);
+      // HD-04: la luz de dentro en el vidrio, sin halo, y el reflejo del cielo.
+      px(ctx, shade(look.lit, -0.25), 3, 11, 10, 4);
+      px(ctx, mix(PALETTE.glass, PALETTE.glassLit, 0.45), 4, 6, 1, 3);
       break;
     case 'wood':
       px(ctx, PALETTE.woodDark, 2, 2, 12, 14);
@@ -1140,6 +1220,12 @@ function drawDoor(ctx: Ctx, look: Look): void {
       for (let y = 5; y < 16; y += 3) px(ctx, shade(PALETTE.night, 0.1 - y * 0.005), 3, y, 10, 1);
       px(ctx, PALETTE.amber, 4, 2, 8, 1);
       break;
+  }
+  // HD-04: el hueco va metido en el muro: el dintel y la jamba izquierda lo dejan en sombra.
+  if (look.door !== 'stairs') {
+    ink(ctx, 0.35, 2, 3, 12, 1);
+    ink(ctx, 0.2, 2, 4, 1, 11);
+    px(ctx, shade(look.wall, 0.14), 14, 3, 1, 12);
   }
   // El umbral es acera: se entra caminando.
   px(ctx, PALETTE.pavement, 0, 15, TILE, 1);
@@ -1338,29 +1424,59 @@ function drawGoods(ctx: Ctx, g: Goods): void {
  */
 function drawBack(ctx: Ctx, look: Look, v: number): void {
   const H = STOREY;
-  px(ctx, look.wall, 0, 0, TILE, H);
-  sprinkle(ctx, shade(look.wall, 0.04), TILE, H, 91 + v, 9);
-  // Sombra del alero, arriba.
-  ctx.globalAlpha = 0.3;
-  px(ctx, PALETTE.ink, 0, 0, TILE, 3);
-  ctx.globalAlpha = 1;
-  px(ctx, shade(PALETTE.stone, -0.12), 0, H - 3, TILE, 3);
+  // HD-04: el muro de su material (o revoco), la sombra honda del alero, el zócalo de granito y, en cada
+  // tramo, la ventana de la cocina con su recercado, la bajante, el tendedero o el aparato de aire.
+  wallFace(ctx, look.wall, look.mat ?? 'stucco', H, false);
+  [0.5, 0.34, 0.2, 0.1, 0.04].forEach((a, i) => ink(ctx, a, 0, i, TILE, 1));
+  const granite = shade(PALETTE.stone, -0.12);
+  px(ctx, granite, 0, H - 4, TILE, 4);
+  px(ctx, shade(granite, 0.16), 0, H - 4, TILE, 1);
+  px(ctx, shade(granite, -0.2), 0, H - 1, TILE, 1);
+  px(ctx, shade(granite, -0.18), 9, H - 3, 1, 2);
+  ink(ctx, 0.07, 0, H - 9, TILE, 5);
   if (v === 0) {
-    px(ctx, shade(PALETTE.metal, -0.1), 3, 0, 2, H - 3);
-    px(ctx, shade(PALETTE.metal, 0.1), 3, 0, 1, H - 3);
+    // Bajante de zinc con sus abrazaderas y su sombra en el muro.
+    ink(ctx, 0.26, 6, 2, 1, H - 6);
+    px(ctx, '#949aa0', 3, 0, 3, H - 4);
+    px(ctx, '#b9bec3', 3, 0, 1, H - 4);
+    px(ctx, '#6c7177', 5, 0, 1, H - 4);
+    for (const y of [9, 21]) px(ctx, PALETTE.iron, 2, y, 5, 1);
     return;
   }
-  windowHole(ctx, look.wall, look.lit, 5, 8, 6, 8, false);
+  const trim = trimOf(look);
+  // Recercado, dintel con su canto y sombra, vidrio con el cielo, carpintería y alféizar volado.
+  px(ctx, trim, 3, 7, 10, 10);
+  px(ctx, shade(trim, 0.16), 2, 5, 12, 1);
+  px(ctx, shade(trim, 0.04), 2, 6, 12, 1);
+  px(ctx, shade(trim, -0.2), 12, 7, 1, 10);
+  px(ctx, PALETTE.glass, 5, 8, 6, 8);
+  px(ctx, mix(PALETTE.glass, PALETTE.glassLit, 0.4), 6, 12, 1, 2);
+  px(ctx, mix(PALETTE.glass, PALETTE.glassLit, 0.4), 7, 10, 1, 2);
+  px(ctx, '#e6e0d4', 7, 8, 1, 8);
+  ink(ctx, 0.42, 5, 8, 6, 1);
+  ink(ctx, 0.25, 5, 9, 1, 7);
+  px(ctx, shade(trim, 0.2), 2, 16, 12, 1);
+  ink(ctx, 0.34, 3, 17, 11, 1);
+  ink(ctx, 0.12, 3, 18, 11, 1);
   if (v === 2) {
-    // Tendedero: una cuerda y la ropa colgada.
-    px(ctx, PALETTE.metalLit, 1, 19, 14, 1);
-    for (const [x, w, c] of [[2, 3, PALETTE.white], [6, 2, '#5c6fa8'], [9, 4, '#c98a8a'], [13, 2, '#e6dcc0']] as const) px(ctx, c, x, 20, w, 3 + (x % 2));
+    // Tendedero: cuerda, pinzas y la ropa, cada prenda con su sombra en el muro.
+    px(ctx, PALETTE.metalLit, 1, 20, 14, 1);
+    for (const [x, w, c] of [[2, 3, PALETTE.white], [6, 2, '#5c6fa8'], [9, 4, '#c98a8a'], [13, 2, '#e6dcc0']] as const) {
+      const hh = 3 + (x % 2);
+      ink(ctx, 0.22, x + 1, 22, w, hh);
+      px(ctx, c, x, 21, w, hh);
+      px(ctx, shade(c, -0.18), x + w - 1, 21, 1, hh);
+    }
   } else if (v === 3) {
-    // Aparato de aire bajo la ventana, con su goteo.
-    px(ctx, shade(PALETTE.white, -0.2), 4, 19, 8, 5);
-    px(ctx, shade(PALETTE.white, -0.05), 4, 19, 8, 1);
-    px(ctx, PALETTE.metal, 5, 21, 4, 2);
-    px(ctx, shade(PALETTE.metal, -0.2), 11, 24, 1, 3);
+    // Aparato de aire bajo la ventana: caja, rejilla, escuadras, su sombra y el goteo.
+    ink(ctx, 0.28, 5, 26, 9, 1);
+    ink(ctx, 0.2, 13, 21, 1, 5);
+    px(ctx, '#d6d4cd', 4, 20, 9, 6);
+    px(ctx, '#efeee9', 4, 20, 9, 1);
+    px(ctx, '#a9a7a0', 12, 21, 1, 5);
+    px(ctx, '#4b4e55', 5, 21, 4, 4);
+    px(ctx, '#6a6d74', 6, 22, 2, 2);
+    ink(ctx, 0.1, 7, 27, 1, 2);
   }
 }
 
@@ -1635,6 +1751,16 @@ const WALL_TONES: Partial<Record<BuildingStyle, readonly [string, string]>> = {
   'res-plaster': ['#d9a98a', '#d4cdb8'],
   backdrop: ['#bfa57f', '#d2c3a6'],
 };
+/** HD-04: material de la fachada entera de cada estilo de vecinos (sin él, la fachada por tiles de siempre). */
+const HD_MAT: Partial<Record<BuildingStyle, 'ashlar' | 'stucco' | 'brick'>> = {
+  'res-stone': 'ashlar',
+  'res-noble': 'ashlar',
+  'res-plaster': 'stucco',
+  'res-brick': 'brick',
+};
+/** Las casas con fachada HD (la de la calle residencial o la de su estilo): world/Detail no les repinta alero ni imposta. */
+export const hdFacade = (b: BuildingDef): boolean => !!b.finish || (b.front === 's' && HD_MAT[b.style] !== undefined);
+const SHUTTERS = ['#4f6f4a', '#3f5f78', '#6e5038', '#8a4a3a'] as const;
 const toned = (style: BuildingStyle, t: number): Look => {
   const alt = WALL_TONES[style];
   return t === 1 || !alt ? LOOKS[style] : { ...LOOKS[style], wall: alt[t === 0 ? 0 : 1] };
@@ -1816,8 +1942,8 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
     // Boca de metro de 3 × 3 (Visual V2, world/UrbanArt): marquesina, rótulo y escalera en una pieza.
     // Boca principal de 5 × 4 (la de la plazuela de referencia): pórtico, rótulo, paneles y escalera en una pieza.
     if (b.style === 'metro' && b.w === 5 && b.h === 4) {
-      // HD-03: la misma boca con el acabado de la manzana piloto (world/UrbanFinish); su brillo no cambia.
-      rt.batchDraw(b.finish === 'hd03' ? 'bs-metro-hero-hd03' : 'bs-metro-hero', b.tx * TILE, b.ty * TILE);
+      // HD-04: todas las bocas con el acabado de la manzana piloto (world/UrbanFinish); su brillo no cambia.
+      rt.batchDraw('bs-metro-hero-hd03', b.tx * TILE, b.ty * TILE);
       glows.push({ key: 'bs-metro-hero-glow', x: b.tx * TILE, y: b.ty * TILE });
       continue;
     }
@@ -1849,6 +1975,7 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
       const floors = b.floors ?? 1;
       const groundTop = frontRow - (STOREY_ROWS - 1);
       const bays: FacadeBay[] = [];
+      const home = b.style === 'home';
       for (let i = 0; i < b.w; i++) {
         const x = b.tx + i;
         const r = (seed >>> (i % 16)) & 3;
@@ -1859,7 +1986,8 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
         const upper: { window: boolean; lit: boolean; blind: number }[] = [];
         for (let f = 1; f < floors; f++) {
           const q = (seed >>> ((i + f * 5) % 16)) & 3;
-          const u = i % 2 === 1 ? (q & 1 ? 1 : 2) : 0;
+          // Tu portal, como en el horneado por tiles: balcón en cada hueco alterno.
+          const u = i % 2 === 1 ? (home ? 2 : q & 1 ? 1 : 2) : 0;
           upper.push({ window: u !== 0, lit: u === 1, blind: [3, 6, 9, 5][(q + i + f) % 4] });
           if (u !== 0) pane(b, false, UPPER_PANE_T[look.upper], x, groundTop - f * STOREY_ROWS);
         }
@@ -1867,12 +1995,18 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
       }
       const fh = rows * TILE;
       const facadeKey = `bs-facade-${b.id}`;
-      make(rt.scene, facadeKey, b.w * TILE, fh, (ctx) => drawResidentialFacade(ctx, { bays, floors, wall: look.wall, lit: look.lit, seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0) }));
+      make(rt.scene, facadeKey, b.w * TILE, fh, (ctx) => drawResidentialFacade(ctx, { bays, floors, wall: look.wall, lit: look.lit, seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0), mat: look.mat === 'stucco' ? 'stucco' : 'ashlar', shutter: home ? '#3f6f78' : '#6e5038', leaf: home ? '#3f6f78' : PALETTE.wood, flowers: home }));
       draw(facadeKey, b.tx, b.ty + b.h - rows);
+      // La placa del portal (la casita del tuyo), igual que en el horneado por tiles, y de noche encendida.
+      if (look.sign && b.doorX !== undefined) {
+        const side = b.doorX + 1 < b.tx + b.w ? b.doorX + 1 : b.doorX - 1;
+        draw(`bs-sign-${look.sign}`, side, groundTop);
+        glows.push({ key: `bs-sign-${look.sign}`, x: side * TILE, y: groundTop * TILE, building: b.id });
+      }
       const roofRowsHD = b.h - rows;
       if (roofRowsHD > 0) {
         const roofKey = `bs-roof-hd03-${b.id}`;
-        make(rt.scene, roofKey, b.w * TILE, roofRowsHD * TILE, (ctx) => drawResidentialRoof(ctx, b.w * TILE, roofRowsHD * TILE, look.roof, seed));
+        make(rt.scene, roofKey, b.w * TILE, roofRowsHD * TILE, (ctx) => drawResidentialRoof(ctx, b.w * TILE, roofRowsHD * TILE, look.roof, seed, { clay: home, laundry: home }));
         draw(roofKey, b.tx, b.ty);
       }
       continue;
@@ -1893,15 +2027,34 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
     const goods = look.shop === 'display' ? GOODS_BY_STYLE[b.style] : undefined;
     const business = !b.style.startsWith('res-') && b.style !== 'home' && b.style !== 'backdrop';
 
+    // HD-04: las casas de vecinos al sur pintan su fachada entera, casa a casa (world/ResidentialArt).
+    const hd = b.front === 's' ? HD_MAT[b.style] : undefined;
+    // Y los locales: sus plantas de vivienda, con el mismo pintor; la planta baja (escaparate, toldo, rótulo), como siempre.
+    const hdUpper = !hd && b.front === 's' && floors >= 2 && (look.upper === 'windows' || look.upper === 'balcony');
+
     let patioDone = false;
     for (const seg of segs) {
       const k = tk(seg.tone);
+      const segBays: FacadeBay[] = [];
+      const upperBays: FacadeBay[] = [];
       for (let x = seg.x0; x < seg.x0 + seg.w; x++) {
         const i = x - b.tx;
         const edge = i === 0 || i === b.w - 1;
         const r = (seed >>> (i % 16)) & 3;
         const v = groundVariant(look, b.style, i, edge, r);
-        if (b.front === 's') {
+        if (hd) {
+          // Los mismos huecos que el horneado por tiles: Lighting y Detail los encuentran donde siempre.
+          const ground = x === b.doorX ? 'door' : v === 0 ? 'wall' : 'window';
+          if (ground === 'window') pane(b, false, SHOP_PANE_T[look.shop], x, groundTop);
+          const upper: { window: boolean; lit: boolean; blind: number }[] = [];
+          for (let f = 1; f < floors; f++) {
+            const q = (seed >>> ((i + f * 5) % 16)) & 3;
+            const u = i % 2 === 1 ? (q & 1 ? 1 : 2) : 0;
+            upper.push({ window: u !== 0, lit: u === 1, blind: [3, 6, 9, 5][(q + i + f) % 4] });
+            if (u !== 0) pane(b, false, UPPER_PANE_T[look.upper], x, groundTop - f * STOREY_ROWS);
+          }
+          segBays.push({ ground, groundLit: v === 1, upper });
+        } else if (b.front === 's') {
           // Planta baja de dos filas con la puerta y, encima, cada planta de dos filas.
           if (x === b.doorX) draw(`bs-${b.style}-door-t${k}`, x, groundTop);
           else {
@@ -1912,7 +2065,17 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
             }
           }
           if (awning >= 0) rt.batchDraw(`bs-awn-${b.style}-${awning}`, x * TILE, groundTop * TILE + 3);
-          for (let f = 1; f < floors; f++) {
+          if (hdUpper) {
+            const upper: { window: boolean; lit: boolean; blind: number }[] = [];
+            for (let f = 1; f < floors; f++) {
+              const q = (seed >>> ((i + f * 5) % 16)) & 3;
+              const u = i % 2 === 1 ? (q & 1 ? 1 : 2) : 0;
+              upper.push({ window: u !== 0, lit: u === 1, blind: [3, 6, 9, 5][(q + i + f) % 4] });
+              if (u !== 0) pane(b, false, UPPER_PANE_T[look.upper], x, groundTop - f * STOREY_ROWS);
+            }
+            upperBays.push({ ground: 'wall', groundLit: false, upper });
+          }
+          for (let f = 1; f < floors && !hdUpper; f++) {
             const top = groundTop - f * STOREY_ROWS;
             // Cada planta alterna huecos y paños a su manera; la persiana, distinta en cada ventana.
             const q = (seed >>> ((i + f * 5) % 16)) & 3;
@@ -1939,16 +2102,46 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
         }
       }
 
+      if (hd) {
+        const fKey = `bs-facade-${b.id}-${seg.x0}`;
+        const wall = toned(b.style, seg.tone).wall;
+        // Contraventanas de cada casa: verde, azul pizarra, madera o almagre, siempre las mismas.
+        const shutter = SHUTTERS[seg.seed % SHUTTERS.length];
+        make(rt.scene, fKey, seg.w * TILE, rows * TILE, (ctx) =>
+          drawResidentialFacade(ctx, { bays: segBays, floors, wall, lit: look.lit, seed: seg.seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0), mat: hd, shutter, leaf: PALETTE.wood, flowers: false, balconies: b.style === 'res-noble' }),
+        );
+        draw(fKey, seg.x0, b.ty + b.h - rows);
+      }
+      if (hdUpper) {
+        // La fachada entera se pinta y el lienzo, de sólo las plantas altas, corta la planta baja.
+        const uKey = `bs-upper-hd04-${b.id}-${seg.x0}`;
+        const wall = toned(b.style, seg.tone).wall;
+        make(rt.scene, uKey, seg.w * TILE, (floors - 1) * STOREY, (ctx) =>
+          drawResidentialFacade(ctx, { bays: upperBays, floors, wall, lit: look.lit, seed: seg.seed, number: 0, mat: look.mat ?? 'stucco', shutter: SHUTTERS[seg.seed % SHUTTERS.length], leaf: PALETTE.wood, flowers: false, balconies: look.upper === 'balcony' }),
+        );
+        draw(uKey, seg.x0, groundTop - (floors - 1) * STOREY_ROWS);
+      }
+
       if (roofRows <= 0) continue;
       const rw = seg.w * TILE;
       const rh = roofRows * TILE;
-      const key = `bs-roof-${b.id}-${seg.x0}-${rw}x${rh}`;
-      make(rt.scene, key, rw, rh, (ctx) => drawRoofArea(ctx, seg.roof, b.style, seg.roofTone, rw, rh, seg.seed, !b.front || (b.front === 'n' && back === 0), seg.ridge));
-      draw(key, seg.x0, roofTop);
+      const tiled = isTiled(seg.roof, seg.roofTone);
+      const own = DECO_BY_STYLE[b.style];
+      if (!tiled && (!own || own.length > 0)) {
+        // Toda azotea con el acabado de la calle residencial: baldosa o rasilla, casetón, depósitos, tendedero. Las de
+        // cubierta propia (gimnasio, oficinas, súper…) sólo con la base: sus placas y lucernarios van encima, como siempre.
+        const key = `bs-roof-hd04-${b.id}-${seg.x0}`;
+        make(rt.scene, key, rw, rh, (ctx) => drawResidentialRoof(ctx, rw, rh, seg.roof.roof, seg.seed, { clay: !own && seg.seed % 3 === 0, laundry: !own && seg.seed % 4 === 1, bare: !!own }));
+        draw(key, seg.x0, roofTop);
+        if (!own) continue;
+      } else {
+        const key = `bs-roof-${b.id}-${seg.x0}-${rw}x${rh}`;
+        make(rt.scene, key, rw, rh, (ctx) => drawRoofArea(ctx, seg.roof, b.style, seg.roofTone, rw, rh, seg.seed, !b.front || (b.front === 'n' && back === 0), seg.ridge));
+        draw(key, seg.x0, roofTop);
+      }
 
       // Encima del tejado, según el tejado: en teja chimeneas, antenas y buhardillas junto al alero; en azotea
       // aparatos, depósitos, placas y alguna terraza con macetas; en las casas grandes, el patio de luces.
-      const tiled = isTiled(seg.roof, seg.roofTone);
       if (tiled && b.front === 's' && seg.w >= 4 && b.style !== 'works') {
         draw('bs-deco-dormer', seg.x0 + 1 + (seg.seed % (seg.w - 2)), roofBottom);
       }
@@ -1976,7 +2169,8 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
     // Juntas entre casas: el cortafuegos que asoma en el tejado y la pilastra en cada planta de fachada.
     for (const seg of segs.slice(1)) {
       for (let y = roofTop; y <= roofBottom; y++) rt.batchDraw('bs-firewall', seg.x0 * TILE - 2, y * TILE);
-      if (b.doorX === seg.x0 || b.doorX === seg.x0 - 1) continue;
+      // Con fachada HD, las esquinas de sillares de cada casa ya marcan la junta.
+      if (hd || b.doorX === seg.x0 || b.doorX === seg.x0 - 1) continue;
       for (let f = 0; f < floors; f++) rt.batchDraw('bs-pilaster', seg.x0 * TILE - 1, (groundTop - f * STOREY_ROWS) * TILE);
       if (back) rt.batchDraw('bs-pilaster', seg.x0 * TILE - 1, backTop * TILE);
     }

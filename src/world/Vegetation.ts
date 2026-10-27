@@ -58,8 +58,9 @@ interface Cluster {
  * `fine`: acabado HD-03 de la manzana piloto. El tronco es un cilindro de cuatro tonos con su
  * corteza y el cuello de raíz al pie; la copa, con el canto al sol más limpio y la panza en sombra,
  * se despega del tronco. La forma y el tamaño son los mismos: colisión y sombras no cambian.
+ * `lush`: acabado HD-04 (lushCanopy), con el tronco de `fine`.
  */
-function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0, fine = false): void {
+function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0, fine = false, lush = false): void {
   const { w, h } = sp;
   let s = (seed * 2654435761) >>> 0 || 1;
   const rnd = (): number => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
@@ -153,6 +154,10 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0, fine = false): 
       px(ctx, BARK_DARK, bx, y, 2, 1);
     }
   }
+  if (lush) {
+    lushCanopy(ctx, sp, seed, sway);
+    return;
+  }
 
   // Copa: racimos dentro de un óvalo, ordenados de atrás (arriba) a delante (abajo).
   const canopyCy = Math.round(h * 0.38);
@@ -233,6 +238,104 @@ function drawTree(ctx: Ctx, sp: Species, seed: number, sway = 0, fine = false): 
   }
 }
 
+/**
+ * Copa HD-04: pocas masas grandes en vez de muchos racimos pequeños. Cada masa
+ * es una esfera con la luz del noroeste (cara al sol, terminador, panza en
+ * sombra); donde una masa de delante empieza, la de detrás queda en un pliegue
+ * hondo y el canto de la de delante recibe luz: la copa se lee por volúmenes.
+ * La textura de hoja va en celdas de 3 × 2 que rompen las fronteras de tono y
+ * el borde en festón, nunca en píxeles sueltos. Mismo óvalo que la copa de
+ * siempre: colisión y sombras no cambian.
+ */
+function lushCanopy(ctx: Ctx, sp: Species, seed: number, sway: number): void {
+  const { w, h } = sp;
+  let s = (seed * 2246822519 + 3) >>> 0 || 1;
+  const rnd = (): number => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const k = w / 56;
+  const cx = w / 2 + sway;
+  const cy = Math.round(h * 0.38);
+  const rx = w / 2 - 3;
+  const ry = h * 0.29;
+  const lobes: Cluster[] = [];
+  const put = (x: number, y: number, r: number): void => {
+    lobes.push({ x: Math.max(r + 1, Math.min(w - r - 1, x)), y: Math.max(r + 1, y), r });
+  };
+  const n = Math.round(5 + 4 * k);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + rnd() * 0.6;
+    const d = 0.55 + rnd() * 0.2;
+    put(cx + Math.cos(a) * rx * d, cy + Math.sin(a) * ry * d, (7 + rnd() * 3.5) * k + 2);
+  }
+  for (let i = 0; i < 3; i++) put(cx + (rnd() - 0.5) * rx * 0.7, cy + (rnd() - 0.4) * ry * 0.6, (8 + rnd() * 3) * k + 2);
+  put(cx + (rnd() - 0.5) * 4, cy - ry * 0.35, 9 * k + 3);
+  lobes.sort((p, q) => p.y - q.y);
+  const front = (x: number, y: number): number => {
+    for (let i = lobes.length - 1; i >= 0; i--) {
+      const c = lobes[i];
+      if ((x + 0.5 - c.x) ** 2 + (y + 0.5 - c.y) ** 2 <= c.r * c.r) return i;
+    }
+    return -1;
+  };
+  // Celda de hoja: filas de 3 × 2 a matajunta.
+  const leaf = (x: number, y: number, salt: number): number => {
+    const row = Math.floor(y / 2);
+    return hash2(Math.floor((x + (row % 2) * 1.5) / 3), row, seed + salt);
+  };
+  const hueShift = rnd();
+  const tones = GREENS.map((g) => (hueShift < 0.4 ? mix(g, WARM_LEAF, 0.14 * (1 - hueShift / 0.4)) : hueShift > 0.7 ? mix(g, COOL_LEAF, 0.16) : g));
+
+  const idx = new Int8Array(w * h).fill(-1);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) idx[y * w + x] = front(x, y);
+  const at = (x: number, y: number): number => (x < 0 || y < 0 || x >= w || y >= h ? -1 : idx[y * w + x]);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const f = at(x, y);
+      if (f < 0) continue;
+      const litEdge = at(x - 1, y) < 0 || at(x, y - 1) < 0;
+      const shadeEdge = at(x + 1, y) < 0 || at(x, y + 1) < 0;
+      // Borde en festón: se come una celda de hoja entera, no un píxel suelto.
+      if ((litEdge || shadeEdge) && leaf(x, y, 5) < 0.3) continue;
+      const c = lobes[f];
+      const nx = (x + 0.5 - c.x) / c.r;
+      const ny = (y + 0.5 - c.y) / c.r;
+      const l = -(nx * 0.55 + ny * 0.8) - ((x - cx) / rx) * 0.25 - ((y - cy) / ry) * 0.35;
+      let i = Math.round(3.2 + l * 2.8 + (leaf(x, y, 9) - 0.5) * 1.9);
+      // Pliegue: la masa de detrás se hunde donde empieza la de delante.
+      if (at(x, y + 1) > f || at(x + 1, y + 1) > f) i -= 3;
+      else if (at(x, y + 2) > f) i -= 2;
+      else if (at(x, y + 3) > f) i -= 1;
+      // Canto de la masa de delante contra el pliegue: luz si mira al noroeste.
+      else if (at(x, y - 1) >= 0 && at(x, y - 1) < f && ny < 0 && nx < 0.4) i = Math.max(i + 1, 4);
+      if (shadeEdge && !litEdge) i = Math.min(i - 1, 1);
+      else if (litEdge && !shadeEdge) i = Math.max(i, y < cy ? 5 : 4);
+      if (at(x, y + 1) < 0 && y > cy) i = 0;
+      else if (y > cy + ry * 0.5) i -= 1;
+      px(ctx, tones[Math.max(0, Math.min(6, i))], x, y);
+    }
+  }
+  // Brillos: matas de hoja al sol en la cara noroeste de cada masa, de tres píxeles con su sombra.
+  lobes.forEach((c, n) => {
+    for (let j = 0; j < 4; j++) {
+      const x = Math.round(c.x - c.r * (0.05 + rnd() * 0.6));
+      const y = Math.round(c.y - c.r * (0.2 + rnd() * 0.5));
+      if (at(x, y) !== n || at(x + 2, y + 1) !== n) continue;
+      px(ctx, tones[6], x + 1, y, 2, 1);
+      px(ctx, tones[5], x, y + 1, 3, 1);
+      px(ctx, tones[3], x + 1, y + 2, 2, 1);
+    }
+  });
+  // Huecos hondos con la rama a la vista, en los pliegues.
+  for (let j = 0; j < 4; j++) {
+    const c = lobes[Math.floor(rnd() * lobes.length)];
+    const x = Math.round(c.x + c.r * 0.15);
+    const y = Math.round(c.y + c.r * 0.6);
+    if (at(x, y) < 0 || at(x + 1, y + 1) < 0 || at(x - 1, y) < 0) continue;
+    px(ctx, tones[0], x - 1, y, 3, 1);
+    px(ctx, tones[0], x, y + 1, 2, 1);
+    px(ctx, BARK_DARK, x, y + 1, 1, 1);
+  }
+}
+
 export function buildVegetationTextures(scene: Phaser.Scene): void {
   for (const sp of [TREE, PLANE_TREE, BED_TREE]) {
     for (let v = 0; v < sp.variants; v++) {
@@ -242,6 +345,9 @@ export function buildVegetationTextures(scene: Phaser.Scene): void {
       // HD-03: la manzana piloto (LocationDef.pilot) los pone con el acabado nuevo; la racha, igual.
       make(scene, `${sp.key}-${v}-hd03`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 0, true));
       make(scene, `${sp.key}-${v}-hd03-gust`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 1, true));
+      // HD-04: copa por masas (LocationDef.finish 'hd04').
+      make(scene, `${sp.key}-${v}-hd04`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 0, true, true));
+      make(scene, `${sp.key}-${v}-hd04-gust`, sp.w, sp.h, (ctx) => drawTree(ctx, sp, v * 97 + sp.w, 1, true, true));
     }
   }
 }

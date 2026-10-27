@@ -127,7 +127,7 @@ const into = (location: string): BuildingDef['enter'] => ({ location, spawn: 'en
 // estación ya salen a esos spawns.
 const BUILDINGS: readonly BuildingDef[] = [
   // Interiores
-  b('home-door', 'Tu portal · Olmo 7', 'home', [37, 37, 9, 9], 's', 41, { floors: 2, enter: into('home'), point: 'HOME_ENTRANCE' }),
+  b('home-door', 'Tu portal · Olmo 7', 'home', [37, 37, 9, 9], 's', 41, { floors: 2, enter: into('home'), point: 'HOME_ENTRANCE', finish: 'hd03' }),
   b('metro-door', 'Metro · Vallesco', 'metro', [28, 38, 5, 4], 's', 30, { enter: { location: 'vallesco-station', spawn: 'entry' }, point: 'METRO_ENTRANCE', finish: 'hd03' }),
   b('gym-door', 'Gimnasio Forja', 'gym', [33, 1, 15, 5], 's', 40, { floors: 2, enter: into('gym'), point: 'GYM_ENTRANCE' }),
   b('cafe-door', 'Cafetería Pausa', 'cafe', [52, 8, 10, 8], 's', 56, { floors: 2, enter: into('cafe'), point: 'CAFE_ENTRANCE' }),
@@ -636,4 +636,4 @@ const WIDE: LocationDef = { ...WIDENED, props: [...WIDENED.props, ...MEDIAN, at(
 // HD-03: la manzana piloto del acabado urbano, ya en coordenadas ensanchadas. De la mediana de la avenida a la
 // primera mitad del Parque del Olmo, entre la Calle Tintoreros y el Pasaje del Reloj: la plazuela del metro,
 // Olmo 7 y Olmo 11, la acera sur de la avenida con sus dos pasos y la Calle del Olmo con sus coches aparcados.
-export const VALLESCO: LocationDef = { ...WIDE, props: [...WIDE.props, ...dress(WIDE)], finish: true };
+export const VALLESCO: LocationDef = { ...WIDE, props: [...WIDE.props, ...dress(WIDE)], finish: 'hd04' };

@@ -584,8 +584,9 @@ export interface LocationDef {
    * HD-03, acabado urbano en todo el sitio (world/UrbanFinish.finished): calzada, acera, bordillo, hierba,
    * vegetación, mobiliario, semáforos y la noche (world/Lighting) con su versión nueva. Todo el sitio a la vez:
    * antes era una manzana piloto y se veía la costura en su borde.
+   * 'hd04': además, las piezas que tengan versión `-hd04` (de momento, las copas de los árboles).
    */
-  finish?: boolean;
+  finish?: boolean | 'hd04';
   /**
    * Primer plano con paralaje (world/Foreground): copas que asoman por el borde
    * de la cámara cuando se mira la escena de muestra. x, y: dónde se ven con la

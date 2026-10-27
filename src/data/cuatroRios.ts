@@ -257,4 +257,4 @@ const BASE: LocationDef = {
   ],
 };
 
-export const CUATRO_RIOS: LocationDef = { ...BASE, finish: true, props: [...BASE.props, ...dress(BASE)] };
+export const CUATRO_RIOS: LocationDef = { ...BASE, finish: 'hd04', props: [...BASE.props, ...dress(BASE)] };

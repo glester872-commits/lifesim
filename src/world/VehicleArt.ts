@@ -219,6 +219,13 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
   }
   // HD-03: bajos de plástico entre las ruedas.
   if (fine) px(ctx, TRIM, 4, bottom, L - 8, 1);
+  // HD-04: el sol del noroeste en el hombro de la chapa, un trazo delante y otro detrás, cortado en cada puerta.
+  if (fine) {
+    for (const [a, w] of [[0.12, 0.16], [0.62, 0.12]] as const) {
+      const x0 = Math.round(a * L);
+      for (let x = x0; x < x0 + Math.round(w * L); x++) if (!doorLines.includes(x)) px(ctx, shade(body, 0.36), x, pr.belt + 1, 1, 1);
+    }
+  }
   // Retrovisor en la base del parabrisas.
   const mx = Math.round(pr.wsBase * L) - 1;
   px(ctx, shade(body, -0.2), mx, pr.belt - 1, 2, 2);
@@ -463,6 +470,8 @@ export function drawVehicle(ctx: Ctx, t: VehicleType, body: string, variant = 0,
   px(ctx, SHADOW_SOFT, 0, p.H - 4, p.L + 1, 4);
   // HD-03: la penumbra se corre un píxel al sureste (la luz viene del noroeste) y el borde se funde en un tono más.
   if (fine) px(ctx, SHADOW_SOFT, 2, p.H - 1, p.L - 1, 1);
+  // HD-04: el núcleo bajo las ruedas, más hondo, para que el coche se asiente en la calzada.
+  if (fine) px(ctx, SHADOW, 4, p.H - 2, p.L - 6, 1);
   ctx.restore();
   return lamps;
 }

@@ -116,9 +116,15 @@ ni acceso global al estado.
 
 - **Movimiento** — velocidad normalizada en diagonal, cuerpo de colisión
   reducido a los pies para poder pasar por detrás de árboles y farolas.
-- **Cámara** — seguimiento suave con límites de mapa. El zoom se ajusta por
-  localización: sube en enteros hasta cubrir la ventana (tope 5) y, si el mapa
-  sigue sin llenarla, encuadra centrado en lugar de pegarse a una esquina.
+- **Cámara** — seguimiento suave con límites de mapa. El zoom sale de la
+  ventana, no del sitio (`world/PixelScale`): el lienzo va a resolución física
+  (CSS × devicePixelRatio) y el zoom es el entero más cercano a encajar un
+  encuadre de 480 × 405 px de mundo (en vertical, girado), entre 2 y 12. Así un
+  píxel de arte mide siempre un número entero de píxeles: 1366 × 768 → 2,
+  Full HD → 3, 1440p → 4, 4K → 5; un móvil de 390 × 844 a 2× → 2 y a 3× → 3.
+  El mismo zoom en la calle y en un interior; si el mapa no llena la vista, la
+  cámara lo encuadra centrado, y fuera de un exterior se pinta la ciudad hasta
+  el borde de la vista (`WIDEST_VIEW`).
 - **Colisiones** — `solidMask` (en `LocationSystem`) decide qué tile es sólido:
   terreno, huella de edificio menos su puerta y fila base de cada prop. De ahí
   salen rectángulos agrupados (`solidRects`): 144 cuerpos en todo el barrio y
