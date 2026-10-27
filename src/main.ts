@@ -63,6 +63,9 @@ import { PlaceBanner } from './ui/PlaceBanner';
 import { Menu } from './ui/Menu';
 import { MapScreen } from './ui/MapScreen';
 import { PhoneScreen } from './ui/Phone';
+import { OnlinePanel } from './ui/OnlinePanel';
+import { serverUrl } from './net/OnlineClient';
+import { appearanceToLook } from './world/RemotePlayers';
 import { MobileControls } from './ui/MobileControls';
 import { PauseMenu } from './ui/PauseMenu';
 import { PlayerInput } from './systems/PlayerInput';
@@ -108,6 +111,20 @@ const services: Services = {
   input: new PlayerInput(),
   phone,
   audio: new CityAudio(requireEl('#sound-button') as HTMLButtonElement),
+  // Alpha-06: sala online opcional. Sólo sale el nombre, el aspecto (ids de catálogo) y dónde está el avatar.
+  online: new OnlinePanel(requireEl('#phone-button').parentElement!, serverUrl(), {
+    identity: () => ({ name: state.identity.name, look: appearanceToLook(state.appearanceOf('player')) }),
+    // Escribiendo en el chat, WASD, E, Espacio o Intro son letras: el juego deja el teclado y lo recupera sin teclas pegadas.
+    typing: (on) => {
+      const keyboard = game.scene.getScene('World')?.input.keyboard;
+      services.input.releaseAll();
+      if (!keyboard) return;
+      keyboard.resetKeys();
+      keyboard.enabled = !on;
+      if (on) keyboard.disableGlobalCapture();
+      else keyboard.enableGlobalCapture();
+    },
+  }),
 };
 
 // La paleta vive en TypeScript; el CSS la consume desde aquí para no duplicarla.

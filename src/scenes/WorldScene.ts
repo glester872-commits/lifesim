@@ -143,6 +143,7 @@ import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
 import { PLAYER_H, pumpPeopleFine } from '../world/TextureFactory';
+import { RemotePlayers, zoneOf } from '../world/RemotePlayers';
 import type { Services } from '../services';
 import { LAYER } from '../world/Layers';
 
@@ -809,7 +810,12 @@ export class WorldScene extends Phaser.Scene {
     });
 
     this.game.events.on(Phaser.Core.Events.POST_RENDER, this.measureFrame);
+    // Alpha-06: quien esté en la sala online y en esta zona, con su aspecto (ui/OnlinePanel guarda la sala entre escenas).
+    const remotes = new RemotePlayers(this, () => zoneOf(state.locationId), this.services.online.isBlocked);
+    this.services.online.bind(remotes);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.services.online.bind(null);
+      remotes.clear();
       this.game.events.off(Phaser.Core.Events.POST_RENDER, this.measureFrame);
       dialogue.off('close', onDialogueClose);
       state.off('story', onStory);
@@ -854,6 +860,8 @@ export class WorldScene extends Phaser.Scene {
     this.frameStart = performance.now();
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
+    // La sala online, cada fotograma: los demás se mueven y lo propio sale como mucho 10 veces por segundo.
+    this.services.online.update(zoneOf(this.services.state.locationId), this.player.x, this.player.y, this.player.facing);
     this.updateSound(time);
     this.matchView?.update(this.absMinute(), time);
     this.updateStand(time);

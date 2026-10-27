@@ -661,6 +661,35 @@ export function preparePerson(id: string): void {
 }
 
 /**
+ * Alpha-06: alguien conectado desde otro navegador (world/RemotePlayers), pintado como el jugador con su aspecto
+ * (ids de catálogo ya validados) en sus propias texturas `${key}-…` y con las mismas animaciones. Repintar (cambia
+ * de ropa al volver) limpia antes; dropRemote lo quita todo al irse de la sala.
+ */
+export function paintRemote(scene: Phaser.Scene, key: string, look: Appearance): void {
+  const colors = withAppearance(PLAYER_COLORS, look);
+  for (const facing of FACINGS) {
+    for (const pose of POSES) {
+      const id = humanKey(key, facing, pose);
+      const tex = (scene.textures.exists(id) ? scene.textures.get(id) : scene.textures.createCanvas(id, PLAYER_W, PLAYER_H)) as Phaser.Textures.CanvasTexture | null;
+      if (!tex) continue;
+      const ctx = tex.getContext();
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, PLAYER_W, PLAYER_H);
+      drawPersonFine(ctx, facing, pose, colors);
+      tex.refresh();
+    }
+  }
+  humanAnims(scene.anims, key, (facing, pose) => ({ key: humanKey(key, facing, pose) }));
+}
+
+export function dropRemote(scene: Phaser.Scene, key: string): void {
+  for (const facing of FACINGS) {
+    for (const kind of ['walk', 'run', 'idle']) scene.anims.remove(`${key}-${kind}-${facing}`);
+    for (const pose of POSES) if (scene.textures.exists(humanKey(key, facing, pose))) scene.textures.remove(humanKey(key, facing, pose));
+  }
+}
+
+/**
  * Desarrollo (lifesim.clothes()): ropa de verdad o la de siempre, en el jugador y
  * en la gente que la lleva, para comparar en el mismo sitio con la misma luz.
  */
