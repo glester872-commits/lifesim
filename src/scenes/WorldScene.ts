@@ -786,6 +786,8 @@ export class WorldScene extends Phaser.Scene {
 
     // Partida nueva: la guía del principio, cuando ya se ve la calle (data/tour.ts). Una partida de antes no la ve.
     this.time.delayedCall(TRANSITION_MS + 500, () => this.offerTour());
+    // La pantalla de inicio (title.ts) se quita con la calle ya montada.
+    this.game.events.emit('lifesim:world-ready');
 
     const autosave = this.time.addEvent({
       delay: AUTOSAVE_INTERVAL_MS,
@@ -887,6 +889,11 @@ export class WorldScene extends Phaser.Scene {
     } else if (!menu.isOpen && !dialogue.isOpen && !this.court && !this.workout && !this.player.isBusyTraining && this.time.now >= this.readyAt && this.pressedAny(['phone'])) {
       this.player.halt();
       phone.open();
+    } else if (!menu.isOpen && !dialogue.isOpen && !this.court && !this.workout && !this.player.isBusyTraining && !this.seatedOn && !this.player.isSeated && !this.leaving && this.time.now >= this.readyAt && this.pressedAny(['cancel', 'cancelAlt'])) {
+      // Esc (o Q) sin nada que cerrar ni de lo que levantarse: la pausa (ui/PauseMenu, la monta main.ts).
+      this.player.halt();
+      this.game.events.emit('lifesim:pause');
+      return;
     }
 
     // Un menú abierto para el mundo: se elige con W/S y E, o con 1–9. Uno «en vivo» (pedir en la

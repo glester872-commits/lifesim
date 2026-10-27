@@ -38,6 +38,8 @@ export interface HumanColors {
   ink?: readonly { spot: InkSpot; color: string }[];
   spots?: string;
   hairStyle?: HairStyle;
+  /** Iris (data/appearance EYE_COLORS): el píxel de abajo de cada ojo. Sin él, los dos del contorno. */
+  eyes?: string;
   earrings?: string;
   /** Bolso en bandolera y gorra: variedad para los anónimos. */
   bag?: string;
@@ -647,6 +649,11 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     const down = onPhone(pose) ? 1 : 0;
     px(ctx, PALETTE.outline, 6, 5 + b + down, 1, 2 - down);
     px(ctx, PALETTE.outline, 9, 5 + b + down, 1, 2 - down);
+    // El iris, en el píxel de abajo (mirando el móvil sólo queda ese: se ve).
+    if (c.eyes) {
+      px(ctx, c.eyes, 6, 6 + b, 1, 1);
+      px(ctx, c.eyes, 9, 6 + b, 1, 1);
+    }
     // Boca: la comisura de la luz más marcada que la de la sombra.
     px(ctx, tone(c.skin, -0.24), 7, 7 + b, 1, 1);
     px(ctx, tone(c.skin, -0.14), 8, 7 + b, 1, 1);
@@ -967,6 +974,7 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   px(ctx, tone(c.skin, -0.1), 12, 6 + b, 1, 1);
   px(ctx, tone(c.skin, -0.2), 11, 7 + b, 1, 1);
   px(ctx, PALETTE.outline, 10, 5 + b, 1, 2);
+  if (c.eyes) px(ctx, c.eyes, 10, 6 + b, 1, 1);
   px(ctx, tone(c.skin, -0.14), 7, 6 + b, 1, 1);
   face(ctx, true, b, c);
 

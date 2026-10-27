@@ -40,6 +40,9 @@ body {
 #overlay {
   position: absolute;
   inset: 0;
+  /* Los paneles a left: 50% (móvil, menú, diálogo) se recolocan con transform, pero su caja ocupa más allá del
+     borde: sin recortar, el móvil ensancha la página (390 → 569 px) y lo centrado queda fuera de pantalla. */
+  overflow: hidden;
   pointer-events: none;
   user-select: none;
 }
@@ -1178,7 +1181,8 @@ body.has-touch .dialogue__choices li {
 /* El botón, debajo del del mapa y del mismo material; con lo que hay sin leer en una pastilla. */
 #phone-button,
 #sound-button,
-#bag-button {
+#bag-button,
+#pause-button {
   position: absolute;
   top: 54px;
   right: 14px;
@@ -1200,6 +1204,8 @@ body.has-touch .dialogue__choices li {
 #sound-button:hover,
 #bag-button:hover,
 #bag-button:focus-visible,
+#pause-button:hover,
+#pause-button:focus-visible,
 #sound-button:focus-visible,
 #phone-button:focus-visible,
 #phone-button.is-active {
@@ -1215,6 +1221,11 @@ body.has-touch .dialogue__choices li {
 /* La bolsa (I), bajo el volumen: en el móvil es la única forma de comer lo comprado. */
 #bag-button {
   top: 134px;
+}
+
+/* La pausa (ui/PauseMenu): guardar o volver a la pantalla de inicio. */
+#pause-button {
+  top: 174px;
 }
 
 #sound-button.is-muted {
@@ -1623,6 +1634,13 @@ body.has-touch .dialogue__choices li {
     min-height: 44px;
   }
 
+  #pause-button {
+    top: calc(max(10px, env(safe-area-inset-top)) + 208px);
+    right: max(10px, env(safe-area-inset-right));
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   /* En una pantalla pequeña, el del juego ocupa casi todo: dedos, no cursor. */
   #phone {
     left: 50%;
@@ -1652,5 +1670,324 @@ body.has-touch .dialogue__choices li {
   #phone,
   #phone-toast {
     transition: none;
+  }
+}
+
+/* ------------------------------------------------- Pantalla de inicio y pausa */
+/* title.ts y ui/PauseMenu.ts: el mismo panel. Bordes duros de 2 px, esquinas en escalón y nada de sombras suaves. */
+
+.title {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  /* La columna no crece con lo de dentro: en un móvil de 390 px, el panel cabe en 390 px. */
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  overflow-y: auto;
+  background: var(--ink);
+  color: var(--white);
+  font-family: var(--ui-mono);
+}
+
+.title[hidden] {
+  display: none;
+}
+
+.title--pause {
+  background: rgba(14, 15, 22, 0.82);
+}
+
+.title__panel {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px 20px;
+  background: var(--night);
+  border: 2px solid rgba(232, 227, 218, 0.22);
+  box-shadow: 4px 4px 0 #000;
+}
+
+.title__logo {
+  margin: 0 0 18px;
+  font: 700 52px / 1 var(--ui-mono);
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--white);
+  text-shadow: 3px 3px 0 #000;
+}
+
+.title__logo span {
+  color: var(--amber);
+}
+
+/* Sin vw: un tamaño que depende del ancho hace que el móvil ensanche la página para que quepa. */
+@media (max-width: 400px) {
+  .title__logo {
+    font-size: 40px;
+  }
+}
+
+.title__heading {
+  margin: 0 0 16px;
+  font: 700 18px var(--ui-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.title__menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.title__row .title__button {
+  flex: 1 1 70px;
+}
+
+.title__button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 2px solid rgba(232, 227, 218, 0.3);
+  background: var(--ink);
+  color: var(--white);
+  font: 700 13px var(--ui-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.title__button:hover,
+.title__button[aria-pressed="true"] {
+  border-color: var(--accent);
+}
+
+.title__button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-color: var(--amber);
+}
+
+.title__button:disabled {
+  color: rgba(232, 227, 218, 0.4);
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.title__save,
+.title__text,
+.title__warn,
+.title__label {
+  margin: 0 0 14px;
+  font: 13px / 1.55 var(--ui-mono);
+}
+
+.title__save {
+  text-align: center;
+}
+
+.title__text p {
+  margin: 0 0 10px;
+}
+
+.title__label {
+  margin-bottom: 6px;
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+}
+
+.title__muted {
+  color: rgba(232, 227, 218, 0.68);
+}
+
+.title__warn {
+  padding: 8px 10px;
+  border: 2px solid var(--amber);
+  color: var(--white);
+}
+
+.title__warn:empty {
+  display: none;
+}
+
+.title__keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0 0 14px;
+  font: 13px / 1.4 var(--ui-mono);
+}
+
+.title__keys dt {
+  color: var(--amber);
+}
+
+.title__keys dd {
+  margin: 0;
+}
+
+/* ------------------------------------------------- Creador de personaje (ui/CharacterCreator) */
+
+.creator {
+  max-width: 460px;
+}
+
+.creator__stage {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 14px;
+  padding: 6px 0;
+  border: 2px solid rgba(232, 227, 218, 0.18);
+  background: var(--ink);
+}
+
+.creator__preview {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.creator__name {
+  display: block;
+  margin: 0 0 12px;
+}
+
+.creator__name input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 2px solid rgba(232, 227, 218, 0.3);
+  background: var(--ink);
+  color: var(--white);
+  font: 700 15px var(--ui-mono);
+}
+
+.creator__name input:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+  border-color: var(--amber);
+}
+
+.creator__rows {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.creator__row {
+  display: grid;
+  grid-template-columns: 7.5em 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 6px;
+}
+
+.creator__cat {
+  color: var(--amber);
+  font: 700 11px var(--ui-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.creator__step {
+  padding: 0;
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.creator__value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font: 12px / 1.3 var(--ui-mono);
+}
+
+.creator__value > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creator__swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(232, 227, 218, 0.5);
+}
+
+.creator__swatch[hidden] {
+  display: none;
+}
+
+@media (max-width: 400px) {
+  .creator__row {
+    grid-template-columns: 5.6em 44px minmax(0, 1fr) 44px;
+  }
+}
+
+/* Estados: lo que confirma, ámbar lleno; lo que cancela, discreto; lo que acaba de cambiar, un destello. */
+.title__button[data-action="continue"]:not(:disabled),
+.title__button[data-action="confirm-new"],
+.title__button[data-action="import-yes"],
+.title__button[data-act="confirm"] {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--ink);
+}
+
+.title__button[data-action="continue"]:not(:disabled):hover,
+.title__button[data-action="confirm-new"]:hover,
+.title__button[data-action="import-yes"]:hover,
+.title__button[data-act="confirm"]:hover {
+  background: #f6c88c;
+}
+
+.title__button[data-act="cancel"],
+.title__button[data-action="cancel"] {
+  color: rgba(232, 227, 218, 0.78);
+  border-style: dashed;
+}
+
+.title__button:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+.title__ok {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border: 2px solid var(--accent);
+  font: 13px / 1.55 var(--ui-mono);
+}
+
+.creator__row.is-changed .creator__value {
+  animation: creator-changed 360ms steps(3, end);
+}
+
+@keyframes creator-changed {
+  from {
+    color: var(--amber);
+  }
+  to {
+    color: var(--white);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creator__row.is-changed .creator__value {
+    animation: none;
+  }
+
+  .title__button:active:not(:disabled) {
+    transform: none;
   }
 }

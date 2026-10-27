@@ -231,7 +231,7 @@ function drawBush(ctx: Ctx): void {
   sprinkle(ctx, dark, TILE, TILE, 29, 5);
 }
 
-function drawBench(ctx: Ctx): void {
+export function drawBench(ctx: Ctx): void {
   px(ctx, PALETTE.metal, 2, 10, 2, 5);
   px(ctx, PALETTE.metal, 12, 10, 2, 5);
   px(ctx, PALETTE.wood, 0, 4, TILE, 2);
@@ -245,7 +245,7 @@ function drawBench(ctx: Ctx): void {
  * fuste y farol de cuatro caras. De día el cristal está apagado; la luz la
  * enciende world/Lighting al anochecer.
  */
-function drawLamp(ctx: Ctx): void {
+export function drawLamp(ctx: Ctx): void {
   const iron = PALETTE.iron;
   const lit = shade(iron, 0.12);
   px(ctx, iron, 7, 10, 2, 18);

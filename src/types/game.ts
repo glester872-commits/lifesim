@@ -671,7 +671,14 @@ export interface NpcDef extends NpcLook {
   lines: readonly string[];
 }
 
+/** Quién es el jugador (systems/PlayerIdentity), aparte de su aspecto (appearance.player) y de su cuerpo para chocar. */
+export interface PlayerIdentity {
+  name: string;
+}
+
 export interface GameStateData {
+  /** Versión 2 (Alpha-04): sin ella, el nombre por defecto. */
+  identity?: PlayerIdentity;
   money: number;
   energy: number;
   day: number;
