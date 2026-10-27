@@ -230,9 +230,9 @@ export const FASHION: LocationDef = {
   ],
   points: {
     CLOTHING_STORE_EXIT: p(9, 10, 'exit', 'up'),
-    CLOTHING_STORE_TILL: p(16, 6, 'interact', 'up'),
-    // Al final del mostrador, junto a la caja: desde la caja (16, 6) se le habla (a ~23 px, dentro del alcance de
-    // 26). Detrás de la caja, en (16, 4), quedaba a 32 px y sólo se le alcanzaba rodeando el mostrador.
+    // Iván, al final del mostrador, y la caja justo delante de él (como en las tiendas del Carmen): la E le elige aunque
+    // haya alguien en la cola (en diagonal). Detrás de la caja, en (16, 4), quedaba a 32 px, fuera de alcance.
+    CLOTHING_STORE_TILL: p(17, 6, 'interact', 'up'),
     CLOTHING_STORE_STAFF: p(17, 5, 'work', 'down'),
     CLOTHING_STORE_RACK_01: p(7, 5, 'interact', 'up'),
     CLOTHING_STORE_RACK_02: p(11, 5, 'interact', 'up'),
@@ -1070,8 +1070,10 @@ export const RIBERA_SPORT: LocationDef = {
   ],
   points: {
     SPORT_EXIT: p(7, 8, 'exit', 'up'),
-    SPORT_STAFF: p(11, 5, 'work', 'down'),
-    SPORT_TILL: p(11, 7, 'interact', 'up'),
+    // Quien atiende, al final del mostrador, y la caja justo delante (como en las tiendas del Carmen): la E le elige
+    // aunque alguien esté pagando o en la cola. Detrás, en (11, 5), quedaba a 32 px de la caja, fuera de alcance.
+    SPORT_STAFF: p(10, 6, 'work', 'down'),
+    SPORT_TILL: p(10, 7, 'interact', 'up'),
     SPORT_QUEUE_01: p(10, 8, 'wait', 'up'),
     SPORT_WALL_01: p(2, 2, 'interact', 'up'),
     SPORT_WALL_02: p(5, 2, 'interact', 'up'),

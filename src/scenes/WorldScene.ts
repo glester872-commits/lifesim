@@ -2493,7 +2493,8 @@ export class WorldScene extends Phaser.Scene {
     const events: Interactable[] = this.streetEvents
       .filter((e) => e.noticedFrom(this.playerTile()))
       .map((e) => ({ kind: 'event', x: e.def.vantage.tx * TILE + TILE / 2, y: e.def.vantage.ty * TILE + TILE / 2, view: e }));
-    const wrap = (item: Interactable): PickCandidate & { item: Interactable } => ({ id: this.idOf(item), kind: item.kind, ...anchor(item), item });
+    // Quien vende o sirve en un local (tiene oferta): delante del jugador, gana al cliente que paga a su lado.
+    const wrap = (item: Interactable): PickCandidate & { item: Interactable } => ({ id: this.idOf(item), kind: item.kind, ...anchor(item), serves: item.kind === 'npc' && !!this.offerOf(item.sprite), item });
     const cands = [...this.interactables, ...this.crowdInteractables(), ...events]
       // Un asiento ocupado no se ofrece; las puertas del tren, sólo con las puertas abiertas; un NPC oculto, no existe.
       .filter((item) => !(item.kind === 'seat' && this.seatTaken(item.seat)) && !(item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) && !(item.kind === 'npc' && !item.sprite.visible))

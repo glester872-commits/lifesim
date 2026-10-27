@@ -14,6 +14,7 @@ import { PlayerInput } from '../src/systems/PlayerInput.ts';
 import { purchase, payFare } from '../src/systems/Commerce.ts';
 import { destinationsFrom, getStop } from '../src/systems/Transit.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
+import { POPULATION_PROFILES } from '../src/data/population.ts';
 import type { Facing, LocationDef } from '../src/types/game.ts';
 
 const C = TILE / 2;
@@ -299,12 +300,33 @@ for (const loc of allLocations()) {
   console.log('recorridos: mostrador ofrecido y compra sin efectos de más · metro: cancelar no cobra, viajar cobra una vez, sin saldo se niega');
 }
 
-// Se compra hablando con quien atiende desde la caja (no rodeando el mostrador): Hilo y las tiendas del Carmen.
-// (Hilo tenía a Iván detrás de la caja, a 32 px: sólo se le alcanzaba desde dentro del mostrador.)
-for (const [loc, till, staff] of [['fashion', 'CLOTHING_STORE_TILL', 'CLOTHING_STORE_STAFF'], ['retales', 'RETALES_TILL', 'RETALES_STAFF'], ['archivo', 'ARCHIVO_TILL', 'ARCHIVO_STAFF'], ['vuelta', 'VUELTA_TILL', 'VUELTA_STAFF'], ['suela', 'SUELA_TILL', 'SUELA_STAFF']] as const) {
-  const pts = allLocations().find((l) => l.id === loc)!.points!;
-  const d = Math.hypot((pts[staff].tx - pts[till].tx) * TILE, (pts[staff].ty - pts[till].ty) * TILE);
-  assert.ok(d <= INTERACTION.range, `${loc}: quien atiende queda a ${Math.round(d)} px de la caja (alcance ${INTERACTION.range})`);
+// En las tiendas de ropa (percheros) se compra hablando con quien atiende desde la caja: con la misma regla que el
+// juego (pickTarget), desde la caja mirando al mostrador y con alguien esperando en la cola, la E le elige a él. (Hilo
+// y diez tiendas más lo tenían detrás del mostrador, fuera de alcance; y al acercarlo, la cola de al lado le ganaba.)
+let tills = 0;
+const centre = (p: { tx: number; ty: number }): { x: number; y: number } => ({ x: p.tx * TILE + C, y: p.ty * TILE + C });
+// Quién vende de verdad (tiene oferta, data/population.ts): el mismo `serves` que le pone WorldScene.
+const SELLS = new Set(POPULATION_PROFILES.flatMap((p) => (p.staff ?? []).filter((s) => s.offers).flatMap((s) => s.points ?? [])));
+for (const loc of allLocations()) {
+  if (!loc.racks?.length || !loc.points) continue;
+  for (const [key, till] of Object.entries(loc.points)) {
+    if (!key.endsWith('_TILL')) continue;
+    const pre = key.slice(0, -'_TILL'.length);
+    const staff = loc.points[`${pre}_STAFF`];
+    if (!staff) continue;
+    tills++;
+    const waiting = Object.entries(loc.points).filter(([k]) => k.startsWith(`${pre}_QUEUE_`)).map(([k, q]) => ({ id: `cola:${k}`, kind: 'npc' as const, ...centre(q) }));
+    // Y alguien pagando en la misma caja, pegado al jugador (2 px): en hora punta pasa.
+    const paying = { id: 'paga', kind: 'npc' as const, x: centre(till).x + 2, y: centre(till).y };
+    const facing = till.facing ?? 'up';
+    const d = Math.hypot(centre(staff).x - centre(till).x, centre(staff).y - centre(till).y);
+    assert.ok(d <= INTERACTION.range, `${loc.id}: quien atiende queda a ${Math.round(d)} px de la caja (alcance ${INTERACTION.range})`);
+    // Quien no vende (Ribera Sport: sólo aconseja; se compra en los percheros) basta con que se le alcance.
+    if (!SELLS.has(`${pre}_STAFF`)) continue;
+    const got = pickTarget(centre(till), [{ id: 'atiende', kind: 'npc' as const, serves: true, ...centre(staff) }, ...waiting, paying], { facing, ahead: tileAhead(till, facing) });
+    assert.equal(got?.id, 'atiende', `${loc.id}: desde la caja la E elige ${got?.id ?? 'nada'} en vez de a quien atiende`);
+  }
 }
+assert.ok(tills >= 15, `sólo ${tills} cajas de tienda de ropa: ¿ha cambiado cómo se nombran los puntos?`);
 
 console.log('\nOK: una sola regla decide qué se ofrece, todo se alcanza, nada a través de paredes, se sale de cualquier charla y el móvil es igual.');

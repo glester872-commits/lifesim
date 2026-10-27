@@ -52,6 +52,8 @@ export interface Candidate {
   kind: InteractKind;
   x: number;
   y: number;
+  /** Atiende un mostrador (personal que vende o sirve): justo delante, gana como una caja (ver `ahead`). */
+  serves?: boolean;
 }
 
 const FORWARD: Readonly<Record<Facing, Vec2>> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
@@ -102,8 +104,9 @@ export interface PickOptions<T extends Candidate> {
   /** ¿Lo tapa una pared? (WorldScene lo cierra sobre la localización.) */
   blocked?: (c: T) => boolean;
   /**
-   * El tile que el jugador tiene justo delante. Una caja o una barra (terminal) en ese tile gana a todo: la gente
-   * hace cola y paga en ese mismo mostrador, y sin esto en hora punta la E hablaba con un cliente en vez de pedir.
+   * El tile que el jugador tiene justo delante. Una caja o una barra (terminal) en ese tile gana a todo, y también
+   * quien atiende (`serves`) si está ahí: la gente hace cola y paga en ese mismo mostrador, y sin esto en hora punta
+   * la E hablaba con el cliente que paga (pegado al jugador) en vez de con quien cobra.
    */
   ahead?: { tx: number; ty: number };
 }
@@ -140,7 +143,7 @@ export function pickTarget<T extends Candidate>(origin: Vec2, items: readonly T[
     .sort(compare);
   if (ranked.length === 0) return null;
   const ahead = opts.ahead;
-  const counter = ahead && ranked.find((r) => r.c.kind === 'terminal' && Math.floor(r.c.x / TILE) === ahead.tx && Math.floor(r.c.y / TILE) === ahead.ty);
+  const counter = ahead && ranked.find((r) => (r.c.kind === 'terminal' || r.c.serves) && Math.floor(r.c.x / TILE) === ahead.tx && Math.floor(r.c.y / TILE) === ahead.ty);
   if (counter) return counter.c;
   const best = ranked[0];
   const keep = opts.current ? ranked.find((r) => r.c.id === opts.current!.id) : undefined;

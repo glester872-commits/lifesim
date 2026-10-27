@@ -40,6 +40,11 @@ export interface Shop {
 /** Tienda pequeña: mostrador (10–11, 7) con la caja, quien cobra detrás, la cola al lado y la puerta abajo. */
 export function shopRoom(s: Shop): LocationDef {
   const P = s.pre;
+  // Donde se paga hablando con quien atiende (tiendas de ropa: percheros y sin terminal), como en las del Carmen: quien
+  // atiende al final del mostrador (9, 7) y la caja justo delante (9, 8). Así la E le elige a él aunque haya cola al
+  // lado (16 px y de frente, contra 16 px de lado). Detrás del mostrador quedaba a 36 px, fuera de alcance. Con
+  // terminal se paga en la caja misma (10, 7) y quien atiende se queda detrás.
+  const sells = !s.catalog && !!s.racks?.length;
   return {
     id: s.id,
     name: s.name,
@@ -56,9 +61,9 @@ export function shopRoom(s: Shop): LocationDef {
     inspects: s.inspects,
     points: {
       [`${P}_EXIT`]: p(7, 8, 'exit', 'up'),
-      [`${P}_STAFF`]: p(11, 6, 'work', 'down'),
-      [`${P}_TILL`]: p(10, 8, 'interact', 'up'),
-      [`${P}_QUEUE_01`]: p(9, 8, 'wait', 'right'),
+      [`${P}_STAFF`]: sells ? p(9, 7, 'work', 'down') : p(11, 6, 'work', 'down'),
+      [`${P}_TILL`]: sells ? p(9, 8, 'interact', 'up') : p(10, 8, 'interact', 'up'),
+      [`${P}_QUEUE_01`]: sells ? p(10, 8, 'wait', 'left') : p(9, 8, 'wait', 'right'),
       ...Object.fromEntries(s.browse.map(([x, y, f], i) => [`${P}_BROWSE_${TWO(i)}`, p(x, y, 'interact', f)])),
     },
   };
