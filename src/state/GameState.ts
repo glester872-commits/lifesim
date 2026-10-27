@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { EventMemory, Facing, GameStateData } from '../types/game';
+import type { EventMemory, Facing, GameStateData, PlayerIdentity } from '../types/game';
 import type { Appearance } from '../data/appearance';
 import type { Wallet } from '../systems/Commerce';
 import { START_FITNESS, type Fitness } from '../systems/Fitness';
@@ -12,6 +12,7 @@ import { recordMovement, type HouseholdState, type Movement } from '../systems/H
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { emptyParish, type ParishState } from '../systems/Parish';
 import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
+import { startIdentity } from '../systems/PlayerIdentity';
 import { startHousing, type HousingState } from '../systems/Housing';
 import { parseAgenda, type AgendaState } from '../systems/Agenda';
 
@@ -131,6 +132,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** Embarazos de las vecinas (systems/Pregnancy). */
   private _pregnancy: PregnancyState;
 
+  /** Quién es el jugador (systems/PlayerIdentity): hoy, su nombre. Lo fija el creador de personaje. */
+  private _identity: PlayerIdentity;
+
   /** Motivo del cambio de dinero en curso (as()). */
   private why: string | null = null;
 
@@ -223,6 +227,7 @@ export class GameState extends Phaser.Events.EventEmitter {
 
     this._parish = structuredClone(initial.parish ?? emptyParish());
 
+    this._identity = { ...(initial.identity ?? startIdentity()) };
     this._pregnancy = structuredClone(initial.pregnancy ?? emptyPregnancy());
     usePregnancies(this._pregnancy);
   }
@@ -320,6 +325,11 @@ export class GameState extends Phaser.Events.EventEmitter {
   // ================================================================
   // EMBARAZOS (systems/Pregnancy)
   // ================================================================
+
+  /** El nombre y lo demás de quién es el jugador (sólo se lee: el creador lo fija antes de la partida). */
+  get identity(): PlayerIdentity {
+    return { ...this._identity };
+  }
 
   get pregnancy(): PregnancyState {
     return structuredClone(this._pregnancy);
@@ -786,6 +796,7 @@ export class GameState extends Phaser.Events.EventEmitter {
       parish: structuredClone(this._parish),
 
       pregnancy: structuredClone(this._pregnancy),
+      identity: { ...this._identity },
     };
   }
 }

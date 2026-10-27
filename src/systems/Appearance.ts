@@ -1,5 +1,5 @@
 // Sin Phaser: lo usan world/TextureFactory.ts, scenes/Menus.ts y scripts/check-economy.ts.
-import { getHair, type Appearance, type HairStyle } from '../data/appearance.ts';
+import { EYE_COLORS, getHair, HAIR_COLORS, SKIN_TONES, swatchColor, type Appearance, type HairStyle } from '../data/appearance.ts';
 import { getGarment, type Sleeve } from '../data/retail.ts';
 import { wearOf } from '../data/outfits.ts';
 import { getDesign, getZone, type TattooZone } from '../data/tattoos.ts';
@@ -28,6 +28,23 @@ export function visibleTattoos(base: HumanColors, changes: Appearance | undefine
   });
 }
 
+const rgbOf = (hex: string): number[] => {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+/**
+ * Un iris es un píxel: si su color casi es el de la piel (ojos marrones en piel oscura) el ojo desaparece. Antes
+ * que fingir el color, se oscurece hacia el contorno hasta que se separa de la piel; si ya se separa, tal cual.
+ */
+export function legibleIris(iris: string, skin: string): string {
+  const s = rgbOf(skin);
+  let c = rgbOf(iris);
+  const ink = rgbOf('#1c1620');
+  for (let k = 0; k < 4 && Math.hypot(c[0] - s[0], c[1] - s[1], c[2] - s[2]) < 48; k++) c = c.map((v, i) => Math.round(v + (ink[i] - v) * 0.35));
+  return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 /**
  * El aspecto de alguien = el de fábrica + lo que ha cambiado. Sirve para el
  * jugador y para cualquier personaje con nombre: quien pinta pasa sus colores
@@ -39,6 +56,16 @@ export function withAppearance(base: HumanColors, changes: Appearance | undefine
   if (!changes) return base;
   const out: HumanColors = { ...base };
   if (changes.hair) out.hairStyle = changes.hair;
+  // Colores del creador de personaje: sólo estética, nada de cuerpo ni de colisión. Un id desconocido no cambia nada.
+  const skin = swatchColor(SKIN_TONES, changes.skin);
+  if (skin) {
+    // Los brazos al aire (sin manga) son del color de la piel: siguen siéndolo con la piel nueva.
+    if (out.sleeves === out.skin) out.sleeves = skin;
+    out.skin = skin;
+  }
+  out.hair = swatchColor(HAIR_COLORS, changes.hairColor) ?? out.hair;
+  const eyes = swatchColor(EYE_COLORS, changes.eyes);
+  if (eyes && changes.eyes !== 'oscuro') out.eyes = legibleIris(eyes, out.skin);
   if (changes.top) {
     const top = getGarment(changes.top);
     out.cloth = top.color;

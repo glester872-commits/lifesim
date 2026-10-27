@@ -402,9 +402,12 @@ export class Character extends Phaser.GameObjects.Sprite {
       this.since = time;
     }
     this.wasSeated = !where.moving && SEATED.has(where.activity ?? 'idle');
+    // Hablando con el jugador (de pie), mira hacia él: se decide antes de girar para que la vuelta hacia él, y la de
+    // regreso, pasen por el perfil como cualquier otra media vuelta (antes, de espaldas a de cara en un solo fotograma).
+    const talkDir = this.talkingTo && !(SEATED.has(where.activity ?? 'idle') && !where.moving) ? this.talkingTo : null;
     // Media vuelta por un perfil (sentado se gira el cuerpo entero, no hace falta).
     if (!this.wasSeated) {
-      const dir = this.turned(where.dir, time);
+      const dir = this.turned(talkDir ?? where.dir, time);
       if (dir !== where.dir) where = { ...where, dir };
     } else this.facing = where.dir;
     const station = where.moving || this.talkingTo ? undefined : STATION_OF.get(asked);
@@ -413,10 +416,8 @@ export class Character extends Phaser.GameObjects.Sprite {
       const working = t >= SETUP_MS && !this.resting(station, t - SETUP_MS);
       if (!working) where = { ...where, activity: station.settle === 'sit' ? 'sit' : t >= SETUP_MS && this.seed % 3 === 0 ? 'phone' : 'idle' };
     }
-    // Hablando: de pie y de cara; sentado, sigue sentado y mirando a su mesa.
-    if (this.talkingTo && !(SEATED.has(where.activity ?? 'idle') && !where.moving)) {
-      where = { ...where, moving: false, activity: 'idle', dir: this.talkingTo };
-    }
+    // Hablando: de pie y de cara (la dirección ya va girada arriba); sentado, sigue sentado y mirando a su mesa.
+    if (talkDir) where = { ...where, moving: false, activity: 'idle' };
     const x = where.tx * TILE + TILE / 2;
     const y = where.ty * TILE + TILE;
     this.setPosition(x, y).setDepth(y);

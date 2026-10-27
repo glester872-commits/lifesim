@@ -366,7 +366,8 @@ export class PhoneScreen {
   }
 
   private renderHome(): void {
-    this.titleEl.textContent = '';
+    // El móvil es de quien juega: en la barra, su nombre (systems/PlayerIdentity), el mismo que en la pausa.
+    this.titleEl.textContent = this.state.identity.name;
     const unread = unreadTotal(this.state.phone);
     const grid = el('div', 'phone__apps');
     const app = (glyph: string, label: string, run: (() => void) | null, badge = 0): void => {

@@ -80,7 +80,7 @@ const MONTON: LocationDef = shopRoom({
  * A la derecha, regalos: estanterías, la vitrina y la caja (data/catalogs.ts velarde-regalos). Luz cálida.
  */
 const VELARDE_ROOM = shopRoom({
-  id: 'pc-velarde', name: 'Almacenes Velarde', building: 'pc-plaza-8', street: STREET, pre: 'PCVELARDE', ambient: '#fff1dc',
+  id: 'pc-velarde', name: 'Almacenes Velarde', building: 'pc-plaza-8', street: STREET, pre: 'PCVELARDE', ambient: '#fff1dc', terminalApart: true,
   props: [
     // Hogar.
     at('sofa', 1, 3), at('floor-lamp', 4, 3), ...many('plant', [[5, 3], [1, 7]]), at('desk', 3, 6),
@@ -118,9 +118,9 @@ const PC_CAFE: LocationDef = {
 // ------------------------------------------------------------------ la comisaría
 
 /**
- * Comisaría de Puerta Central (systems/Police): la planta de la tienda pequeña sin caja ni mostrador. La guardia, de pie
- * delante de la mesa de recepción (le hablas: la seguridad de la zona y, si te han robado, la denuncia), sillas para
- * esperar turno y el tablón. Se sale por donde se entra, a la plaza.
+ * Comisaría de Puerta Central (systems/Police): la planta de la tienda pequeña con su mostrador de recepción y sin caja.
+ * La guardia, detrás del mostrador y delante de su mesa (le hablas por encima: la seguridad de la zona y, si te han
+ * robado, la denuncia), sillas para esperar turno y el tablón. Se sale por donde se entra, a la plaza.
  */
 const COMISARIA_ROOM = shopRoom({
   id: 'pc-comisaria', name: 'Comisaría de Puerta Central', building: 'pc-comisaria', street: STREET, pre: 'PCPOLICIA', ambient: '#eef2f6',
@@ -133,9 +133,9 @@ const COMISARIA_ROOM = shopRoom({
 });
 const COMISARIA: LocationDef = {
   ...COMISARIA_ROOM,
-  // Una recepción, no una tienda: sin mostrador ni caja. La guardia está de pie delante de su mesa (la de la pantalla), a
-  // tiro de quien llega: detrás de un mostrador quedaría fuera del alcance para hablar (INTERACT_RADIUS).
-  props: (COMISARIA_ROOM.props ?? []).filter((prop) => prop.kind !== 'register' && prop.kind !== 'counter'),
+  // Una recepción, no una tienda: el mostrador se queda (se habla por encima con la guardia, que está detrás, delante de
+  // su mesa); la caja registradora, no: aquí no se cobra. Quien viene a hablar o a denunciar, delante (la planta, `attended`).
+  props: (COMISARIA_ROOM.props ?? []).filter((prop) => prop.kind !== 'register'),
   portals: [{ id: 'exit', tx: 7, ty: 9, label: 'Salir a la plaza', to: { location: STREET, spawn: 'pc-comisaria' } }],
 };
 

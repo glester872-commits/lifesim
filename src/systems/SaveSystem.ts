@@ -2,7 +2,8 @@
 import { INITIAL_CLOCK, INITIAL_ENERGY, INITIAL_MONEY, SAVE_KEY, SAVE_VERSION, TILE } from '../config/constants.ts';
 import type { EventMemory, Facing, GameStateData, SaveFile } from '../types/game.ts';
 import { emptyMemory } from './MetroEventManager.ts';
-import { HAIR_IDS, type Appearance, type HairStyle, type TattooMark } from '../data/appearance.ts';
+import { EYE_IDS, HAIR_COLOR_IDS, HAIR_IDS, SKIN_IDS, type Appearance, type HairStyle, type TattooMark } from '../data/appearance.ts';
+import { parseIdentity, startIdentity } from './PlayerIdentity.ts';
 import { GARMENT_IDS, getGarment } from '../data/retail.ts';
 import { ITEMS } from '../data/items.ts';
 import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
@@ -71,6 +72,7 @@ export function createInitialState(): GameStateData {
     agenda: startAgenda(),
     parish: emptyParish(),
     pregnancy: emptyPregnancy(),
+    identity: startIdentity(),
   };
 }
 
@@ -114,6 +116,14 @@ export function restore(loaded: GameStateData | null): GameStateData {
 
 /** Clave donde se aparta una partida que no se puede leer (rota o de una versión más nueva) antes de que el autoguardado la pise. */
 export const UNREADABLE_KEY = `${SAVE_KEY}.unreadable`;
+/** Clave donde «Nueva partida» deja la partida anterior (sólo la última). */
+export const BACKUP_KEY = `${SAVE_KEY}.backup`;
+
+/** Lo que hay guardado: nada, una partida que arranca, o algo que no se puede leer (roto o de una versión más nueva). */
+export type SaveInfo =
+  | { status: 'none' }
+  | { status: 'ok'; state: GameStateData; savedAt: number | null; raw: string }
+  | { status: 'unreadable'; reason: 'corrupt' | 'newer' | 'foreign'; raw: string };
 
 /**
  * Backend de persistencia.
@@ -368,6 +378,8 @@ function parseState(value: unknown): GameStateData | null {
     parish: parseParish(s.parish),
     // Una partida anterior a los embarazos carga sin registros: main.ts los empieza el día que se carga.
     pregnancy: parsePregnancy(s.pregnancy),
+    // Versión 2 (Alpha-04): una partida anterior al creador de personaje carga con el nombre por defecto.
+    identity: parseIdentity(s.identity),
   };
 }
 
@@ -458,6 +470,11 @@ function parseAppearance(
       parsed.bottom =
         bottom;
     }
+
+    // Versión 2 (Alpha-04): colores del creador de personaje, por id. Un id que no existe se queda en el de fábrica.
+    if (typeof a.skin === 'string' && SKIN_IDS.has(a.skin)) parsed.skin = a.skin;
+    if (typeof a.hairColor === 'string' && HAIR_COLOR_IDS.has(a.hairColor)) parsed.hairColor = a.hairColor;
+    if (typeof a.eyes === 'string' && EYE_IDS.has(a.eyes)) parsed.eyes = a.eyes;
 
     const shoes =
       garmentFor(
@@ -561,6 +578,58 @@ function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly st
 }
 
 // ================================================================
+// VERSIONES
+// ================================================================
+
+/**
+ * Migraciones de esquema, de cada versión a la siguiente y sin quitar nada (lo que no se entiende se queda en
+ * el archivo de origen: el guardado bueno no se reescribe hasta que la partida se guarda otra vez).
+ *
+ *   sin versión, 1 → 2 (Alpha-04): aparece `identity` (el nombre; sin él, el de por defecto) y el aspecto del
+ *   jugador puede llevar skin/hairColor/eyes. Ningún campo de la 1 cambia de sentido.
+ *
+ * Una versión nueva añade aquí su paso; parseState sigue poniendo los valores seguros de lo que falte.
+ */
+function migrate(version: number, state: unknown): unknown {
+  let s = state;
+  if (version < 2 && isRecord(s) && s.identity === undefined) s = { ...s, identity: startIdentity() };
+  return s;
+}
+
+/** Antes de esto no había partidas de LIFE//SIM: un savedAt anterior es un archivo tocado a mano (0, 1…). */
+const FIRST_SAVE_MS = Date.UTC(2020, 0, 1);
+
+/** Cuándo se guardó, sólo si es una fecha posible (ni de antes del juego ni del futuro); si no, no se enseña. */
+function plausibleDate(value: unknown): number | null {
+  return isNumber(value) && value >= FIRST_SAVE_MS && value <= Date.now() + 86_400_000 ? value : null;
+}
+
+/** Tope de un archivo de partida (importar): una partida de verdad ocupa decenas de KB. */
+export const SAVE_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Lee un texto de partida (lo guardado, la copia o un archivo importado) sin escribir nada: sólo es `ok` si es
+ * una partida de esta versión o anterior, con dinero y reloj, que además arranca (restore() la coloca sin fallar).
+ */
+export function inspectRaw(raw: string | null): SaveInfo {
+  if (!raw) return { status: 'none' };
+  if (raw.length > SAVE_MAX_BYTES) return { status: 'unreadable', reason: 'corrupt', raw };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || !isRecord(parsed.state)) return { status: 'unreadable', reason: 'foreign', raw };
+    const version = parsed.version === undefined ? 1 : parsed.version;
+    if (!isNumber(version)) return { status: 'unreadable', reason: 'corrupt', raw };
+    if (version > SAVE_VERSION) return { status: 'unreadable', reason: 'newer', raw };
+    const state = parseState(migrate(version, parsed.state));
+    if (!state) return { status: 'unreadable', reason: 'corrupt', raw };
+    restore(state);
+    return { status: 'ok', state, savedAt: plausibleDate(parsed.savedAt), raw };
+  } catch {
+    return { status: 'unreadable', reason: 'corrupt', raw };
+  }
+}
+
+// ================================================================
 // SAVE SYSTEM
 // ================================================================
 
@@ -592,40 +661,91 @@ export class SaveSystem {
     };
 
     try {
-      this.storage.write(
-        SAVE_KEY,
-        JSON.stringify(
-          file,
-        ),
-      );
-
+      const text = JSON.stringify(file);
+      // Lo que se va a escribir se lee antes como se leerá al cargar (NaN pasa a null, una referencia circular
+      // no se serializa): si no se podría cargar, no pisa la partida buena que ya hay.
+      if (inspectRaw(text).status !== 'ok') return false;
+      this.storage.write(SAVE_KEY, text);
       return true;
     } catch {
       return false;
     }
   }
 
+  /** Qué hay guardado, sin escribir nada (la pantalla de inicio lo enseña antes de arrancar). */
+  inspect(): SaveInfo {
+    return inspectRaw(this.storage.read(SAVE_KEY));
+  }
+
+  /** La copia que dejó la última «Nueva partida», importación o recuperación (BACKUP_KEY). */
+  inspectBackup(): SaveInfo {
+    return inspectRaw(this.storage.read(BACKUP_KEY));
+  }
+
   /**
-   * La partida guardada, o null si no hay o no se puede leer. Sin número de
-   * versión, o con uno anterior, se lee con los valores seguros de parseState
-   * (hasta ahora sólo existe la 1: no hace falta migrar nada más). Una partida
-   * rota o de una versión más nueva NO se pisa: se aparta a UNREADABLE_KEY
-   * antes de que el autoguardado de la partida nueva la sobrescriba.
+   * Volver a la copia: sólo si es una partida que arranca. Lo que hubiera guardado (roto o no) se aparta antes a
+   * UNREADABLE_KEY; si no cabe, no se toca nada. La copia se queda donde está.
+   */
+  restoreBackup(): boolean {
+    const backup = this.inspectBackup();
+    // Nunca encima de una partida que se puede jugar: la copia es para cuando no hay o no se lee.
+    if (backup.status !== 'ok' || this.inspect().status === 'ok') return false;
+    const current = this.storage.read(SAVE_KEY);
+    try {
+      if (current) this.storage.write(UNREADABLE_KEY, current);
+      this.storage.write(SAVE_KEY, backup.raw);
+    } catch {
+      return false;
+    }
+    return this.storage.read(SAVE_KEY) === backup.raw;
+  }
+
+  /**
+   * Una partida importada (un archivo exportado antes): sólo si arranca. Lo que hubiera se copia antes a
+   * BACKUP_KEY, como en «Nueva partida» (y con la misma pregunta si la copia no cabe).
+   */
+  adopt(raw: string, withoutBackup = false): boolean {
+    if (inspectRaw(raw).status !== 'ok' || !this.startNew(withoutBackup)) return false;
+    try {
+      this.storage.write(SAVE_KEY, raw);
+    } catch {
+      return false;
+    }
+    return this.storage.read(SAVE_KEY) === raw;
+  }
+
+  /**
+   * La partida guardada, o null si no hay o no se puede leer. Una partida rota o de una versión más nueva
+   * NO se pisa: se aparta a UNREADABLE_KEY antes de que el autoguardado de la partida nueva la sobrescriba.
    */
   load(): GameStateData | null {
-    const raw = this.storage.read(SAVE_KEY);
-    if (!raw) return null;
-    let state: GameStateData | null = null;
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      const file = isRecord(parsed) ? parsed : {};
-      const version = file.version === undefined ? 1 : file.version;
-      if (isNumber(version) && version <= SAVE_VERSION) state = parseState(file.state);
-    } catch {
-      state = null;
+    const info = this.inspect();
+    if (info.status === 'unreadable') {
+      try {
+        this.storage.write(UNREADABLE_KEY, info.raw);
+      } catch {
+        // Sin sitio para apartarla: la pantalla de inicio ya ofreció descargarla antes de empezar de cero.
+      }
     }
-    if (!state) this.storage.write(UNREADABLE_KEY, raw);
-    return state;
+    return info.status === 'ok' ? info.state : null;
+  }
+
+  /**
+   * Nueva partida: lo guardado (válido o no) se copia a BACKUP_KEY y se quita, así main.ts empieza de cero.
+   * Si la copia no cabe, no se quita nada y devuelve false, salvo con `withoutBackup` (el jugador lo ha
+   * confirmado). También false si lo guardado sigue ahí después de quitarlo: nunca se continúa a escondidas.
+   */
+  startNew(withoutBackup = false): boolean {
+    const raw = this.storage.read(SAVE_KEY);
+    if (raw) {
+      try {
+        this.storage.write(BACKUP_KEY, raw);
+      } catch {
+        if (!withoutBackup) return false;
+      }
+      this.storage.remove(SAVE_KEY);
+    }
+    return this.storage.read(SAVE_KEY) === null;
   }
 
   clear(): void {

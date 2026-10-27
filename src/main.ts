@@ -64,6 +64,7 @@ import { Menu } from './ui/Menu';
 import { MapScreen } from './ui/MapScreen';
 import { PhoneScreen } from './ui/Phone';
 import { MobileControls } from './ui/MobileControls';
+import { PauseMenu } from './ui/PauseMenu';
 import { PlayerInput } from './systems/PlayerInput';
 import { METRO_CONFIG } from './config/metro';
 import { cityAt, districtAt, travel, worldTree } from './systems/World';
@@ -247,6 +248,23 @@ const game = new Phaser.Game({
   },
   scene: [new BootScene(services), new WorldScene(services)],
 });
+// La pantalla de inicio (title.ts) espera a que la calle esté montada para quitarse.
+export { game };
+
+// Pausa (ui/PauseMenu): la escena se para entera (reloj, gente, autoguardado) y al seguir no queda ninguna tecla pulsada.
+const pauseMenu = new PauseMenu(requireEl('#pause'), requireEl('#pause-button') as HTMLButtonElement, {
+  pause: () => {
+    services.input.releaseAll();
+    game.scene.pause('World');
+  },
+  resume: () => {
+    game.scene.getScene('World')?.input.keyboard?.resetKeys();
+    game.scene.resume('World');
+  },
+  save: () => save.save(state.snapshot),
+  name: () => state.identity.name,
+});
+game.events.on('lifesim:pause', () => pauseMenu.show());
 
 // Girar el móvil, cambiar de monitor o hacer zoom en el navegador cambia el tamaño físico.
 // El observador además recoge el tamaño definitivo: en móvil, al arrancar el

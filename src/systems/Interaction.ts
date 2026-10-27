@@ -16,7 +16,8 @@ import type { Facing, LocationDef, Vec2 } from '../types/game.ts';
  *   3. Elección: gana el que menos puntúa = distancia, con una pequeña ventaja
  *      para lo que se tiene delante (hacia donde mira el jugador).
  *   4. Empate (misma franja de `tie` px): manda el tipo (PRIORITY) y, si aún
- *      empatan, el id; nunca el orden de llegada.
+ *      empatan, el más cercano de verdad; a la misma distancia exacta, el sitio
+ *      y el id. Nunca el orden de llegada ni el de creación.
  *   5. Estabilidad: el que ya se ofrecía se mantiene mientras no lo supere otro
  *      por más de STICKY px, así el aviso no parpadea entre dos cosas pegadas.
  */
@@ -52,6 +53,8 @@ export interface Candidate {
   kind: InteractKind;
   x: number;
   y: number;
+  /** Atiende un mostrador (personal que vende o sirve): justo delante, gana como una caja (ver `ahead`). */
+  serves?: boolean;
 }
 
 const FORWARD: Readonly<Record<Facing, Vec2>> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
@@ -102,11 +105,20 @@ export interface PickOptions<T extends Candidate> {
   /** ¿Lo tapa una pared? (WorldScene lo cierra sobre la localización.) */
   blocked?: (c: T) => boolean;
   /**
-   * El tile que el jugador tiene justo delante. Una caja o una barra (terminal) en ese tile gana a todo: la gente
-   * hace cola y paga en ese mismo mostrador, y sin esto en hora punta la E hablaba con un cliente en vez de pedir.
+   * El tile que el jugador tiene justo delante. Una caja o una barra (terminal) en ese tile gana a todo, y también
+   * quien atiende (`serves`) si está ahí: la gente hace cola y paga en ese mismo mostrador, y sin esto en hora punta
+   * la E hablaba con el cliente que paga (pegado al jugador) en vez de con quien cobra.
    */
   ahead?: { tx: number; ty: number };
+  /**
+   * Si lo de delante es un mostrador (un mueble, no se pisa), el tile de detrás: quien atiende (`serves`) ahí se alcanza
+   * por encima aunque quede más lejos que `range` (un mostrador de un tile ya son 32 px) y gana como una caja. Es la
+   * regla 2 («se habla por encima del mostrador») llevada a quien está al otro lado.
+   */
+  across?: { tx: number; ty: number };
 }
+
+const onTile = (c: Candidate, t: { tx: number; ty: number } | undefined): boolean => !!t && Math.floor(c.x / TILE) === t.tx && Math.floor(c.y / TILE) === t.ty;
 
 /** El tile de delante de quien está en `tile` mirando a `facing`. */
 export const tileAhead = (tile: { tx: number; ty: number }, facing: Facing): { tx: number; ty: number } => ({ tx: tile.tx + FORWARD[facing].x, ty: tile.ty + FORWARD[facing].y });
@@ -122,8 +134,18 @@ function score(origin: Vec2, c: Candidate, facing: Facing | undefined): number {
   return (dx * f.x + dy * f.y) / d > 0.35 ? d - INTERACTION.frontBonus : d;
 }
 
-const compare = (a: { c: Candidate; band: number }, b: { c: Candidate; band: number }): number =>
-  a.band - b.band || PRIORITY[a.c.kind] - PRIORITY[b.c.kind] || (a.c.id < b.c.id ? -1 : a.c.id > b.c.id ? 1 : 0);
+/**
+ * Orden total: franja, tipo y, dentro de eso, el que de verdad está más cerca (antes, el id: el de una persona sale del
+ * orden en que el juego la vio por primera vez, y entre un camarero y un cliente casi a la par mandaba eso). Sólo si están
+ * exactamente a la misma distancia, el sitio (de izquierda a derecha y de arriba abajo) y, al final, el id.
+ */
+const compare = (a: { c: Candidate; s: number; band: number }, b: { c: Candidate; s: number; band: number }): number =>
+  a.band - b.band ||
+  PRIORITY[a.c.kind] - PRIORITY[b.c.kind] ||
+  a.s - b.s ||
+  a.c.x - b.c.x ||
+  a.c.y - b.c.y ||
+  (a.c.id < b.c.id ? -1 : a.c.id > b.c.id ? 1 : 0);
 
 /**
  * El mejor candidato válido, o null. Pura: mismo jugador y mismos candidatos,
@@ -132,15 +154,14 @@ const compare = (a: { c: Candidate; band: number }, b: { c: Candidate; band: num
  */
 export function pickTarget<T extends Candidate>(origin: Vec2, items: readonly T[], opts: PickOptions<T> = {}): T | null {
   const ranked = items
-    .filter((c) => Math.hypot(c.x - origin.x, c.y - origin.y) < INTERACTION.range && (opts.allow?.(c) ?? true) && !(opts.blocked?.(c) ?? false))
+    .filter((c) => (Math.hypot(c.x - origin.x, c.y - origin.y) < INTERACTION.range || (!!c.serves && onTile(c, opts.across))) && (opts.allow?.(c) ?? true) && !(opts.blocked?.(c) ?? false))
     .map((c) => {
       const s = score(origin, c, opts.facing);
       return { c, s, band: Math.floor(s / INTERACTION.tie) };
     })
     .sort(compare);
   if (ranked.length === 0) return null;
-  const ahead = opts.ahead;
-  const counter = ahead && ranked.find((r) => r.c.kind === 'terminal' && Math.floor(r.c.x / TILE) === ahead.tx && Math.floor(r.c.y / TILE) === ahead.ty);
+  const counter = ranked.find((r) => ((r.c.kind === 'terminal' || r.c.serves) && onTile(r.c, opts.ahead)) || (r.c.serves && onTile(r.c, opts.across)));
   if (counter) return counter.c;
   const best = ranked[0];
   const keep = opts.current ? ranked.find((r) => r.c.id === opts.current!.id) : undefined;

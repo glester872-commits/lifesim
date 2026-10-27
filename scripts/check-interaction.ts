@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { TILE } from '../src/config/constants.ts';
 import { getCatalog } from '../src/data/catalogs.ts';
 import { KIND_OF } from '../src/systems/Fitness.ts';
-import { allLocations, doorRow, solidMask } from '../src/systems/LocationSystem.ts';
+import { allLocations, doorRow, isWalkable, solidMask } from '../src/systems/LocationSystem.ts';
 import { seatsIn } from '../src/systems/Seating.ts';
 import { INTERACTION, PRIORITY, pickTarget, tileAhead, wallBetween, type Candidate } from '../src/systems/Interaction.ts';
 import { DialogueSystem } from '../src/systems/DialogueSystem.ts';
@@ -297,6 +297,71 @@ for (const loc of allLocations()) {
   assert.equal(card.cards.transport, 10, 'pagar toca la tarjeta original (cancelar ya no podría deshacerse)');
   assert.ok(!payFare({ money: 5, inventory: {}, cards: { transport: 0 } }, 'transport', dest.fare).ok, 'viajar sin saldo');
   console.log('recorridos: mostrador ofrecido y compra sin efectos de más · metro: cancelar no cobra, viajar cobra una vez, sin saldo se niega');
+}
+
+// Todo mostrador atendido por una persona (tiendas de ropa, joyería, recreativos, comisaría...): desde su sitio (_TILL)
+// mirando al mostrador, con la misma regla que el juego (pickTarget) y con alguien pagando pegado y otros en la cola, la E
+// elige a quien atiende (_STAFF, `serves` como en WorldScene). Donde la caja es un terminal delante, se paga en él y
+// quien atiende puede estar detrás. (Hilo, diez tiendas de ropa, Oriol, los dos recreativos y la comisaría tenían a
+// quien atiende detrás del mostrador pero fuera de alcance: 26 px no llegan por encima de un tile de mostrador.)
+let tills = 0;
+const centre = (p: { tx: number; ty: number }): { x: number; y: number } => ({ x: p.tx * TILE + C, y: p.ty * TILE + C });
+for (const loc of allLocations()) {
+  if (!loc.points) continue;
+  for (const [key, till] of Object.entries(loc.points)) {
+    if (!key.endsWith('_TILL')) continue;
+    const pre = key.slice(0, -'_TILL'.length);
+    const staff = loc.points[`${pre}_STAFF`];
+    if (!staff) continue;
+    const facing = till.facing ?? 'up';
+    const ahead = tileAhead(till, facing);
+    if ((loc.terminals ?? []).some((t) => t.tx === ahead.tx && t.ty === ahead.ty)) continue;
+    tills++;
+    const waiting = Object.entries(loc.points).filter(([k]) => k.startsWith(`${pre}_QUEUE_`)).map(([k, q]) => ({ id: `cola:${k}`, kind: 'npc' as const, ...centre(q) }));
+    // Y alguien pagando en la misma caja, pegado al jugador (2 px): en hora punta pasa.
+    const paying = { id: 'paga', kind: 'npc' as const, x: centre(till).x + 2, y: centre(till).y };
+    // Como WorldScene: si lo de delante es un mostrador (no se pisa), quien atiende al otro lado se alcanza por encima.
+    const across = isWalkable(loc, ahead.tx, ahead.ty) ? undefined : tileAhead(ahead, facing);
+    const at = (t?: { tx: number; ty: number }): boolean => !!t && staff.tx === t.tx && staff.ty === t.ty;
+    assert.ok(at(ahead) || at(across), `${loc.id}: quien atiende (${staff.tx}, ${staff.ty}) no está delante de su caja (${till.tx}, ${till.ty}) ni al otro lado del mostrador`);
+    const got = pickTarget(centre(till), [{ id: 'atiende', kind: 'npc' as const, serves: true, ...centre(staff) }, ...waiting, paying], { facing, ahead, across });
+    assert.equal(got?.id, 'atiende', `${loc.id}: desde el mostrador la E elige ${got?.id ?? 'nada'} en vez de a quien atiende`);
+  }
+}
+assert.ok(tills >= 19, `sólo ${tills} mostradores atendidos: ¿ha cambiado cómo se nombran los puntos?`);
+
+// Quien atiende se vuelve hacia el jugador por el perfil, como cualquier media vuelta (entities/Character necesita Phaser
+// y no se carga aquí: se mira el código). Antes, la dirección de la charla se ponía después del giro y pasaba de espaldas
+// a de cara en un fotograma; y con un menú abierto el mundo no se pinta, así que la vuelta se quedaba a medias.
+{
+  const character = src('entities/Character.ts');
+  assert.match(character, /this\.turned\(talkDir \?\? where\.dir, time\)/, 'la charla no gira por turned(): de espaldas a de cara en un fotograma');
+  const scene = src('scenes/WorldScene.ts');
+  assert.match(scene, /if \(!liveMenu && this\.offerTalk\) for \(const view of this\.crowdViews\) view\.sync\(time\);/, 'con el menú abierto, quien atiende no termina de girarse');
+  assert.match(scene, /this\.startTalk\(target\.sprite\);\s*this\.offerTalk = true;/, 'quien ofrece algo no se vuelve hacia el jugador al abrir su menú');
+}
+
+// Gente apiñada (un camarero entre clientes, a menos de una franja de distancia unos de otros): la E elige siempre al
+// más cercano de verdad, se llamen como se llamen y vengan en el orden que vengan. El id de una persona sale del orden
+// en que el juego la vio por primera vez: antes, dentro de una franja de empate, eso decidía.
+{
+  const rng = seededRng(4242);
+  const me = { x: 200, y: 200 };
+  for (let round = 0; round < 300; round++) {
+    const people = Array.from({ length: 2 + Math.floor(rng() * 4) }, (_, i) => {
+      const angle = rng() * Math.PI * 2;
+      const d = 12 + rng() * 4; // todos entre 12 y 16 px: dentro de dos o tres franjas de 1.5 px
+      return { id: `npc:${i + 1}`, kind: 'npc' as const, x: me.x + Math.cos(angle) * d, y: me.y + Math.sin(angle) * d, d };
+    });
+    const nearest = people.reduce((a, b) => (b.d < a.d ? b : a));
+    for (let k = 0; k < 4; k++) {
+      // Otros ids (otro orden de creación) y otra lista: el elegido es la misma persona.
+      const order = [...people].sort(() => rng() - 0.5);
+      const renamed = order.map((p, i) => ({ ...p, id: `npc:${(i * 7 + k) % 23}` }));
+      const got = pickTarget(me, renamed);
+      assert.ok(got && got.x === nearest.x && got.y === nearest.y, `apiñados: la E elige a uno a ${got && Math.hypot(got.x - me.x, got.y - me.y).toFixed(2)} px, no al de ${nearest.d.toFixed(2)} px`);
+    }
+  }
 }
 
 console.log('\nOK: una sola regla decide qué se ofrece, todo se alcanza, nada a través de paredes, se sale de cualquier charla y el móvil es igual.');

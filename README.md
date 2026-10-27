@@ -710,7 +710,8 @@ Conocidas y comprobables:
   de cursos, siguen sin desbloquear una actividad.
 - Un mapa por barrio; las calles terminan en el límite. Luna no tiene mapa. Arena
   sí tiene barrio, estadio y partido.
-- Hay sonido ambiente (N), pero no menú principal. En móvil el joystick mueve la
+- Creador de personaje al empezar (Nueva partida): nombre, 8 tonos de piel, 11 peinados, 9 colores de pelo, 6 de ojos y ropa inicial del catálogo de las tiendas (entra en el armario). Sólo estética: ni cuerpo, ni colisión, ni dinero. A 16 × 24 el ojo son dos píxeles: el color va en el de abajo y no hay estilos de ojo; tampoco hay accesorios (gafas, gorro) porque la ropa no los dibuja todavía. Después, el pelo se cambia en la barbería y la ropa en casa o en las tiendas; piel, ojos y color de pelo, de momento, sólo al crear el personaje.
+- Hay pantalla de inicio (Continuar, Nueva partida con copia de seguridad, Controles, Ajustes, Acerca de) y pausa (Esc o «Menú»: guardar y volver al inicio). Una sola ranura de guardado, en el navegador, con copia de la anterior al empezar o importar, recuperación de esa copia si la partida no se lee, y exportar/importar a un archivo JSON validado (Partidas). En móvil el joystick mueve la
   selección del menú una vez por impulso; las opciones se pueden tocar.
 - Las pruebas táctiles se han hecho en navegador emulado, no en teléfono físico.
   Las pruebas de navegador usaron preparación de posiciones y piloto de teclado;
