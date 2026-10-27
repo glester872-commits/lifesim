@@ -350,3 +350,43 @@ function line(ctx: Ctx, color: string, x0: number, y0: number, x1: number, y1: n
     }
   }
 }
+
+/**
+ * Bici aparcada de perfil, sin nadie encima: la misma construcción que la del ciclista (ruedas en aro con su buje,
+ * cuadro de diamante con vainas, tirantes, tubo del sillín, horizontal y diagonal, horquilla, sillín, manillar y
+ * pedalier) a la escala que cabe en su sitio. `x` es el borde izquierdo, `ground` la fila donde apoyan las ruedas,
+ * `r` el radio de la rueda y `wheelbase` la distancia entre ejes. Mira a la derecha: el manillar va delante.
+ */
+export function drawParkedBike(ctx: Ctx, x: number, ground: number, frameColor: string, r: number, wheelbase: number): void {
+  const cy = ground - Math.floor(r);
+  const rear: Pt = [x + Math.ceil(r), cy];
+  const front: Pt = [rear[0] + wheelbase, cy];
+  const crank: Pt = [rear[0] + Math.round(wheelbase * 0.4), cy];
+  const seat: Pt = [rear[0] + Math.round(wheelbase * 0.25), cy - Math.round(r * 1.2)];
+  const head: Pt = [front[0] - 1, seat[1]];
+  // Ruedas: cubierta oscura (la mitad de arriba recoge algo de cielo), llanta de metal, buje; dentro se ve el suelo.
+  for (const [hx, hy] of [rear, front]) {
+    for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) {
+      for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+        const d = Math.hypot(dx, dy);
+        if (d > r - 0.9 && d <= r) px(ctx, dy < 0 ? '#3a3a42' : '#24242a', hx + dx, hy + dy);
+        else if (d > r - 1.6 && d <= r - 0.9 && (dx + dy) % 2 === 0) px(ctx, shade(PALETTE.metal, 0.2), hx + dx, hy + dy);
+      }
+    }
+    px(ctx, PALETTE.metalLit, hx, hy);
+  }
+  // Cuadro: vainas y tirantes desde el eje trasero, tubo del sillín, diagonal, horizontal (con su luz) y horquilla.
+  line(ctx, shade(frameColor, -0.18), rear[0], rear[1], crank[0], crank[1]);
+  line(ctx, shade(frameColor, -0.1), rear[0], rear[1], seat[0], seat[1] + 1);
+  line(ctx, frameColor, crank[0], crank[1], seat[0], seat[1]);
+  line(ctx, frameColor, crank[0], crank[1], head[0], head[1] + 1);
+  line(ctx, shade(frameColor, 0.28), seat[0], seat[1], head[0], head[1]);
+  line(ctx, shade(PALETTE.metal, 0.1), head[0], head[1], front[0], front[1]);
+  // Pedalier con su biela y el pedal abajo.
+  px(ctx, PALETTE.metalLit, crank[0], crank[1]);
+  px(ctx, PALETTE.ink, crank[0] - 1, crank[1] + 1, 2, 1);
+  // Sillín y manillar: la tija y la potencia suben del cuadro.
+  px(ctx, PALETTE.ink, seat[0] - 1, seat[1] - 1, 3, 1);
+  px(ctx, PALETTE.metal, head[0], head[1] - 1, 1, 1);
+  px(ctx, PALETTE.ink, head[0], head[1] - 2, 2, 1);
+}

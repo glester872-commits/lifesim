@@ -161,6 +161,33 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
 const CHURCH_BRONZE = '#a8823e';
 const CHURCH_GLASS = ['#4f7fa8', '#b8483e', '#d9b44a', '#5c8a5a'] as const;
 
+/** Plomo del vitral y el vidrio de sus dos coronas (dentro azul y rojo, fuera oro y verde), alternos gajo a gajo. */
+const ROSE_LEAD = '#4a3f46';
+const ROSE_GLASS = [[CHURCH_GLASS[0], CHURCH_GLASS[1]], [CHURCH_GLASS[2], CHURCH_GLASS[3]]] as const;
+
+/**
+ * Rosetón de 15 px (radio 7), visto de frente: qué es el píxel (x, y) desde el centro. De fuera adentro, el marco de
+ * piedra con su derrame en sombra, la corona exterior de ocho gajos con sus radios, un anillo de plomo, la corona interior en cuatro
+ * cuartos (partidos por los ejes), otro plomo y el botón. A 15 px no caben más radios: comidos por el plomo, los
+ * vidrios de dentro desaparecían. Lo comparten el dibujo de día y el encendido de noche.
+ */
+type RosePane = { kind: 'stone' } | { kind: 'reveal' } | { kind: 'lead' } | { kind: 'boss' } | { kind: 'glass'; ring: 0 | 1; sector: number };
+function rosePane(x: number, y: number): RosePane | null {
+  const d = Math.hypot(x, y);
+  if (d > 7.4) return null;
+  if (d > 6.2) return { kind: 'stone' };
+  // El derrame: la cara interior del marco, en sombra, da el grueso de la piedra antes del vidrio.
+  if (d > 5.5) return { kind: 'reveal' };
+  if (d < 1.6) return { kind: 'boss' };
+  if (d < 2.3 || (d >= 3.7 && d < 4.3)) return { kind: 'lead' };
+  if (d < 3.7) return x === 0 || y === 0 ? { kind: 'lead' } : { kind: 'glass', ring: 0, sector: (x > 0) === (y > 0) ? 0 : 1 };
+  // Corona exterior: radios cada 45°, y lo que cae a menos de medio píxel de uno es plomo.
+  const a = Math.atan2(y, x);
+  const step = Math.PI / 4;
+  if (Math.abs(d * Math.sin(a - Math.round(a / step) * step)) < 0.5) return { kind: 'lead' };
+  return { kind: 'glass', ring: 1, sector: Math.floor((a + Math.PI) / step) };
+}
+
 /** Arco de medio punto relleno: de `top` (la clave) a `bottom`, centrado en cx, de ancho w. */
 function archFill(ctx: Ctx, color: string, cx: number, w: number, top: number, bottom: number): void {
   const r = w / 2;
@@ -222,11 +249,28 @@ function drawChurch(ctx: Ctx, w: number, h: number, doorCol: number): void {
   }
   // Rosetón sobre la portada: anillo de piedra, vidrio de colores en gajos y el centro claro.
   const ry = facadeTop + 12;
+  // El marco vuela sobre el muro: su sombra cae abajo a la derecha (luz del noroeste).
+  for (let y = -8; y <= 8; y++) {
+    for (let x = -8; x <= 8; x++) {
+      const d = Math.hypot(x, y);
+      if (d > 7.4 && d <= 8.4 && x + y > 0) {
+        ctx.globalAlpha = 0.28;
+        px(ctx, PALETTE.ink, cx + x, ry + y, 1, 1);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
   for (let y = -7; y <= 7; y++) {
     for (let x = -7; x <= 7; x++) {
-      const d = Math.hypot(x, y);
-      if (d > 7.4) continue;
-      const c = d > 6 ? shade(stone, -0.32) : d < 1.6 ? PALETTE.amber : CHURCH_GLASS[(Math.floor(((Math.atan2(y, x) + Math.PI) / (2 * Math.PI)) * 8) + (d > 3.6 ? 1 : 0)) % CHURCH_GLASS.length];
+      const p = rosePane(x, y);
+      if (!p) continue;
+      let c: string;
+      if (p.kind === 'stone') c = x + y < -2 ? shade(stone, 0.16) : x + y > 2 ? shade(stone, -0.3) : shade(stone, -0.06);
+      else if (p.kind === 'reveal') c = x + y > 0 ? shade(stone, -0.22) : shade(stone, -0.4);
+      else if (p.kind === 'lead') c = ROSE_LEAD;
+      else if (p.kind === 'boss') c = PALETTE.amber;
+      // Cada vidrio, algo más claro en su lado del noroeste: el cielo en el cristal, sin ruido.
+      else c = shade(ROSE_GLASS[p.ring][p.sector % 2], x + y < 0 ? 0.08 : -0.04);
       px(ctx, c, cx + x, ry + y, 1, 1);
     }
   }
@@ -255,7 +299,16 @@ function drawChurch(ctx: Ctx, w: number, h: number, doorCol: number): void {
 function drawChurchGlow(ctx: Ctx, h: number, doorCol: number): void {
   const facadeTop = h - 2 * STOREY;
   const cx = doorCol * TILE + TILE / 2;
-  for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) if (Math.hypot(x, y) <= 6) px(ctx, (x + y) % 3 === 0 ? PALETTE.amber : '#f6d79a', cx + x, facadeTop + 12 + y, 1, 1);
+  // El rosetón encendido conserva su dibujo: sólo brilla el vidrio, cada gajo en su color; plomo y piedra quedan a
+  // oscuras (transparentes aquí), así que de noche se siguen leyendo las coronas, los radios y el botón.
+  for (let y = -7; y <= 7; y++) {
+    for (let x = -7; x <= 7; x++) {
+      const p = rosePane(x, y);
+      if (!p || p.kind === 'stone' || p.kind === 'reveal' || p.kind === 'lead') continue;
+      const c = p.kind === 'boss' ? '#fff0c8' : mix(ROSE_GLASS[p.ring][p.sector % 2], '#ffe8b0', 0.38);
+      px(ctx, c, cx + x, facadeTop + 12 + y, 1, 1);
+    }
+  }
   for (const wx of [cx - 32, cx + 32]) archFill(ctx, '#e9c27a', wx, 6, facadeTop + 15, facadeTop + 35);
 }
 

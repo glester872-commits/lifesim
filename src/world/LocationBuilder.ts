@@ -318,10 +318,13 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     });
   }
 
-  // Terreno, edificios y muebles: el tile entero. Los postes (farolas, señales, bolardos): sólo su palo.
+  // Terreno, edificios y muebles: el tile entero. Los postes (farolas, señales, bolardos): sólo su palo. Lo estrecho
+  // con caja al pie (papelera, tótem: PropDef.foot), sólo esa caja.
   for (const r of solidRects(solidMask(def, true))) addSolid(scene, solids, r.x * TILE, r.y * TILE, r.w * TILE, r.h * TILE);
   for (const p of def.props) {
     if (PROPS[p.kind].post) addSolid(scene, solids, p.tx * TILE + (TILE - POST_BODY) / 2, p.ty * TILE + TILE - POST_BODY, POST_BODY, POST_BODY);
+    const foot = PROPS[p.kind].foot;
+    if (foot) addSolid(scene, solids, p.tx * TILE + (TILE - foot[0]) / 2, p.ty * TILE + TILE - foot[1], foot[0], foot[1]);
   }
 
   return { widthPx, heightPx, solids, windows, glows };
