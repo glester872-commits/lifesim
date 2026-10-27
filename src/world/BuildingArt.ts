@@ -2048,7 +2048,7 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
       }
       const fh = rows * TILE;
       const facadeKey = `bs-facade-${b.id}`;
-      make(rt.scene, facadeKey, b.w * TILE, fh, (ctx) => drawResidentialFacade(ctx, { bays, floors, wall: look.wall, lit: look.lit, seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0), mat: look.mat === 'stucco' ? 'stucco' : 'ashlar', shutter: home ? '#3f6f78' : '#6e5038', leaf: home ? '#3f6f78' : PALETTE.wood, flowers: home }));
+      make(rt.scene, facadeKey, b.w * TILE, fh, (ctx) => drawResidentialFacade(ctx, { bays, floors, wall: look.wall, lit: look.lit, seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0), mat: look.mat === 'stucco' ? 'stucco' : 'ashlar', shutter: home ? '#3f6f78' : '#6e5038', leaf: home ? '#3f6f78' : PALETTE.wood, flowers: home, classic: b.art === 'clasico' }));
       draw(facadeKey, b.tx, b.ty + b.h - rows);
       // La placa del portal (la casita del tuyo), igual que en el horneado por tiles, y de noche encendida.
       if (look.sign && b.doorX !== undefined) {
@@ -2059,7 +2059,7 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
       const roofRowsHD = b.h - rows;
       if (roofRowsHD > 0) {
         const roofKey = `bs-roof-hd03-${b.id}`;
-        make(rt.scene, roofKey, b.w * TILE, roofRowsHD * TILE, (ctx) => drawResidentialRoof(ctx, b.w * TILE, roofRowsHD * TILE, look.roof, seed, { clay: home, laundry: home }));
+        make(rt.scene, roofKey, b.w * TILE, roofRowsHD * TILE, (ctx) => drawResidentialRoof(ctx, b.w * TILE, roofRowsHD * TILE, look.roof, seed, { clay: home, laundry: home, classic: b.art === 'clasico' }));
         draw(roofKey, b.tx, b.ty);
       }
       continue;
