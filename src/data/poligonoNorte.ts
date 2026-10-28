@@ -12,7 +12,9 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from
  *   y 18–29 el aparcamiento: dos filas de coches, una isleta con árboles en medio y dos pasos de cebra hacia la puerta
  *   y 30–33 la acera del borde, con la marquesina y el talud de césped
  *
- * Sin tráfico ni gente de calle todavía: quien viene a la tienda aparece en su puerta (systems/Places) y entra.
+ * Tráfico por la calle de acceso (filas 19 y 21, sin coches aparcados encima) y gente de paso (data/streets.ts): quien
+ * llega en metro o deja el coche en el pasillo del aparcamiento (fila 26), cruza por el paso de cebra y entra; y quien
+ * sale, al revés. Todo con la tienda abierta: de noche, el polígono se vacía.
  */
 const W = 56;
 const H = 34;
@@ -38,7 +40,9 @@ const GROUND = paint(',', [
   // El aparcamiento: asfalto, la isleta de césped y los dos pasos de cebra hacia la puerta.
   ['.', 0, 18, W, 12],
   ['g', 0, 25, W, 1],
-  ['z', 37, 20, 3, 3], ['z', 37, 27, 3, 3], [',', 37, 25, 3, 1],
+  // La acera central del aparcamiento (fila 26), junto a la isleta: por donde se va del coche a la puerta.
+  [',', 0, 26, W, 1],
+  ['z', 37, 18, 3, 7], ['z', 37, 27, 3, 3], [',', 37, 25, 3, 1],
   // El borde: acera y el talud.
   ['g', 0, 32, W, 2],
 ]);
@@ -66,8 +70,10 @@ const PROPS: readonly PropPlacement[] = [
   // La explanada: farolas, el aparcabicis junto a la puerta, las papeleras y el plano del polígono junto al metro.
   ...many('street-lamp', [[6, 17], [18, 17], [30, 17], [46, 17]]),
   at('bike-rack', 44, 15), at('bike-rack', 28, 15),
-  ...many('bin', [[34, 16], [43, 17]]),
+  ...many('bin', [[32, 17], [43, 17]]),
   ...many('planter-box', [[12, 15], [22, 15]]),
+  // La máquina de bebidas contra la fachada, junto al granito: latas y envoltorios para la limpieza (systems/Litter).
+  at('vending', 31, 14),
   at('metro-totem', 54, 14),
   // El tablón del barrio (systems/Boards): junto a la boca de metro, fuera del paso de la puerta al andén.
   at('notice-board', 50, 16),
@@ -84,16 +90,31 @@ const PROPS: readonly PropPlacement[] = [
 
 const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
 
+/** Donde se baja del coche: la acera central entre las dos filas del aparcamiento. */
+const PARK = [6, 14, 22, 30, 46] as const;
+
 const POINTS: Record<string, PointDef> = {
+  // El resto de la ciudad: la acera de la fachada y la del fondo, por los dos lados.
+  EDGE_PN_W: p(0, 16, 'edge'), EDGE_PN_E: p(W - 1, 16, 'edge'),
+  EDGE_PN_SW: p(0, 30, 'edge'), EDGE_PN_SE: p(W - 1, 30, 'edge'),
   // De la puerta de la nave a la boca de metro, por la explanada.
   'pn-14-48': p(48, 14, 'path'),
+  // La acera de la fachada, hasta el granito; y la bajada por el paso de cebra, la isleta y el pasillo del aparcamiento.
+  'pn-16-33': p(33, 16, 'path'),
+  'pn-17-38': p(38, 17, 'path'), 'pn-25-38': p(38, 25, 'path'), 'pn-26-38': p(38, 26, 'path'), 'pn-30-38': p(38, 30, 'path'),
+  ...Object.fromEntries(PARK.map((x, i): [string, PointDef] => [`PN_PARK_0${i + 1}`, p(x, 26, 'wait', 'up')])),
   // Quien espera a alguien a la puerta, con la bolsa.
   PN_DECATHLON_WAIT_01: p(36, 15, 'wait', 'up'),
   PN_DECATHLON_WAIT_02: p(41, 16, 'wait', 'left'),
 };
 
 const LINKS: readonly (readonly [string, string])[] = [
-  ['PN_DECATHLON_ENTRANCE', 'pn-14-48'], ['pn-14-48', 'PN_METRO_ENTRANCE'],
+  ['PN_DECATHLON_ENTRANCE', 'pn-14-48'], ['pn-14-48', 'PN_METRO_ENTRANCE'], ['pn-14-48', 'EDGE_PN_E'],
+  ['EDGE_PN_W', 'pn-16-33'], ['pn-16-33', 'PN_DECATHLON_ENTRANCE'],
+  ['PN_DECATHLON_ENTRANCE', 'pn-17-38'], ['pn-17-38', 'pn-25-38'], ['pn-25-38', 'pn-26-38'], ['pn-26-38', 'pn-30-38'],
+  ['EDGE_PN_SW', 'pn-30-38'], ['pn-30-38', 'EDGE_PN_SE'],
+  // El pasillo del aparcamiento, de coche en coche hasta el paso.
+  ['PN_PARK_01', 'PN_PARK_02'], ['PN_PARK_02', 'PN_PARK_03'], ['PN_PARK_03', 'PN_PARK_04'], ['PN_PARK_04', 'pn-26-38'], ['pn-26-38', 'PN_PARK_05'],
   ['PN_DECATHLON_WAIT_01', 'PN_DECATHLON_ENTRANCE'], ['PN_DECATHLON_WAIT_02', 'PN_DECATHLON_ENTRANCE'],
 ];
 
@@ -109,6 +130,13 @@ export const POLIGONO_NORTE: LocationDef = {
   spawns: {},
   points: POINTS,
   links: LINKS,
+  // La calle de acceso: un carril por sentido delante de la fachada. Con la tienda abierta, coches; de noche, casi nadie.
+  traffic: {
+    lanes: [{ row: 19, dir: -1 }, { row: 21, dir: 1 }],
+    road: 'residential',
+    perLane: 2,
+    hourly: [[0, 8.5, 0], [8.5, 9.5, 1], [9.5, 21, 2], [21, 22, 1], [22, 24, 0]],
+  },
   inspects: [
     { tx: 14, ty: 12, name: 'Decathlon', lines: ['Una nave de cien metros forrada de listones de madera, con el rótulo blanco y la franja azul. Dentro se oye el pitido de la caja y una bici que alguien prueba en el pasillo.'] },
     { tx: 54, ty: 14, name: 'Plano del polígono', lines: ['Polígono Norte: la nave de deportes, el aparcamiento y el metro. Línea 2 hacia Ribera Norte, Vallesco y el centro.'] },

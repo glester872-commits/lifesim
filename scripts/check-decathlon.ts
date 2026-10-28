@@ -12,7 +12,9 @@ import { route, tilePath } from '../src/systems/Navigation.ts';
 import type { TilePoint } from '../src/types/game.ts';
 import { STOPS } from '../src/data/transit.ts';
 import { OFF_MAP_PLACES } from '../src/data/activities.ts';
-import { placeForInterior } from '../src/systems/Places.ts';
+import { placeForInterior, placeInfo } from '../src/systems/Places.ts';
+import { STREET_PROFILES } from '../src/data/streets.ts';
+import { ROADWAY } from '../src/systems/LocationSystem.ts';
 
 const loc = getLocation(DECATHLON_STORE.id);
 validate(loc);
@@ -204,5 +206,32 @@ const walkTo = tilePath(street, street.spawns[out.to.spawn], street.spawns[nave.
 assert.ok(walkTo && walkTo.length > 5, 'del metro a la puerta de la tienda no se llega andando');
 assert.equal(OFF_MAP_PLACES.length, 0, 'queda un sitio sin mapa');
 assert.equal(placeForInterior(loc.id)?.locationId, street.id, 'la gente no llega por la calle');
+
+// 13 · Tráfico y gente de paso en la calle: los carriles cruzan el mapa por calzada sin un coche aparcado encima, el paso de
+// cebra corta los dos frente a la puerta, nadie se para en la calzada, y la gente de la tienda va y viene sólo con ella
+// abierta; de noche, sin coches.
+const traffic = street.traffic!;
+assert.ok(traffic && traffic.lanes.length === 2, 'la calle sin sus dos carriles');
+for (const lane of traffic.lanes) {
+  assert.ok([...street.ground[lane.row]].every((ch) => ROADWAY.has(ch)), `carril ${lane.row}: no es calzada de punta a punta`);
+  for (const pr of street.props) {
+    const def = PROPS[pr.kind];
+    if (def.overhead || def.flat) continue;
+    assert.ok(pr.ty !== lane.row, `${pr.kind} en (${pr.tx}, ${pr.ty}) aparcado encima del carril ${lane.row}`);
+  }
+  assert.equal(street.ground[lane.row][nave.doorX!], 'z', `carril ${lane.row}: sin paso de cebra delante de la puerta`);
+}
+assert.ok(traffic.perLane <= 2 && traffic.hourly!.some(([a, b, n]) => a <= 23 && 23 < b && n === 0), 'tráfico sin límite o de noche');
+for (const [id, pt] of Object.entries(street.points ?? {})) {
+  if (pt.kind !== 'path' && pt.kind !== 'edge' && pt.kind !== 'entrance') assert.ok(!ROADWAY.has(street.ground[pt.ty][pt.tx]), `${id}: alguien se para en la calzada`);
+}
+const profile = STREET_PROFILES.find((pr) => pr.location === street.id)!;
+assert.ok(profile && profile.maxWalkers <= 20, 'la calle sin gente de paso o sin límite');
+const [open, close] = placeInfo(loc.id)!.hours!;
+for (const tr of profile.trips.filter((t) => [t.from, t.to].some((e) => e.tags?.includes('sport')))) {
+  const [a, b] = tr.hours!;
+  assert.ok(a >= open - 0.5 && b <= close + 0.5, `${tr.role}: va o viene de la tienda cerrada (${a}–${b})`);
+}
+assert.ok(profile.trips.some((t) => t.from.points?.includes('PN_PARK_')) && profile.trips.some((t) => t.to.points?.includes('PN_PARK_')), 'nadie llega ni vuelve al coche');
 
 console.log(`check-decathlon: OK · calle ${walkTo.length} tiles del metro a la puerta · ${SECTORS.length} secciones · ${AISLES.length} pasillos · ${BLOCKS.length} circuitos · ${loc.props.length} muebles de ${kinds.size} tipos · ${seen.size} tiles alcanzables`);

@@ -214,6 +214,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'ar-estadio', name: 'Estadio del Halcón', type: 'public', tags: ['sport', 'stadium'], building: 'ar-estadio', anchors: ['AR_GATE_1', 'AR_GATE_2', 'AR_GATE_3', 'AR_GATE_4', 'AR_GATE_5'], capacity: 400 },
   { id: 'ar-deportes', name: 'Deportes Arena', type: 'business', tags: ['shop', 'sport', WORK], building: 'ar-deportes', capacity: 6, hours: [10, 21], days: [0, 1, 2, 3, 4, 5], why: 'Chándal, camisetas técnicas y zapatillas: ropa de deporte que te llevas puesta.' },
   // Abre todos los días hasta tarde: el fin de semana es cuando hay partido.
+  // El metro del Polígono Norte (Alpha-09): por donde llega casi toda la gente que no viene en coche.
+  { id: 'metro-poligono-norte', name: 'Metro · Polígono Norte', type: 'transit', tags: ['transit'], building: 'pn-metro', capacity: 40 },
   // Decathlon (data/decathlon.ts): la nave del Polígono Norte (data/poligonoNorte.ts); se entra por su puerta de la explanada.
   { id: 'decathlon-tienda', name: 'Decathlon · Polígono Norte', type: 'business', tags: ['shop', 'sport', WORK], building: 'pn-decathlon', capacity: 30, hours: [9, 21], days: [0, 1, 2, 3, 4, 5], why: 'Una nave de deporte: montaña, running, ciclismo. Y el trabajo de sección, si firmas.' },
   { id: 'ar-oficial', name: 'Tienda Oficial Halcones', type: 'business', tags: ['shop', 'sport', 'stadium', WORK], building: 'ar-oficial', capacity: 8, hours: [10, 21.5], why: 'Las camisetas y la sudadera del club: te las llevas puestas.' },

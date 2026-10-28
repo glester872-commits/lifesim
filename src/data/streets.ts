@@ -723,4 +723,28 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'courier', ambient: true, label: 'Repartidora', line: 'Hamburguesa doble con extra de todo. Dirección: «la plaza». Ya.', weight: 5, hours: [20, 1.5], from: { points: ['PC_PIZZA_ENTRANCE', 'PC_BURGER_ENTRANCE'] }, to: HOMES_OR_CITY, uniform: 'uniforme-reparto', rainproof: true, max: 3 },
     ],
   },
+  // Polígono Norte (Alpha-09, data/poligonoNorte.ts): sólo se viene a Decathlon. Abre de 9 a 21 de lunes a sábado (data/places.ts):
+  // con la tienda cerrada nadie va ni viene de ella, y el domingo la explanada queda para quien ataja. Se llega en metro o se
+  // deja el coche en el pasillo del aparcamiento, se cruza por el paso de cebra y se entra; y de vuelta, igual.
+  {
+    location: 'poligono-norte',
+    bands: [[8.5, 9.5, 'LOW'], [9.5, 13, 'MEDIUM'], [13, 17, 'LOW'], [17, 21, 'HIGH'], [21, 22, 'LOW']],
+    weekday: [0, 0, 0, 0, 1, 2, -3],
+    scale: 1,
+    maxWalkers: 16,
+    bursts: [{ point: 'PN_METRO_ENTRANCE', every: [[9, 21, 10]], size: [1, 2] }],
+    trips: [
+      { role: 'shift-shop', label: 'Alguien que entra a trabajar', line: 'Abrimos a las nueve. El chaleco, en la taquilla.', weight: 2, hours: [8.5, 9.25], days: 'weekday', from: TRANSIT, to: { tags: ['work'] }, max: 2 },
+      { role: 'shopper', label: 'Alguien que viene a Decathlon', line: 'Vengo a por unas zapatillas. Y a mirar las bicis, ya que estoy.', weight: 4, hours: [9, 20.5], from: TRANSIT, to: { tags: ['sport'] }, group: [1, 3], bond: ['family', 'friends', 'couple'] },
+      { role: 'shopper', label: 'Alguien que acaba de aparcar', line: 'He dejado el coche en la fila de atrás. Apúntate dónde, que luego no lo encuentro.', weight: 4, hours: [9, 20.5], from: { points: ['PN_PARK_'] }, to: { tags: ['sport'] }, group: [1, 4], bond: ['family', 'couple'] },
+      { role: 'returning', label: 'Alguien cargado de bolsas', line: 'Venía a por calcetines. Llevo una tienda de campaña.', weight: 3, hours: [9.5, 21.25], from: { tags: ['sport'] }, to: { points: ['PN_PARK_'] }, group: [1, 3], bond: ['family', 'couple'] },
+      { role: 'returning', label: 'Alguien volviendo al metro', line: 'La bici me la traen a casa. Menos mal.', weight: 3, hours: [9.5, 21.25], from: { tags: ['sport'] }, to: TRANSIT },
+      { role: 'metro-meet', label: 'Alguien esperando en la puerta', line: 'Está en los probadores. Desde hace veinte minutos.', weight: 1, hours: [10, 20.5], from: TRANSIT, to: { points: ['PN_DECATHLON_WAIT_'] }, stay: [4, 12], stayState: 'PHONE', then: TRANSIT, max: 2 },
+      { role: 'passer-by', label: 'Alguien atajando por el polígono', line: 'Por aquí se llega antes a la otra parada. Si no te pierdes.', weight: 1, hours: [7, 22], from: CITY, to: CITY },
+      // La limpieza viaria (carrito y escoba), antes de abrir y al cerrar: la explanada y la acera central del aparcamiento.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Tiques, latas y alguna etiqueta de precio. Lo de siempre en un aparcamiento.', weight: 6, hours: [7.5, 9.5], from: CITY, to: CITY, via: ['pn-14-48', 'PN_PARK_01'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      { role: 'street-cleaner', ambient: true, label: 'Operaria de limpieza', line: 'En cuanto cierran, a recoger. Mañana, otra vez.', weight: 6, hours: [20.5, 22.5], from: CITY, to: CITY, via: ['PN_PARK_05', 'pn-16-33'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      patrol([9.5, 21], ['PN_DECATHLON_WAIT_', 'PN_PARK_'], 'Una vuelta por el aparcamiento. Los sábados siempre abren algún coche.', { weight: 0.4 }),
+    ],
+  },
 ];
