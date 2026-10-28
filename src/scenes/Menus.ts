@@ -362,6 +362,15 @@ export class Menus {
     const contract = state.job?.job === job.id && state.job.status === 'active' ? state.job : null;
     const again = (n = ''): void => this.openJob(jobId, name, n);
     const entries = this.jobEntries(job, contract, again);
+    // El turno suelto, sin contrato (data/jobs.ts `casual`): antes en el menú de la parada, ahora aquí, en el fichaje.
+    if (job.casual) {
+      const casual = getActivity(job.casual);
+      const shut = contract ? 'Con contrato, aquí se trabaja en tus turnos.' : null;
+      entries.push({
+        option: { label: casual.name, detail: casual.effects.money ? `+${euros(casual.effects.money)}` : '', disabled: shut ?? blocker(casual, this.activityContext()) ?? undefined },
+        run: () => this.run(name, casual, () => again()),
+      });
+    }
     const text = contract ? `Tu taquilla, el chaleco colgado y el reloj de fichar. ${formatClock(state.day, state.hour, state.minute)}.` : job.posting;
     menu.open(name, text, entries.map((e) => e.option), (i) => entries[i].run(), () => menu.close(), [news, note].filter(Boolean).join(' '));
   }

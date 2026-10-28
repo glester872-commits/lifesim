@@ -42,12 +42,12 @@ assert.ok(staffLooks.every((l) => l?.startsWith('decathlon_employee')), 'hay per
 assert.equal(new Set(staffLooks).size, staffLooks.length, 'dos empleados con el mismo aspecto');
 assert.ok(DECATHLON_PROFILE.visitors.every((v) => !String((v as { look?: string }).look ?? '').startsWith('decathlon')), 'clientela con chaleco');
 
-// 5 · La tienda: lugar de trabajo del empleo, fichaje dentro, puerta al menú de la parada; y lugar con gente.
+// 5 · La tienda: lugar de trabajo del empleo, fichaje dentro, puerta a su explanada (Alpha-09); y lugar con gente.
 assert.equal(DECATHLON_STORE.workplace, job.id);
 assert.ok(DECATHLON_STORE.spots?.some((s) => s.job === job.id), 'no se puede fichar dentro');
-assert.ok(DECATHLON_STORE.portals.some((p) => p.offMap === 'decathlon'), 'la puerta no vuelve a la parada');
+assert.ok(DECATHLON_STORE.portals.some((p) => p.to.location === 'poligono-norte' && p.to.spawn === 'pn-decathlon'), 'la puerta no sale a la explanada');
 const place = placeForInterior(DECATHLON_STORE.id);
-assert.ok(place && place.locationId === DECATHLON_STORE.id && place.entrances.length > 0, 'la tienda no tiene lugar con entrada (sin gente)');
+assert.ok(place && place.locationId === 'poligono-norte' && place.entrances.includes('PN_DECATHLON_ENTRANCE'), 'la tienda no tiene su puerta de calle (sin gente)');
 
 // 6 · El jugador: con contrato y el turno abierto, uniforme; antes de poder fichar, no; hecho el turno, se le quita.
 assert.equal(onShift(null, job.id, 1, 0), false);

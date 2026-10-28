@@ -3,9 +3,8 @@ import { METRO_FARE, METRO_MINUTES } from '../config/constants.ts';
 /**
  * Transporte: líneas y paradas. Una parada puede ser una estación con mapa
  * (`station`, la localización con andén y spawn 'train') o un sitio que todavía
- * no tiene mapa (`offMap`, data/activities.ts). Cuando Decathlon tenga mapa,
- * su parada pasa de `offMap` a `station` y nada más cambia: el tren, el pago y
- * la elección de destino ya son los mismos.
+ * no tiene mapa (`offMap`, data/activities.ts). Decathlon lo fue hasta Alpha-09: ahora su parada es una
+ * estación más (Polígono Norte, data/poligonoNorte.ts) y el tren, el pago y la elección de destino no cambiaron.
  */
 
 export interface TransitLine {
@@ -51,5 +50,5 @@ export const STOPS: readonly TransitStop[] = [
   { id: 'cuatro-rios', name: 'Cuatro Ríos', line: 'L2', order: -1, station: 'cuatro-rios-station' },
   { id: 'vallesco', name: 'Vallesco', line: 'L2', order: 0, station: 'vallesco-station' },
   { id: 'ribera', name: 'Ribera Norte', line: 'L2', order: 1, station: 'ribera-station' },
-  { id: 'decathlon', name: 'Polígono Norte · Decathlon', line: 'L2', order: 2, offMap: 'decathlon' },
+  { id: 'decathlon', name: 'Polígono Norte · Decathlon', line: 'L2', order: 2, station: 'decathlon-station' },
 ];

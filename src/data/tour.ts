@@ -43,7 +43,7 @@ function transportStep(): TourStep {
 function jobStep(): TourStep {
   const job = JOBS[0];
   const lvl = job.levels[0];
-  const stop = STOPS.find((s) => s.offMap === job.place);
+  const stop = STOPS.find((s) => s.id === job.place);
   const days = lvl.days.map((d) => WEEKDAY_SHORT[WEEK[d]]).join(', ');
   return {
     title: 'Trabajo',

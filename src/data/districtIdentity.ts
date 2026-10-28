@@ -96,6 +96,16 @@ export const DISTRICT_IDENTITIES: Readonly<Record<string, DistrictIdentity>> = {
     scooters: 1, // Ribera Norte: ocio junto al agua, carril bici propio
     security: 0.9, events: 1.1, ambience: 1.1,
   },
+  // Polígono Norte (Alpha-09, data/poligonoNorte.ts): la nave de Decathlon y su aparcamiento. Se va a comprar por la
+  // tarde y el sábado; en coche más que a pie; de noche, cerrado.
+  'poligono-norte': {
+    name: 'Polígono Norte', tagline: 'compras de fin de semana: aparcamiento, carros y bolsas grandes',
+    density: { bands: [[9, 11, 0.6], [11, 17, 0.8], [17, 21, 1.2], [21, 24, 0.2]], rest: 0.1, weekend: 1.5 },
+    groups: { retail: 1.6, sport: 1.3, family: 1.2, commute: 0.4, nightlife: 0.1, food: 0.5 },
+    traffic: { vehicles: 1.2, bikes: 0.5, deliveries: 1.3 },
+    scooters: 0.3,
+    security: 0.8, events: 0.3, ambience: 0.5,
+  },
   // ------------------------------------------------- futuros: perfiles listos, sin mapa todavía
   velaria: {
     name: 'Velaria', tagline: 'premium, tranquilo y de negocios',
@@ -158,4 +168,7 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'puerta-central-station': 'puerta-central',
   arena: 'arena',
   'arena-station': 'arena',
+  // El Polígono Norte (Alpha-09), la parada de después de Ribera Norte: su propio barrio, la nave y el aparcamiento.
+  'poligono-norte': 'poligono-norte',
+  'decathlon-station': 'poligono-norte',
 };

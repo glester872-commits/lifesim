@@ -151,10 +151,12 @@ export function commitments(input: AgendaInput): Commitment[] {
   if (job && shift) {
     const def = getJob(job.job);
     const start = at(shift.day, levelOf(job).start);
-    const stop = STOPS.find((s) => s.offMap === def.place);
+    // Al fichaje de su lugar de trabajo (data/decathlon.ts): se estima como cualquier interior, hasta su puerta de calle.
+    const desk = allLocations().find((l) => l.workplace === def.id);
+    const spot = desk?.spots?.find((s) => s.job === def.id);
     out.push({
       key: `job:${shift.day}`, kind: 'job', title: `Turno en ${def.employer.split(' ')[0]}`, start, close: start + def.late,
-      where: stop ? { name: stop.name, stop: stop.id } : null,
+      where: desk && spot ? { name: desk.name, location: desk.id, tile: { tx: spot.tx, ty: spot.ty } } : null,
     });
   }
 

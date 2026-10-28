@@ -4,10 +4,10 @@ import { at, p, TWO } from './interiors.ts';
 import { cashier, customer } from './cuatroRiosVenues.ts';
 
 /**
- * Decathlon · Polígono Norte por dentro (Alpha-07, nave reconstruida en Alpha-08). El sitio sigue sin mapa de calle: se
- * llega en metro al menú de la parada (data/activities OFF_MAP_PLACES, `store`) y desde ahí se entra; la puerta vuelve
- * a ese menú (`offMap`), donde está el metro de vuelta. Su puerta apunta a la estación de al lado (Ribera Norte) sólo
- * para que la agenda calcule el camino y la gente tenga por dónde irse.
+ * Decathlon · Polígono Norte por dentro (Alpha-07, nave reconstruida en Alpha-08). Desde Alpha-09 tiene calle: se baja
+ * del metro en el Polígono Norte (data/poligonoNorte.ts), se cruza la explanada y se entra por la puerta automática de
+ * la fachada; la puerta de aquí dentro vuelve a esa explanada. Lo que antes estaba en el menú de la parada se hace
+ * dentro: los turnos y el turno suelto, en el fichaje; dar una vuelta, en el punto de información.
  *
  * La planta sigue el plano de la tienda de San Sebastián de los Reyes (design/Decathlon/217426dc…png, correspondencia
  * en design/Decathlon/CORRESPONDENCIA.md): una nave rectangular y continua de 76 × 46 tiles. Al fondo (arriba) raqueta
@@ -326,6 +326,8 @@ export const SECTORS: readonly Sector[] = [
 const FRONT: readonly PropPlacement[] = [
   ...all('counter', [[64, 37], [65, 37], [68, 37], [69, 37]]), at('register', 65, 37), at('register', 69, 37),
   at('lockers', 72, 40),
+  // El punto de información, a la derecha de la puerta: se le habla por encima del mostrador.
+  ...all('counter', [[66, 40], [67, 40]]),
 ];
 
 /** Cubos amarillos de promoción al borde del pasillo, como en la foto de raqueta (design/Decathlon/31edf852…png). */
@@ -384,14 +386,18 @@ export const DECATHLON_STORE: LocationDef = {
     ...FRONT, ...PROMOS, ...PILLARS, ...LIGHTS,
   ],
   ambient: '#eef6ff',
-  // Vuelve al menú de la parada (no a una calle): ahí está el metro. `to` es la estación de al lado, para la agenda.
-  portals: [{ id: 'exit', tx: DOOR_X, ty: DECATHLON_H - 2, label: 'Salir al aparcamiento', to: { location: 'ribera-station', spawn: 'train' }, offMap: 'decathlon' }],
+  // A la explanada de la fachada (data/poligonoNorte.ts), delante de la puerta automática.
+  portals: [{ id: 'exit', tx: DOOR_X, ty: DECATHLON_H - 2, label: 'Salir al aparcamiento', to: { location: 'poligono-norte', spawn: 'pn-decathlon' } }],
   spawns: { entry: { ...EXIT, facing: 'up' } },
   npcs: [],
   racks: RACKS,
   inspects: SECTORS.map((s): InspectDef => ({ tx: s.look.tx, ty: s.look.ty, name: s.name, lines: s.look.lines })),
   workplace: 'decathlon',
-  spots: [{ tx: 72, ty: 41, name: 'Fichaje · sala de personal', activities: [], job: 'decathlon' }],
+  // El fichaje (turnos con contrato y el turno suelto sin él: scenes/Menus.openJob) y el punto de información de la entrada.
+  spots: [
+    { tx: 72, ty: 41, name: 'Fichaje · sala de personal', activities: [], job: 'decathlon' },
+    { tx: 66, ty: 40, name: 'Punto de información', activities: ['browse-decathlon'] },
+  ],
   points: {
     [`${P}_EXIT`]: p(EXIT.tx, EXIT.ty, 'exit', 'up'),
     // Quien cobra, detrás del mostrador (65, 37); quien paga, delante, y se le habla por encima (systems/Interaction, `across`).

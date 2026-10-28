@@ -3,9 +3,9 @@
  * las reglas (horario, asistencia, cobro, ascenso) están en systems/Jobs.ts y
  * el progreso del jugador se guarda con la partida (GameStateData.job).
  *
- * Un empleo vive en un sitio (`place`: hoy el Decathlon sin mapa,
- * data/activities.ts OFF_MAP_PLACES); cuando el sitio tenga mapa, la oferta y
- * los turnos se ofrecerán en un punto de su interior sin tocar esto.
+ * Un empleo vive en un sitio (`place`: la parada de metro de data/transit.ts, hoy
+ * el Polígono Norte de Decathlon); la oferta y los turnos se ofrecen en el
+ * fichaje de su interior (data/decathlon.ts, scenes/Menus.openJob).
  */
 
 export interface JobLevel {
@@ -42,7 +42,7 @@ export interface JobSituation {
 
 export interface JobDef {
   id: string;
-  /** Sitio donde se ficha (id de OFF_MAP_PLACES). */
+  /** Parada del sitio donde se ficha (id de data/transit.ts STOPS). */
   place: string;
   employer: string;
   /** Quien contrata y propone el ascenso. Sólo un nombre en el diálogo: no lleva relación aparte. */

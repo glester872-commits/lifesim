@@ -108,7 +108,7 @@ function fill(text: string, input: OpportunityInput, def: OpportunityDef): strin
   const hh = (n: number): string => `${String(n).padStart(2, '0')}:00`;
   const values: Record<string, () => string> = {
     empleador: () => job.employer,
-    parada: () => STOPS.find((s) => s.offMap === job.place)?.name.split(' · ')[0] ?? 'el polígono',
+    parada: () => STOPS.find((s) => s.id === job.place)?.name.split(' · ')[0] ?? 'el polígono',
     turno: () => `${lvl.days.map((d) => WEEKDAY_SHORT[WEEK[d]]).join(', ')} de ${hh(lvl.start)} a ${hh(lvl.start + lvl.hours)} por ${euros(lvl.wage)}`,
     curso: () => course.name,
     matricula: () => euros(course.fee),

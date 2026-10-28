@@ -10,6 +10,9 @@ import { PROPS } from '../src/world/tiles.ts';
 import { getLocation, isStandable, isWalkable, safePosition, spawnToWorld, validate } from '../src/systems/LocationSystem.ts';
 import { route, tilePath } from '../src/systems/Navigation.ts';
 import type { TilePoint } from '../src/types/game.ts';
+import { STOPS } from '../src/data/transit.ts';
+import { OFF_MAP_PLACES } from '../src/data/activities.ts';
+import { placeForInterior } from '../src/systems/Places.ts';
 
 const loc = getLocation(DECATHLON_STORE.id);
 validate(loc);
@@ -183,4 +186,23 @@ for (const t of [{ tx: 7, ty: 8 }, { tx: 2, ty: 2 }, { tx: 6, ty: 2 }, { tx: 8, 
   assert.ok(isWalkable(loc, Math.floor(pos.x / 16), Math.floor((pos.y - 1) / 16)), `partida antigua en (${t.tx}, ${t.ty}): reaparece dentro de algo`);
 }
 
-console.log(`check-decathlon: OK · ${SECTORS.length} secciones · ${AISLES.length} pasillos · ${BLOCKS.length} circuitos · ${loc.props.length} muebles de ${kinds.size} tipos · ${seen.size} tiles alcanzables`);
+// 12 · Con calle (Alpha-09): del andén a la explanada, a pie hasta la puerta de la fachada, dentro; y la puerta de dentro
+// devuelve a esa misma puerta. La parada es una estación más y no queda ningún sitio sin mapa.
+const street = getLocation('poligono-norte');
+validate(street);
+const nave = street.buildings!.find((b) => b.id === 'pn-decathlon')!;
+assert.ok(nave.style === 'megastore' && nave.front === 's' && (nave.floors ?? 1) >= 3, 'la nave no tiene su fachada de gran formato');
+assert.deepEqual(nave.enter, { location: loc.id, spawn: 'entry' }, 'la puerta de la fachada no entra en la tienda');
+assert.ok(loc.portals.every((p) => p.to.location === street.id && p.to.spawn === nave.id && !p.offMap), 'la tienda no sale a su explanada');
+assert.ok(street.spawns[nave.id] && street.portals.some((p) => p.to.location === loc.id), 'la fachada sin portal o sin spawn de vuelta');
+const stop = STOPS.find((s) => s.id === 'decathlon')!;
+assert.ok(stop.station === 'decathlon-station' && !stop.offMap, 'la parada de Decathlon sigue sin estación');
+const station = getLocation(stop.station);
+const out = station.portals.find((p) => !p.train)!;
+assert.ok(out && out.to.location === street.id && street.spawns[out.to.spawn], 'el andén no sale a la explanada');
+const walkTo = tilePath(street, street.spawns[out.to.spawn], street.spawns[nave.id]);
+assert.ok(walkTo && walkTo.length > 5, 'del metro a la puerta de la tienda no se llega andando');
+assert.equal(OFF_MAP_PLACES.length, 0, 'queda un sitio sin mapa');
+assert.equal(placeForInterior(loc.id)?.locationId, street.id, 'la gente no llega por la calle');
+
+console.log(`check-decathlon: OK · calle ${walkTo.length} tiles del metro a la puerta · ${SECTORS.length} secciones · ${AISLES.length} pasillos · ${BLOCKS.length} circuitos · ${loc.props.length} muebles de ${kinds.size} tipos · ${seen.size} tiles alcanzables`);

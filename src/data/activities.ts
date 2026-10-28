@@ -243,15 +243,9 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
   },
 ];
 
-export const OFF_MAP_PLACES: readonly OffMapPlace[] = [
-  {
-    id: 'decathlon',
-    name: 'Decathlon · Polígono Norte',
-    arrival: 'Una nave enorme junto a la autovía. Dentro huele a neumático nuevo.',
-    activities: ['work-decathlon', 'browse-decathlon'],
-    store: 'decathlon-tienda',
-  },
-];
+// Decathlon fue el primero (hasta Alpha-09): ahora tiene calle (data/poligonoNorte.ts) y sus actividades se hacen dentro
+// (data/decathlon.ts: el turno suelto en el fichaje, la vuelta en el punto de información). Hoy no queda ninguno.
+export const OFF_MAP_PLACES: readonly OffMapPlace[] = [];
 
 const BY_ID = new Map([...ACTIVITIES, ...PLACE_ACTIVITIES].map((a) => [a.id, a]));
 

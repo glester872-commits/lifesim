@@ -2,7 +2,9 @@
 // `npm run check`. Falla si algo no se cumple.
 import assert from 'node:assert/strict';
 import { getJob, JOBS } from '../src/data/jobs.ts';
-import { getActivity, getOffMapPlace } from '../src/data/activities.ts';
+import { getActivity } from '../src/data/activities.ts';
+import { STOPS } from '../src/data/transit.ts';
+import { LOCATIONS } from '../src/data/locations.ts';
 import {
   clockInBlocker, decline, hire, hireBlocker, nextShift, parseJob, promote, promotionReady, quit, REHIRE_DAYS, settle,
   situationFor, statusOf, work, type JobProgress,
@@ -20,7 +22,9 @@ const worst = (p: JobProgress, day: number) => situationFor(p, day).choices[2];
 // ------------------------------------------------------------------ datos
 
 for (const j of JOBS) {
-  getOffMapPlace(j.place);
+  // Su parada tiene estación (Alpha-09: el Polígono Norte) y su interior, el fichaje.
+  assert.ok(STOPS.some((s) => s.id === j.place && s.station), `${j.id}: su parada sin estación`);
+  assert.ok(LOCATIONS.some((l) => l.workplace === j.id && l.spots?.some((s) => s.job === j.id)), `${j.id}: sin fichaje en su lugar de trabajo`);
   getActivity(j.casual);
   assert.ok(j.levels.length >= 2, `${j.id}: dos niveles`);
   assert.ok(j.situations.length >= 3, `${j.id}: al menos tres situaciones`);

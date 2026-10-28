@@ -67,7 +67,8 @@ for (const s of TOUR) assert.ok(s.text.length > 30 && !s.text.includes('undefine
   const first = commitments(input(t(1, 7)))[0];
   assert.equal(first.key, 'job:1');
   assert.equal(first.start, t(1, job.levels[0].start));
-  assert.ok(first.where && 'stop' in first.where && first.where.stop === 'decathlon');
+  // El turno, en el fichaje de la tienda (Alpha-09: ya con calle): se estima como cualquier interior.
+  assert.ok(first.where && 'location' in first.where && first.where.location === 'decathlon-tienda');
   // Con curso: la clase sale con su sitio en el mapa.
   const study = enroll(course, base.study!, 1);
   const cls = commitments(input(t(1, 7), { study })).find((c) => c.kind === 'class');
@@ -89,9 +90,12 @@ for (const s of TOUR) assert.ok(s.text.length > 30 && !s.text.includes('undefine
   assert.equal(travelHint(HOME, null).text, 'desde el móvil');
   const gym = travelHint(HOME, { name: 'Gimnasio', location: 'gym', tile: { tx: 18, ty: 14 } });
   assert.ok(gym.minutes! > 0 && gym.minutes! < 40 && /a pie/.test(gym.text), `a pie: ${gym.text}`);
-  // En Decathlon (sitio sin mapa, con la estación cargada detrás): ya se está; a casa, en metro de vuelta.
-  assert.deepEqual(travelHint({ ...STREET, location: 'vallesco-station', offMap: 'decathlon' }, job1.where), { minutes: 0, text: 'ya estás aquí' });
-  const back = travelHint({ ...STREET, offMap: 'decathlon' }, { name: 'Casa', location: 'home', tile: { tx: 10, ty: 13 } });
+  // En el Polígono Norte (la explanada de Decathlon): al fichaje, a pie; a casa, en metro de vuelta.
+  const here = travelHint({ location: 'poligono-norte', x: 51 * 16 + 8, y: 14 * 16 + 8 }, job1.where);
+  assert.ok(here.minutes! >= 1 && here.minutes! < 15 && /a pie/.test(here.text), `en la explanada: ${here.text}`);
+  const inside = travelHint({ location: 'decathlon-tienda', x: 40 * 16, y: 20 * 16 }, job1.where);
+  assert.ok(inside.minutes! < 15 && /a pie/.test(inside.text), `dentro de la tienda: ${inside.text}`);
+  const back = travelHint({ location: 'poligono-norte', x: 51 * 16 + 8, y: 14 * 16 + 8 }, { name: 'Casa', location: 'home', tile: { tx: 10, ty: 13 } });
   assert.ok(back.minutes! >= 30 && /^metro L2/.test(back.text), `vuelta: ${back.text}`);
   assert.equal(margin(job1, t(1, 11, 50), fromHome), 'late');
   assert.equal(margin(job1, t(1, 6), fromHome), 'ok');

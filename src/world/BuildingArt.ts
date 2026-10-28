@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import { drawMegastore, drawMegastoreGlow } from './StoreArt';
 import { PALETTE, TILE } from '../config/constants';
 import type { BuildingDef, BuildingStyle } from '../types/game';
 import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
@@ -154,6 +155,8 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   backdrop: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.wall, shop: 'windows', upper: 'windows', lit: PALETTE.amberDim, door: 'wood' },
   // La parroquia (CV-05) se pinta entera en drawChurch; esto sólo da el tono de sus huecos encendidos.
   church: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.stoneLit, shop: 'arched', upper: 'windows', lit: PALETTE.amber, door: 'wood' },
+  // La nave de Decathlon se pinta entera en world/StoreArt drawMegastore; esto sólo da el tono de su cristal encendido.
+  megastore: { roof: '#9aa0a6', roofLit: '#b4babe', wall: '#c89a64', shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass' },
 };
 
 // ------------------------------------------------------------- la parroquia
@@ -2003,6 +2006,15 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
     if (b.style === 'metro' && b.w === 3 && b.h === 3) {
       rt.batchDraw('bs-metro-entrance', b.tx * TILE, b.ty * TILE);
       glows.push({ key: 'bs-metro-entrance-glow', x: b.tx * TILE, y: b.ty * TILE });
+      continue;
+    }
+    // La nave de Decathlon: una pieza (world/StoreArt), con su planta baja de cristal encendida de noche.
+    if (b.style === 'megastore') {
+      const [w, h, col] = [b.w * TILE, b.h * TILE, (b.doorX ?? b.tx + (b.w >> 1)) - b.tx];
+      make(rt.scene, `bs-megastore-${b.id}`, w, h, (ctx) => drawMegastore(ctx, w, h, col, facadeRows(b)));
+      make(rt.scene, `bs-megastore-${b.id}-glow`, w, h, (ctx) => drawMegastoreGlow(ctx, w, h, col));
+      rt.batchDraw(`bs-megastore-${b.id}`, b.tx * TILE, b.ty * TILE);
+      glows.push({ key: `bs-megastore-${b.id}-glow`, x: b.tx * TILE, y: b.ty * TILE, building: b.id });
       continue;
     }
     // La parroquia: una pieza, con su portada en la columna de la puerta; sus huecos brillan sólo con ella abierta.
