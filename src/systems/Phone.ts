@@ -56,6 +56,19 @@ export interface PhoneMessage {
   text: string;
   /** Minuto absoluto. */
   at: number;
+  /** Identificador estable de un mensaje escrito a mano (no se duplica al pulsar dos veces ni al recargar). */
+  id?: string;
+  /** Escrito a mano por el jugador (Alpha-05), no una de las propuestas. */
+  free?: true;
+}
+
+/** Una nota del móvil (Alpha-05): sólo del jugador, dentro de la partida. */
+export interface PhoneNote {
+  id: string;
+  title: string;
+  body: string;
+  /** Minuto absoluto de la última edición. */
+  updated: number;
 }
 
 export type Availability = 'free' | 'home' | 'busy' | 'commuting' | 'asleep';
@@ -112,9 +125,11 @@ export interface SocialPlan {
 export interface PhoneState {
   threads: Record<string, PhoneThread>;
   plans: SocialPlan[];
+  /** Notas del jugador (Alpha-05); una partida anterior carga sin ninguna. */
+  notes?: PhoneNote[];
 }
 
-export const createPhone = (): PhoneState => ({ threads: {}, plans: [] });
+export const createPhone = (): PhoneState => ({ threads: {}, plans: [], notes: [] });
 
 const emptyThread = (): PhoneThread => ({ messages: [], unread: 0, today: { day: 0, actions: [], gains: 0 } });
 
@@ -780,7 +795,7 @@ function parseThread(v: unknown): PhoneThread | null {
   if (Array.isArray(v.messages)) {
     t.messages = v.messages
       .filter((m): m is Record<string, unknown> => isRecord(m) && (m.from === 'me' || m.from === 'them') && typeof m.text === 'string')
-      .map((m) => ({ from: m.from as 'me' | 'them', text: (m.text as string).slice(0, 400), at: num(m.at) }))
+      .map((m): PhoneMessage => ({ from: m.from as 'me' | 'them', text: (m.text as string).slice(0, 400), at: num(m.at), ...(typeof m.id === 'string' && m.id.length <= 64 ? { id: m.id } : {}), ...(m.free === true ? { free: true as const } : {}) }))
       .slice(-MAX_MESSAGES);
   }
   t.unread = Math.max(0, Math.min(t.messages.filter((m) => m.from === 'them').length, Math.floor(num(v.unread))));
@@ -833,5 +848,87 @@ export function parsePhone(v: unknown): PhoneState {
     }
   }
   const plans = Array.isArray(v.plans) ? v.plans.map(parsePlan).filter((p): p is SocialPlan => p !== null).slice(-MAX_PLANS) : [];
-  return { threads, plans };
+  const notes = Array.isArray(v.notes) ? v.notes.map(parseNote).filter((n): n is PhoneNote => n !== null).slice(-MAX_NOTES) : [];
+  // Sin notas en el archivo (una partida anterior a Alpha-05), tampoco en lo cargado: vuelve igual que estaba.
+  return Array.isArray(v.notes) ? { threads, plans, notes } : { threads, plans };
+}
+
+// ================================================================
+// TEXTO LIBRE (Alpha-05)
+// ================================================================
+
+/** Largo de un mensaje escrito a mano, en caracteres (un emoji cuenta como uno). */
+export const MESSAGE_MAX = 280;
+/** Título y cuerpo de una nota. */
+export const NOTE_TITLE_MAX = 60;
+export const NOTE_BODY_MAX = 2000;
+/** Notas guardadas como mucho. */
+export const MAX_NOTES = 50;
+/** Mensajes escritos a mano al día a la misma persona (aparte de las propuestas). */
+export const FREE_DAILY_LIMIT = 30;
+
+/**
+ * El texto tal como se guarda: sin caracteres de control (salvo saltos de línea si `lines`), sin espacios en los
+ * bordes y cortado en `max` caracteres sin partir un emoji ni un acento compuesto. Es texto: nunca se pinta como HTML.
+ */
+export function cleanText(raw: unknown, max: number, lines = false): string {
+  if (typeof raw !== 'string') return '';
+  const kept = raw.normalize('NFC').replace(lines ? /[\u0000-\u0009\u000b-\u001f\u007f\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g : /[\u0000-\u001f\u007f\u200b\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g, '');
+  return graphemes(kept).slice(0, max).join('').trim();
+}
+
+/** Caracteres como los ve quien escribe: un emoji o una letra con acento cuentan uno. */
+export const textLength = (text: string): number => graphemes(text).length;
+
+function graphemes(text: string): string[] {
+  return typeof Intl !== 'undefined' && 'Segmenter' in Intl ? [...new Intl.Segmenter('es', { granularity: 'grapheme' }).segment(text)].map((x) => x.segment) : [...text];
+}
+
+/** Lo que contesta quien recibe un mensaje escrito a mano: no entiende frases sueltas, y lo dice (una vez al día). */
+export const FREE_REPLY = 'Te leo 🙂 Por aquí me cuesta seguir una conversación. Si quieres quedar o algo, dímelo con las propuestas de abajo, o mejor en persona.';
+
+/**
+ * Mandar un mensaje escrito a mano. Sólo dentro de la partida (no sale a ninguna red). Devuelve el móvil igual si el
+ * texto queda vacío, si ya hay un mensaje con ese `id` (doble pulsación, recarga) o si hoy ya le has escrito
+ * FREE_DAILY_LIMIT. Quien lo recibe no lo entiende: la primera vez de cada día contesta FREE_REPLY, sin inventar más.
+ */
+export function sendFree(source: PhoneState, npc: string, raw: string, at: number, id: string): { phone: PhoneState; sent: boolean; reason?: 'empty' | 'duplicate' | 'limit' } {
+  const text = cleanText(raw, MESSAGE_MAX);
+  if (!text) return { phone: source, sent: false, reason: 'empty' };
+  const old = source.threads[npc]?.messages ?? [];
+  if (old.some((m) => m.id === id)) return { phone: source, sent: false, reason: 'duplicate' };
+  const day = dayOfAbs(at);
+  const todayFree = old.filter((m) => m.free && dayOfAbs(m.at) === day);
+  if (todayFree.length >= FREE_DAILY_LIMIT) return { phone: source, sent: false, reason: 'limit' };
+  const phone = structuredClone(source);
+  const t = threadIn(phone, npc, day);
+  push(t, { from: 'me', text, at, id, free: true });
+  if (todayFree.length === 0) push(t, { from: 'them', text: FREE_REPLY, at: at + 1, id: `${id}:r` });
+  return { phone, sent: true };
+}
+
+/** Guarda (crea o cambia) una nota. Vacía del todo, no se guarda. */
+export function saveNote(source: PhoneState, note: { id: string; title: string; body: string }, at: number): PhoneState {
+  const title = cleanText(note.title, NOTE_TITLE_MAX);
+  const body = cleanText(note.body, NOTE_BODY_MAX, true);
+  if (!title && !body) return source;
+  const phone = structuredClone(source);
+  const notes = (phone.notes ?? []).filter((n) => n.id !== note.id);
+  notes.push({ id: note.id, title, body, updated: at });
+  phone.notes = notes.slice(-MAX_NOTES);
+  return phone;
+}
+
+export function deleteNote(source: PhoneState, id: string): PhoneState {
+  const phone = structuredClone(source);
+  phone.notes = (phone.notes ?? []).filter((n) => n.id !== id);
+  return phone;
+}
+
+function parseNote(v: unknown): PhoneNote | null {
+  if (!isRecord(v) || typeof v.id !== 'string' || v.id.length > 64) return null;
+  const title = cleanText(v.title, NOTE_TITLE_MAX);
+  const body = cleanText(v.body, NOTE_BODY_MAX, true);
+  if (!title && !body) return null;
+  return { id: v.id, title, body, updated: num(v.updated) };
 }

@@ -789,6 +789,17 @@ export class WorldScene extends Phaser.Scene {
         if (read !== phone) this.services.state.setPhone(read);
       },
       persist: () => this.persist(),
+      // Un campo del móvil con foco: Phaser no lee teclas ni les quita su efecto (WASD, Espacio, Intro se escriben);
+      // al soltarlo, todo vuelve como estaba y sin teclas «pegadas» de antes.
+      typing: (on) => {
+        const keyboard = this.input.keyboard;
+        if (!keyboard) return;
+        keyboard.resetKeys();
+        this.services.input.releaseAll();
+        keyboard.enabled = !on;
+        if (on) keyboard.disableGlobalCapture();
+        else keyboard.enableGlobalCapture();
+      },
     });
 
     // Partida nueva: la guía del principio, cuando ya se ve la calle (data/tour.ts). Una partida de antes no la ve.
@@ -803,7 +814,12 @@ export class WorldScene extends Phaser.Scene {
     });
 
     this.game.events.on(Phaser.Core.Events.POST_RENDER, this.measureFrame);
+    // Alpha-06: quien esté en la sala online y en esta zona, con su aspecto (ui/OnlinePanel guarda la sala entre escenas).
+    const remotes = new RemotePlayers(this, () => zoneOf(state.locationId), this.services.online.isBlocked);
+    this.services.online.bind(remotes);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.services.online.bind(null);
+      remotes.clear();
       this.game.events.off(Phaser.Core.Events.POST_RENDER, this.measureFrame);
       dialogue.off('close', onDialogueClose);
       state.off('story', onStory);
@@ -910,7 +926,9 @@ export class WorldScene extends Phaser.Scene {
       this.prompt.setVisible(false);
       this.services.hint.hide();
       input.setContext({ action: 'Elegir', back: true, busy: true });
-      if (this.pressedAny(['phone'])) phone.close();
+      if (phone.isTyping) {
+        // Escribiendo en el móvil, las teclas son letras: ni cierra, ni elige, ni mueve (Phaser ya no lee el teclado).
+      } else if (this.pressedAny(['phone'])) phone.close();
       else if (this.pressedAny(['cancel', 'cancelAlt'])) phone.back();
       else if (this.pressedAny(['up', 'upAlt', 'left', 'leftAlt'])) phone.move(-1);
       else if (this.pressedAny(['down', 'downAlt', 'right', 'rightAlt'])) phone.move(1);

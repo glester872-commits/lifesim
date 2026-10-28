@@ -369,6 +369,11 @@ export interface BuildingDef {
    * estilo. Sólo cambia el dibujo: huella, puerta, portal y huecos de cristal son los mismos. Por ahora, una casa piloto.
    */
   finish?: 'hd03';
+  /**
+   * Acabado de pixel art clásico (Alpha-03, piloto en la calle residencial de Vallesco): rampas con desplazamiento de
+   * tono, tonos en escalones y sin píxeles huérfanos en la fachada y la azotea (world/ResidentialArt). Sólo el dibujo.
+   */
+  art?: 'clasico';
 }
 
 /** Donde se compra algo con E: máquina expendedora, taquilla, mostrador. */

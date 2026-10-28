@@ -127,7 +127,7 @@ const into = (location: string): BuildingDef['enter'] => ({ location, spawn: 'en
 // estación ya salen a esos spawns.
 const BUILDINGS: readonly BuildingDef[] = [
   // Interiores
-  b('home-door', 'Tu portal · Olmo 7', 'home', [37, 37, 9, 9], 's', 41, { floors: 2, enter: into('home'), point: 'HOME_ENTRANCE', finish: 'hd03' }),
+  b('home-door', 'Tu portal · Olmo 7', 'home', [37, 37, 9, 9], 's', 41, { floors: 2, enter: into('home'), point: 'HOME_ENTRANCE', finish: 'hd03', art: 'clasico' }),
   b('metro-door', 'Metro · Vallesco', 'metro', [28, 38, 5, 4], 's', 30, { enter: { location: 'vallesco-station', spawn: 'entry' }, point: 'METRO_ENTRANCE', finish: 'hd03' }),
   b('gym-door', 'Gimnasio Forja', 'gym', [33, 1, 15, 5], 's', 40, { floors: 2, enter: into('gym'), point: 'GYM_ENTRANCE' }),
   b('cafe-door', 'Cafetería Pausa', 'cafe', [52, 8, 10, 8], 's', 56, { floors: 2, enter: into('cafe'), point: 'CAFE_ENTRANCE' }),
@@ -149,7 +149,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('laundry', 'Lavandería', 'laundry', [51, 19, 6, 6], 'n', 53, { point: 'LAUNDRY_ENTRANCE', inspect: ['Tres lavadoras girando y nadie esperando.'] }),
   b('res-av-2', 'Avenida 2', 'res-plaster', [2, 37, 11, 9], 'n', 7, { point: 'RES_AVENIDA_2_ENTRANCE', inspect: ['Un portal que huele a lejía recién echada.'] }),
   b('res-olmo-3', 'Olmo 3', 'res-brick', [13, 37, 9, 9], 's', 17, { floors: 3, point: 'RES_OLMO_3_ENTRANCE', inspect: ['En el portal, un aviso: «Junta de vecinos el jueves. Tema: el ascensor».'] }),
-  b('res-olmo-11', 'Olmo 11', 'res-stone', [46, 37, 10, 9], 's', 50, { floors: 2, enter: into('studio'), point: 'RES_OLMO_11_ENTRANCE', finish: 'hd03' }),
+  b('res-olmo-11', 'Olmo 11', 'res-stone', [46, 37, 10, 9], 's', 50, { floors: 2, enter: into('studio'), point: 'RES_OLMO_11_ENTRANCE', finish: 'hd03', art: 'clasico' }),
   b('res-av-20', 'Avenida 20', 'res-brick', [58, 37, 16, 9], 'n', 65, { point: 'RES_AVENIDA_20_ENTRANCE', inspect: ['El portero automático zumba, pero nadie contesta.'] }),
   b('civic', 'Junta municipal', 'civic', [2, 50, 14, 5], 'n', 9, { point: 'CIVIC_ENTRANCE', inspect: ['Junta Municipal de Vallesco. Empadronamientos, quejas y un tablón lleno de chinchetas.'] }),
   b('res-olmo-6', 'Olmo 6', 'res-plaster', [16, 50, 12, 5], 'n', 22, { point: 'RES_OLMO_6_ENTRANCE', inspect: ['Bicicletas encadenadas a la reja del portal.'] }),
