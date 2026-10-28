@@ -18,6 +18,8 @@ export interface PlaceDef {
   building?: string;
   /** Puntos de la calle que también son del lugar: la plaza, la terraza de un café. */
   anchors?: readonly string[];
+  /** Interior sin puerta en ninguna calle (se llega en metro): su localización, que hace de entrada y salida. */
+  interior?: string;
   /** Personas a la vez: vecinos de un portal, aforo de un local. */
   capacity: number;
   /**
@@ -212,6 +214,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'ar-estadio', name: 'Estadio del Halcón', type: 'public', tags: ['sport', 'stadium'], building: 'ar-estadio', anchors: ['AR_GATE_1', 'AR_GATE_2', 'AR_GATE_3', 'AR_GATE_4', 'AR_GATE_5'], capacity: 400 },
   { id: 'ar-deportes', name: 'Deportes Arena', type: 'business', tags: ['shop', 'sport', WORK], building: 'ar-deportes', capacity: 6, hours: [10, 21], days: [0, 1, 2, 3, 4, 5], why: 'Chándal, camisetas técnicas y zapatillas: ropa de deporte que te llevas puesta.' },
   // Abre todos los días hasta tarde: el fin de semana es cuando hay partido.
+  // Decathlon (data/decathlon.ts): se entra desde la parada de metro, no desde una calle.
+  { id: 'decathlon-tienda', name: 'Decathlon · Polígono Norte', type: 'business', tags: ['shop', 'sport', WORK], interior: 'decathlon-tienda', capacity: 30, hours: [9, 21], days: [0, 1, 2, 3, 4, 5], why: 'Una nave de deporte: montaña, running, ciclismo. Y el trabajo de sección, si firmas.' },
   { id: 'ar-oficial', name: 'Tienda Oficial Halcones', type: 'business', tags: ['shop', 'sport', 'stadium', WORK], building: 'ar-oficial', capacity: 8, hours: [10, 21.5], why: 'Las camisetas y la sudadera del club: te las llevas puestas.' },
   { id: 'ar-burger', name: 'Burger Fondo Sur', type: 'business', tags: ['food', 'social', WORK], building: 'ar-burger', capacity: 20, hours: [12, 24], why: 'Hamburguesa en mesa o para llevar, a dos pasos del estadio.' },
   { id: 'ar-pizza', name: 'Pizzería La Prórroga', type: 'business', tags: ['food', 'social', WORK], building: 'ar-pizza', capacity: 20, hours: [12.5, 24], why: 'Pizza en mesa o para llevar; después del partido, la cena de media grada.' },

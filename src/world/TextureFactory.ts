@@ -514,10 +514,28 @@ export const humanKey = (prefix: string, facing: Facing, pose: Pose): string => 
  * deformación que la gente (world/HumanArt.reshape), debajo de la ropa.
  */
 let playerBuild: HumanColors['build'];
+/**
+ * El uniforme de trabajo puesto encima de lo de siempre (systems/Jobs.onShift): sólo la ropa del uniforme; el pelo,
+ * la piel y la complexión siguen siendo los del jugador. No es apariencia guardada: se quita y vuelve lo de antes.
+ */
+let playerUniform: NpcLook | null = null;
+
+export function setPlayerUniform(scene: Phaser.Scene, look: NpcLook | null, changes: Appearance): void {
+  if ((playerUniform?.id ?? null) === (look?.id ?? null)) return;
+  playerUniform = look;
+  repaintPerson(scene, 'player', changes);
+}
+
+export const playerUniformId = (): string | null => playerUniform?.id ?? null;
 export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearance, build: HumanColors['build'] = playerBuild): void {
   if (id === 'player') {
     playerBuild = build;
-    const colors = { ...withAppearance(PLAYER_COLORS, changes), build };
+    const u = playerUniform;
+    const colors = {
+      ...withAppearance(PLAYER_COLORS, changes),
+      build,
+      ...(u ? { cloth: u.cloth, clothDark: u.clothDark, sleeves: u.sleeves, sleeveLen: undefined, trousers: u.trousers ?? PLAYER_COLORS.trousers, badge: u.badge, ink: [] } : {}),
+    };
     for (const facing of FACINGS) {
       for (const pose of POSES) {
         const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;

@@ -40,6 +40,8 @@ export interface OffMapPlace {
   /** Lo que se ve al llegar. */
   arrival: string;
   activities: readonly string[];
+  /** Interior que se puede recorrer (id de localización): «Entrar en la tienda» desde el menú de la parada. */
+  store?: string;
 }
 
 export const ACTIVITIES: readonly ActivityDef[] = [
@@ -247,6 +249,7 @@ export const OFF_MAP_PLACES: readonly OffMapPlace[] = [
     name: 'Decathlon · Polígono Norte',
     arrival: 'Una nave enorme junto a la autovía. Dentro huele a neumático nuevo.',
     activities: ['work-decathlon', 'browse-decathlon'],
+    store: 'decathlon-tienda',
   },
 ];
 

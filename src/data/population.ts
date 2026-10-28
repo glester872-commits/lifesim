@@ -4,6 +4,7 @@ import { CR_PROFILES } from './cuatroRiosVenues.ts';
 import { VL_PROFILES } from './velariaVenues.ts';
 import { PC_PROFILES } from './puertaCentralVenues.ts';
 import { AR_PROFILES } from './arenaVenues.ts';
+import { DECATHLON_PROFILE } from './decathlon.ts';
 
 /**
  * Quién hay dentro de cada local y qué hace. Todo es dato: cambiar el horario
@@ -644,6 +645,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   ...VL_PROFILES,
   ...PC_PROFILES,
   ...AR_PROFILES,
+  DECATHLON_PROFILE,
   {
     place: 'tattoo-studio',
     // Con cita: el primer turno a mediodía y el grueso por la tarde.

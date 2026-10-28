@@ -40,12 +40,13 @@ function resolve(def: PlaceDef): PlaceInfo {
   if (def.building && !building) throw new Error(`Lugar ${def.id}: edificio desconocido ${def.building}`);
   if (building && !building.b.point) throw new Error(`Lugar ${def.id}: el edificio ${def.building} no tiene punto de entrada`);
   for (const a of def.anchors ?? []) if (!findPoint(a)) throw new Error(`Lugar ${def.id}: punto desconocido ${a}`);
-  if (!building && !def.anchors?.length) throw new Error(`Lugar ${def.id}: sin edificio ni anclajes, no se puede llegar`);
+  if (!building && !def.anchors?.length && !def.interior) throw new Error(`Lugar ${def.id}: sin edificio, anclajes ni interior, no se puede llegar`);
 
-  const interior = building?.b.enter?.location;
-  const entrances = building?.b.point ? [building.b.point] : [...(def.anchors ?? [])];
+  // Un interior sin calle (Decathlon): su propia salida hace de entrada.
+  const interior = building?.b.enter?.location ?? def.interior;
   const anchors = def.anchors ?? [];
-  const locationId = building?.loc ?? findPoint(anchors[0])!.location;
+  const entrances = building?.b.point ? [building.b.point] : anchors.length ? [...anchors] : pointsIn(def.interior!, ['exit']);
+  const locationId = building?.loc ?? (anchors.length ? findPoint(anchors[0])!.location : def.interior!);
   const exits = interior ? pointsIn(interior, ['exit']) : [];
   return {
     ...def,

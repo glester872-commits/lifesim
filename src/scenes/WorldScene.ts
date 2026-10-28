@@ -44,7 +44,9 @@ import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } f
 import { KIND_OF, afterLine, summary, train, type Intensity } from '../systems/Fitness';
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
-import { getNpc, PASSENGER_LOOKS } from '../data/npcs';
+import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
+import { getJob as jobDef } from '../data/jobs';
+import { onShift } from '../systems/Jobs';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
 import { STORIES } from '../data/saraStory';
@@ -142,7 +144,7 @@ import { INIT_SLOT, activePlan, lineFor, markRead, tierOf, phoneTick, planFromTa
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
-import { PLAYER_H, pumpPeopleFine } from '../world/TextureFactory';
+import { PLAYER_H, pumpPeopleFine, setPlayerUniform } from '../world/TextureFactory';
 import type { Services } from '../services';
 import { LAYER } from '../world/Layers';
 
@@ -170,7 +172,7 @@ type Interactable =
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; lines?: readonly string[] }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; job?: string; lines?: readonly string[] }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
@@ -591,7 +593,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
-      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, gathering: s.gathering, housing: s.housing });
+      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, gathering: s.gathering, housing: s.housing, job: s.job });
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
@@ -607,6 +609,7 @@ export class WorldScene extends Phaser.Scene {
     this.menus = new Menus(this.services, {
       persist: () => this.persist(),
       arriveByTrain: (locationId) => this.arriveByTrain(locationId),
+      enter: (locationId) => this.go(locationId, 'entry', false),
       fadeOut: () => this.cameras.main.fadeOut(TRANSITION_MS, 0, 0, 0),
       refreshHome: () => this.refreshHome(),
       movedHome: () => this.movedHome(),
@@ -764,6 +767,8 @@ export class WorldScene extends Phaser.Scene {
       this.stories.delete(id);
     };
     state.on('story', onStory);
+    // El uniforme de trabajo, ya al entrar (y fuera de su sitio, la ropa de siempre).
+    this.dressForWork();
     this.services.phone.attach({
       now: () => Math.floor(this.absMinute()),
       status: (npc) => this.phoneEnv().status(npc, Math.floor(this.absMinute())),
@@ -839,10 +844,29 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  private dressedAt = 0;
+
+  /**
+   * En el lugar de trabajo (LocationDef.workplace) con el turno abierto (systems/Jobs.onShift), el uniforme del empleo
+   * (data/jobs.ts `uniform`); hecho el turno o fuera de ahí, lo de siempre. No toca la apariencia guardada: es una
+   * capa encima (world/TextureFactory.setPlayerUniform), y sólo repinta cuando cambia.
+   */
+  private dressForWork(): void {
+    const { state } = this.services;
+    const place = getLocation(state.locationId).workplace;
+    const job = place ? jobDef(place) : null;
+    const wearing = job?.uniform && onShift(state.job, job.id, state.day, Math.floor(this.absMinute())) ? (UNIFORM_LOOKS.find((l) => l.id === job.uniform) ?? null) : null;
+    setPlayerUniform(this, wearing, state.appearanceOf('player'));
+  }
+
   update(time: number, delta: number): void {
     this.frameStart = performance.now();
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
+    if (time - this.dressedAt > 500) {
+      this.dressedAt = time;
+      this.dressForWork();
+    }
     this.updateSound(time);
     this.matchView?.update(this.absMinute(), time);
     this.updateStand(time);
@@ -2612,6 +2636,7 @@ export class WorldScene extends Phaser.Scene {
       if (target.wardrobe) this.menus.openWardrobe();
       else if (target.study) this.menus.openStudy(target.study, target.name, target.lines ?? []);
       else if (target.gathering) this.menus.openGathering(target.gathering, target.name);
+      else if (target.job) this.menus.openJob(target.job, target.name);
       else if (target.housing) this.menus.openHousing(target.name, typeof target.housing === 'string' ? target.housing : undefined);
       else this.menus.openSpot(target.name, target.activities);
     }
@@ -3483,6 +3508,12 @@ export class WorldScene extends Phaser.Scene {
   private travel(portal: PortalDef): void {
     if (this.leaving) return;
     this.player.halt();
+
+    // Salir a un sitio sin mapa (el aparcamiento de Decathlon): su menú, con el metro de vuelta (scenes/Menus.leaveTo).
+    if (portal.offMap) {
+      this.menus.leaveTo(portal.offMap);
+      return;
+    }
 
     // Subir al tren: se elige destino y paga la tarjeta (scenes/Menus.ts, systems/Transit.ts).
     if (portal.train) {

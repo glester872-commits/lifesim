@@ -129,6 +129,14 @@ export function settle(p: JobProgress, now: number): { progress: JobProgress; mi
 }
 
 /** Por qué no se puede fichar ahora, o null. `p` ya repasado. */
+/**
+ * Con el uniforme puesto: contrato activo de ese empleo y el turno de hoy abierto (desde que se puede fichar hasta
+ * hacerlo). Hecho el turno, o perdido, ya no: vuelve la ropa de siempre. No toca la apariencia guardada.
+ */
+export function onShift(p: JobProgress | null, jobId: string, day: number, now: number): boolean {
+  return !!p && p.status === 'active' && p.job === jobId && statusOf(p, day, now) === 'open';
+}
+
 export function clockInBlocker(p: JobProgress, now: number, energy: number): string | null {
   if (p.status !== 'active') return 'No tienes contrato.';
   const def = getJob(p.job);

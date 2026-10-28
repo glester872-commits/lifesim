@@ -21,6 +21,11 @@ export interface PortalDef {
   ty: number;
   label: string;
   to: { location: string; spawn: string };
+  /**
+   * Sale a un sitio sin mapa (id de su parada, data/transit.ts): se abre el menú de la parada en lugar de ir a `to`
+   * (el interior de Decathlon vuelve al aparcamiento, donde está el metro). `to` sigue diciendo hacia dónde se va.
+   */
+  offMap?: string;
   /** Minutos de reloj que consume el paso. */
   minutes?: number;
   /**
@@ -396,6 +401,8 @@ export interface SpotDef {
   name: string;
   /** Ids en data/activities.ts. */
   activities: readonly string[];
+  /** Fichaje de un empleo (id en data/jobs.ts): fichar, el ascenso o dejarlo, como en el menú del sitio. */
+  job?: string;
   /** El armario: cambiarse con la ropa comprada (scenes/Menus.ts, openWardrobe). */
   wardrobe?: true;
   /** Punto de estudio (data/study.ts): practicar una habilidad aquí (scenes/Menus.ts, openStudy). */
@@ -562,6 +569,8 @@ export interface LocationDef {
   terminals?: readonly TerminalDef[];
   /** Sitios donde se hace algo que lleva un rato: la cama, la cocina, la silla de la peluquería (data/activities.ts). */
   spots?: readonly SpotDef[];
+  /** Lugar de trabajo de ese empleo (id en data/jobs.ts): con turno abierto, el jugador lleva aquí su uniforme. */
+  workplace?: string;
   /** Es una vivienda del jugador (id en data/housing.ts HOMES): sólo entra quien vive ahí; a los demás se les ofrece mudarse. */
   home?: string;
   /** Mesas con servicio (systems/TableService.ts): sus asientos y dónde se pone quien atiende. */
