@@ -145,6 +145,7 @@ import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
 import { PLAYER_H, pumpPeopleFine, setPlayerUniform } from '../world/TextureFactory';
+import { RemotePlayers, zoneOf } from '../world/RemotePlayers';
 import type { Services } from '../services';
 import { LAYER } from '../world/Layers';
 
@@ -879,6 +880,8 @@ export class WorldScene extends Phaser.Scene {
     this.frameStart = performance.now();
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
+    // La sala online, cada fotograma: los demás se mueven y lo propio sale como mucho 10 veces por segundo.
+    this.services.online.update(zoneOf(this.services.state.locationId), this.player.x, this.player.y, this.player.facing);
     if (time - this.dressedAt > 500) {
       this.dressedAt = time;
       this.dressForWork();
