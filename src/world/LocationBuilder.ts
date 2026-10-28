@@ -255,7 +255,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   // Lo plano (alcantarillas, rejillas, hojas) es suelo: horneado, sin colisión y debajo de todo.
   for (const placement of def.props) {
     const prop = PROPS[placement.kind];
-    if (prop.flat) ground.batchDraw(finishKey(scene, def, propKey(prop, placement.tx, placement.ty), placement.tx, placement.ty), placement.tx * TILE, placement.ty * TILE);
+    if (prop.flat) ground.batchDraw(finishKey(scene, def, propKey(prop, placement.tx, placement.ty, placement.variant), placement.tx, placement.ty), placement.tx * TILE, placement.ty * TILE);
   }
   // Velo de cada zona (data/districts.ts) sobre el suelo, debajo de edificios y props; el borde, fundido en tres tiles.
   ground.endDraw();
@@ -292,7 +292,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const baseY = placement.ty * TILE + TILE;
     // Lo del techo, por encima de la gente (y por debajo de la luz de world/Lighting).
     // HD-03: con el acabado del sitio, la versión nueva si la hay (world/UrbanFinish).
-    const key = finishKey(scene, def, propKey(prop, placement.tx, placement.ty), placement.tx, placement.ty);
+    const key = finishKey(scene, def, propKey(prop, placement.tx, placement.ty, placement.variant), placement.tx, placement.ty);
     // Una sola densidad de píxel en todo el mundo (HD-03): nada a doble densidad a media escala junto al arte de 1×.
     const img = scene.add.image(placement.tx * TILE + width / 2, baseY, key).setOrigin(0.5, 1).setDepth(prop.overhead ? LAYER.overhead : prop.mount ? seat(baseY) : standing(baseY));
     // Árboles: además de su variante de dibujo, un matiz propio (más verde, más cálido, más apagado) por sitio.

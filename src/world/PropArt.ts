@@ -7,6 +7,7 @@ import { buildGymTextures } from './GymArt';
 import { buildSeatTextures } from './SeatArt';
 import { buildDiningTextures } from './DiningArt';
 import { buildRiverTextures } from './RiverArt';
+import { buildStoreTextures } from './StoreArt';
 import { drawParkedBike } from './CyclistArt';
 
 /**
@@ -924,6 +925,7 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   buildSeatTextures(scene);
   buildDiningTextures(scene);
   buildRiverTextures(scene);
+  buildStoreTextures(scene);
   make(scene, 'prop-floor-lamp', TILE, TILE * 2, drawFloorLamp);
   make(scene, 'prop-display-table', TILE * 2, TILE, drawDisplayTable);
   make(scene, 'prop-window', TILE * 2, TILE, drawWindow);

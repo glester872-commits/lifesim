@@ -232,6 +232,11 @@ export const STORES: readonly RetailStoreDef[] = [
     id: 'deportes-arena', name: 'Deportes Arena', greeting: 'Buenas. Si buscas botas, dime en qué superficie juegas.', thanks: 'A darle caña. Y a estirar después, que luego vienen las lesiones.',
     stock: [{ garment: 'camiseta-tecnica', price: 18 }, { garment: 'sudadera-entreno', price: 32 }, { garment: 'pantalon-chandal', price: 25 }, { garment: 'zapatillas-futbol-sala', price: 45 }],
   },
+  // Decathlon (data/decathlon.ts, Alpha-08): lo técnico a precio de nave, en sus percheros de running y sportswear.
+  {
+    id: 'decathlon', name: 'Decathlon', greeting: 'Hola. Los probadores están ahí al lado; si no es tu talla, te la busco.', thanks: 'Guarda el tique: tienes noventa días para devolverlo.',
+    stock: [{ garment: 'camiseta-tecnica', price: 7.99 }, { garment: 'sudadera-entreno', price: 14.99 }, { garment: 'pantalon-chandal', price: 12.99 }, { garment: 'chandal-gris', price: 9.99 }, { garment: 'zapatillas-futbol-sala', price: 24.99 }],
+  },
   // Puerta Central: la tienda de recuerdos y la cadena de moda de la calle.
   {
     id: 'recuerdos', name: 'Recuerdos de la Puerta', greeting: 'Hello, hola, bonjour. Las camisetas, tres por veinticinco.', thanks: 'Que la disfrutes. Si te pierdes, vuelve a la Rosa.',

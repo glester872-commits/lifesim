@@ -215,12 +215,30 @@ export type PropKind =
   | 'pew'
   | 'altar'
   | 'altarpiece'
-  | 'candles';
+  | 'candles'
+  // La gran superficie de deporte (data/decathlon.ts, world/StoreArt): pista de pádel, tiendas montadas, bicis, mochilas,
+  // kayaks, balones, cañas, golf, columnas de la nave y los carteles colgados de cada sección.
+  | 'padel-court'
+  | 'padel-net'
+  | 'camping-tent'
+  | 'bike-stand'
+  | 'backpack-wall'
+  | 'kayak'
+  | 'dept-sign'
+  | 'ball-cage'
+  | 'fishing-rods'
+  | 'golf-bag'
+  | 'pillar'
+  | 'shelf-run'
+  | 'shelf-front'
+  | 'promo-bin';
 
 export interface PropPlacement {
   kind: PropKind;
   tx: number;
   ty: number;
+  /** Variante fija de la textura (el cartel de cada sección); sin ella, la que toca por posición (world/tiles propKey). */
+  variant?: number;
 }
 
 export interface NpcPlacement {
