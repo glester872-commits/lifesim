@@ -1992,270 +1992,99 @@ body.has-touch .dialogue__choices li {
   }
 }
 
-/* Alpha-06 · online (ui/OnlinePanel): el botón, bajo el de la pausa, y el panel a la izquierda, sin tapar el centro. */
-.online-button {
-  position: absolute;
-  top: 214px;
-  right: 14px;
-  pointer-events: auto;
-  padding: 7px 12px 8px;
-  border: 2px solid rgba(232, 227, 218, 0.14);
-  background: rgba(14, 15, 22, 0.8);
-  color: var(--white);
-  font: 700 11px var(--ui-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.online-button:hover,
-.online-button:focus-visible,
-.online-button.is-active {
-  border-color: var(--accent);
-  outline: none;
-}
-
-.online-button.is-live {
-  color: var(--accent);
-}
-
-.online {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  z-index: 9;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: min(340px, calc(100vw - 28px));
-  max-height: min(70vh, 560px);
-  padding: 10px 12px 12px;
-  border: 2px solid rgba(232, 227, 218, 0.18);
-  background: rgba(14, 15, 22, 0.94);
-  color: var(--white);
-  font: 13px/1.4 var(--ui-font);
-  pointer-events: auto;
-}
-
-.online[hidden] {
-  display: none;
-}
-
-.online__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--ui-mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.online__state {
-  color: rgba(232, 227, 218, 0.6);
-}
-
-.online__state.is-in-room {
-  color: var(--accent);
-}
-
-.online__state.is-reconnecting,
-.online__state.is-connecting,
-.online__state.is-joining {
-  color: var(--amber);
-}
-
-.online__close {
-  margin-left: auto;
-  border: 0;
-  background: none;
-  color: inherit;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.online__hint,
-.online__detail,
-.online__code,
-.online__empty {
-  margin: 0;
-  color: rgba(232, 227, 218, 0.75);
-}
-
-.online__detail {
-  color: var(--amber);
-}
-
-.online__code b {
-  font: 700 15px var(--ui-mono);
-  letter-spacing: 0.18em;
-  color: var(--accent);
-  user-select: all;
-}
-
-.online__join,
-.online__send {
+/* Texto libre del móvil (Alpha-05): el campo de escribir de una conversación y las Notas. 16px: así iOS no
+   amplía la página al tocar el campo. */
+.phone__compose {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 6px;
+  align-items: end;
+  padding-top: 8px;
+  border-top: 1px solid rgba(232, 227, 218, 0.08);
 }
 
-/* 16px: así iOS no amplía la página al tocar el campo. */
-.online__field {
+.phone__field {
+  width: 100%;
   min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid rgba(232, 227, 218, 0.2);
+  padding: 7px 10px;
+  border: 1px solid rgba(232, 227, 218, 0.18);
+  border-radius: 12px;
   background: #0b0c12;
   color: var(--white);
-  font: 16px var(--ui-font);
+  font: 16px/1.35 var(--ui-font);
+  resize: none;
+  overflow-wrap: anywhere;
 }
 
-.online__field:focus {
+.phone__field::placeholder {
+  color: rgba(232, 227, 218, 0.45);
+}
+
+.phone__field:focus {
   border-color: var(--accent);
   outline: none;
 }
 
-.online__action,
-.online__leave,
-.online__mini {
-  padding: 7px 10px;
+.phone__field--title {
+  font-weight: 700;
+}
+
+.phone__field--note {
+  flex: 1;
+  min-height: 120px;
+  margin-top: 6px;
+  resize: vertical;
+}
+
+.phone__send {
+  min-height: 34px;
+  padding: 6px 12px;
   border: 1px solid var(--accent);
+  border-radius: 16px;
   background: rgba(111, 208, 198, 0.12);
   color: var(--accent);
   font: 700 12px var(--ui-font);
   cursor: pointer;
 }
 
-.online__action:disabled {
+.phone__send:disabled {
   opacity: 0.4;
   cursor: default;
 }
 
-.online__leave {
-  align-self: flex-start;
-  border-color: rgba(240, 120, 106, 0.5);
-  background: none;
-  color: rgba(232, 227, 218, 0.85);
+.phone__send.is-selected,
+.phone__send:hover:not(:disabled) {
+  background: rgba(111, 208, 198, 0.24);
 }
 
-.online__mini {
-  margin-left: auto;
-  padding: 2px 6px;
-  font-size: 11px;
-}
-
-.online__people {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.online__person {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.online__dot {
-  width: 8px;
-  height: 8px;
-  background: var(--accent);
-}
-
-.online__person.is-reconnecting .online__dot {
-  background: var(--amber);
-}
-
-.online__where {
+.phone__count {
+  grid-column: 1 / -1;
+  margin: 0 4px;
+  font: 10px var(--ui-mono);
   color: rgba(232, 227, 218, 0.55);
-  font: 11px var(--ui-mono);
 }
 
-.online__chat {
-  flex: 1;
-  min-height: 80px;
-  max-height: 220px;
-  margin: 0;
-  padding: 6px 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  list-style: none;
-  border-top: 1px solid rgba(232, 227, 218, 0.08);
-  border-bottom: 1px solid rgba(232, 227, 218, 0.08);
-}
-
-.online__msg {
-  padding: 2px 0;
-  overflow-wrap: anywhere;
-}
-
-.online__msg b {
+.phone__count.is-over {
   color: var(--amber);
 }
 
-.online__msg.is-me b {
-  color: var(--accent);
+.phone__msg {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
-.online__msg.is-system {
-  color: rgba(232, 227, 218, 0.55);
-  font-style: italic;
+.phone__new {
+  align-self: flex-start;
+  margin: 6px 0;
 }
 
-.online__msg time {
-  margin-left: 6px;
-  font: 9px var(--ui-mono);
-  color: rgba(232, 227, 218, 0.45);
-}
-
-.online-button[hidden] {
-  display: none;
-}
-
-/* En el móvil: «Online» en la columna de botones, tras «Menú»; el panel debajo, a lo ancho, sin tapar la columna ni
-   el joystick. */
-@media (max-width: 520px), (max-height: 480px) {
-  .online-button {
-    top: calc(max(10px, env(safe-area-inset-top)) + 260px);
-    right: max(10px, env(safe-area-inset-right));
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  /* Bajo la columna de botones (acaba en «Online», +314px) y por encima del joystick (≈170px abajo). */
-  .online {
-    top: calc(max(10px, env(safe-area-inset-top)) + 322px);
-    bottom: auto;
-    left: max(10px, env(safe-area-inset-left));
-    right: max(10px, env(safe-area-inset-right));
-    width: auto;
-    max-height: calc(100% - 322px - 180px - max(10px, env(safe-area-inset-top)));
-  }
-
-  .online__chat {
-    max-height: 160px;
-  }
-}
-
-/* Etapa 0: pasar el aspecto sin red. */
-.online__share {
+.phone__note-actions {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(232, 227, 218, 0.08);
+  gap: 8px;
+  align-items: center;
+  padding-top: 6px;
 }
 
-.online__share-title {
-  font: 700 11px var(--ui-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(232, 227, 218, 0.6);
-}
-
-.online__share .online__field[readonly] {
-  font: 11px var(--ui-mono);
+.phone__delete {
+  border-color: rgba(240, 120, 106, 0.45);
 }

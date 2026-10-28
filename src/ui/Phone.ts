@@ -4,7 +4,8 @@ import type { GameState } from '../state/GameState';
 import { getNpc } from '../data/npcs';
 import { NAMED_PEOPLE } from '../data/namedPeople';
 import {
-  activePlan, contactsOf, PLAN_KINDS, phoneOptions, placeName, stampLabel, unreadTotal, whenLabel,
+  activePlan, contactsOf, deleteNote, MESSAGE_MAX, NOTE_BODY_MAX, NOTE_TITLE_MAX, PLAN_KINDS, phoneOptions, placeName,
+  saveNote, sendFree, stampLabel, textLength, unreadTotal, whenLabel,
   type Contact, type NpcStatus, type PhoneActionId, type PhoneNews, type SocialPlan,
 } from '../systems/Phone';
 import { createSocialProfile, type ContactState } from '../systems/Social';
@@ -27,6 +28,10 @@ import { opportunities, opportunityInput } from '../systems/Opportunities';
  *
  * Abierto, el jugador se para y el mundo sigue: así las respuestas llegan mientras miras. Se elige con el ratón,
  * el dedo o el teclado (W/S, E, 1–9; Esc vuelve atrás y, en el inicio, lo cierra).
+ *
+ * Texto libre (Alpha-05): Notas y el campo de escribir de cada conversación. Con un campo en foco el juego no
+ * escucha el teclado (PhoneHost.typing): WASD, E, Espacio, Intro, M o P escriben, no mueven ni abren nada. Esc sale
+ * del campo; Intro manda (Mayús+Intro, salto de línea). Lo escrito se pinta siempre como texto (textContent/value).
  */
 
 const stampTime = (now: number): string => `${String(Math.floor((now % 1440) / 60)).padStart(2, '0')}:${String(now % 60).padStart(2, '0')}`;
@@ -43,11 +48,18 @@ export interface PhoneHost {
   planLine?(npc: string): string | undefined;
   /** Guarda la partida ya (tras un pago). */
   persist(): void;
+  /** Un campo de texto del móvil coge (true) o suelta (false) el foco: el juego deja o vuelve a escuchar el teclado. */
+  typing?(on: boolean): void;
 }
 
 type Screen =
   | { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'job' } | { app: 'thread'; npc: string }
-  | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' } | { app: 'today' };
+  | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' } | { app: 'today' }
+  | { app: 'notes' } | { app: 'note'; id: string };
+
+/** Un identificador que no se repite entre recargas (el del mensaje o la nota). */
+const freshId = (): string => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+const isField = (t: EventTarget | null): t is HTMLInputElement | HTMLTextAreaElement => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
 
 /** Cómo está el turno de cada día, en la pantalla de Trabajo. */
 const SHIFT_TEXT: Readonly<Record<ShiftStatus, string>> = {
@@ -144,6 +156,17 @@ export class PhoneScreen {
   private flash = '';
   /** Aviso de Cuentas a la espera de que haya escena (al arrancar). */
   private queued: { title: string; text: string; app: 'money' | 'today' } | null = null;
+  /** Escribiendo en un campo del móvil: lo que llega no repinta hasta soltarlo (no se pierde el texto ni el acento a medias). */
+  private typingNow = false;
+  private stale = false;
+  /** Borradores sin mandar, por conversación, y el id con que se mandará cada uno (dos pulsaciones = un mensaje). */
+  private readonly drafts = new Map<string, { text: string; id: string }>();
+  /** Cómo quedó lo último escrito: se dice bajo el campo, tal cual pasó. */
+  private composeNote = '';
+  /** La nota abierta (sin guardar todavía) y si se ha tocado; y el borrar que espera confirmación. */
+  private noteDraft: { id: string; title: string; body: string; dirty: boolean } | null = null;
+  private noteNote = '';
+  private armedDelete = '';
 
   constructor(root: HTMLElement, button: HTMLButtonElement, toast: HTMLElement, state: GameState, blocked: () => boolean) {
     this.root = root;
@@ -187,6 +210,24 @@ export class PhoneScreen {
       if (act === 'back') this.back();
       else if (act === 'home') this.go({ app: 'home' });
       else if (act === 'close') this.close();
+    });
+    this.screenEl.addEventListener('focusin', (e) => {
+      if (!isField(e.target) || this.typingNow) return;
+      this.typingNow = true;
+      this.host?.typing?.(true);
+    });
+    this.screenEl.addEventListener('focusout', (e) => {
+      if (!isField(e.target)) return;
+      // Pasar de un campo a otro (título → texto de la nota) no devuelve el teclado al juego.
+      if (isField(e.relatedTarget) && this.screenEl.contains(e.relatedTarget)) return;
+      this.typingNow = false;
+      this.host?.typing?.(false);
+      if (this.stale) this.render(this.selected);
+    });
+    // El teclado del móvil encoge la pantalla: el campo no se queda debajo.
+    window.visualViewport?.addEventListener('resize', () => {
+      const a = document.activeElement;
+      if (this.typingNow && isField(a)) a.scrollIntoView({ block: 'nearest' });
     });
     // Tocar la notificación abre esa conversación.
     toast.addEventListener('click', () => {
@@ -246,8 +287,15 @@ export class PhoneScreen {
     this.go({ app: 'home' });
   }
 
+  /** Un campo del móvil tiene el foco: el juego no debe leer el teclado. */
+  get isTyping(): boolean {
+    return this.typingNow;
+  }
+
   close(): void {
     if (!this.opened) return;
+    this.leaveNote();
+    this.releaseField();
     this.opened = false;
     this.shownKey = '';
     this.root.classList.remove('is-open');
@@ -260,6 +308,7 @@ export class PhoneScreen {
     if (s.app === 'home') this.close();
     else if (s.app === 'thread') this.go({ app: this.cameFrom });
     else if (s.app === 'pay' || s.app === 'goals') this.go({ app: 'money' });
+    else if (s.app === 'note') this.go({ app: 'notes' });
     else this.go({ app: 'home' });
   }
 
@@ -316,7 +365,19 @@ export class PhoneScreen {
 
   // ------------------------------------------------------------ pantallas
 
+  /** Suelta el campo con foco (el juego recupera el teclado en focusout). */
+  private releaseField(): void {
+    const a = document.activeElement;
+    if (isField(a) && this.screenEl.contains(a)) a.blur();
+  }
+
   private go(screen: Screen): void {
+    if (this.screen.app === 'note' && !(screen.app === 'note' && screen.id === this.screen.id)) this.leaveNote();
+    if (JSON.stringify(screen) !== JSON.stringify(this.screen)) {
+      this.releaseField();
+      this.composeNote = '';
+      this.armedDelete = '';
+    }
     if (screen.app === 'contacts' || screen.app === 'messages') this.cameFrom = screen.app;
     const same = JSON.stringify(screen) === JSON.stringify(this.screen);
     this.screen = screen;
@@ -339,9 +400,15 @@ export class PhoneScreen {
     this.refresh();
   }
 
-  private render(keep: number): void {
+  private render(keep: number, force = false): void {
     if (!this.opened) return;
     this.renderClock();
+    // Con el dedo o el teclado dentro de un campo, repintar borraría lo que está a medias (y la composición de un acento).
+    if (this.typingNow && !force) {
+      this.stale = true;
+      return;
+    }
+    this.stale = false;
     this.items = [];
     const s = this.screen;
     // El refresco de la misma pantalla (reloj, mensajes) no bloquea; ir a otra, sí.
@@ -360,6 +427,8 @@ export class PhoneScreen {
     else if (s.app === 'pay') this.renderPay(s.bill, s.period);
     else if (s.app === 'goals') this.renderGoals();
     else if (s.app === 'today') this.renderToday();
+    else if (s.app === 'notes') this.renderNotes();
+    else if (s.app === 'note') this.renderNote(s.id);
     else this.renderThread(s.npc);
     this.selected = Math.min(Math.max(0, keep), Math.max(0, this.items.length - 1));
     this.mark();
@@ -394,6 +463,7 @@ export class PhoneScreen {
     app('✎', 'Estudios', () => this.go({ app: 'study' }));
     const urgent = unpaid(this.state.household).filter((o) => o.due <= this.state.day).length;
     app('€', 'Cuentas', () => this.go({ app: 'money' }), urgent);
+    app('✍', 'Notas', () => this.go({ app: 'notes' }));
     app('◉', 'Cámara', null);
     app('♪', 'Música', null);
     this.screenEl.replaceChildren(el('p', 'phone__greeting', this.greeting(unread)), grid);
@@ -758,8 +828,203 @@ export class PhoneScreen {
         replies.append(b);
       });
     }
-    this.screenEl.replaceChildren(head, log, replies);
+    const parts: HTMLElement[] = [head, log, replies];
+    if (profile.contactExchanged) parts.push(this.composer(npc, name));
+    this.screenEl.replaceChildren(...parts);
     log.scrollTop = log.scrollHeight;
+  }
+
+  /**
+   * Escribir a mano (Alpha-05): sólo dentro de la partida. Quien lo recibe no entiende frases: contesta una vez al día
+   * que te lee y que le propongas las cosas con las respuestas de arriba (systems/Phone.sendFree), sin inventar más.
+   */
+  private composer(npc: string, name: string): HTMLElement {
+    const form = el('form', 'phone__compose') as HTMLFormElement;
+    const field = document.createElement('textarea');
+    field.className = 'phone__field';
+    field.rows = 2;
+    field.maxLength = MESSAGE_MAX * 4;
+    field.placeholder = `Escribe a ${name}… (dentro del juego)`;
+    field.setAttribute('aria-label', `Mensaje para ${name}`);
+    field.enterKeyHint = 'send';
+    field.autocomplete = 'off';
+    field.value = this.drafts.get(npc)?.text ?? '';
+    const send = el('button', 'phone__send', 'Enviar') as HTMLButtonElement;
+    send.type = 'submit';
+    const info = el('p', 'phone__count');
+    const paint = (): void => {
+      const n = textLength(field.value.trim());
+      send.disabled = n === 0;
+      const state = this.composeNote || (n ? 'Borrador' : 'No sale del juego ni lo contesta una IA');
+      info.textContent = `${state} · ${Math.min(n, MESSAGE_MAX)}/${MESSAGE_MAX}`;
+      info.classList.toggle('is-over', n > MESSAGE_MAX);
+    };
+    field.addEventListener('input', () => {
+      this.drafts.set(npc, { text: field.value, id: this.drafts.get(npc)?.id ?? freshId() });
+      this.composeNote = '';
+      paint();
+    });
+    field.addEventListener('keydown', (e) => {
+      // Intro manda y Esc sale del campo; ninguno sigue hasta el juego (no abre puertas ni cierra el móvil).
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        field.blur();
+      } else if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        e.stopPropagation();
+        form.requestSubmit();
+      }
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const current = this.drafts.get(npc) ?? { text: field.value, id: freshId() };
+      const r = sendFree(this.state.phone, npc, current.text, this.host?.now() ?? 0, current.id);
+      if (r.sent) {
+        this.state.setPhone(r.phone);
+        this.host?.persist();
+        this.drafts.delete(npc);
+        this.composeNote = 'Enviado';
+      } else if (r.reason === 'duplicate') {
+        this.drafts.delete(npc);
+        this.composeNote = 'Ya estaba enviado';
+      } else {
+        this.composeNote = r.reason === 'limit' ? 'No enviado: hoy ya le has escrito mucho' : 'No enviado: está vacío';
+      }
+      const typing = this.typingNow;
+      this.render(this.selected, true);
+      // Con el teclado abierto se sigue escribiendo sin volver a tocar el campo.
+      if (typing) this.screenEl.querySelector<HTMLTextAreaElement>('.phone__field')?.focus();
+    });
+    form.append(field, send, info);
+    this.items.push({ el: field, run: () => field.focus() });
+    paint();
+    return form;
+  }
+
+  // ------------------------------------------------------------ notas
+
+  private renderNotes(): void {
+    this.titleEl.textContent = 'Notas';
+    const add = el('button', 'phone__reply phone__new', '+ Nueva nota') as HTMLButtonElement;
+    add.type = 'button';
+    this.item(add, () => this.go({ app: 'note', id: freshId() }));
+    const notes = [...(this.state.phone.notes ?? [])].sort((a, b) => b.updated - a.updated);
+    const now = this.host?.now() ?? 0;
+    const parts: HTMLElement[] = [add];
+    if (!notes.length) parts.push(el('p', 'phone__empty', 'Aún no tienes notas. Se guardan con la partida, en este navegador.'));
+    else {
+      const ul = el('ul', 'phone__list');
+      for (const n of notes) {
+        const li = el('li', 'phone__row');
+        const first = n.body.split('\n')[0] ?? '';
+        li.append(rowText(n.title || first || 'Sin título', n.title ? first : ''), el('span', 'phone__row-meta', stampLabel(n.updated, now)));
+        this.item(li, () => this.go({ app: 'note', id: n.id }));
+        ul.append(li);
+      }
+      parts.push(ul);
+    }
+    this.screenEl.replaceChildren(...parts);
+  }
+
+  private renderNote(id: string): void {
+    const saved = this.state.phone.notes?.find((n) => n.id === id);
+    if (!this.noteDraft || this.noteDraft.id !== id) this.noteDraft = { id, title: saved?.title ?? '', body: saved?.body ?? '', dirty: false };
+    const draft = this.noteDraft;
+    this.titleEl.textContent = saved ? 'Nota' : 'Nota nueva';
+    const title = document.createElement('input');
+    title.className = 'phone__field phone__field--title';
+    title.maxLength = NOTE_TITLE_MAX * 4;
+    title.placeholder = 'Título';
+    title.setAttribute('aria-label', 'Título de la nota');
+    title.enterKeyHint = 'next';
+    title.value = draft.title;
+    const body = document.createElement('textarea');
+    body.className = 'phone__field phone__field--note';
+    body.maxLength = NOTE_BODY_MAX * 4;
+    body.placeholder = 'Escribe aquí…';
+    body.setAttribute('aria-label', 'Texto de la nota');
+    body.value = draft.body;
+    const info = el('p', 'phone__count');
+    const paint = (): void => {
+      const n = textLength(body.value);
+      info.textContent = `${this.noteNote || (draft.dirty ? 'Sin guardar' : saved ? 'Guardada' : 'Vacía')} · ${Math.min(n, NOTE_BODY_MAX)}/${NOTE_BODY_MAX}`;
+      info.classList.toggle('is-over', n > NOTE_BODY_MAX);
+    };
+    const edit = (): void => {
+      draft.title = title.value;
+      draft.body = body.value;
+      draft.dirty = true;
+      this.noteNote = '';
+      this.armedDelete = '';
+      paint();
+    };
+    for (const field of [title, body] as HTMLElement[]) {
+      field.addEventListener('input', edit);
+      field.addEventListener('keydown', (e) => {
+        // Esc sale del campo; Intro en el título pasa al texto. Ninguno llega al juego.
+        if (e.key !== 'Escape' && !(e.key === 'Enter' && field === title && !e.isComposing)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === 'Enter') body.focus();
+        else field.blur();
+      });
+    }
+    const save = el('button', 'phone__send', 'Guardar') as HTMLButtonElement;
+    save.type = 'button';
+    save.addEventListener('click', () => {
+      this.storeNote();
+      this.render(this.selected, true);
+    });
+    const actions = el('div', 'phone__note-actions');
+    actions.append(save);
+    if (saved) {
+      const del = el('button', 'phone__reply phone__delete', this.armedDelete === id ? '¿Borrarla? Pulsa otra vez' : 'Borrar') as HTMLButtonElement;
+      del.type = 'button';
+      del.addEventListener('click', () => {
+        if (this.armedDelete !== id) {
+          this.armedDelete = id;
+          this.render(this.selected, true);
+          return;
+        }
+        this.armedDelete = '';
+        this.state.setPhone(deleteNote(this.state.phone, id));
+        this.host?.persist();
+        this.noteDraft = null;
+        this.go({ app: 'notes' });
+      });
+      actions.append(del);
+    }
+    this.items.push({ el: title, run: () => title.focus() }, { el: body, run: () => body.focus() }, { el: save, run: () => save.click() });
+    paint();
+    this.screenEl.replaceChildren(title, body, info, actions);
+  }
+
+  /** Guarda la nota abierta si se ha tocado; dice lo que pasó de verdad. */
+  private storeNote(): void {
+    const d = this.noteDraft;
+    if (!d) return;
+    if (!d.dirty) {
+      this.noteNote = 'Sin cambios';
+      return;
+    }
+    const before = this.state.phone;
+    const after = saveNote(before, d, this.host?.now() ?? 0);
+    if (after === before) {
+      this.noteNote = 'Vacía: no se guarda';
+      return;
+    }
+    this.state.setPhone(after);
+    this.host?.persist();
+    d.dirty = false;
+    this.noteNote = `Guardada a las ${stampTime(this.host?.now() ?? 0)}`;
+  }
+
+  /** Al salir de una nota (atrás, inicio, cerrar el móvil), lo escrito se guarda: no se pierde por cambiar de pantalla. */
+  private leaveNote(): void {
+    if (this.noteDraft?.dirty) this.storeNote();
+    this.noteDraft = null;
+    this.noteNote = '';
   }
 
   // ------------------------------------------------------------ piezas
