@@ -12,6 +12,7 @@ import { PC_INTERIORS } from './puertaCentralVenues.ts';
 import { ARENA } from './arena.ts';
 import { AR_INTERIORS } from './arenaVenues.ts';
 import { DECATHLON_STORE } from './decathlon.ts';
+import { POLIGONO_NORTE } from './poligonoNorte.ts';
 import { rebased } from './velariaVenues.ts';
 import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PARISH, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
@@ -456,6 +457,16 @@ const PUERTA_CENTRAL_STATION = platform(
   [VESTIBULE_GUARD],
 );
 
+// Polígono Norte (Alpha-09): la última de la línea, la de Decathlon. La misma estación; sale a la explanada de la nave.
+const DECATHLON_STATION = platform(
+  'decathlon-station',
+  'Metro · Polígono Norte',
+  { location: 'poligono-norte', spawn: 'pn-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'ribera-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
 /** Tres taburetes a la barra, delante del mostrador (fila 6), mirando hacia él. */
 const BAR_STOOLS: Record<string, PointDef> = Object.fromEntries([2, 3, 4].map((x, i) => [`BAR_STOOL_0${i + 1}`, { tx: x, ty: 6, kind: 'seat', facing: 'up' } as PointDef]));
 
@@ -613,7 +624,9 @@ export const LOCATIONS: readonly LocationDef[] = [
   ARENA_STATION,
   ...AR_INTERIORS,
   ...ARENA_BARS,
-  // Decathlon (data/decathlon.ts): el interior al que se entra desde su parada de metro.
+  // Polígono Norte (data/poligonoNorte.ts): la explanada y el aparcamiento de Decathlon, su estación y la nave por dentro.
+  POLIGONO_NORTE,
+  DECATHLON_STATION,
   DECATHLON_STORE,
 ];
 

@@ -10,6 +10,11 @@ import { PROPS } from '../src/world/tiles.ts';
 import { getLocation, isStandable, isWalkable, safePosition, spawnToWorld, validate } from '../src/systems/LocationSystem.ts';
 import { route, tilePath } from '../src/systems/Navigation.ts';
 import type { TilePoint } from '../src/types/game.ts';
+import { STOPS } from '../src/data/transit.ts';
+import { OFF_MAP_PLACES } from '../src/data/activities.ts';
+import { placeForInterior, placeInfo } from '../src/systems/Places.ts';
+import { STREET_PROFILES } from '../src/data/streets.ts';
+import { ROADWAY } from '../src/systems/LocationSystem.ts';
 
 const loc = getLocation(DECATHLON_STORE.id);
 validate(loc);
@@ -183,4 +188,50 @@ for (const t of [{ tx: 7, ty: 8 }, { tx: 2, ty: 2 }, { tx: 6, ty: 2 }, { tx: 8, 
   assert.ok(isWalkable(loc, Math.floor(pos.x / 16), Math.floor((pos.y - 1) / 16)), `partida antigua en (${t.tx}, ${t.ty}): reaparece dentro de algo`);
 }
 
-console.log(`check-decathlon: OK · ${SECTORS.length} secciones · ${AISLES.length} pasillos · ${BLOCKS.length} circuitos · ${loc.props.length} muebles de ${kinds.size} tipos · ${seen.size} tiles alcanzables`);
+// 12 · Con calle (Alpha-09): del andén a la explanada, a pie hasta la puerta de la fachada, dentro; y la puerta de dentro
+// devuelve a esa misma puerta. La parada es una estación más y no queda ningún sitio sin mapa.
+const street = getLocation('poligono-norte');
+validate(street);
+const nave = street.buildings!.find((b) => b.id === 'pn-decathlon')!;
+assert.ok(nave.style === 'megastore' && nave.front === 's' && (nave.floors ?? 1) >= 3, 'la nave no tiene su fachada de gran formato');
+assert.deepEqual(nave.enter, { location: loc.id, spawn: 'entry' }, 'la puerta de la fachada no entra en la tienda');
+assert.ok(loc.portals.every((p) => p.to.location === street.id && p.to.spawn === nave.id && !p.offMap), 'la tienda no sale a su explanada');
+assert.ok(street.spawns[nave.id] && street.portals.some((p) => p.to.location === loc.id), 'la fachada sin portal o sin spawn de vuelta');
+const stop = STOPS.find((s) => s.id === 'decathlon')!;
+assert.ok(stop.station === 'decathlon-station' && !stop.offMap, 'la parada de Decathlon sigue sin estación');
+const station = getLocation(stop.station);
+const out = station.portals.find((p) => !p.train)!;
+assert.ok(out && out.to.location === street.id && street.spawns[out.to.spawn], 'el andén no sale a la explanada');
+const walkTo = tilePath(street, street.spawns[out.to.spawn], street.spawns[nave.id]);
+assert.ok(walkTo && walkTo.length > 5, 'del metro a la puerta de la tienda no se llega andando');
+assert.equal(OFF_MAP_PLACES.length, 0, 'queda un sitio sin mapa');
+assert.equal(placeForInterior(loc.id)?.locationId, street.id, 'la gente no llega por la calle');
+
+// 13 · Tráfico y gente de paso en la calle: los carriles cruzan el mapa por calzada sin un coche aparcado encima, el paso de
+// cebra corta los dos frente a la puerta, nadie se para en la calzada, y la gente de la tienda va y viene sólo con ella
+// abierta; de noche, sin coches.
+const traffic = street.traffic!;
+assert.ok(traffic && traffic.lanes.length === 2, 'la calle sin sus dos carriles');
+for (const lane of traffic.lanes) {
+  assert.ok([...street.ground[lane.row]].every((ch) => ROADWAY.has(ch)), `carril ${lane.row}: no es calzada de punta a punta`);
+  for (const pr of street.props) {
+    const def = PROPS[pr.kind];
+    if (def.overhead || def.flat) continue;
+    assert.ok(pr.ty !== lane.row, `${pr.kind} en (${pr.tx}, ${pr.ty}) aparcado encima del carril ${lane.row}`);
+  }
+  assert.equal(street.ground[lane.row][nave.doorX!], 'z', `carril ${lane.row}: sin paso de cebra delante de la puerta`);
+}
+assert.ok(traffic.perLane <= 2 && traffic.hourly!.some(([a, b, n]) => a <= 23 && 23 < b && n === 0), 'tráfico sin límite o de noche');
+for (const [id, pt] of Object.entries(street.points ?? {})) {
+  if (pt.kind !== 'path' && pt.kind !== 'edge' && pt.kind !== 'entrance') assert.ok(!ROADWAY.has(street.ground[pt.ty][pt.tx]), `${id}: alguien se para en la calzada`);
+}
+const profile = STREET_PROFILES.find((pr) => pr.location === street.id)!;
+assert.ok(profile && profile.maxWalkers <= 20, 'la calle sin gente de paso o sin límite');
+const [open, close] = placeInfo(loc.id)!.hours!;
+for (const tr of profile.trips.filter((t) => [t.from, t.to].some((e) => e.tags?.includes('sport')))) {
+  const [a, b] = tr.hours!;
+  assert.ok(a >= open - 0.5 && b <= close + 0.5, `${tr.role}: va o viene de la tienda cerrada (${a}–${b})`);
+}
+assert.ok(profile.trips.some((t) => t.from.points?.includes('PN_PARK_')) && profile.trips.some((t) => t.to.points?.includes('PN_PARK_')), 'nadie llega ni vuelve al coche');
+
+console.log(`check-decathlon: OK · calle ${walkTo.length} tiles del metro a la puerta · ${SECTORS.length} secciones · ${AISLES.length} pasillos · ${BLOCKS.length} circuitos · ${loc.props.length} muebles de ${kinds.size} tipos · ${seen.size} tiles alcanzables`);

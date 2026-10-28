@@ -8,7 +8,7 @@ Fuentes que se han abierto de verdad (en esta carpeta):
 | `08556bb0-b853-4ef1-aca3-85134542b140.png` | Foto de la pared de bicis de Segunda Vida | Soportes de bicis de colores (`bike-stand`) y el pro shop de arriba a la derecha |
 | `b0844631-862f-4426-932b-9fb0ee2dc9cc.png` | Foto de un mural de textil doblado («clima cálido», 9,99) | Mural de Sportswear (texto del `look`) y densidad de las baldas |
 | `31edf852-d902-4cd5-a69f-b6379e47d7d0.png` | Foto de raqueta y textil: murales densos, expositor azul y cubo amarillo de promoción | Cubos `promo-bin` al borde del pasillo |
-| `8b6496bb-10c4-4a32-98d1-d8938f97c296.png` | Foto de la fachada: listones de madera, franja azul y logotipo | **Sin aplicar**: la tienda no tiene calle (se entra desde el menú de la parada); queda para cuando tenga mapa |
+| `8b6496bb-10c4-4a32-98d1-d8938f97c296.png` | Foto de la fachada: listones de madera, franja azul y logotipo | **Aplicada en Alpha-09**: la calle Polígono Norte (`data/poligonoNorte.ts`), con la nave de listones, el rótulo blanco, la franja azul y la planta baja de cristal (`world/StoreArt` `drawMegastore`) |
 | `97bd2945-76b3-4804-be43-c805731ff522.png` | Foto de camping: tienda blanca y gris montada en el suelo, techo oscuro con líneas de luz | Tercera variante de `camping-tent` (blanca con doble techo gris); tubos de luz en hilera sobre los pasillos |
 | `9cb4e2ad-43b9-4b0d-83ed-3db1ae7a0898.png` | Foto de un pasillo de góndolas largas y llenas, suelo de hormigón claro | Góndolas `shelf-run` / `shelf-front` en tramos continuos, con producto denso y una gama por familia; suelo de pasillo `h` |
 | `../references/uniforms/*.webp` | Fotos del uniforme (Alpha-07) | Chaleco del personal, sin cambios |

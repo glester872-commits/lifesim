@@ -95,7 +95,7 @@ for (const c of CATALOGS) {
   assert.ok(!byId.vallesco, 'no se viaja a donde ya se está');
   assert.equal(byId.ribera.minutes, 15);
   assert.equal(byId.decathlon.minutes, 30);
-  assert.ok(byId.decathlon.stop.offMap && !byId.decathlon.stop.station, 'Decathlon aún no tiene mapa');
+  assert.ok(byId.decathlon.stop.station === 'decathlon-station' && !byId.decathlon.stop.offMap, 'Decathlon sin su estación del Polígono Norte');
   assert.equal(destinationsFrom(getStop('decathlon')).find((d) => d.stop.id === 'vallesco')!.minutes, 30, 'la vuelta tarda lo mismo');
   console.log(`destinos desde Vallesco: ${dests.map((d) => `${d.stop.name} ${d.minutes} min`).join(' · ')}`);
 }

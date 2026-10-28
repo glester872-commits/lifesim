@@ -352,6 +352,8 @@ export type BuildingStyle =
   | 'team-store'
   // Vallesco (CV-05): la Parroquia de San Blas, una pieza propia (espadaña, rosetón y portada).
   | 'church'
+  // La nave de Decathlon en el Polígono Norte (Alpha-09): una pieza, de listones, franja azul y cristal (world/StoreArt).
+  | 'megastore'
   | 'backdrop';
 
 /**

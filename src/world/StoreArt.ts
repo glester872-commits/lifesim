@@ -317,6 +317,119 @@ function drawPillar(ctx: Ctx): void {
   px(ctx, '#7a7e84', 3, h - 7, 10, 4);
 }
 
+// ------------------------------------------------------------- la nave por fuera (Alpha-09)
+
+/** Letras de 5 × 7 del rótulo de la fachada: sólo las de la palabra. */
+const WORD: Readonly<Record<string, readonly string[]>> = {
+  D: ['XXXX.', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', 'XXXX.'],
+  E: ['XXXXX', 'X....', 'X....', 'XXXX.', 'X....', 'X....', 'XXXXX'],
+  C: ['.XXXX', 'X....', 'X....', 'X....', 'X....', 'X....', '.XXXX'],
+  A: ['.XXX.', 'X...X', 'X...X', 'XXXXX', 'X...X', 'X...X', 'X...X'],
+  T: ['XXXXX', '..X..', '..X..', '..X..', '..X..', '..X..', '..X..'],
+  H: ['X...X', 'X...X', 'X...X', 'XXXXX', 'X...X', 'X...X', 'X...X'],
+  L: ['X....', 'X....', 'X....', 'X....', 'X....', 'X....', 'XXXXX'],
+  O: ['.XXX.', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
+  N: ['X...X', 'XX..X', 'X.X.X', 'X..XX', 'X...X', 'X...X', 'X...X'],
+};
+
+/** La palabra a escala `s` (cada píxel de letra, s × s), con un píxel de sombra abajo a la derecha. */
+function drawBrand(ctx: Ctx, word: string, x: number, y: number, s: number, color: string): void {
+  let cx = x;
+  for (const ch of word) {
+    WORD[ch]?.forEach((row, ry) => [...row].forEach((c, rx) => {
+      if (c !== 'X') return;
+      px(ctx, 'rgba(0,0,0,0.25)', cx + rx * s + 1, y + ry * s + 1, s, s);
+      px(ctx, color, cx + rx * s, y + ry * s, s, s);
+    }));
+    cx += 6 * s;
+  }
+}
+
+/** Alto en px de la planta baja acristalada, contado desde abajo de la fachada. */
+const GLAZING = 26;
+
+/**
+ * La nave de Decathlon entera, `w` × `h` px, como en la foto de la fachada (design/Decathlon/8b6496bb…png): cubierta
+ * plana con lucernarios y máquinas; fachada de listones de madera con el rótulo blanco; la franja azul corrida encima
+ * de la planta baja de cristal; y la puerta automática en `doorCol` (columna de tile). `rows`: filas de fachada.
+ */
+export function drawMegastore(ctx: Ctx, w: number, h: number, doorCol: number, rows: number): void {
+  const fh = rows * TILE;
+  const top = h - fh;
+  // Cubierta: membrana gris, juntas, lucernarios en hilera y los equipos de clima.
+  const roof = '#9aa0a6';
+  px(ctx, roof, 0, 0, w, top);
+  sprinkle(ctx, shade(roof, 0.04), w, top, 77, Math.floor((w * top) / 60));
+  for (let y = 12; y < top - 4; y += 24) px(ctx, shade(roof, -0.08), 0, y, w, 1);
+  // Lucernarios de policarbonato, pocos y en hilera larga: desde arriba no deben leerse como ventanas de oficina.
+  const skylight = '#aab4bc';
+  for (let y = 14; y < top - 14; y += 40) for (let x = 40; x < w - 60; x += 96) {
+    px(ctx, shade(roof, -0.25), x - 1, y - 1, 50, 7);
+    px(ctx, skylight, x, y, 48, 5);
+    for (let r = x + 6; r < x + 48; r += 6) px(ctx, shade(skylight, -0.12), r, y, 1, 5);
+    px(ctx, shade(skylight, 0.15), x, y, 48, 1);
+  }
+  for (const [x, y] of [[w * 0.22, top * 0.55], [w * 0.58, top * 0.3], [w * 0.8, top * 0.62]] as const) {
+    const [ax, ay] = [Math.round(x), Math.round(y)];
+    px(ctx, 'rgba(0,0,0,0.25)', ax + 2, ay + 2, 22, 14);
+    px(ctx, '#c8ccd0', ax, ay, 22, 14);
+    px(ctx, '#7a7e84', ax + 3, ay + 3, 7, 7);
+    px(ctx, '#7a7e84', ax + 12, ay + 3, 7, 7);
+    px(ctx, '#e6e8ea', ax, ay, 22, 1);
+  }
+  // Peto de la cubierta: el canto claro y su sombra sobre la fachada.
+  px(ctx, '#d8dadc', 0, 0, w, 2);
+  px(ctx, '#d8dadc', 0, 0, 2, top);
+  px(ctx, shade('#d8dadc', -0.15), w - 2, 0, 2, top);
+  px(ctx, '#e6e8ea', 0, top - 3, w, 2);
+  px(ctx, '#5a5f66', 0, top - 1, w, 1);
+
+  // Listones verticales de madera: tres tonos por listón, cada uno con su veta, de la cornisa a la franja azul.
+  const bandY = h - GLAZING - 7;
+  const wood = ['#c89a64', '#b8895a', '#d2a872'];
+  for (let x = 0; x < w; x += 3) {
+    const c = wood[(x * 7 + (x >> 4)) % 3];
+    px(ctx, c, x, top, 2, bandY - top);
+    px(ctx, shade(c, -0.28), x + 2, top, 1, bandY - top);
+    px(ctx, shade(c, 0.12), x, top, 1, bandY - top);
+  }
+  px(ctx, 'rgba(0,0,0,0.18)', 0, top, w, 3);
+  // El rótulo blanco, a la izquierda de la fachada, sobre la madera.
+  const scale = fh >= 80 ? 3 : 2;
+  drawBrand(ctx, 'DECATHLON', 24, top + Math.max(6, Math.round((bandY - top - 7 * scale) / 2)), scale, PALETTE.white);
+  // La franja azul corrida, con su canto de luz y su sombra.
+  px(ctx, '#2a3590', 0, bandY, w, 7);
+  px(ctx, '#3643ba', 0, bandY, w, 5);
+  px(ctx, shade('#3643ba', 0.22), 0, bandY, w, 1);
+  // La planta baja de cristal: paños oscuros con su montante cada tile, el reflejo frío y el zócalo.
+  const gy = h - GLAZING;
+  px(ctx, '#1f2a36', 0, gy, w, GLAZING - 3);
+  for (let x = 0; x < w; x += TILE) {
+    px(ctx, '#4a525c', x, gy, 1, GLAZING - 3);
+    px(ctx, shade(PALETTE.glassLit, -0.35), x + 3, gy + 2, 2, 10);
+  }
+  px(ctx, '#d8dadc', 0, h - 3, w, 3);
+  px(ctx, '#7a7e84', 0, h - 1, w, 1);
+  // La puerta automática: dos hojas de cristal claro con su marco y la marquesina encima.
+  const dx = doorCol * TILE;
+  px(ctx, PALETTE.outline, dx - 3, gy - 3, TILE + 6, GLAZING + 1);
+  px(ctx, '#b4babe', dx - 2, gy - 2, TILE + 4, GLAZING - 1);
+  px(ctx, shade(PALETTE.glassLit, -0.05), dx, gy, 7, GLAZING - 3);
+  px(ctx, shade(PALETTE.glassLit, -0.05), dx + 9, gy, 7, GLAZING - 3);
+  px(ctx, PALETTE.white, dx + 1, gy + 1, 1, 12);
+  px(ctx, PALETTE.white, dx + 10, gy + 1, 1, 12);
+  px(ctx, '#3643ba', dx - 8, gy - 9, TILE + 16, 5);
+  px(ctx, shade('#3643ba', 0.22), dx - 8, gy - 9, TILE + 16, 1);
+  px(ctx, 'rgba(0,0,0,0.3)', dx - 8, gy - 4, TILE + 16, 2);
+}
+
+/** Lo que se enciende de noche: la planta baja de cristal (luz fría de nave) y la puerta, más clara. */
+export function drawMegastoreGlow(ctx: Ctx, w: number, h: number, doorCol: number): void {
+  const gy = h - GLAZING;
+  for (let x = 0; x < w; x += TILE) px(ctx, 'rgba(220,236,255,0.55)', x + 1, gy + 1, TILE - 2, GLAZING - 5);
+  px(ctx, 'rgba(240,248,255,0.85)', doorCol * TILE, gy, TILE, GLAZING - 3);
+}
+
 export function buildStoreTextures(scene: Phaser.Scene): void {
   for (let v = 0; v < 2; v++) make(scene, `tile-floor-hall-${v}`, TILE, TILE, (ctx) => drawHallFloor(ctx, v));
   make(scene, 'prop-padel-court', TILE * 6, TILE * 12, drawPadelCourt);

@@ -64,7 +64,7 @@ for (const loc of allLocations()) {
     assert.ok(Math.hypot(from.x - to.x, from.y - to.y) < INTERACT_RADIUS && !wallBetween(loc, from, to), `${loc.id}: el tablón no se alcanza desde (${tx + dx},${ty + dy})`);
   }
 }
-assert.deepEqual([...boards.keys()].sort(), ['arena', 'cuatro-rios', 'district', 'puerta-central', 'ribera', 'velaria'], 'los seis mapas de barrio con metro tienen tablón');
+assert.deepEqual([...boards.keys()].sort(), ['arena', 'cuatro-rios', 'district', 'poligono-norte', 'puerta-central', 'ribera', 'velaria'], 'los siete mapas de barrio con metro tienen tablón');
 const at = (loc: string, day: number, hour: number, minute = 0): Board => boardAt(loc, boards.get(loc)!.tx, boards.get(loc)!.ty, { day, hour, minute });
 
 // ------------------------------------------------------------ dos barrios, contenido distinto; el suyo primero
