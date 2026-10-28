@@ -2,6 +2,8 @@
 // ida y vuelta, metro, vigilantes lejos de la vía, guardado completo, interacciones y texturas.
 // Parte de `npm run check` y de `npm run test:regression`.
 import { practiceAt } from '../src/systems/Study.ts';
+import { OFF_MAP_PLACES } from '../src/data/activities.ts';
+import { JOBS } from '../src/data/jobs.ts';
 import { getGathering } from '../src/systems/Parish.ts';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -51,11 +53,21 @@ for (const loc of allLocations()) {
   if (loc.kind !== 'interior' || loc.metro) continue;
   const exits = loc.portals.filter((p) => !p.train);
   assert.ok(exits.length > 0, `[${loc.id}] interior sin salida`);
+  // Un interior de un sitio sin mapa (Decathlon) sale al menú de su parada: la vuelta es «Entrar en la tienda» de ese
+  // menú (data/activities OFF_MAP_PLACES `store`), y tiene que llevar a este mismo interior.
+  const offMapIn = (stop: string): boolean => {
+    const place = STOPS.find((t) => t.id === stop)?.offMap;
+    return !!place && OFF_MAP_PLACES.some((o) => o.id === place && o.store === loc.id);
+  };
   for (const p of exits) {
+    if (p.offMap) {
+      assert.ok(offMapIn(p.offMap), `[${loc.id}] sale al sitio sin mapa ${p.offMap}, pero su menú no lleva de vuelta aquí`);
+      continue;
+    }
     const back = getLocation(p.to.location).portals.some((q) => q.to.location === loc.id);
     assert.ok(back, `[${loc.id}] sale a ${p.to.location}, pero desde allí no se vuelve a entrar`);
   }
-  const entered = allLocations().some((o) => o.id !== loc.id && o.portals.some((q) => q.to.location === loc.id));
+  const entered = allLocations().some((o) => o.id !== loc.id && o.portals.some((q) => q.to.location === loc.id)) || OFF_MAP_PLACES.some((o) => o.store === loc.id);
   assert.ok(entered, `[${loc.id}] interior al que no se entra desde ningún sitio`);
 }
 
@@ -148,7 +160,7 @@ for (const loc of allLocations()) {
   };
   for (const t of loc.terminals ?? []) (getCatalog(t.catalog), inside(t, t.name));
   for (const s of loc.spots ?? []) {
-    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)) || (s.gathering && getGathering(s.gathering)) || s.housing, `[${loc.id}] ${s.name} no hace nada`);
+    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)) || (s.gathering && getGathering(s.gathering)) || s.housing || (s.job && JOBS.some((j) => j.id === s.job)), `[${loc.id}] ${s.name} no hace nada`);
     s.activities.forEach(getActivity);
     inside(s, s.name);
   }

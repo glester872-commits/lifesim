@@ -47,6 +47,8 @@ export interface JobDef {
   employer: string;
   /** Quien contrata y propone el ascenso. Sólo un nombre en el diálogo: no lleva relación aparte. */
   manager: string;
+  /** Uniforme (id en UNIFORM_LOOKS, data/npcs.ts) que el jugador lleva en su lugar de trabajo con el turno abierto. */
+  uniform?: string;
   /** Cómo se descubre la oferta en el sitio. */
   posting: string;
   /** El turno suelto del sitio (data/activities.ts): sigue abierto sin contrato y se cierra con él. */
@@ -73,6 +75,7 @@ export const JOBS: readonly JobDef[] = [
     place: 'decathlon',
     employer: 'Decathlon Polígono Norte',
     manager: 'Marta, la encargada',
+    uniform: 'decathlon_employee',
     posting: 'Junto a las cajas hay un cartel: «SE BUSCA PERSONAL DE SECCIÓN. Pregunta por Marta».',
     casual: 'work-decathlon',
     levels: [

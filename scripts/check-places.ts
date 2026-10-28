@@ -46,7 +46,8 @@ const interiorOf = (buildingId: string | undefined): LocationDef | undefined => 
 const rows: string[] = [];
 let ready = 0;
 for (const place of PLACES) {
-  const interior = interiorOf(place.building);
+  // Un interior sin calle (Decathlon, PlaceDef.interior) también se revisa entero.
+  const interior = interiorOf(place.building) ?? (place.interior ? getLocation(place.interior) : undefined);
   const profile = POPULATION_PROFILES.find((p) => p.place === place.id);
   const terminals = interior?.terminals ?? [];
   const spots = interior?.spots ?? [];

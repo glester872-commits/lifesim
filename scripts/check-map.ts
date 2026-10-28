@@ -3,6 +3,7 @@
 // interior pierde su barrio o si la vista deja el mapa fuera de la pantalla.
 import assert from 'node:assert/strict';
 import { allLocations, getLocation, spawnToWorld } from '../src/systems/LocationSystem.ts';
+import { OFF_MAP_PLACES } from '../src/data/activities.ts';
 import { findPoint } from '../src/systems/Navigation.ts';
 import { placesOfType } from '../src/systems/Places.ts';
 import { MapViewport, mapPositionOf, tileToMap, worldMapFor, worldToMap } from '../src/systems/WorldMap.ts';
@@ -51,6 +52,11 @@ let insides = 0;
 for (const loc of allLocations()) {
   const anywhere = spawnToWorld(Object.values(loc.spawns)[0]);
   const at = mapPositionOf(loc.id, anywhere);
+  // El interior de un sitio sin mapa (Decathlon, se entra desde su parada): no hay calle que enseñar, y el mapa no abre.
+  if (OFF_MAP_PLACES.some((o) => o.store === loc.id)) {
+    assert.equal(at, null, `${loc.name}: un sitio sin mapa no debería salir en ninguno`);
+    continue;
+  }
   assert.ok(at, `${loc.name}: el mapa no sabe dónde queda`);
   assert.equal(getLocation(at.mapId).kind, 'exterior');
   if (loc.kind === 'exterior') {

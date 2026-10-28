@@ -11,6 +11,7 @@ import { PUERTA_CENTRAL } from './puertaCentral.ts';
 import { PC_INTERIORS } from './puertaCentralVenues.ts';
 import { ARENA } from './arena.ts';
 import { AR_INTERIORS } from './arenaVenues.ts';
+import { DECATHLON_STORE } from './decathlon.ts';
 import { rebased } from './velariaVenues.ts';
 import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PARISH, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
@@ -612,6 +613,8 @@ export const LOCATIONS: readonly LocationDef[] = [
   ARENA_STATION,
   ...AR_INTERIORS,
   ...ARENA_BARS,
+  // Decathlon (data/decathlon.ts): el interior al que se entra desde su parada de metro.
+  DECATHLON_STORE,
 ];
 
 export const START_LOCATION = VALLESCO.id;

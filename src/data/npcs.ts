@@ -394,6 +394,14 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   // el personal de seguridad del estadio (peto naranja fluorescente sobre negro).
   // La misma ropa la llevan la patrulla de cada barrio y la guardia de la comisaría (systems/Police), con la placa al pecho.
   { id: 'uniforme-policia', cloth: '#1f2c4a', clothDark: '#162036', hair: '#2a2430', trousers: '#1f2c4a', sleeves: '#1f2c4a', cap: '#1f2c4a', reflective: '#d8e04a', stripe: '#d8e04a', badge: '#c9ccd2' },
+  // Decathlon (data/decathlon.ts), medido en las fotos de design/references/uniforms/ (la fachada del polígono y cuatro
+  // empleados de cerca): chaleco sin mangas azul real (#0a42aa, sombra #023087) sobre camiseta blanca o negra, con la
+  // tarjeta al pecho; pantalón vaquero (medio, oscuro o claro) o negro. Cada uno con su piel y su pelo.
+  { id: 'decathlon_employee', cloth: '#0a42aa', clothDark: '#023087', hair: '#2a2430', skin: '#c68e6a', sleeves: '#e5e6ee', trousers: '#546473', badge: '#f4f4ef' },
+  { id: 'decathlon_employee_2', cloth: '#0a42aa', clothDark: '#023087', hair: '#8a5a32', skin: '#f1c9a5', sleeves: '#121319', trousers: '#2c4e69', badge: '#f4f4ef', longHair: true },
+  { id: 'decathlon_employee_3', cloth: '#0a42aa', clothDark: '#023087', hair: '#141012', skin: '#5c3a26', sleeves: '#121319', trousers: '#161a20', badge: '#f4f4ef' },
+  { id: 'decathlon_employee_4', cloth: '#0a42aa', clothDark: '#023087', hair: '#c9a04e', skin: '#e0ac85', sleeves: '#e5e6ee', trousers: '#93a9b8', badge: '#f4f4ef', longHair: true },
+  { id: 'decathlon_employee_5', cloth: '#0a42aa', clothDark: '#023087', hair: '#4a3b2f', skin: '#8d5a3b', sleeves: '#121319', trousers: '#4a5b71', badge: '#f4f4ef' },
   { id: 'uniforme-seguridad', cloth: '#ff8a2a', clothDark: '#d86a18', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20', reflective: '#e9ecd2' },
 ];
 

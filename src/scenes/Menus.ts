@@ -2,7 +2,7 @@ import type { Services } from '../services';
 import { getCatalog, type Catalog } from '../data/catalogs';
 import { getItem } from '../data/items';
 import { getActivity, getOffMapPlace, type ActivityDef } from '../data/activities';
-import type { TransitStop } from '../data/transit';
+import { STOPS, type TransitStop } from '../data/transit';
 import { checkout, consume, euros, maxQty, payFare, productUse, purchase, spend } from '../systems/Commerce';
 import { blocker, perform, type ActivityContext } from '../systems/Activities';
 import { destinationsFrom, type Destination } from '../systems/Transit';
@@ -49,6 +49,8 @@ export interface MenuHost {
   persist(): void;
   /** Llega en tren a esa localización (andén, spawn 'train'). */
   arriveByTrain(locationId: string): void;
+  /** Entra andando en una localización por su entrada (spawn 'entry'): el interior de un sitio sin mapa. */
+  enter(locationId: string): void;
   /** Funde a negro al irse a un sitio sin mapa. */
   fadeOut(): void;
   /** Vuelve a montar la casa donde estás (se ha instalado algo) sin moverte. */
@@ -64,6 +66,12 @@ export interface MenuHost {
  * aquí sólo se enseñan las opciones, se aplica el resultado al estado y se
  * adelanta el reloj. Así la Scene coordina y no acumula.
  */
+/**
+ * De qué estación se vino a un sitio sin mapa (id de parada): al salir de su tienda, el metro de vuelta lleva ahí.
+ * Dura lo que la página; tras recargar dentro de la tienda, se vuelve a la estación más cercana.
+ */
+let cameFrom: string | null = null;
+
 export class Menus {
   private readonly services: Services;
   private readonly host: MenuHost;
@@ -304,7 +312,13 @@ export class Menus {
     const contract = job && state.job?.job === job.id && state.job.status === 'active' ? state.job : null;
     const ctx = this.activityContext();
     const returnFare = payFare(state.wallet, ret.line.card, ret.fare);
+    cameFrom = back.id;
     const entries: { option: MenuOption; run: () => void }[] = [];
+    // El sitio por dentro (data/decathlon.ts): se entra a pie y se sale por la puerta a este mismo menú.
+    if (place.store) {
+      const store = place.store;
+      entries.push({ option: { label: 'Entrar en la tienda', detail: 'a pie' }, run: () => (menu.close(), this.host.enter(store)) });
+    }
     if (job) entries.push(...this.jobEntries(job, contract, again));
     for (const a of place.activities.map(getActivity)) {
       const casualShut = contract && a.id === job?.casual ? 'Con contrato, aquí se trabaja en tus turnos.' : null;
@@ -329,6 +343,27 @@ export class Menus {
     });
     const arrival = `${place.arrival}${job && !contract ? ` ${job.posting}` : ''} ${formatClock(state.day, state.hour, state.minute)}.`;
     menu.open(place.name, arrival, entries.map((e) => e.option), (i) => entries[i].run(), () => again(), [news, note].filter(Boolean).join(' '));
+  }
+
+  /** Salir de la tienda de un sitio sin mapa: el menú de su parada, con el metro de vuelta a donde se vino. */
+  leaveTo(stopId: string): void {
+    const stop = STOPS.find((s) => s.id === stopId && s.offMap);
+    if (!stop) return;
+    const options = destinationsFrom(stop).filter((d) => d.stop.station);
+    const back = options.find((d) => d.stop.id === cameFrom) ?? [...options].sort((a, b) => a.minutes - b.minutes)[0];
+    if (back) this.offMap(stop, back.stop);
+  }
+
+  /** El fichaje de un empleo en su lugar de trabajo: lo mismo que en el menú del sitio (fichar, ascenso, dejarlo). */
+  openJob(jobId: string, name: string, note = ''): void {
+    const { state, menu } = this.services;
+    const job = getJob(jobId);
+    const news = this.reviewJob();
+    const contract = state.job?.job === job.id && state.job.status === 'active' ? state.job : null;
+    const again = (n = ''): void => this.openJob(jobId, name, n);
+    const entries = this.jobEntries(job, contract, again);
+    const text = contract ? `Tu taquilla, el chaleco colgado y el reloj de fichar. ${formatClock(state.day, state.hour, state.minute)}.` : job.posting;
+    menu.open(name, text, entries.map((e) => e.option), (i) => entries[i].run(), () => menu.close(), [news, note].filter(Boolean).join(' '));
   }
 
   // -------------------------------------------------------------- empleo
