@@ -55,6 +55,8 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   A: { key: 'tile-ad-board', solid: true, variants: 2 },
   O: { key: 'tile-stand-step', solid: false, variants: 2 },
   Y: { key: 'tile-stand-stairs', solid: false, variants: 1 },
+  // Hormigón pulido de la nave de Decathlon (data/decathlon.ts, world/StoreArt): los pasillos de circulación.
+  h: { key: 'tile-floor-hall', solid: false, variants: 2 },
 };
 
 export interface PropDef {
@@ -323,6 +325,23 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // En la pared, sobre la fila de muro con cara (como la ventana o el cuadro).
   altarpiece: { key: 'prop-altarpiece', tilesHigh: 1, tilesWide: 3 },
   candles: { key: 'prop-candles', tilesHigh: 1, light: { dy: 6, pool: [18, 8] } },
+  // Decathlon (data/decathlon.ts, world/StoreArt). La pista se pinta en el suelo (plana: `ty` es su fila de arriba) y
+  // sólo la red corta el paso; los carteles cuelgan del techo y eligen la sección por `variant`.
+  'padel-court': { key: 'prop-padel-court', tilesHigh: 12, tilesWide: 6, flat: true },
+  'padel-net': { key: 'prop-padel-net', tilesHigh: 1, tilesWide: 6 },
+  'camping-tent': { key: 'prop-camping-tent', tilesHigh: 2, tilesWide: 3, variants: 3, shadow: [44, 4] },
+  'bike-stand': { key: 'prop-bike-stand', tilesHigh: 2, tilesWide: 3, variants: 3, shadow: [44, 4] },
+  'backpack-wall': { key: 'prop-backpack-wall', tilesHigh: 2, tilesWide: 2 },
+  kayak: { key: 'prop-kayak', tilesHigh: 1, tilesWide: 3, variants: 2 },
+  'dept-sign': { key: 'prop-dept-sign', tilesHigh: 2, tilesWide: 3, variants: 12, overhead: true },
+  'ball-cage': { key: 'prop-ball-cage', tilesHigh: 2 },
+  'fishing-rods': { key: 'prop-fishing-rods', tilesHigh: 2, tilesWide: 2 },
+  'golf-bag': { key: 'prop-golf-bag', tilesHigh: 2, variants: 2, shadow: [12, 3] },
+  pillar: { key: 'prop-pillar', tilesHigh: 3, shadow: [14, 3] },
+  // Góndolas de la nave: el tramo visto desde arriba (filas norte-sur) y de frente (este-oeste); la gama, por `variant`.
+  'shelf-run': { key: 'prop-shelf-run', tilesHigh: 1, variants: 4 },
+  'shelf-front': { key: 'prop-shelf-front', tilesHigh: 2, variants: 4 },
+  'promo-bin': { key: 'prop-promo-bin', tilesHigh: 2, shadow: [14, 3] },
 };
 
 export function tileAt(ground: readonly string[], tx: number, ty: number): TileDef | undefined {
@@ -338,6 +357,7 @@ export function variantKey(def: TileDef, tx: number, ty: number): string {
 }
 
 /** Textura de una colocación: con variantes, la que toca por posición (la misma en cada visita). */
-export function propKey(def: PropDef, tx: number, ty: number): string {
-  return def.variants ? `${def.key}-${(tx * 7 + ty * 13) % def.variants}` : def.key;
+export function propKey(def: PropDef, tx: number, ty: number, variant?: number): string {
+  if (!def.variants) return def.key;
+  return `${def.key}-${(variant ?? tx * 7 + ty * 13) % def.variants}`;
 }
