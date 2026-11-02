@@ -33,8 +33,8 @@ export class Menu {
   private readonly noteEl: HTMLElement;
   private current: Open | null = null;
   private selected = 0;
-  /** Título de la pantalla a la vista y cuándo apareció: una pantalla nueva no acepta elecciones durante PICK_LOCK_MS. */
-  private shownTitle = '';
+  /** Identidad de la pantalla a la vista y cuándo apareció: una nueva no acepta elecciones durante PICK_LOCK_MS. */
+  private shownScreen = '';
   private shownAt = -Infinity;
 
   constructor(root: HTMLElement) {
@@ -68,11 +68,11 @@ export class Menu {
     return this.current?.live ?? false;
   }
 
-  /** Abre (o rehace, si ya estaba abierto) con estas opciones. `note` es el resultado de lo último. */
-  open(title: string, text: string, options: readonly MenuOption[], onPick: (index: number) => void, onCancel?: () => void, note = '', selected = 0, live = false): void {
+  /** Abre o rehace el menú. `note` es el resultado de lo último; `screenId` distingue pantallas con el mismo título. */
+  open(title: string, text: string, options: readonly MenuOption[], onPick: (index: number) => void, onCancel?: () => void, note = '', selected = 0, live = false, screenId = title): void {
     // Rehacer la misma pantalla (cantidad, una nota) no bloquea; otra pantalla, sí.
-    if (!this.current || title !== this.shownTitle) this.shownAt = performance.now();
-    this.shownTitle = title;
+    if (!this.current || screenId !== this.shownScreen) this.shownAt = performance.now();
+    this.shownScreen = screenId;
     this.current = { options, onPick, onCancel, live };
     this.selected = Math.min(Math.max(0, selected), options.length - 1);
     this.titleEl.textContent = title;

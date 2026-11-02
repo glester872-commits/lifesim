@@ -159,6 +159,8 @@ export class PhoneScreen {
   /** Escribiendo en un campo del móvil: lo que llega no repinta hasta soltarlo (no se pierde el texto ni el acento a medias). */
   private typingNow = false;
   private stale = false;
+  /** No reemplazar el botón entre pointerdown (que quita el foco al campo) y click. */
+  private readonly activePointers = new Set<number>();
   /** Borradores sin mandar, por conversación, y el id con que se mandará cada uno (dos pulsaciones = un mensaje). */
   private readonly drafts = new Map<string, { text: string; id: string }>();
   /** Cómo quedó lo último escrito: se dice bajo el campo, tal cual pasó. */
@@ -211,6 +213,17 @@ export class PhoneScreen {
       else if (act === 'home') this.go({ app: 'home' });
       else if (act === 'close') this.close();
     });
+    this.screenEl.addEventListener('pointerdown', (e) => this.activePointers.add(e.pointerId), true);
+    const releasePointer = (e: PointerEvent): void => {
+      if (!this.activePointers.has(e.pointerId)) return;
+      // pointerup precede a click: esperar a que el botón ejecute su acción, incluso tras una pulsación larga.
+      window.setTimeout(() => {
+        this.activePointers.delete(e.pointerId);
+        if (this.stale) this.render(this.selected);
+      }, 0);
+    };
+    window.addEventListener('pointerup', releasePointer);
+    window.addEventListener('pointercancel', releasePointer);
     this.screenEl.addEventListener('focusin', (e) => {
       if (!isField(e.target) || this.typingNow) return;
       this.typingNow = true;
@@ -404,7 +417,7 @@ export class PhoneScreen {
     if (!this.opened) return;
     this.renderClock();
     // Con el dedo o el teclado dentro de un campo, repintar borraría lo que está a medias (y la composición de un acento).
-    if (this.typingNow && !force) {
+    if ((this.typingNow || this.activePointers.size > 0) && !force) {
       this.stale = true;
       return;
     }

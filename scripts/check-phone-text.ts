@@ -104,4 +104,15 @@ for (const empty of ['', '   ', '\n\t ', '​​']) {
   assert.deepEqual(mixed.notes!.map((n) => n.id), ['ok']);
 }
 
+// 10 · Un mensaje válido conserva todos sus grafemas tras guardar y recargar, incluso emojis compuestos.
+for (const text of ['🚲'.repeat(MESSAGE_MAX), `a${'🚲'.repeat(MESSAGE_MAX - 1)}`, '👩‍👩‍👧'.repeat(MESSAGE_MAX)]) {
+  const store = new Map<string, string>();
+  const storage: SaveStorage = { read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) };
+  const save = new SaveSystem(storage);
+  const sent = sendFree(createPhone(), 'sara', text, AT, 'unicode-save');
+  assert.ok(sent.sent);
+  assert.ok(save.save({ ...createInitialState(), phone: sent.phone }));
+  assert.deepEqual(save.load()!.phone, sent.phone, 'guardar y cargar recorta un mensaje Unicode válido');
+}
+
 console.log('check-phone-text: OK (Unicode, pegado, vacío, largo, HTML, doble envío, respuesta sincera, límite, notas, guardado y partida antigua)');

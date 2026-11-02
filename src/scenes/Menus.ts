@@ -1165,7 +1165,7 @@ export class Menus {
         }
         this.endFitting();
         this.openGarment(rack, garment, index);
-      }, () => this.endFitting(), note || 'Te la has puesto: mírate.');
+      }, () => this.endFitting(), note || 'Te la has puesto: mírate.', 0, false, `garment:fitting:${garment}`);
       menu.peek(true);
       return;
     }

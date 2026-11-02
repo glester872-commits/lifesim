@@ -78,7 +78,7 @@ export type ErrorCode = 'version' | 'hello' | 'bad' | 'room' | 'full' | 'rate' |
 
 export type ServerMsg =
   | { t: 'room'; code: string; you: string; players: PlayerView[]; chat: ChatMsg[] }
-  | { t: 'joined'; player: PlayerView }
+  | { t: 'joined'; player: PlayerView } // Alta o actualización de la misma sesión al reconectar.
   | { t: 'presence'; session: string; presence: Presence }
   | { t: 'left'; session: string }
   | { t: 'moved'; session: string; seq: number; pose: Pose }

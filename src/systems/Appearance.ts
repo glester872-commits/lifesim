@@ -4,6 +4,7 @@ import { getGarment, type Sleeve } from '../data/retail.ts';
 import { wearOf } from '../data/outfits.ts';
 import { getDesign, getZone, type TattooZone } from '../data/tattoos.ts';
 import type { HumanColors } from '../world/HumanArt.ts';
+import type { NpcLook } from '../types/game.ts';
 import { euros, type Wallet } from './Commerce.ts';
 
 /** Píxeles de brazo que tapa cada manga (el brazo mide cinco). */
@@ -99,6 +100,23 @@ export function withAppearance(base: HumanColors, changes: Appearance | undefine
   const ink = visibleTattoos(base, changes);
   if (ink.length > 0) out.ink = ink;
   return out;
+}
+
+/** Ropa de trabajo temporal: conserva los rasgos y no modifica la apariencia guardada. */
+export function withUniform(base: HumanColors, uniform: NpcLook | null): HumanColors {
+  if (!uniform) return base;
+  return {
+    ...base,
+    cloth: uniform.cloth,
+    clothDark: uniform.clothDark,
+    sleeves: uniform.sleeves,
+    sleeveLen: undefined,
+    trousers: uniform.trousers ?? base.trousers,
+    badge: uniform.badge,
+    // Sin corte personal, Garments no vuelve a vestir el chaleco con capucha, abrigo o pantalón corto.
+    outfit: uniform.outfit,
+    ink: [],
+  };
 }
 
 export interface Restyle {
