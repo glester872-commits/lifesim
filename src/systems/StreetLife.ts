@@ -124,6 +124,9 @@ const TICK: readonly [number, number] = [1_200, 2_600];
 const PAUSE_CHANCE = 0.2;
 /** Tiles por segundo al trotar y al pasear (quien va a algo, POPULATION.walkSpeed). */
 const JOG_SPEED: readonly [number, number] = [3.8, 4.6];
+/** Persecución: a esta distancia (tiles) lo ha alcanzado; y cada cuánto (ms) vuelve a mirar dónde está. */
+const CATCH_TILES = 1.2;
+const CHASE_REPATH_MS = 600;
 const STROLL_SPEED: readonly [number, number] = [1.2, 1.6];
 
 /** Hasta las 6 la madrugada es de la noche anterior: el sábado a las 3 sigue siendo viernes (systems/Calendar). */
@@ -265,7 +268,8 @@ export interface Walker extends Agent {
    * Agente atendiendo un robo (systems/Police): va hacia la víctima (GO), se queda con ella (ATTEND) y vuelve a la
    * comisaría o sale por un borde. Una sola respuesta a la vez; su viaje espera hasta que acabe.
    */
-  respond?: { incident: number; victim: Walker | 'player'; phase: 'GO' | 'ATTEND'; ms: number; timer: number };
+  /** CHASE: corre detrás de `thief` (POLICE.chaseMs); DETAIN: lo ha alcanzado y lo retiene; luego, GO con la víctima. `pace`: su paso de antes. */
+  respond?: { incident: number; victim: Walker | 'player'; phase: 'GO' | 'ATTEND' | 'CHASE' | 'DETAIN'; ms: number; timer: number; thief?: Walker; pace?: number; hold?: boolean };
   /** Espera un taxi/VTC o está subiendo a él (StreetLife, recogidas): su viaje lo lleva la recogida hasta que acabe. */
   riding?: Ride;
 }
@@ -429,6 +433,7 @@ export class StreetLife {
         if (run) {
           a.gait = 'jog';
           a.speed = Math.max(a.speed, between(this.rng, ...JOG_SPEED));
+          this.chase(a);
         }
         return true;
       },
@@ -670,6 +675,7 @@ export class StreetLife {
       }
     }
     this.advanceResponses(deltaMs);
+    this.advancePatrolCar(deltaMs);
     this.advanceRides(deltaMs, clock);
     // Quien sale ahora de un local por su puerta (systems/Handoff): la misma persona que entró.
     this.now = absMinute(clock.day, clock.hour, clock.minute);
@@ -1478,6 +1484,56 @@ export class StreetLife {
       victim: victim === 'player' ? 'player' : 'npc', amount,
     });
     this.dispatch(victim, rec.id);
+    // Y el coche patrulla, si pasa uno por aquí o puede entrar (Traffic: uno por calle como mucho).
+    if (this.traffic && !this.patrolCar) {
+      const car = this.traffic.callTo(at.tx, at.ty, ['police'], { day: Math.floor(this.now / 1440), minuteOfDay: this.signalMinute });
+      if (car) this.patrolCar = { car, ms: 0 };
+    }
+  }
+
+  /** El coche patrulla que va a un aviso: hasta que llega, se queda POLICE.carStayMs y sigue su carril. */
+  private patrolCar: { car: Vehicle; ms: number; stopped?: number } | null = null;
+
+  private advancePatrolCar(deltaMs: number): void {
+    const p = this.patrolCar;
+    if (!p) return;
+    p.ms += deltaMs;
+    if (!this.traffic?.has(p.car)) {
+      this.patrolCar = null;
+      return;
+    }
+    if (p.stopped === undefined && this.traffic.isStopped(p.car)) p.stopped = p.ms;
+    if ((p.stopped !== undefined && p.ms - p.stopped > POLICE.carStayMs) || (p.stopped === undefined && p.ms > POLICE.reachMs)) {
+      this.traffic.release(p.car);
+      this.patrolCar = null;
+    }
+  }
+
+  /** El ladrón echa a correr: el agente que acude más cerca, si está a POLICE.chaseRange o menos, sale tras él. */
+  private chase(thief: Walker): void {
+    const d = (a: Walker): number => Math.hypot(a.x - thief.x, a.y - thief.y);
+    const cop = this.agents.filter((a) => a.respond?.phase === 'GO' && d(a) <= POLICE.chaseRange).sort((p, q) => d(p) - d(q))[0];
+    if (!cop?.respond) return;
+    Object.assign(cop.respond, { phase: 'CHASE', thief, ms: 0, timer: 0, pace: cop.speed, hold: true });
+    cop.path = [];
+    cop.gait = 'jog';
+    // Esprinta: más rápido que el más rápido de los que huyen. Si no se le escapa por el borde antes, lo alcanza.
+    cop.speed = JOG_SPEED[1] * 1.25;
+    cop.line = '¡Alto! ¡Policía!';
+  }
+
+  /** Acabada la persecución (alcanzado o perdido): al paso de siempre, con la víctima. */
+  private backToVictim(a: Walker): void {
+    const r = a.respond!;
+    a.gait = undefined;
+    a.speed = r.pace ?? a.speed;
+    Object.assign(r, { phase: 'GO', thief: undefined, ms: 0, timer: 0 });
+    a.state = 'WALK';
+    a.line = a.rule?.line ?? a.line;
+    const at = this.victimTile(r.victim);
+    const path = this.detour({ tx: Math.round(a.x), ty: Math.round(a.y) }, this.sideTile(at) ?? at);
+    if (path) a.path = path;
+    else this.endResponse(a);
   }
 
   /**
@@ -1521,6 +1577,47 @@ export class StreetLife {
       const r = a.respond;
       if (!r || a.talking) continue;
       r.ms += deltaMs;
+      // Tras una persecución, la víctima espera donde está a que vuelva el agente y la atienda (cada paso: el carterista,
+      // al salir de la calle, le quita la espera que le puso él).
+      if (r.hold && r.phase !== 'ATTEND' && r.victim !== 'player') r.victim.delay = Math.max(r.victim.delay, 300);
+      if (r.phase === 'CHASE' && r.thief) {
+        const t = r.thief;
+        if (!this.agents.includes(t) || r.ms > POLICE.chaseMs) {
+          this.backToVictim(a);
+          continue;
+        }
+        const here = { tx: Math.round(a.x), ty: Math.round(a.y) };
+        const there = { tx: Math.round(t.x), ty: Math.round(t.y) };
+        if (Math.hypot(a.x - t.x, a.y - t.y) <= CATCH_TILES) {
+          // Alcanzado: los dos quietos, lo identifica y luego va con la víctima; el ladrón se va andando.
+          Object.assign(r, { phase: 'DETAIN', timer: POLICE.detainMs });
+          a.path = [];
+          a.state = 'TALK';
+          a.dir = facingTo(here, there);
+          a.line = 'Quieto ahí. Documentación, por favor.';
+          t.delay = POLICE.detainMs;
+          t.gait = undefined;
+          t.speed = between(this.rng, ...POPULATION.walkSpeed);
+          t.line = 'Vale, vale... Que yo no he hecho nada.';
+          const rec = incidentById(r.incident);
+          if (rec) rec.caught = true;
+          continue;
+        }
+        // Otra vez hacia donde está ahora, cada poco: él no se queda quieto.
+        r.timer -= deltaMs;
+        if (a.path.length === 0 || r.timer <= 0) {
+          r.timer = CHASE_REPATH_MS;
+          const path = this.detour(here, there);
+          if (path) a.path = path;
+          else this.backToVictim(a);
+        }
+        continue;
+      }
+      if (r.phase === 'DETAIN') {
+        r.timer -= deltaMs;
+        if (r.timer <= 0) this.backToVictim(a);
+        continue;
+      }
       const gone = r.victim !== 'player' && !this.agents.includes(r.victim);
       if (r.phase === 'ATTEND') {
         r.timer -= deltaMs;

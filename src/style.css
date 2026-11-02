@@ -320,6 +320,18 @@ body {
   color: rgba(232, 227, 218, 0.45);
 }
 
+/* El dibujo de lo que se compra (ui/ItemIcons): 12 × 12 a doble tamaño, sin suavizar. */
+.menu__icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  vertical-align: middle;
+  /* Baldosa clara detrás: lo oscuro (unas gafas negras, una gorra) se lee sobre el panel. */
+  background: rgba(232, 227, 218, 0.78);
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
 .menu__detail {
   white-space: nowrap;
   color: rgba(232, 227, 218, 0.7);

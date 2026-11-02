@@ -78,8 +78,9 @@ export class TrafficView {
       if (lamps.roof) {
         const [rx, ry] = at(lamps.roof, 2);
         // La rotativa gira siempre; el verde de libre del taxi, de noche.
-        const beacon = v.type.trim?.roof === 'beacon';
-        const on = beacon ? Math.floor((time + v.id * 97) / BEACON_MS) % 2 === 0 : night > 0.25;
+        // El patrulla, sólo yendo a un aviso (Vehicle.alert), y más deprisa.
+        const roof = v.type.trim?.roof;
+        const on = roof === 'beacon' ? Math.floor((time + v.id * 97) / BEACON_MS) % 2 === 0 : roof === 'police' ? !!v.alert && Math.floor(time / (BEACON_MS / 2)) % 2 === 0 : night > 0.25;
         p.roof.setPosition(rx, ry).setVisible(on);
       } else p.roof.setVisible(false);
     }
@@ -88,7 +89,7 @@ export class TrafficView {
   private take(v: Vehicle<VehicleType>): Parts {
     const p = this.pool.pop() ?? this.make(v);
     p.body.setTexture(vehicleKey(v.type, v.color)).setFlipX(v.dir < 0);
-    p.roof.setTexture(v.type.trim?.roof === 'beacon' ? 'veh-roof-beacon' : 'veh-roof-taxi');
+    p.roof.setTexture(v.type.trim?.roof === 'beacon' ? 'veh-roof-beacon' : v.type.trim?.roof === 'police' ? 'veh-roof-police' : 'veh-roof-taxi');
     this.parts.set(v, p);
     return p;
   }

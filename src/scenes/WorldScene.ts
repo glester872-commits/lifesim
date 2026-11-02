@@ -84,6 +84,7 @@ import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Agent, type Clock } from '../systems/Crowd';
 import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
+import { working as workingAct } from '../systems/StreetActs';
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
 import { closedLines, isOpen, placeForInterior, placeInfo, placeOfPoint, type PlaceInfo } from '../systems/Places';
 import { admit, heldSeat, mayStay, venueOf } from '../systems/Tickets';
@@ -1259,7 +1260,7 @@ export class WorldScene extends Phaser.Scene {
   private actionLabel(target: Interactable | null): string | null {
     if (!target) return null;
     switch (target.kind) {
-      case 'npc': return 'Hablar';
+      case 'npc': return this.vendorOf(target.sprite) ? 'Comprar' : 'Hablar';
       case 'portal': return target.portal.train ? 'Subir' : target.portal.id === 'transfer' ? 'Transbordar' : target.portal.label?.startsWith('Salir') ? 'Salir' : 'Entrar';
       case 'seat': return 'Sentarse';
       case 'station': return 'Entrenar';
@@ -2726,7 +2727,10 @@ export class WorldScene extends Phaser.Scene {
         // Quien atiende se vuelve hacia el jugador mientras dura su menú (lo suelta el bucle al cerrarse).
         this.startTalk(target.sprite);
         this.offerTalk = true;
-        this.menus.openOffer(offer, target.def.name);
+        // CV-08A · en una manta, el menú vale mientras el puesto siga montado: si recoge o se va, ya no cobra.
+        const sprite = target.sprite;
+        const stall = this.vendorOf(sprite) ? { closed: (): string | null => (this.vendorOf(sprite) ? null : 'Está recogiendo: ya no vende.') } : undefined;
+        this.menus.openOffer(offer, target.def.name, '', 0, stall);
       }
       else if (officer) {
         // Un agente de patrulla: saludo, cómo está la calle ahora y el robo de hoy si lo hay (systems/Police). No charla.
@@ -2876,7 +2880,16 @@ export class WorldScene extends Phaser.Scene {
   private offerOf(sprite: Phaser.GameObjects.Sprite): OfferId | undefined {
     if (!(sprite instanceof Character)) return undefined;
     const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined);
-    return agent?.staffRole ? identity(agent.staffRole).offers : undefined;
+    if (agent?.staffRole) return identity(agent.staffRole).offers;
+    // CV-08A · quien vende en una manta o una bandeja (data/streetActs.ts `offers`), sólo con el puesto montado.
+    return this.vendorOf(sprite)?.gig?.def.offers;
+  }
+
+  /** CV-08A · el agente de la calle que vende ahora mismo en su puesto (montado, no llegando ni recogiendo), o undefined. */
+  private vendorOf(sprite: Phaser.GameObjects.Sprite): StreetWalker | undefined {
+    if (!(sprite instanceof Character) || !this.street) return undefined;
+    const agent = this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined) as StreetWalker | undefined;
+    return agent && this.street.agents.includes(agent) && agent.gig?.def.offers && agent.staying && !agent.vanish && workingAct(agent.state) ? agent : undefined;
   }
 
   /** Personal de un local (tiene puesto): quien atiende el mostrador, venda algo o no. */

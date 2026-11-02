@@ -267,8 +267,9 @@ for (const c of CATALOGS) {
 // ------------------------------------- percheros, probador y varias tiendas
 
 {
-  // Cada tienda con tienda de verdad: su interior tiene percheros, cada uno con algo que enseñar.
-  for (const s of STORES) {
+  // Cada tienda con tienda de verdad: su interior tiene percheros, cada uno con algo que enseñar. Los puestos de la calle
+  // (CV-08A, `street`) no tienen interior: se compra hablando con quien vende (scripts/check-street-vendors.ts).
+  for (const s of STORES.filter((st) => !st.street)) {
     const places = LOCATIONS.filter((l) => l.racks?.some((r) => r.store === s.id));
     assert.equal(places.length, 1, `${s.id}: un interior con percheros`);
     const racks = places[0].racks!.filter((r) => r.store === s.id);

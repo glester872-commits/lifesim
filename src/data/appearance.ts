@@ -27,6 +27,11 @@ export interface Appearance {
   top?: string;
   bottom?: string;
   shoes?: string;
+  /** Gafas puestas (CV-08A: id de data/retail.ts, categoría `gafas`); sin ellas, la cara de siempre. */
+  glasses?: string;
+  /** Gorra y bufanda puestas (id de data/retail.ts, categorías `gorro` y `bufanda`). */
+  cap?: string;
+  scarf?: string;
   tattoos?: readonly TattooMark[];
   /** Colores del creador de personaje (Alpha-04): id de SKIN_TONES, HAIR_COLORS y EYE_COLORS. Sin ellos, los de fábrica. */
   skin?: string;
@@ -91,7 +96,7 @@ export const EYE_IDS = swatchIds(EYE_COLORS);
 export const swatchColor = (list: readonly Swatch[], id: string | undefined): string | undefined => list.find((s) => s.id === id)?.color;
 
 /** Huecos que existen hoy: lo que valida una partida guardada y lo que ofrece un servicio de aspecto. */
-export const APPEARANCE_SLOTS: readonly AppearanceSlot[] = ['hair', 'top', 'bottom', 'shoes', 'tattoos'];
+export const APPEARANCE_SLOTS: readonly AppearanceSlot[] = ['hair', 'top', 'bottom', 'shoes', 'glasses', 'cap', 'scarf', 'tattoos'];
 
 export interface HairDef {
   id: HairStyle;

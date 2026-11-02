@@ -34,7 +34,9 @@ export type ServiceOffer =
    */
   | { kind: 'police'; title: string; street: string }
   /** Quien lleva un encuentro con hora (data/parish.ts): horario, apuntarse si es la hora y cómo fue el último (systems/Parish). */
-  | { kind: 'gathering'; gathering: string };
+  | { kind: 'gathering'; gathering: string }
+  /** CV-08A · lo que se vende en una manta o una bandeja (data/catalogs.ts), cobrado por systems/Commerce como en una máquina. */
+  | { kind: 'catalog'; title: string; catalog: string };
 
 export const SERVICE_OFFERS = {
   'boxing-coach': { kind: 'training', title: 'Inés · Club de Boxeo Forja', points: ['BOX_GUARD_01', 'BOX_FEET_01', 'BOX_BAG_01', 'BOX_COORD_01', 'BOX_ROPE_01'] },
@@ -69,6 +71,16 @@ export const SERVICE_OFFERS = {
   'police-desk': { kind: 'police', title: 'Comisaría de Puerta Central · recepción', street: 'puerta-central' },
   // ALPHA-10 · la oficina de barrio de la Ronda (data/ronda.ts): la misma recepción, con el estado de Vallesco.
   'police-desk-vallesco': { kind: 'police', title: 'Policía de barrio · Vallesco · recepción', street: 'district' },
+  // CV-08A · venta en la calle (data/streetActs.ts `offers`): la ropa y las gafas, como en una tienda (systems/Retail);
+  // lo de las mantas y la bandeja, como en una máquina (systems/Commerce). Sólo mientras el puesto vende.
+  'street-gafas': { kind: 'retail', store: 'bandeja-gafas', minutes: 3 },
+  'street-ropa': { kind: 'retail', store: 'manta-ropa', minutes: 5 },
+  'street-bisuteria': { kind: 'catalog', title: 'Manta de bisutería', catalog: 'manta-bisuteria' },
+  'street-artesania': { kind: 'catalog', title: 'Manta de artesanía', catalog: 'manta-artesania' },
+  'street-recuerdos': { kind: 'catalog', title: 'Manta de recuerdos', catalog: 'manta-recuerdos' },
+  'street-bandeja-arena': { kind: 'catalog', title: 'Bandeja de pipas y agua', catalog: 'bandeja-arena' },
+  'street-bufandas': { kind: 'retail', store: 'manta-bufandas', minutes: 3 },
+  'street-camisetas-arena': { kind: 'retail', store: 'manta-camisetas', minutes: 3 },
   // El parque de bomberos de la Ronda de la Vía: una visita a la cochera y consejos de prevención. Los incendios (ALPHA-10,
   // systems/Emergencies) se viven en la calle, no aquí: la guardia no despacha avisos ni promete salidas.
   'fire-desk': { kind: 'activities', title: 'Parque de Bomberos · guardia', activities: ['fire-visit', 'fire-advice'] },

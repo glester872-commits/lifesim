@@ -44,6 +44,14 @@ export const ITEMS: readonly ItemDef[] = [
   // Almacenes Velarde, regalos (CV-03): se dan hablando con alguien que conoces (systems/Gifts.ts), no se usan.
   { id: 'gift-chocolates', name: 'Caja de bombones', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Bombones surtidos con lazo dorado.' },
   { id: 'gift-cologne', name: 'Colonia de regalo', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 2, use: 'Frasco de cristal, envuelto en papel verde de Velarde.' },
+  // CV-08A · venta en manta de Puerta Central (data/streetActs.ts): regalos pequeños, también se dan hablando con alguien.
+  { id: 'gift-bracelet', name: 'Pulsera de hilo', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Hilo encerado de colores, con un nudo corredizo para ajustarla.' },
+  { id: 'gift-necklace', name: 'Colgante hecho a mano', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 2, use: 'Una piedra pulida en un cordón de cuero. No hay dos iguales.' },
+  { id: 'gift-magnet', name: 'Imán de la Puerta', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'La Rosa de los Vientos en resina, para la nevera de alguien.' },
+  { id: 'gift-keyring', name: 'Llavero de la plaza', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Un reloj de la plaza en miniatura colgado de una anilla.' },
+  { id: 'gift-fan', name: 'Abanico pintado', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 2, use: 'Varillas de madera y tela con flores. Para el verano de alguien.' },
+  // CV-08A · la bandeja del Arena en día de partido: para la espera de la cola.
+  { id: 'sunflower-seeds', name: 'Bolsa de pipas', kind: 'food', energy: 3, use: 'Pipas con sal. Lo importante es tener algo en las manos.' },
   { id: 'shower-gel', name: 'Gel de ducha', kind: 'hygiene', where: 'en la ducha de casa: ducha con gel, +10 ⚡ en vez de +6', max: 16, use: 'Huele a algo que se llama «brisa marina».' },
   { id: 'bread', name: 'Barra de pan', kind: 'food', energy: 6, use: 'Crujiente por fuera. Te comes el pico antes de llegar a casa.' },
   { id: 'pastry', name: 'Napolitana de chocolate', kind: 'food', energy: 9, use: 'Todavía caliente.' },

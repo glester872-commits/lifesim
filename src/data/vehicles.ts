@@ -51,6 +51,8 @@ export interface MoverType {
    * data/districtIdentity.ts). Sin eso, nunca: un tipo nuevo no aparece en ningún sitio por descuido.
    */
   gated?: boolean;
+  /** A la vez en una calle, como mucho (systems/Traffic lo cuenta antes de sacar otro): el coche patrulla, uno. */
+  max?: number;
   /** Multiplicador por franja (1 si no se dice). */
   bands?: Partial<Record<TrafficBand, number>>;
   /** Multiplicador en fin de semana. */
@@ -71,7 +73,8 @@ export interface VehicleType extends MoverType {
   height: number;
   /** Lo que lo distingue: la franja del taxi, la caja del camión, la rotativa del servicio. */
   /** `badge`: el distintivo de servicio pegado en la puerta delantera (el VTC; ficticio, sin marca). */
-  trim?: { stripe?: string; box?: string; roof?: 'taxi' | 'beacon' | 'sign'; badge?: string };
+  /** `band`: la franja recta a lo largo del costado (el coche patrulla). */
+  trim?: { stripe?: string; box?: string; roof?: 'taxi' | 'beacon' | 'sign' | 'police'; badge?: string; band?: string };
   /** Autobuses: la línea que lleva el letrero de cada variante (una por color, en orden). */
   routes?: readonly string[];
 }
@@ -145,6 +148,13 @@ export const VEHICLES: readonly VehicleType[] = [
   { ...TAXI, id: 'taxi-wagon', shape: 'wagon', length: 43, height: 20, pace: 1.1, weight: 2 },
   { ...TAXI, id: 'taxi-suv', shape: 'suv-compact', length: 40, height: 21, pace: 1.1, weight: 2 },
   { ...TAXI, id: 'taxi-hybrid', shape: 'hatch', length: 38, height: 19, pace: 1.1, weight: 2 },
+  // Coche patrulla: blanco con la franja azul y el puente de luces, uno por calle como mucho. Pasa de vez en cuando; a un
+  // robo visto lo llaman (StreetLife.report) y llega por el carril con las luces encendidas.
+  {
+    id: 'police', shape: 'sedan', length: 42, height: 19, pace: 1,
+    colors: ['#f2f0ea'], colorWeight: [1], trim: { band: '#1f4f9e', roof: 'police' },
+    weight: 0.6, max: 1, bands: { dawn: 0.6 }, roads: { residential: 0.8 },
+  },
   {
     id: 'van', shape: 'van', length: 48, height: 25, pace: 0.95,
     colors: ['#dcd8cf', '#e8e6e0', '#9aa0a6', '#d9b13b', '#7b5a3c'], trim: { stripe: '#4c8a54' },

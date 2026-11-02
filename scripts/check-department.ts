@@ -25,7 +25,8 @@ for (const line of monton.stock) assert.ok(['top', 'bottom', 'shoes'].includes(g
 // La ropa nueva más barata de la ciudad: su media por debajo de la de cualquier otra tienda (menos Segunda Vuelta, que
 // es de segunda mano y al peso).
 const avg = (id: string): number => getStore(id).stock.reduce((s, l) => s + l.price, 0) / getStore(id).stock.length;
-for (const s of STORES) if (s.id !== 'monton' && s.id !== 'vuelta') assert.ok(avg('monton') < avg(s.id), `Montón no es más barata que ${s.name}`);
+// Los puestos de la calle (CV-08A, `street`) son de manta: más baratos a propósito, como Segunda Vuelta.
+for (const s of STORES) if (s.id !== 'monton' && s.id !== 'vuelta' && !s.street) assert.ok(avg('monton') < avg(s.id), `Montón no es más barata que ${s.name}`);
 // Se entra desde la calle y sus percheros venden lo suyo.
 const montonRoom = LOCATIONS.find((l) => l.id === 'pc-monton')!;
 assert.ok(montonRoom.racks?.length && montonRoom.racks.every((r) => r.store === 'monton'), 'Montón sin percheros propios');

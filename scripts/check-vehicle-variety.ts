@@ -17,7 +17,8 @@ const neutral = (hex: string): boolean => {
 };
 
 // ------------------------------------------------- 1. el catálogo: carrocerías y colores
-const CARS = VEHICLES.filter((v) => !v.id.startsWith('taxi') && ['city', 'hatch', 'sedan', 'coupe', 'wagon', 'suv-compact', 'suv', 'van'].includes(v.shape));
+// Coches particulares: fuera los de librea con luz en el techo (taxis, patrulla), que llevan su color de servicio.
+const CARS = VEHICLES.filter((v) => !v.trim?.roof && ['city', 'hatch', 'sedan', 'coupe', 'wagon', 'suv-compact', 'suv', 'van'].includes(v.shape));
 {
   const shapes = new Set(CARS.map((v) => v.shape));
   assert.ok(shapes.size >= 8, `carrocerías de calle: ${[...shapes].join(', ')}`);

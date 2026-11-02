@@ -90,6 +90,28 @@ export const CATALOGS: readonly Catalog[] = [
     checkout: true,
     products: [item('gift-chocolates', 'Caja de bombones', 14), item('gift-cologne', 'Colonia de regalo', 32)],
   },
+  // CV-08A · venta en la calle (data/streetActs.ts `offers`): cada manta, lo suyo. Sin caja: cada toque, una unidad, y sólo
+  // mientras el puesto está montado (si recoge con el menú abierto, ya no cobra: scenes/Menus.openCatalog `stall`).
+  {
+    id: 'manta-bisuteria',
+    greeting: 'Pulseras a cinco, tres por diez. Mira sin compromiso.',
+    products: [item('gift-bracelet', 'Pulsera de hilo', 5), item('gift-keyring', 'Llavero de la plaza', 3)],
+  },
+  {
+    id: 'manta-artesania',
+    greeting: 'Lo hago yo, a mano. Por eso no hay dos iguales.',
+    products: [item('gift-necklace', 'Colgante hecho a mano', 12), item('gift-bracelet', 'Pulsera trenzada', 7)],
+  },
+  {
+    id: 'manta-recuerdos',
+    greeting: 'Imanes, llaveros, abanicos. Para llevarse un poco de la plaza.',
+    products: [item('gift-magnet', 'Imán de la Puerta', 2), item('gift-keyring', 'Llavero de la plaza', 3), item('gift-fan', 'Abanico pintado', 6)],
+  },
+  {
+    id: 'bandeja-arena',
+    greeting: 'Pipas, agua y banderitas. ¡Que dentro cuesta el doble!',
+    products: [item('sunflower-seeds', 'Bolsa de pipas', 1.5), item('water', 'Agua', 1)],
+  },
   {
     id: 'pharmacy-counter',
     greeting: 'Buenas tardes. ¿Qué necesitas?',

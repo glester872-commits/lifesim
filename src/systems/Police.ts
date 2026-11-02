@@ -27,6 +27,14 @@ export const POLICE = {
   attendMs: 6_000,
   /** Si en este tiempo (ms reales) no ha llegado, lo deja y vuelve: nadie se queda enganchado a un aviso. */
   reachMs: 40_000,
+  /** Persecución: tiles como mucho entre el agente que acude y el ladrón cuando echa a correr; más lejos, va con la víctima. */
+  chaseRange: 10,
+  /** Ms reales que corre detrás; si no lo alcanza (o sale de la calle), lo deja y va con la víctima. */
+  chaseMs: 12_000,
+  /** Ms reales que lo retiene al alcanzarlo (lo identifica) antes de ir con la víctima. */
+  detainMs: 5_000,
+  /** Ms reales que el coche patrulla se queda parado en el aviso antes de seguir su carril. */
+  carStayMs: 10_000,
   /** Minutos de juego que lleva poner una denuncia en recepción. */
   reportMinutes: 15,
   /** Lo que recuerda la comisaría (minutos de juego): un día. */
@@ -49,6 +57,8 @@ export interface IncidentRecord {
   amount: number;
   /** Un agente llegó y atendió a la víctima. */
   attended: boolean;
+  /** Un agente alcanzó al ladrón al huir (StreetLife: persecución). */
+  caught?: boolean;
   /** El jugador lo denunció en la comisaría. */
   reported: boolean;
 }

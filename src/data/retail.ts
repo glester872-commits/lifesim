@@ -10,8 +10,11 @@
  * lo que se lleva puesto, en el aspecto (data/appearance.ts, top/bottom/shoes).
  */
 
-/** Hueco que ocupa: arriba (camiseta, chaqueta), abajo (pantalón) o los pies (zapatillas). */
-export type GarmentSlot = 'top' | 'bottom' | 'shoes';
+/**
+ * Hueco que ocupa: arriba (camiseta, chaqueta), abajo (pantalón), los pies (zapatillas), la cara (gafas, CV-08A), la
+ * cabeza (gorra) o el cuello (bufanda).
+ */
+export type GarmentSlot = 'top' | 'bottom' | 'shoes' | 'glasses' | 'cap' | 'scarf';
 
 /**
  * Qué clase de prenda es; de ella sale el hueco que ocupa. Las de `slot: null`
@@ -31,8 +34,11 @@ export const CATEGORIES = {
   short: { label: 'Short', slot: null },
   vestido: { label: 'Vestido', slot: null },
   falda: { label: 'Falda', slot: null },
-  gorro: { label: 'Gorro', slot: null },
-  gafas: { label: 'Gafas', slot: null },
+  // world/HumanArt ya pintaba gorras y bufandas en la afición del Arena; ahora también las lleva el jugador.
+  gorro: { label: 'Gorra', slot: 'cap' },
+  bufanda: { label: 'Bufanda', slot: 'scarf' },
+  // CV-08A: world/HumanArt ya pintaba gafas en la gente (claras u oscuras); ahora también las lleva el jugador.
+  gafas: { label: 'Gafas', slot: 'glasses' },
   bolso: { label: 'Bolso', slot: null },
   accesorio: { label: 'Accesorio', slot: null },
 } as const satisfies Record<string, { label: string; slot: GarmentSlot | null }>;
@@ -57,6 +63,8 @@ export interface GarmentDef {
   sleeve?: Sleeve;
   /** Pieza única: cuando es tuya, en la tienda ya no queda. */
   unique?: boolean;
+  /** Sólo gafas: cristal claro (graduadas o de pasta) u oscuro (de sol). `color` es la montura. */
+  lens?: 'clear' | 'dark';
 }
 
 type GarmentSeed = Omit<GarmentDef, 'slot'>;
@@ -126,6 +134,15 @@ const SEEDS: readonly GarmentSeed[] = [
   { id: 'pitillo-claro', name: 'Vaquero pitillo claro', category: 'vaquero', description: 'Lavado claro, pierna estrecha. Cuatro tallas en el mismo perchero.', color: '#8fb0d4' },
   { id: 'jogger-verde', name: 'Jogger verde', category: 'pantalon', description: 'Verde caqui, puño en el tobillo y cordón de algodón.', color: '#5d6e3f' },
   { id: 'lona-blanca', name: 'Zapatillas de lona', category: 'zapatillas', description: 'Lona blanca y suela de goma. Se ensucian el primer día; se lavan a máquina.', color: '#f0ede6' },
+  // CV-08A · la bandeja de gafas de la plaza (data/streetActs.ts pc-bandeja): montura de plástico y sin marca.
+  { id: 'gafas-sol-negras', name: 'Gafas de sol negras', category: 'gafas', description: 'Pasta negra y cristal oscuro. Las de siempre, a precio de plaza.', color: '#1c1c22', lens: 'dark' },
+  { id: 'gafas-sol-aviador', name: 'Gafas de aviador', category: 'gafas', description: 'Montura dorada fina y cristal ahumado. Parecen caras; no lo son.', color: '#c9a45a', lens: 'dark' },
+  { id: 'gafas-pasta-clara', name: 'Gafas de pasta sin graduar', category: 'gafas', description: 'Pasta de carey y cristal sin graduar. Para parecer que lees mucho.', color: '#6e4a2c', lens: 'clear' },
+  // Gorras y bufandas: la manta de ropa de la plaza y las de la afición en el Arena (data/streetActs.ts).
+  { id: 'gorra-negra', name: 'Gorra negra', category: 'gorro', description: 'Visera curva y cierre de plástico detrás. Va con todo.', color: '#232329' },
+  { id: 'gorra-halcones', name: 'Gorra de los Halcones', category: 'gorro', description: 'Turquesa con el halcón naranja bordado delante.', color: '#1f8f8a' },
+  { id: 'bufanda-halcones', name: 'Bufanda de los Halcones', category: 'bufanda', description: 'Turquesa y naranja, de punto, con «HALCONES» en los extremos.', color: '#1f8f8a' },
+  { id: 'bufanda-naranja', name: 'Bufanda naranja', category: 'bufanda', description: 'La de fuera de casa: naranja con flecos turquesa.', color: '#f08a24' },
 ];
 
 export const GARMENTS: readonly GarmentDef[] = SEEDS.map((g) => {
@@ -148,9 +165,30 @@ export interface RetailStoreDef {
   /** Lo que dice al cobrar. */
   thanks: string;
   stock: readonly StockLine[];
+  /** CV-08A · se vende en la calle (data/streetActs.ts): sin interior ni percheros, y a precio de manta. */
+  street?: true;
 }
 
 export const STORES: readonly RetailStoreDef[] = [
+  // CV-08A · venta en la calle de Puerta Central (data/streetActs.ts): la bandeja de gafas y la manta de ropa. Se cobra
+  // igual que en una tienda (systems/Retail), sólo mientras el puesto está montado.
+  {
+    id: 'bandeja-gafas', name: 'Bandeja de gafas', street: true, greeting: 'Pruébatelas, que para eso está el espejito.', thanks: 'Te sientan de lujo. Y protegen, ¿eh?',
+    stock: [{ garment: 'gafas-sol-negras', price: 8 }, { garment: 'gafas-sol-aviador', price: 12 }, { garment: 'gafas-pasta-clara', price: 10 }],
+  },
+  {
+    id: 'manta-ropa', name: 'Manta de ropa', street: true, greeting: 'Todas las tallas, casi. Lo que ves es lo que hay.', thanks: 'Buena compra. Si encoge, no me has visto.',
+    stock: [{ garment: 'camiseta-raya', price: 5 }, { garment: 'camiseta-mostaza', price: 4 }, { garment: 'camiseta-rosa', price: 7 }, { garment: 'gorra-negra', price: 6 }],
+  },
+  // Distrito Arena, sólo en día de partido: bufandas y gorras en una manta, y la camiseta del día en otra.
+  {
+    id: 'manta-bufandas', name: 'Manta de bufandas', street: true, greeting: 'Bufandas, gorras y banderas. Turquesa y naranja, de todos los tamaños.', thanks: '¡Aúpa Halcones! Que se te vea en la grada.',
+    stock: [{ garment: 'bufanda-halcones', price: 8 }, { garment: 'bufanda-naranja', price: 8 }, { garment: 'gorra-halcones', price: 10 }],
+  },
+  {
+    id: 'manta-camisetas', name: 'Manta de camisetas', street: true, greeting: 'La camiseta del partido de hoy, con la fecha. Mañana ya no la hay.', thanks: 'Esa trae suerte. Hoy ganamos.',
+    stock: [{ garment: 'camiseta-halcones-1', price: 12 }, { garment: 'camiseta-halcones-2', price: 12 }],
+  },
   {
     id: 'hilo', name: 'Hilo · moda', greeting: 'Lo de temporada está a la entrada.', thanks: 'Te queda muy bien. Guarda el tique.',
     stock: [
