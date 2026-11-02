@@ -65,7 +65,15 @@ for (const loc of allLocations()) {
   }
   insides++;
   assert.equal(at.inside, loc.name);
-  const door = getLocation(at.mapId).portals.find((p) => p.to.location === loc.id)!;
+  // Un andén de correspondencia se alcanza desde la boca compartida, por un pasillo interior.
+  const connected = (id: string, seen = new Set<string>()): boolean => {
+    if (id === loc.id) return true;
+    if (seen.has(id) || getLocation(id).kind === 'exterior') return false;
+    seen.add(id);
+    return getLocation(id).portals.some(p => !p.train && connected(p.to.location, seen));
+  };
+  const door = getLocation(at.mapId).portals.find((p) => !p.train && connected(p.to.location));
+  assert.ok(door, loc.id + ': sin boca ni pasillo físico desde la calle');
   assert.ok(near(at, tileToMap(door.tx, door.ty)), `${loc.name}: fuera de su puerta en el mapa`);
 }
 assert.equal(mapPositionOf('retales', { x: 0, y: 0 })!.mapId, 'district', 'Retales está en Vallesco');

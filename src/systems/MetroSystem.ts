@@ -1851,7 +1851,7 @@ export class MetroSystem {
         String(
           minutes,
         ),
-      ).replace('{kick}', kickoffLabel(matchNow(this.clock)?.kickoff ?? 0));
+      ).replace('{line}', STOPS.find(s => s.station === this.stationId)?.line.slice(1) ?? '').replace('{kick}', kickoffLabel(matchNow(this.clock)?.kickoff ?? 0));
 
     this.announcer.say(
       text,

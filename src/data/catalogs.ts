@@ -140,7 +140,7 @@ export const CATALOGS: readonly Catalog[] = [
   {
     // La misma máquina en todas las estaciones.
     id: 'transport-machine',
-    greeting: 'Metro · Línea 2. Tarjetas y recargas. El viaje se descuenta al subir al tren.',
+    greeting: 'Metro · L2 y L3. Tarjetas y recargas. Se valida al subir al primer tren; el billete vale hasta salir a la calle.',
     products: [
       { id: 'transport-new', label: 'Tarjeta de transporte (con €10 de saldo)', price: 12.5, effect: { card: 'transport', load: 10, issue: true } },
       { id: 'transport-10', label: 'Recargar €10', price: 10, effect: { card: 'transport', load: 10 } },

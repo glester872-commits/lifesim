@@ -9,7 +9,7 @@ import { ITEMS } from '../data/items.ts';
 import { DESIGN_IDS, ZONE_IDS } from '../data/tattoos.ts';
 import { parseFitness, START_FITNESS } from './Fitness.ts';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations.ts';
-import { getLocation, hasLocation, safePosition } from './LocationSystem.ts';
+import { getLocation, hasLocation, isWalkable, safePosition } from './LocationSystem.ts';
 import { mayStay, parseTickets, venueOf } from './Tickets.ts';
 import { parseSocialState } from './Social.ts';
 import { parseStories } from './Story.ts';
@@ -20,6 +20,7 @@ import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
 import { parseAgenda, startAgenda } from './Agenda.ts';
+import { parseMetroJourney } from './Transit.ts';
 import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
 
 /**
@@ -44,6 +45,7 @@ export function createInitialState(): GameStateData {
   if (!spawn) throw new Error(`Spawn inicial desconocido: ${START_SPAWN}`);
 
   return {
+    metroJourney: null,
     money: INITIAL_MONEY,
     energy: INITIAL_ENERGY,
     day: INITIAL_CLOCK.day,
@@ -84,6 +86,7 @@ export function createInitialState(): GameStateData {
  */
 export function restore(loaded: GameStateData | null): GameStateData {
   if (!loaded) return createInitialState();
+  loaded = { ...loaded, metroJourney: parseMetroJourney(loaded.metroJourney, loaded.locationId) };
   if (!hasLocation(loaded.locationId)) {
     const fresh = createInitialState();
     return { ...loaded, locationId: fresh.locationId, position: fresh.position, facing: fresh.facing };
@@ -104,6 +107,14 @@ export function restore(loaded: GameStateData | null): GameStateData {
     const door = homeDoor(housing);
     const spawn = getLocation(door.location).spawns[door.spawn];
     return { ...loaded, locationId: door.location, position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE }, facing: spawn.facing };
+  }
+  // Política LV-07: estación segura, nunca una puerta de tren a medio animar. No altera saldo ni reloj.
+  if (here.metro) {
+    const tx = Math.floor(loaded.position.x / TILE);
+    const ty = Math.floor((loaded.position.y - 1) / TILE);
+    if (Number.isFinite(tx) && Number.isFinite(ty) && ty >= here.metro.walkRow && isWalkable(here, tx, ty)) return loaded;
+    const spawn = here.spawns[loaded.metroJourney ? 'train' : 'entry'];
+    return { ...loaded, position: { x: spawn.tx * TILE + TILE / 2, y: spawn.ty * TILE + TILE }, facing: spawn.facing };
   }
   const position = safePosition(loaded.locationId, loaded.position, START_SPAWN);
   // Un interior con la posición en un rincón al que ya no se llega (un mueble nuevo la encierra): a la entrada.
@@ -338,6 +349,7 @@ function parseState(value: unknown): GameStateData | null {
   const wardrobe = Array.isArray(s.wardrobe) ? [...new Set(s.wardrobe.filter((g): g is string => typeof g === 'string' && GARMENT_IDS.has(g)))] : [];
 
   return {
+    metroJourney: parseMetroJourney(s.metroJourney, located ? s.locationId as string : fresh.locationId),
     // AUD-004: ni saldo negativo ni fracciones de céntimo, aunque el archivo los traiga.
     money: Math.max(0, cents(s.money)),
     energy: isNumber(s.energy) ? Math.min(100, Math.max(0, s.energy)) : INITIAL_ENERGY,
@@ -593,6 +605,7 @@ function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly st
 function migrate(version: number, state: unknown): unknown {
   let s = state;
   if (version < 2 && isRecord(s) && s.identity === undefined) s = { ...s, identity: startIdentity() };
+  if (version < 3 && isRecord(s)) s = { ...s, metroJourney: null };
   return s;
 }
 

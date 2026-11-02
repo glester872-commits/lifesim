@@ -31,6 +31,7 @@ export class GameState extends Phaser.Events.EventEmitter {
   private _minute: number;
 
   locationId: string;
+  metroJourney: GameStateData['metroJourney'] = null;
 
   position: {
     x: number;
@@ -142,6 +143,7 @@ export class GameState extends Phaser.Events.EventEmitter {
     initial: GameStateData,
   ) {
     super();
+    this.metroJourney = initial.metroJourney ? { ...initial.metroJourney } : null;
 
     this._money =
       initial.money;
@@ -712,6 +714,7 @@ export class GameState extends Phaser.Events.EventEmitter {
   get snapshot():
     GameStateData {
     return {
+      metroJourney: this.metroJourney ? { ...this.metroJourney } : null,
       money:
         this._money,
 

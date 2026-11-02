@@ -23,7 +23,8 @@ const PLAYER = { tx: 72, ty: 53 };
 const at = (day: number, hhmm: string): Clock => ({ day, hour: Number(hhmm.slice(0, 2)), minute: Number(hhmm.slice(3)) });
 
 // ------------------------------------------------ los comercios que definen la calle
-const carmen = loc.buildings!.filter((b) => b.tx >= 76 && b.ty >= 37 && b.tx < 110);
+// Sólo las dos aceras del Carmen (filas 42–59): de la vía para abajo ya es la Ronda de la Vía (ALPHA-08).
+const carmen = loc.buildings!.filter((b) => b.tx >= 76 && b.ty >= 37 && b.ty < 61 && b.tx < 110);
 const styles = new Set(carmen.map((b) => b.style));
 for (const s of ['vintage', 'thrift', 'streetwear', 'sneaker', 'tattoo', 'piercing', 'records', 'coffee', 'bar']) assert.ok(styles.has(s as never), `el Carmen no tiene ${s}`);
 for (const b of carmen) if (!b.style.startsWith('res-')) assert.ok(PLACES.some((p) => p.building === b.id), `${b.name} no tiene lugar (horario, etiquetas)`);

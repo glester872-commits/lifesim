@@ -456,6 +456,20 @@ ni acceso global al estado.
   a la suya; al hablar con ellas durante la visita reconocen lo que tienes instalado, se puede hacer algo juntos
   (tele, picar o enseñarle la casa, que se recuerda) y al día siguiente lo comentan en persona o por móvil. Cancelar
   por el móvil cuesta como cancelar un plan del móvil. `npm run check` lo prueba en `check-housing.ts`.
+- **Emergencias: incendio en la Ronda (ALPHA-10)** — `data/emergencies.ts` declara cada emergencia (tipo, barrio, parque
+  de salida, portales posibles, probabilidad, horas, enfriamiento y minutos de cada fase); `systems/Emergencies.ts` la lleva
+  sin guardar estado propio, como las peleas: día, portal y fases salen del reloj y de una semilla por día (`none → smoke →
+  responding → extinguishing → cleanup`, con los nombres comunes de `WorldEvents`), nunca dos a la vez y al menos 6 días
+  entre dos (unos 19 al año). Sólo en portales sin interior: nunca cierra una puerta que se use. `world/EmergencyView.ts` lo
+  pinta con objetos fijos creados con la escena: dos llamas en las ventanas, humo por el emisor compartido (`SmokeFx`, con su
+  tope) y, al llegar la dotación, la autobomba aparcada en el bordillo (sólida en su fila base, nunca sobre una puerta ni
+  cortando la acera; su trayecto no se anima), su rotativo, dos bomberos con el chorro y hasta tres curiosos en la acera de
+  enfrente (gente de la calle a la que se puede hablar). Mirando hacia el portal, la E ofrece llamar al 112 (antes que los
+  vecinos: la dotación sale ya; se guarda en `EventMemory.eventFlags` y recargar no lo deshace), mirar o hablar. En
+  desarrollo, `lifesim.events.force('fire:fuego-ronda')` y `.cancel(...)`. Un accidente o un robo con aviso serán otra
+  entrada con su tipo. `npm run check` lo prueba en `check-emergencies.ts`. En la acera sur de la Ronda, frente al pasaje,
+  la **Policía de barrio · Vallesco** (8–22 h): la misma recepción que la comisaría de Puerta Central, con el estado de
+  Vallesco y la denuncia sin coger el metro.
 - **Ritmo del día, agenda y progreso** — un solo reloj a 2 min de juego por segundo real (`GAME_MINUTES_PER_REAL_SECOND`,
   sin cambiar): medidas las jornadas, cabe un turno de 10 a 16 en Decathlon, la compra, cenar, entrenar y volver a casa
   antes de las 23:00. `systems/Agenda.ts` no guarda planes: lee lo pendiente de donde vive (turno de `Jobs`, clase o
@@ -700,9 +714,13 @@ Conocidas y comprobables:
   completas corresponden a Sara y Ada, no a todos los personajes.
 - La ropa no se prueba antes de comprar y no hay venta de prendas usadas. Los
   tatuajes son procedurales y no se borran ni se retocan.
-- Sólo existe la Línea 2, con varias paradas; no hay transbordos. Los destinos
-  sin mapa regresan a su estación al recargar, conservando reloj y efectos. El
-  tren usa un ciclo visual en tiempo real y su estado no se guarda.
+- Metro LV-07: L2 conserva su recorrido; L3 exprés conecta Puerta Central y Polígono Norte
+  en 15 min. Se cambia de andén por pasillos físicos de 2 min en ambos extremos.
+  La tarjeta se valida al subir al primer tren (€2) y vale hasta salir a la calle;
+  espera y caminata cuentan aparte. Los destinos sin mapa no se pueden visitar.
+  Guardado v3 (migración desde v1/v2): conserva la validación, la estación, el saldo y el reloj.
+  El ciclo visual del tren se reconstruye; las posiciones inseguras se recuperan fuera de las vías.
+  Recorrido y pruebas: [LV07-VERIFICATION.md](LV07-VERIFICATION.md).
 - El viaje de la agenda es una estimación; no incluye colas, semáforos ni obstáculos
   humanos. Sin ruta conocida se dice «sin estimación».
 - Hay economía doméstica, compras, descanso, tiempo atmosférico y estaciones.

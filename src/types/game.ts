@@ -38,6 +38,7 @@ export interface PortalDef {
 }
 
 export type PropKind =
+  | 'boxing-bag' | 'boxing-post' | 'boxing-rack' | 'boxing-sign'
   | 'tree'
   | 'bush'
   | 'bench'
@@ -74,6 +75,7 @@ export type PropKind =
   | 'car-b'
   | 'car-c'
   | 'van'
+  | 'fire-engine'
   | 'bike'
   | 'bin'
   | 'bin-tall'
@@ -289,6 +291,7 @@ export interface MetroDef {
 export type BuildingStyle =
   | 'home'
   | 'police'
+  | 'fire'
   | 'res-brick'
   | 'res-stone'
   | 'res-plaster'
@@ -711,6 +714,8 @@ export interface PlayerIdentity {
 }
 
 export interface GameStateData {
+  /** V3: validación hasta salir a la calle; v1/v2 cargan sin billete activo. */
+  metroJourney?: import('../systems/Transit.ts').MetroJourney | null;
   /** Versión 2 (Alpha-04): sin ella, el nombre por defecto. */
   identity?: PlayerIdentity;
   money: number;

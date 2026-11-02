@@ -48,22 +48,31 @@ const patrols = (life: StreetLife): Walker[] => life.agents.filter((a) => a.role
 
 // --------------------------------------------------- 1. datos: comisaría y reglas de patrulla de cada barrio
 {
-  const station = PLACES.find((p) => p.tags.includes('police'));
-  assert.ok(station, 'no hay comisaría en data/places.ts');
-  const pc = getLocation('puerta-central');
-  const building = pc.buildings?.find((b) => b.id === station.building);
-  assert.equal(building?.enter?.location, 'pc-comisaria', 'la puerta de la comisaría no lleva a su interior');
-  assert.ok(pc.spawns?.['pc-comisaria'], 'sin sitio delante de la puerta para salir');
-  assert.ok((pc.links ?? []).some((l) => l.includes('PC_COMISARIA_ENTRANCE')), 'la puerta de la comisaría no está en el grafo de la plaza');
-  const inside = getLocation('pc-comisaria');
-  const exit = inside.portals?.find((p) => p.to.location === 'puerta-central');
-  assert.equal(exit?.to.spawn, 'pc-comisaria', 'sin salida a la plaza');
-  assert.ok(!(inside.props ?? []).some((p) => p.kind === 'register'), 'una recepción no lleva caja registradora');
-  // Recepción con agente que ofrece el servicio de la comisaría (systems/Police, scenes/Menus.openPoliceDesk).
-  const desk = profileFor('pc-comisaria')?.staff.find((s) => s.service === 'police-officer');
-  assert.ok(desk, 'sin agente de guardia en recepción');
-  const offer = identity(desk).offers;
-  assert.equal(offer && getOffer(offer).kind, 'police', 'la guardia no ofrece la recepción de la comisaría');
+  // La comisaría de Puerta Central (24 h) y la oficina de barrio de Vallesco (ALPHA-10, en la Ronda): las mismas reglas.
+  const STATIONS = [
+    { place: 'pc-comisaria', street: 'puerta-central', point: 'PC_COMISARIA_ENTRANCE' },
+    { place: 'vallesco-policia', street: 'district', point: 'VPOLICIA_ENTRANCE' },
+  ];
+  assert.deepEqual(PLACES.filter((p) => p.tags.includes('police')).map((p) => p.id).sort(), STATIONS.map((s) => s.place).sort(), 'comisarías en data/places.ts distintas de las que se comprueban');
+  for (const s of STATIONS) {
+    const station = PLACES.find((p) => p.id === s.place)!;
+    const pc = getLocation(s.street);
+    const building = pc.buildings?.find((b) => b.id === station.building);
+    assert.equal(building?.enter?.location, s.place, `${s.place}: la puerta de la comisaría no lleva a su interior`);
+    assert.ok(pc.spawns?.[station.building!], `${s.place}: sin sitio delante de la puerta para salir`);
+    assert.ok((pc.links ?? []).some((l) => l.includes(s.point)), `${s.place}: la puerta de la comisaría no está en el grafo de la calle`);
+    const inside = getLocation(s.place);
+    const exit = inside.portals?.find((p) => p.to.location === s.street);
+    assert.equal(exit?.to.spawn, station.building, `${s.place}: sin salida a la calle`);
+    assert.ok(!(inside.props ?? []).some((p) => p.kind === 'register'), `${s.place}: una recepción no lleva caja registradora`);
+    // Recepción con agente que ofrece el servicio de la comisaría (systems/Police, scenes/Menus.openPoliceDesk).
+    const desk = profileFor(s.place)?.staff.find((st) => st.service === 'police-officer');
+    assert.ok(desk, `${s.place}: sin agente de guardia en recepción`);
+    const offer = identity(desk).offers;
+    assert.ok(offer && getOffer(offer).kind === 'police', `${s.place}: la guardia no ofrece la recepción de la comisaría`);
+    const brief = getOffer(offer);
+    assert.equal(brief.kind === 'police' && brief.street, s.street, `${s.place}: la recepción habla de otro barrio`);
+  }
 
   for (const profile of STREET_PROFILES) {
     const loc = getLocation(profile.location);

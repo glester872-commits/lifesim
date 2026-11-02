@@ -48,6 +48,8 @@ import { STREET_EVENTS } from './data/streetEvents';
 import { STORIES } from './data/saraStory';
 import { StreetEvent } from './systems/StreetEvents';
 import { eventId, type EventInfo } from './systems/WorldEvents';
+import { EMERGENCIES } from './data/emergencies';
+import { clearForced, emergencyInfo, forceIncident } from './systems/Emergencies';
 import { auditableLocations, auditVenues, lastTransitionError } from './systems/VenueAudit';
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
@@ -353,10 +355,13 @@ function devEvents() {
   const metro = () => (game.scene.getScene('World') as WorldSceneType).metroSystem;
   /** El carterista de la calle de aquí (systems/Pickpocket), si hay calle con gente. */
   const street = () => (game.scene.getScene('World') as WorldSceneType).streetSystem?.pickpocket;
+  // Emergencias (systems/Emergencies): fire:<id>. Forzar empieza una ahora; cancelar quita la forzada.
+  const fires = new Map(EMERGENCIES.map((d) => [eventId(d.type, d.id), d]));
   const all = (): EventInfo[] => {
     const crime = metro()?.pickpocketLifecycle();
     const robbery = street()?.lifecycle();
-    return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...(crime ? [crime] : []), ...(robbery ? [robbery] : [])];
+    const flags = state.events.eventFlags;
+    return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...[...fires.values()].map((d) => emergencyInfo(d, now(), flags)), ...(crime ? [crime] : []), ...(robbery ? [robbery] : [])];
   };
   const inspect = (id: string): EventInfo => {
     const e = all().find((x) => x.id === id);
@@ -367,6 +372,8 @@ function devEvents() {
     const t = now();
     const f = fights.get(id);
     if (f) return what === 'force' ? (f.devForce(t), 'forzada') : what === 'resolve' ? f.devResolve(t) : what === 'cancel' ? f.devCancel(t) : (f.devReset(), 'enfriamiento quitado');
+    const fire = fires.get(id);
+    if (fire) return what === 'force' ? (forceIncident(fire, t), 'forzado') : what === 'cancel' ? (clearForced(fire), 'quitado el forzado') : 'sigue su reloj: no se resuelve ni se enfría a mano';
     const d = deals.get(id);
     if (d) return what === 'force' ? (d.devForce(t), 'forzado') : what === 'resolve' ? d.devResolve(t) : what === 'cancel' ? d.devCancel(t) : (d.devReset(), 'enfriamiento quitado');
     const sp = street();

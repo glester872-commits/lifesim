@@ -16,6 +16,8 @@ export interface TransitLine {
   fare: number;
   /** Minutos de reloj entre dos paradas seguidas. */
   minutesPerStop: number;
+  /** Servicio continuo de gameplay; la espera real la dirige MetroDaily/TrainSystem. */
+  hours: readonly [number, number];
 }
 
 export interface TransitStop {
@@ -36,7 +38,8 @@ export interface TransitStop {
 }
 
 export const LINES: readonly TransitLine[] = [
-  { id: 'L2', name: 'Línea 2', card: 'transport', fare: METRO_FARE, minutesPerStop: METRO_MINUTES },
+  { id: 'L2', name: 'Línea 2', card: 'transport', fare: METRO_FARE, minutesPerStop: METRO_MINUTES, hours: [0, 24] },
+  { id: 'L3', name: 'Línea 3 · exprés', card: 'transport', fare: METRO_FARE, minutesPerStop: METRO_MINUTES, hours: [0, 24] },
 ];
 
 export const STOPS: readonly TransitStop[] = [
@@ -51,4 +54,12 @@ export const STOPS: readonly TransitStop[] = [
   { id: 'vallesco', name: 'Vallesco', line: 'L2', order: 0, station: 'vallesco-station' },
   { id: 'ribera', name: 'Ribera Norte', line: 'L2', order: 1, station: 'ribera-station' },
   { id: 'decathlon', name: 'Polígono Norte · Decathlon', line: 'L2', order: 2, station: 'decathlon-station' },
+  { id: 'puerta-central-l3', name: 'Puerta Central · L3', line: 'L3', order: 0, station: 'puerta-central-l3-station', hub: 1 },
+  { id: 'decathlon-l3', name: 'Polígono Norte · Decathlon · L3', line: 'L3', order: 1, station: 'decathlon-l3-station' },
 ];
+
+/** Cada parada identifica un andén, también cuando comparte estación con otra línea. */
+export const TRANSFERS = [
+  { from: 'puerta-central', to: 'puerta-central-l3', minutes: 2 },
+  { from: 'decathlon', to: 'decathlon-l3', minutes: 2 },
+] as const;

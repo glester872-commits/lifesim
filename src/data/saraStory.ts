@@ -21,7 +21,6 @@ const ANY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
 /** La visita a tu casa (data/visits.ts): sus palabras. */
 const VISIT: VisitText = {
-  routine: 'plan-visita', routineStudio: 'plan-visita-estudio', sofa: 'HOME_SOFA_02', sofaStudio: 'STUDIO_SOFA_02',
   friend: 'sara_friend', conflict: 'sara_conflict',
   ask: ['Oye, llevo semanas sin ver dónde vives. ¿Me enseñas tu casa {cuando}? Llevo yo algo de picar.'],
   yes: { label: 'Claro, ven {cuando}', reply: ['¡Bien! {cuando} en {lugar}. Voy a juzgar la decoración, que lo sepas.'] },

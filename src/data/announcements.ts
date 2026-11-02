@@ -17,7 +17,7 @@ export const ANNOUNCEMENTS = {
     'Viajeros: mantengan sus pertenencias a la vista.',
   ],
   general: [
-    'Línea 2. Próximo tren en {min} minutos.',
+    'Línea {line}. Próximo tren en {min} minutos.',
     'Por su seguridad, no rebasen la franja amarilla del andén.',
     'Mantengan sus pertenencias a la vista.',
   ],

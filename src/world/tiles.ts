@@ -9,6 +9,9 @@ export interface TileDef {
 }
 
 export const TILES: Readonly<Record<string, TileDef>> = {
+  B: { key: 'tile-boxing-canvas', solid: false, variants: 1 },
+  S: { key: 'tile-boxing-ropes-h', solid: true, variants: 1 },
+  L: { key: 'tile-boxing-ropes-v', solid: true, variants: 1 },
   g: { key: 'tile-grass', solid: false, variants: 3 },
   ',': { key: 'tile-pavement', solid: false, variants: 2 },
   '.': { key: 'tile-asphalt', solid: false, variants: 2 },
@@ -127,6 +130,10 @@ export interface PropDef {
 }
 
 export const PROPS: Readonly<Record<PropKind, PropDef>> = {
+  'boxing-bag': { key: 'prop-boxing-bag', tilesHigh: 3, shadow: [12, 5] },
+  'boxing-post': { key: 'prop-boxing-post', tilesHigh: 2 },
+  'boxing-rack': { key: 'prop-boxing-rack', tilesHigh: 2, tilesWide: 3 },
+  'boxing-sign': { key: 'prop-boxing-sign', tilesHigh: 1, tilesWide: 5 },
   // El plátano de sombra: la copa desborda su tile y tapa a quien pasa por detrás.
   tree: { key: 'prop-tree', tilesHigh: 4, variants: 4, shadow: [14, 5], cast: 12, castBlob: [40, 14] },
   bush: { key: 'prop-bush', tilesHigh: 1 },
@@ -169,6 +176,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'car-b': { key: 'prop-car-b', tilesHigh: 2, tilesWide: 3 },
   'car-c': { key: 'prop-car-c', tilesHigh: 2, tilesWide: 3 },
   van: { key: 'prop-van', tilesHigh: 2, tilesWide: 3 },
+  // La autobomba del parque de bomberos, aparcada en la cochera o en el vado: cuatro tiles de largo.
+  'fire-engine': { key: 'prop-fire-engine', tilesHigh: 2, tilesWide: 4 },
   bike: { key: 'prop-bike', tilesHigh: 1, variants: 4, foot: [14, 6] },
   bin: { key: 'prop-bin', tilesHigh: 1, foot: [8, 6], waste: { name: 'Papelera', lines: ['Verde, con la boca algo mellada de tanto uso. Casi vacía.'] } },
   'bin-tall': { key: 'prop-bin-tall', tilesHigh: 2, shadow: [10, 3], waste: { name: 'Papelera', lines: ['Alta, de chapa verde oscura y boca arriba. Alguien ha dejado un periódico doblado encima.'] } },

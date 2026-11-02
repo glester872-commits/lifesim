@@ -62,9 +62,9 @@ const loc = getLocation(cafe.locationId);
 const spots = cafe.anchors!.map((a) => loc.points![a]);
 const near = { tx: spots[0].tx, ty: spots[0].ty + 2 };
 const SAT = 6;
-function terraceOver(hour: number): { heard: number; peak: number; people: number } {
+function terraceOver(hour: number, day = SAT): { heard: number; peak: number; people: number } {
   const street = new StreetLife(loc, streetProfileFor(loc.id)!, seededRng(7));
-  let clock = { day: SAT, hour, minute: 0 };
+  let clock = { day, hour, minute: 0 };
   street.populate(clock, near);
   let heard = 0;
   let peak = 0;
@@ -80,7 +80,9 @@ function terraceOver(hour: number): { heard: number; peak: number; people: numbe
   }
   return { heard, peak, people };
 }
-const day = terraceOver(11);
+// Cuatro sábados seguidos: quién sale a la terraza a las 11 depende del día (ALPHA-08 midió 17–20 días de 42 con gente
+// sentada); con uno solo, la prueba pasaba o no según el reparto de ese sábado y no por lo que comprueba (que suene).
+const day = [SAT, SAT + 7, SAT + 14, SAT + 21].map((d) => terraceOver(11, d)).find((r) => r.people > 0) ?? terraceOver(11);
 assert.ok(day.people > 0 && day.heard > 0 && day.peak > 0.2, `la terraza abierta y con gente se oye (${JSON.stringify(day)})`);
 assert.ok(!isOpen(cafe, SAT, 3, 0));
 const night = terraceOver(3);

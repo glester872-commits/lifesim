@@ -41,7 +41,7 @@ import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { STATIONS, getStation, type StationId } from '../data/stations';
 import { COURTS, type ShootingSpot } from '../data/courts';
 import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } from '../systems/Basketball';
-import { KIND_OF, afterLine, summary, train, type Intensity } from '../systems/Fitness';
+import { KIND_OF, afterLine, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
@@ -97,7 +97,8 @@ import { StandView } from '../world/StandView';
 import type { MenuOption } from '../ui/Menu';
 import { AmbientDirector, ambientFrame, ambientSituation, facingTowards } from '../systems/AmbientActions';
 import type { AmbientPlacement, Placement } from '../entities/Character';
-import { stopAtStation } from '../systems/Transit';
+import { tilePath } from '../systems/Navigation';
+import { stopAtStation, journeyAfterPortal } from '../systems/Transit';
 import { Menus } from './Menus';
 import { CrowdView, type StandHook } from '../world/CrowdView';
 import { LitterView } from '../world/LitterView';
@@ -114,6 +115,9 @@ import { StreetEventView } from '../world/StreetEventView';
 import { AlleyDealView } from '../world/AlleyDealView';
 import { alleySpotsOf } from '../systems/AlleyDeals';
 import { STREET_EVENTS } from '../data/streetEvents';
+import { EmergencyView } from '../world/EmergencyView';
+import { EMERGENCIES } from '../data/emergencies';
+import { callEmergency } from '../systems/Emergencies';
 import { Occlusion } from '../world/Occlusion';
 import { ZoneDebugView } from '../world/ZoneDebugView';
 import { PopulationInspector } from '../world/PopulationInspector';
@@ -175,6 +179,7 @@ type Interactable =
   | { kind: 'rack'; x: number; y: number; rack: RackDef }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; job?: string; lines?: readonly string[] }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
+  | { kind: 'emergency'; x: number; y: number; view: EmergencyView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
   | { kind: 'court'; x: number; y: number; name: string; point: string; spot: ShootingSpot };
@@ -381,6 +386,9 @@ export class WorldScene extends Phaser.Scene {
   private streetEvents: StreetEventView[] = [];
   private alleyDeals: AlleyDealView[] = [];
   private ringBodies: Phaser.GameObjects.Zone[] = [];
+  /** Emergencias del sitio (data/emergencies.ts) y el cuerpo sólido de la autobomba aparcada de cada una. */
+  private emergencies: EmergencyView[] = [];
+  private engineBodies: Phaser.GameObjects.Zone[] = [];
   /** Mirando un evento: la cámara encuadra el corro hasta que el jugador se mueve. */
   private watching = false;
   /** Sentado: en qué asiento (data/seating.ts) y desde dónde se sentó, que es a donde vuelve al levantarse. */
@@ -608,8 +616,10 @@ export class WorldScene extends Phaser.Scene {
       this.interactables.push({ kind: 'seat', x: seat.tx * TILE + TILE / 2, y: seat.ty * TILE + TILE / 2, seat });
     }
     this.menus = new Menus(this.services, {
+      trainAt: (point) => { const target = this.interactables.find(t => t.kind === 'station' && t.point === point); if (target?.kind === 'station') this.openTraining(target); },
+      canBoard: (locationId) => !this.leaving && this.services.state.locationId === locationId && !!this.metro?.train.doorsOpen,
       persist: () => this.persist(),
-      arriveByTrain: (locationId) => this.arriveByTrain(locationId),
+      arriveByTrain: (locationId, minutes) => this.arriveByTrain(locationId, minutes),
       enter: (locationId) => this.go(locationId, 'entry', false),
       fadeOut: () => this.cameras.main.fadeOut(TRANSITION_MS, 0, 0, 0),
       refreshHome: () => this.refreshHome(),
@@ -665,6 +675,17 @@ export class WorldScene extends Phaser.Scene {
     // Algún rato de trapicheo en un callejón escondido (data/alleyDeals.ts): gente de la calle, una CrowdView más.
     this.alleyDeals = alleySpotsOf(def.id).map((s) => new AlleyDealView(this, def, s, weather));
     this.crowdViews.push(...this.alleyDeals.map((a) => a.crowd));
+    // Emergencias del barrio (data/emergencies.ts): salen del reloj; la llamada al 112 del jugador va en EventMemory.
+    this.emergencies = EMERGENCIES.filter((e) => e.location === def.id).map((e) => new EmergencyView(this, def, e, weather, () => this.services.state.events.eventFlags));
+    this.crowdViews.push(...this.emergencies.map((e) => e.crowd));
+    // La autobomba aparcada es sólida en su fila base (sólo mientras está); la puerta y su acera quedan libres.
+    this.engineBodies = this.emergencies.map(() => {
+      const zone = this.add.zone(0, 0, 4 * TILE, TILE - 6).setOrigin(0, 0);
+      this.physics.add.existing(zone, true);
+      this.physics.add.collider(this.player, zone);
+      (zone.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+      return zone;
+    });
     // Donde pelean no se entra: un cuerpo sólido sobre el corro mientras pelean.
     this.ringBodies = this.streetEvents.map((e) => {
       const r = e.ringRect;
@@ -880,6 +901,8 @@ export class WorldScene extends Phaser.Scene {
     this.frameStart = performance.now();
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
+    // El destino ya está confirmado: durante el fundido el mapa anterior no puede pisar su posición ni su reloj.
+    if (this.leaving) { this.player.halt(); return; }
     // La sala online, cada fotograma: los demás se mueven y lo propio sale como mucho 10 veces por segundo.
     this.services.online.update(zoneOf(this.services.state.locationId), this.player.x, this.player.y, this.player.facing);
     if (time - this.dressedAt > 500) {
@@ -1038,9 +1061,24 @@ export class WorldScene extends Phaser.Scene {
     this.alleyDeals.forEach((a) => {
       a.update(eventMinute, this.playerTile());
     });
-    // Quien está en el corro o en el callejón no anda a la vez por la calle (la misma persona en dos sitios).
-    if (this.street && (this.streetEvents.length || this.alleyDeals.length)) {
-      this.street.claimLooks(new Set([...this.streetEvents.flatMap((e) => e.looks), ...this.alleyDeals.flatMap((a) => a.agents.map((g) => g.look))]));
+    // Emergencias: el mismo reloj. La autobomba sólo es sólida si el jugador no está ya encima (nunca queda encerrado).
+    this.emergencies.forEach((e, i) => {
+      e.update(eventMinute, time);
+      const body = this.engineBodies[i].body as Phaser.Physics.Arcade.StaticBody;
+      const r = e.engineRect;
+      if (!r) {
+        body.enable = false;
+        return;
+      }
+      if (!body.enable && !r.contains(this.player.x, this.player.y - 2)) {
+        this.engineBodies[i].setPosition(r.x, r.y).setSize(r.width, r.height);
+        body.updateFromGameObject();
+        body.enable = true;
+      }
+    });
+    // Quien está en el corro, en el callejón o mirando un incendio no anda a la vez por la calle (la misma persona en dos sitios).
+    if (this.street && (this.streetEvents.length || this.alleyDeals.length || this.emergencies.length)) {
+      this.street.claimLooks(new Set([...this.streetEvents.flatMap((e) => e.looks), ...this.alleyDeals.flatMap((a) => a.agents.map((g) => g.look)), ...this.emergencies.flatMap((e) => e.looks)]));
     }
     // Mirando: en cuanto el jugador se mueve, la cámara vuelve a él.
     if (this.watching && (this.player.body as Phaser.Physics.Arcade.Body).speed > 1) this.stopWatching();
@@ -1222,7 +1260,7 @@ export class WorldScene extends Phaser.Scene {
     if (!target) return null;
     switch (target.kind) {
       case 'npc': return 'Hablar';
-      case 'portal': return target.portal.train ? 'Subir' : target.portal.label?.startsWith('Salir') ? 'Salir' : 'Entrar';
+      case 'portal': return target.portal.train ? 'Subir' : target.portal.id === 'transfer' ? 'Transbordar' : target.portal.label?.startsWith('Salir') ? 'Salir' : 'Entrar';
       case 'seat': return 'Sentarse';
       case 'station': return 'Entrenar';
       case 'court': return 'Tirar a canasta';
@@ -1231,6 +1269,7 @@ export class WorldScene extends Phaser.Scene {
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
       case 'inspect': return target.board || target.venue ? 'Consultar' : 'Mirar';
       case 'event': return 'Mirar';
+      case 'emergency': return 'Mirar';
     }
   }
 
@@ -2147,12 +2186,22 @@ export class WorldScene extends Phaser.Scene {
   private startWorkout(target: Extract<Interactable, { kind: 'station' }>, intensity: Intensity, minutes: number): void {
     if (this.workout || this.stationBusy(target.point)) return;
     const def = getStation(target.station)!;
+    const { state } = this.services;
+    const q = quote(settle(state.fitness, this.absMinute()), target.station, intensity, state.energy, { money: state.money, hour: state.hour, minute: state.minute });
+    if (q.blocked) { this.services.dialogue.start(def.name, [q.blocked]); return; }
+    const loc = getLocation(state.locationId);
+    const p = loc.points![target.point];
+    const path = def.training ? tilePath(loc, this.playerTile(), p) : null;
+    if (def.training && !path) { this.services.dialogue.start(def.name, ['No hay un camino libre hasta ese puesto.']); return; }
+    if (q.fee) state.as('Sesión · ' + def.name, () => { state.money -= q.fee; });
     this.workout = { point: target.point, station: target.station, intensity, minutes, startMinute: this.absMinute(), from: { x: this.player.x, y: this.player.y }, releasing: false, hintAt: 0 };
+    if (q.fee) this.persist();
     // La gente lo sabe ya: quien iba de camino a ese puesto lo cancela, sin esperar al siguiente fotograma.
     this.placeCharacters(0);
     this.prompt.setVisible(false);
-    const p = getLocation(this.services.state.locationId).points![target.point];
-    this.player.startTraining(p.tx * TILE + TILE / 2, p.ty * TILE + TILE, target.facing, def.motion, def.settle === 'sit', !!def.sets);
+    this.player.startTraining(p.tx * TILE + TILE / 2, p.ty * TILE + TILE, target.facing, def.motion, def.settle === 'sit', !!def.sets,
+      path?.map(p => ({ x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE })),
+      () => { if (def.training && this.workout?.point === target.point) this.workout.startMinute = this.absMinute(); });
   }
 
   /** Cada fotograma entrenando: el movimiento, lo que queda, y E o Esc para terminar. */
@@ -2537,6 +2586,7 @@ export class WorldScene extends Phaser.Scene {
       case 'seat': return `seat:${item.seat.id}`;
       case 'station': return `station:${item.point}`;
       case 'event': return `event:${item.view.def.id}`;
+      case 'emergency': return `emergency:${item.view.def.id}`;
       default: return `${item.kind}:${item.name}@${at}`;
     }
   }
@@ -2554,6 +2604,10 @@ export class WorldScene extends Phaser.Scene {
     const events: Interactable[] = this.streetEvents
       .filter((e) => e.noticedFrom(this.playerTile()))
       .map((e) => ({ kind: 'event', x: e.def.vantage.tx * TILE + TILE / 2, y: e.def.vantage.ty * TILE + TILE / 2, view: e }));
+    // Una emergencia se ofrece al mirar hacia ella (hacia la fachada) desde cerca; mirando a otro lado, mandan las puertas y la gente.
+    if (this.player.facing === 'up') {
+      for (const e of this.emergencies) if (e.noticedFrom(this.playerTile())) events.push({ kind: 'emergency', x: this.player.x, y: this.player.y - TILE, view: e });
+    }
     // Quien atiende un local (personal: vende, da fichas, recibe denuncias): delante del jugador, gana al cliente que paga a su lado.
     const wrap = (item: Interactable): PickCandidate & { item: Interactable } => ({ id: this.idOf(item), kind: item.kind, ...anchor(item), serves: item.kind === 'npc' && this.attends(item.sprite), item });
     const cands = [...this.interactables, ...this.crowdInteractables(), ...events]
@@ -2590,7 +2644,7 @@ export class WorldScene extends Phaser.Scene {
       : target.kind === 'terminal' || target.kind === 'spot' ? target.name + (this.shutFor(target) || (target.kind === 'terminal' && this.stallClosed(target)) ? ' · cerrado' : '')
       : target.kind === 'inspect' ? target.name
       : target.kind === 'rack' ? target.rack.name
-      : target.kind === 'event' ? target.view.def.name
+      : target.kind === 'event' || target.kind === 'emergency' ? target.view.def.name
       : target.kind === 'npc' ? target.def.name
       : target.kind === 'seat' ? `Sentarse · ${target.seat.def.name}`
       : target.kind === 'court' ? `Tirar a canasta · ${target.spot.label}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
@@ -2662,6 +2716,7 @@ export class WorldScene extends Phaser.Scene {
       else this.menus.openSpot(target.name, target.activities);
     }
     else if (target.kind === 'event') this.approachEvent(target.view);
+    else if (target.kind === 'emergency') this.approachEmergency(target.view);
     else if (target.kind === 'npc') {
       // Personal con algo que ofrecer (la barbera, la barra): se le pide; el resto, se charla.
       const offer = this.offerOf(target.sprite);
@@ -2716,7 +2771,37 @@ export class WorldScene extends Phaser.Scene {
     }, 2);
   }
 
-  private watch(view: StreetEventView): void {
+  /**
+   * Delante de una emergencia (systems/Emergencies): lo que se ve y qué hacer. Con humo y sin aviso, llamar al 112
+   * adelanta la salida de la dotación (se guarda, una vez); con aviso, la llamada sólo lo confirma. Mirar encuadra la
+   * fachada sin parar nada; hablar, con quien esté más cerca.
+   */
+  private approachEmergency(view: EmergencyView): void {
+    const { state, dialogue } = this.services;
+    const phase = view.phaseNow;
+    if (phase === 'none') return;
+    const options = phase === 'smoke' || phase === 'responding' ? ['Llamar al 112', 'Mirar', 'Hablar con alguien', 'Irse'] : ['Mirar', 'Hablar con alguien', 'Irse'];
+    dialogue.ask(view.def.name, [view.def.lines.arrive[phase]], options, (pick) => {
+      const choice = options[pick];
+      if (choice === 'Llamar al 112') {
+        const now = state.day * 1440 + this.services.clock.minuteOfDay;
+        const call = callEmergency(view.def, now, state.events.eventFlags);
+        if (call) {
+          state.events.eventFlags[call.flag] = call.minute;
+          this.persist();
+        }
+        dialogue.start(view.def.name, [call ? view.def.lines.call : view.def.lines.called]);
+      } else if (choice === 'Mirar') this.watch(view);
+      else if (choice === 'Hablar con alguien') {
+        const who = view.nearestPerson(this.player.x, this.player.y);
+        if (!who) return;
+        this.startTalk(who);
+        this.openDialogue(who.def.name, who.def.lines);
+      }
+    }, options.length - 1);
+  }
+
+  private watch(view: { readonly ringRect: Phaser.Geom.Rectangle }): void {
     const r = view.ringRect;
     const cam = this.cameras.main;
     this.watching = true;
@@ -3583,12 +3668,11 @@ export class WorldScene extends Phaser.Scene {
 
   /** Cruza la puerta: el rato que lleva, la vuelta por la misma puerta por la que se entró y el cambio de sitio. */
   private passThrough(portal: PortalDef): void {
-    if (portal.minutes) this.services.clock.advanceMinutes(portal.minutes);
     const here = this.services.state.locationId;
     const via = this.cameIn;
     const spawn = via && via.into === here && via.from === portal.to.location && getLocation(via.from).spawns[via.door] ? via.door : portal.to.spawn;
     this.cameIn = { from: here, door: portal.id, into: portal.to.location };
-    this.go(portal.to.location, spawn, false);
+    this.go(portal.to.location, spawn, false, portal.minutes ?? 0);
   }
 
   /**
@@ -3607,8 +3691,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Llega en tren a un andén: el tren sigue en la vía al bajar y el trayecto cuenta su evento. */
-  private arriveByTrain(locationId: string): void {
-    this.go(locationId, 'train', true);
+  private arriveByTrain(locationId: string, minutes = 0): void {
+    this.go(locationId, 'train', true, minutes);
   }
 
   /**
@@ -3645,7 +3729,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Cambia de localización: guarda, funde a negro y rehace la Scene a la hora que sea ya. */
-  private go(locationId: string, spawnId: string, byTrain: boolean): void {
+  private go(locationId: string, spawnId: string, byTrain: boolean, minutes = 0): void {
     if (this.leaving) return;
     const { state, hint } = this.services;
     this.leaving = true;
@@ -3667,11 +3751,14 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     if (byTrain) this.cameIn = null;
+    else state.metroJourney = journeyAfterPortal(state.metroJourney ?? null, state.locationId, target.id);
     const position = spawnToWorld(spawn);
     state.locationId = target.id;
     state.position.x = position.x;
     state.position.y = position.y;
     state.facing = spawn.facing;
+    // Los observadores de medianoche también guardan: deben ver ya el destino y la tarifa confirmados.
+    if (minutes) this.services.clock.advanceMinutes(minutes);
     this.persist();
 
     const camera = this.cameras.main;

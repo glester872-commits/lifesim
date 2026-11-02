@@ -1,0 +1,51 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Boxeo · QA jugable</title>
+<style>body{font:15px system-ui;background:#171a24;color:#eee1c5;margin:16px}button{font:inherit;padding:12px;margin:4px}pre{white-space:pre-wrap;max-height:230px;overflow:auto}iframe{border:1px solid #777;width:880px;height:720px;max-width:98vw}</style>
+<h1>Boxeo · prueba del juego real</h1><p>Partida desechable del puerto 5199. Teclado/ratón o punteros táctiles sintéticos; no es un teléfono real.</p><button id="desktop">Probar teclado y ratón</button><button id="mobile">Probar móvil emulado</button><button id="capture">Descargar captura del juego</button><pre id="result">Preparado</pre><iframe id="game" title="LIFE//SIM de QA"></iframe>
+<script type="module">
+import {createInitialState,SaveSystem} from '/src/systems/SaveSystem.ts';
+import {getLocation,spawnToWorld,isWalkable} from '/src/systems/LocationSystem.ts';
+import {tilePath} from '/src/systems/Navigation.ts';
+import {TILES,variantKey} from '/src/world/tiles.ts';
+const frame=document.querySelector('#game'),result=document.querySelector('#result');let w,life,mode,monitor,samples=0,blocked=0,gloves=0;
+const delay=ms=>new Promise(r=>setTimeout(r,ms));const log=s=>{result.textContent+='\n'+s;result.scrollTop=result.scrollHeight};const check=(b,s)=>{if(!b)throw Error(s);log('PASS '+s)};
+async function until(fn,label,ms=30000){const end=performance.now()+ms;while(performance.now()<end){if(fn())return;await delay(20)}throw Error('Timeout: '+label)}
+const scene=()=>life.game.scene.getScene('World');const state=()=>life.services.state;const abs=()=>{const s=state();return(s.day-1)*1440+s.hour*60+s.minute};
+function event(type,key,code,n){w.dispatchEvent(new w.KeyboardEvent(type,{key,code,keyCode:n,which:n,bubbles:true,cancelable:true}))}
+async function key(key,code,n){event('keydown',key,code,n);await delay(65);event('keyup',key,code,n);await delay(80)}
+function pointer(el,type,id=7,x=0,y=0){el.dispatchEvent(new w.PointerEvent(type,{pointerType:'touch',pointerId:id,clientX:x,clientY:y,bubbles:true,cancelable:true,isPrimary:true,buttons:type==='pointerup'?0:1}))}
+async function action(){if(mode==='mobile'){const b=w.document.querySelector('.touch__action');pointer(b,'pointerdown');await delay(65);pointer(b,'pointerup');await delay(100)}else await key('e','KeyE',69)}
+async function loaded(){w=frame.contentWindow;await until(()=>w.document.querySelector('[data-action="continue"]'),'Continuar',45000);w.document.querySelector('[data-action="continue"]').click();await until(()=>w.lifesim?.game.scene.isActive('World'),'WorldScene',45000);life=w.lifesim;await delay(900);if(mode==='mobile'){pointer(w.document.body,'pointerdown',22);pointer(w.document.body,'pointerup',22)}}
+async function axis(axis,target){const p=scene().player;if(Math.abs(target-p[axis])<3)return;const dir=Math.sign(target-p[axis]);let release;
+ if(mode==='mobile'){const el=w.document.querySelector('.touch__stick'),r=w.document.querySelector('.touch__base').getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;pointer(el,'pointerdown',9,x+(axis==='x'?dir*60:0),y+(axis==='y'?dir*60:0));release=()=>pointer(el,'pointerup',9,x,y)}
+ else{const k=axis==='x'?(dir>0?['d','KeyD',68]:['a','KeyA',65]):(dir>0?['s','KeyS',83]:['w','KeyW',87]);event('keydown',...k);release=()=>event('keyup',...k)}
+ try{await until(()=>dir*(target-p[axis])<3,'caminar '+axis,8000)}finally{release()}await delay(50);
+}
+async function walk(tx,ty){const sc=scene(),loc=getLocation(state().locationId),p=sc.player;const from={tx:Math.floor(p.x/16),ty:Math.floor((p.y-1)/16)},route=tilePath(loc,from,{tx,ty});check(!!route,'camino libre hasta '+tx+','+ty);for(const t of route){await axis('x',t.tx*16+8);await axis('y',t.ty*16+16)}}
+async function pick(text){await delay(350);const item=[...w.document.querySelectorAll('.menu__item')].find(e=>e.textContent.includes(text));check(!!item,'opción '+text);item.click();}
+async function start(point,viaCoach=false){
+ if(viaCoach){await until(()=>!scene().stationBusy(point),'puesto de guardia libre',60000);await walk(15,11);await axis('y',190);await action();await until(()=>life.services.menu.isOpen,'oferta de Inés');check(w.document.querySelector('.menu__title').textContent.includes('Inés'),'instructora ofrece entrenamiento');await pick('Guardia y defensa')}
+ else{const p=getLocation('boxing').points[point];await walk(p.tx,p.ty+1);await until(()=>!scene().stationBusy(point),'puesto libre '+point,60000);await key('w','KeyW',87);await action()}
+ await until(()=>life.services.menu.isOpen,'menú de intensidad');
+ const waitItem=[...w.document.querySelectorAll('.menu__item')].find(e=>e.textContent.includes('Esperar a la próxima'));if(waitItem){const before=state().money;const old=abs();const wait=Number(waitItem.querySelector('.menu__detail').textContent.match(/\d+/)[0]);await delay(350);waitItem.click();check(state().money===before,'espera gratuita');check(abs()===old+wait,'espera avanza '+wait+' min')}
+ await delay(350);const price=state().money;await pick('Suave');check(!!scene().workout,'sesión real iniciada');check(state().money===price-6,'cobro único de €6');
+ // Una segunda pulsación sobre el menú anterior no puede cobrar ni iniciar otra sesión.
+ const remaining=w.document.querySelectorAll('.menu__item');const oldMenu=[...remaining].find(e=>e.textContent.includes('Suave'));oldMenu?.click();check(state().money===price-6,'pulsación repetida no cobra otra vez');
+}
+async function reload(label){const old={money:state().money,boxing:state().fitness.boxing,total:state().fitness.total,location:state().locationId};life.services.save.save(state().snapshot);frame.src='/';await loaded();check(state().money===old.money&&state().fitness.boxing===old.boxing&&state().fitness.total===old.total&&state().locationId===old.location,'recarga '+label+' conserva dinero, técnica, sesiones y lugar');check(!scene().workout&&!scene().player.isBusyTraining,'recarga no reanuda ni premia otra vez');}
+async function run(which){mode=which;result.textContent='RUN '+mode;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{
+ if(location.port!=='5199')throw Error('Sólo puerto de QA 5199');frame.src='about:blank';await delay(200);const s=createInitialState();s.locationId='boxing';s.position=spawnToWorld(getLocation('boxing').spawns.entry);s.facing='up';s.hour=18;s.minute=6;s.agenda.tour='skipped';s.identity={name:'QA Boxeo'};new SaveSystem().save(s);frame.style.width=mode==='mobile'?'390px':'880px';frame.style.height=mode==='mobile'?'844px':'720px';frame.src='/';await loaded();
+ const missing=[...new Set(getLocation('boxing').ground.flatMap((row,y)=>[...row].map((c,x)=>variantKey(TILES[c],x,y))).filter(k=>!life.game.textures.exists(k)))];log('Texturas sin entrada directa: '+missing.join(', '));check(['tile-boxing-canvas-0','tile-boxing-ropes-h-0','tile-boxing-ropes-v-0'].every(k=>life.game.textures.exists(k)),'texturas nuevas de lona y cuerdas registradas');
+ if(mode==='mobile')check(w.document.body.classList.contains('has-touch')&&w.document.querySelector('.touch__action').offsetWidth>0,'controles táctiles visibles');
+ samples=blocked=gloves=0;monitor=setInterval(()=>{if(!life?.game.scene.isActive('World'))return;const sc=scene(),p=sc.player,loc=getLocation(state().locationId);if(loc.id!=='boxing')return;samples++;if(!isWalkable(loc,Math.floor(p.x/16),Math.floor((p.y-1)/16)))blocked++;if(sc.player.gearOver?.visible&&sc.player.gearOver.texture.key.startsWith('fx-boxing-'))gloves++;},20);
+ await start('BOX_GUARD_01',true);await until(()=>scene().player.isTraining,'llegar andando al ring');const from=scene().workout.startMinute;const duration=scene().workout.minutes;await until(()=>!scene().workout&&life.services.dialogue.isOpen,'terminar y volver andando',45000);check(abs()>=from+duration,'sesión consume tiempo real');check(state().fitness.boxing>0&&state().fitness.total===1,'técnica y sesión persistentes');check(gloves>0,'guantes visibles durante el ejercicio');check(blocked===0,'jugador nunca atraviesa cuerdas ni sacos ('+samples+' muestras)');log('Presupuesto '+JSON.stringify(life.perf()));check(life.perf().over.length===0,'sin exceso de presupuesto');await reload('sesión completada');
+ await walk(14,17);await action();await until(()=>state().locationId==='gym'&&!scene().leaving,'salir al gimnasio');await delay(800);check(state().fitness.total===1,'salir no duplica recompensa');await action();await until(()=>state().locationId==='boxing'&&!scene().leaving,'volver al club');await delay(800);check(state().fitness.total===1,'volver conserva progreso');
+ // Recargar durante una segunda sesión pagada: se corta, sin devolución ni recompensa duplicada.
+ await start('BOX_COORD_01');const paid=state().money,progress=state().fitness.boxing;await reload('sesión interrumpida');check(state().money===paid&&state().fitness.boxing===progress&&state().fitness.total===1,'interrupción sin reembolso ni premio extra');
+ if(mode==='mobile')check(w.document.documentElement.scrollWidth<=w.innerWidth,'390 px sin desbordamiento');log('RESULTADO PASS · '+mode);
+ }catch(e){log('RESULTADO FAIL · '+e.stack)}finally{clearInterval(monitor);document.querySelectorAll('button').forEach(b=>b.disabled=false)}}
+document.querySelector('#capture').onclick=()=>{
+ if(!life?.game.scene.isActive('World')){log('Primero ejecuta una prueba para abrir el juego.');return;}
+ life.game.renderer.snapshot(image=>{const link=document.createElement('a');link.download='lifesim-boxeo-'+mode+'.png';link.href=image.src;link.click();});
+};
+document.querySelector('#desktop').onclick=()=>run('desktop');document.querySelector('#mobile').onclick=()=>run('mobile');
+</script></html>

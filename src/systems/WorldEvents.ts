@@ -17,7 +17,7 @@ import type { TilePoint } from '../types/game.ts';
  */
 export type Lifecycle = 'ELIGIBLE' | 'SPAWNING' | 'ACTIVE' | 'RESOLUTION' | 'CLEANUP' | 'COOLDOWN';
 
-export type WorldEventType = 'fight' | 'alley' | 'pickpocket';
+export type WorldEventType = 'fight' | 'alley' | 'pickpocket' | 'fire';
 
 export interface EventParticipant {
   id: string;

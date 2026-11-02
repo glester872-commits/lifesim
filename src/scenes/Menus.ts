@@ -1,3 +1,4 @@
+import { getLocation } from '../systems/LocationSystem';
 import type { Services } from '../services';
 import { getCatalog, type Catalog } from '../data/catalogs';
 import { getItem } from '../data/items';
@@ -5,7 +6,7 @@ import { getActivity, getOffMapPlace, type ActivityDef } from '../data/activitie
 import { STOPS, type TransitStop } from '../data/transit';
 import { checkout, consume, euros, maxQty, payFare, productUse, purchase, spend } from '../systems/Commerce';
 import { blocker, perform, type ActivityContext } from '../systems/Activities';
-import { destinationsFrom, type Destination } from '../systems/Transit';
+import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
 import { getJob, jobAt, type JobDef } from '../data/jobs';
 import { clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, nextShift, offerText, promote, promotionReady, quit, settle as settleJob, situationFor, work, type JobProgress } from '../systems/Jobs';
@@ -47,8 +48,10 @@ import { owed, statusOf as billStatus, unpaid } from '../systems/Household';
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
 export interface MenuHost {
   persist(): void;
+  canBoard(locationId: string): boolean;
+  trainAt(point: string): void;
   /** Llega en tren a esa localización (andén, spawn 'train'). */
-  arriveByTrain(locationId: string): void;
+  arriveByTrain(locationId: string, minutes?: number): void;
   /** Entra andando en una localización por su entrada (spawn 'entry'): el interior de un sitio sin mapa. */
   enter(locationId: string): void;
   /** Funde a negro al irse a un sitio sin mapa. */
@@ -255,12 +258,13 @@ export class Menus {
     const options: MenuOption[] = [
       { label: from.name, detail: 'estás aquí', disabled: 'Ya estás en esta estación.' },
       ...dests.map((d) => {
-        const paid = payFare(state.wallet, d.line.card, d.fare);
-        return { label: d.stop.name, detail: `${d.minutes} min · ${euros(d.fare)}`, disabled: paid.ok ? undefined : paid.message };
+        const fare = journeyFare(state.metroJourney ?? null, from, d.fare);
+        const paid = payFare(state.wallet, d.line.card, fare);
+        return { label: d.stop.name, detail: d.minutes + ' min · ' + (fare ? euros(fare) + ' · validar tarjeta' : 'billete validado · sin recargo'), disabled: !visitable(d.stop) ? 'Sin mapa visitable: no se puede viajar aquí.' : !serviceOpen(d.line, state.hour) ? 'Fuera de servicio.' : paid.ok ? undefined : paid.message };
       }),
       { label: 'Quedarme en el andén' },
     ];
-    menu.open(`${dests[0]?.line.name ?? 'Metro'} · destino`, '¿A dónde vas?', options, (i) => {
+    menu.open(`${dests[0]?.line.name ?? 'Metro'} · destino`, 'Sólo destinos de este andén. Para L2 ↔ L3, camina por el pasillo del vestíbulo en Puerta Central o Polígono Norte. Billete: €2 hasta salir a la calle. L3 exprés: 15 min; servicio continuo. La espera y los pasillos cuentan aparte en el reloj.', options, (i) => {
       if (i === options.length - 1) {
         menu.close();
         return;
@@ -270,26 +274,18 @@ export class Menus {
   }
 
   private ride(from: TransitStop, d: Destination): void {
-    const { state, clock, menu, metroEvents } = this.services;
-    const paid = payFare(state.wallet, d.line.card, d.fare);
-    if (!paid.ok) {
-      this.board(from, paid.message);
-      return;
-    }
+    const { state, menu, metroEvents } = this.services;
+    // Una elección antigua o repetida no puede cobrar ni saltarse las puertas.
+    if (!this.host.canBoard(from.station ?? '') || state.locationId !== from.station) { menu.close(); return; }
+    const result = prepareRide(state.wallet, state.metroJourney ?? null, from, d.stop, state.hour);
+    if (!result.ok) { this.board(from, result.message); return; }
     menu.close();
-    state.wallet = paid.wallet;
-    // El evento del trayecto se decide al salir, con la hora de salida; se cuenta al llegar a una estación.
-    if (d.stop.station) {
-      const { day, hour, minute, money, energy } = state;
-      metroEvents.onRide({ day, hour, minute, money, energy, to: d.stop.station });
-    }
-    clock.advanceMinutes(d.minutes);
-    if (d.stop.station) this.host.arriveByTrain(d.stop.station);
-    else {
-      this.host.fadeOut();
-      this.host.persist();
-      this.offMap(d.stop, from);
-    }
+    state.wallet = result.wallet;
+    state.metroJourney = result.journey;
+    const { day, hour, minute, money, energy } = state;
+    metroEvents.onRide({ day, hour, minute, money, energy, to: result.station });
+    // go() guarda la llegada completa antes del fundido. Recargar no repite ni cobra el trayecto.
+    this.host.arriveByTrain(result.station, result.minutes);
   }
 
   // ---------------------------------------------------- sitio sin mapa
@@ -872,6 +868,17 @@ export class Menus {
    */
   openOffer(id: OfferId, who: string, note = '', selected = 0): void {
     const offer = getOffer(id);
+    if (offer.kind === 'training') {
+      const { state, menu } = this.services;
+      const location = state.locationId;
+      const points = offer.points.map(id => ({ id, point: getLocation(location).points?.[id] })).filter(p => p.point?.use);
+      menu.open(offer.title, (state.fitness.boxing ?? 0) < 2 ? 'Primero equilibrio y guardia. Te enseño una técnica cada vez. Sesiones a las horas y a las medias, 08:00–22:00; cinco minutos para empezar. €6 por sesión, guantes incluidos.' : 'Se nota la práctica: recuperas la guardia con más control. Sigue con pies y coordinación. Sesiones cada media hora, 08:00–22:00. €6 por sesión.',
+        [...points.map(p => ({ label: STATIONS[p.point!.use as StationId].name, detail: 'Elegir duración y comprobar disponibilidad' })), { label: 'Ahora no' }], i => {
+          menu.close();
+          if (i < points.length && state.locationId === location) this.host.trainAt(points[i].id);
+        });
+      return;
+    }
     if (offer.kind === 'activities') {
       this.openSpot(`${offer.title} · ${who}`, offer.activities, note);
       return;
@@ -1421,20 +1428,25 @@ export class Menus {
    * según cómo estás ahora (systems/Fitness). `onStart` recibe la intensidad elegida y los minutos de juego.
    */
   openTraining(station: StationId, onStart: (intensity: Intensity, minutes: number) => void): void {
-    const { state, menu } = this.services;
+    const { state, menu, clock } = this.services;
     const now = (state.day - 1) * 1440 + state.hour * 60 + state.minute;
     const f = settle(state.fitness, now);
-    const quotes = INTENSITY_ORDER.map((i) => quote(f, station, i, state.energy));
+    const context = { money: state.money, hour: state.hour, minute: state.minute };
+    const quotes = INTENSITY_ORDER.map(i => quote(f, station, i, state.energy, context));
     const options: MenuOption[] = INTENSITY_ORDER.map((i, k) => ({
       label: INTENSITIES[i].label,
-      detail: `${quotes[k].minutes} min · -${quotes[k].energy} energía`,
+      detail: quotes[k].minutes + ' min · -' + quotes[k].energy + ' energía' + (quotes[k].fee ? ' · ' + euros(quotes[k].fee) : ''),
       disabled: quotes[k].blocked ?? undefined,
     }));
+    const wait = quotes[0].wait;
+    if (wait > 0) options.push({ label: 'Esperar a la próxima sesión', detail: wait + ' min · sin coste' });
     options.push({ label: 'Cancelar' });
-    menu.open(`ENTRENAR · ${STATIONS[station].name}`, summary(f), options, (i) => {
-      menu.close();
-      if (i < INTENSITY_ORDER.length) onStart(INTENSITY_ORDER[i], quotes[i].minutes);
-    }, undefined, '', 1);
+    menu.open('ENTRENAR · ' + STATIONS[station].name, summary(f), options, i => {
+      if (i < INTENSITY_ORDER.length) { menu.close(); onStart(INTENSITY_ORDER[i], quotes[i].minutes); }
+      else if (wait > 0 && i === INTENSITY_ORDER.length) {
+        clock.advanceMinutes(wait); this.host.persist(); this.openTraining(station, onStart);
+      } else menu.close();
+    }, undefined, quotes[0].fee ? 'Se cobra una vez al empezar. E/Esc termina antes; sólo cuenta lo entrenado. Recargar interrumpe lo pendiente sin reembolso ni progreso extra.' : '', 1);
   }
 
   openSpot(name: string, activityIds: readonly string[], note = ''): void {

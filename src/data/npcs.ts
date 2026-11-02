@@ -393,6 +393,8 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   // Distrito Arena, día de partido: policía (azul marino, chaleco con bandas reflectantes y gorra; ningún cuerpo real) y
   // el personal de seguridad del estadio (peto naranja fluorescente sobre negro).
   // La misma ropa la llevan la patrulla de cada barrio y la guardia de la comisaría (systems/Police), con la placa al pecho.
+  // Bomberos (Ronda de la Vía): chaquetón azul marino con las bandas reflectantes amarillas y la gorra roja de guardia.
+  { id: 'uniforme-bomberos', cloth: '#232a3a', clothDark: '#181d29', hair: '#33291f', trousers: '#232a3a', sleeves: '#232a3a', cap: '#c8302a', reflective: '#e8e04a', stripe: '#e8e04a' },
   { id: 'uniforme-policia', cloth: '#1f2c4a', clothDark: '#162036', hair: '#2a2430', trousers: '#1f2c4a', sleeves: '#1f2c4a', cap: '#1f2c4a', reflective: '#d8e04a', stripe: '#d8e04a', badge: '#c9ccd2' },
   // Decathlon (data/decathlon.ts), medido en las fotos de design/references/uniforms/ (la fachada del polígono y cuatro
   // empleados de cerca): chaleco sin mangas azul real (#0a42aa, sombra #023087) sobre camiseta blanca o negra, con la

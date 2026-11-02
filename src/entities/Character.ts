@@ -39,6 +39,8 @@ export const SETUP_MS = 1_300;
  * mitad. Cada uno arranca en su punto del movimiento (por semilla).
  */
 export const REPS: Readonly<Record<string, readonly [Pose, Pose, number]>> = {
+  'boxing-guard': [8, 8, 900], 'boxing-footwork': [1, 2, 220], 'boxing-punch': [8, 9, 260],
+  'boxing-coordinate': [8, 9, 430], 'boxing-rope': [1, 2, 170],
   bike: [13, 14, 190],
   row: [19, 20, 760],
   bench: [11, 12, 1_050],
@@ -466,6 +468,7 @@ export class Character extends Phaser.GameObjects.Sprite {
         barY = BENCH_BAR[half];
       }
       // La pelota va en las manos: arriba al tirar, a la altura del pecho al recogerla.
+      if (activity.startsWith('boxing-')) { over = 'fx-boxing-' + where.dir + '-' + half; barY = 12; }
       if (activity === 'shoot') {
         over = 'fx-ball';
         barY = half ? 12 : -4;
