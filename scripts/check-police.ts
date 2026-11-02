@@ -220,7 +220,23 @@ resetIncidents();
     reported = true;
     assert.equal(recentIncidents(absMinute(SAT, 23, 59)).length, before + 1, 'el robo visto no consta');
     assert.ok(s.life.pickpocket.lifecycle().responders.length > 0, 'el ciclo del robo no muestra quién responde');
-    console.log(`  robo real: avisado con la semilla ${100 + seed}`);
+    // Hasta el final: llega, atiende, se cierra y se va; nunca por encima del cupo, y luego la calle vuelve a lo normal.
+    const rec = recentIncidents(absMinute(SAT, 23, 59)).at(-1)!;
+    const team = [...s.life.responding];
+    const cap = streetProfileFor('puerta-central')!.patrolCap ?? POLICE.patrolCap;
+    let attending = false;
+    for (ms = 0; ms < POLICE.reachMs + POLICE.attendMs + 5_000 && s.life.responding.length > 0; ms += 100) {
+      s.step(100);
+      attending ||= team.some((a) => a.respond?.phase === 'ATTEND');
+      assert.ok(patrols(s.life).length <= cap, `robo: ${patrols(s.life).length} patrullas con cupo ${cap}`);
+    }
+    assert.ok(attending && incidentById(rec.id)?.attended, 'la patrulla no llega a atender el robo');
+    assert.equal(s.life.responding.length, 0, 'el aviso no se cierra');
+    assert.ok(team.every((a) => !s.life.agents.includes(a) || a.vanish), 'tras atender, el agente no vuelve a su sitio');
+    assert.equal(s.life.pickpocket.active, false, 'el carterista sigue en la calle tras el aviso');
+    s.step(60_000);
+    assert.ok(team.every((a) => !s.life.agents.includes(a)), 'el refuerzo no se retira');
+    console.log(`  robo real: avisado con la semilla ${100 + seed}, atendido y cerrado`);
   }
   assert.ok(reported, 'ningún tirón visto en 12 semillas: la patrulla no recibe avisos');
 }

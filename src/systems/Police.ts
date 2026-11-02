@@ -20,7 +20,8 @@ export const POLICE = {
    * Ms reales sin patrulla nueva en una calle después de que una se vaya: pasan, no se quedan. Un robo no espera
    * (StreetLife.callPatrol no lo mira).
    */
-  restMs: 45_000,
+  // QA (policía en la ciudad): antes 45 s (90 min de juego sin nadie), y fuera de Vallesco no se veía casi nunca un agente.
+  restMs: 15_000,
   /** Ms reales que el agente se queda con la víctima. */
   attendMs: 6_000,
   /** Si en este tiempo (ms reales) no ha llegado, lo deja y vuelve: nadie se queda enganchado a un aviso. */

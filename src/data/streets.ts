@@ -105,6 +105,11 @@ export interface TripRule {
 
 export interface StreetProfile {
   location: string;
+  /**
+   * Patrullas a la vez en esta calle (todas las reglas `police-patrol` juntas), si no es el de siempre (POLICE.patrolCap,
+   * 2): un barrio de vecinos, 0–2; un sitio concurrido, hasta 3. Es un tope duro: se cuenta antes de sacar a nadie.
+   */
+  patrolCap?: number;
   /** [desde, hasta, nivel]; lo que no cubren cuenta como VERY_LOW. */
   bands: readonly (readonly [number, number, Level])[];
   /** Niveles que sube o baja cada día, de lunes a domingo (la madrugada, con la noche anterior). */
@@ -171,7 +176,7 @@ const WINDOWS: Ends = { points: ['FASHION_WINDOW_', 'HAIR_WINDOW', 'PHARMACY_WIN
  * calle comparten cupo (POLICE.patrolCap) y son las que acuden a un robo (StreetLife.dispatch).
  */
 const patrol = (hours: readonly [number, number], stops: readonly string[], line: string, extra: Partial<TripRule> = {}): TripRule => ({
-  role: 'police-patrol', ambient: true, label: 'Patrulla de policía', line, weight: 1, hours, from: CITY, to: { points: stops }, stay: [3, 6],
+  role: 'police-patrol', ambient: true, label: 'Patrulla de policía', line, weight: 1.6, hours, from: CITY, to: { points: stops }, stay: [3, 6],
   stayState: 'WAIT', then: CITY, group: [1, 2], bond: ['coworkers'], uniform: 'uniforme-policia', pause: 0, ...extra,
 });
 /** La comisaría de Puerta Central (data/puertaCentral.ts): de ahí salen y ahí vuelven sus patrullas, o por un borde. */
@@ -330,6 +335,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
   // terrazas; al anochecer (de siete a once) es lo más animado: parejas, grupos y cenas fuera, y los corredores desaparecen.
   {
     location: 'ribera',
+    // El paseo es estrecho y sus miradores se llenan: un agente cada vez, no una pareja ocupando dos sitios.
+    patrolCap: 1,
     bands: [
       [6, 7, 'LOW'], [7, 9, 'MEDIUM'], [9, 12, 'MEDIUM'], [12, 14, 'HIGH'], [14, 17, 'MEDIUM'],
       [17, 19, 'HIGH'], [19, 22, 'VERY_HIGH'], [22, 24, 'MEDIUM'], [0, 1, 'LOW'],
@@ -640,6 +647,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
   // madrugada, menos turista y la gente que sale. Turistas hay muchos, pero son una parte: la mayoría vive, trabaja o pasa.
   {
     location: 'puerta-central',
+    // La plaza más concurrida, con su comisaría: hasta una pareja y un agente suelto a la vez.
+    patrolCap: 3,
     bands: [
       [6, 7, 'MEDIUM'], [7, 10, 'VERY_HIGH'], [10, 13, 'HIGH'], [13, 16, 'VERY_HIGH'], [16, 22, 'VERY_HIGH'],
       [22, 24, 'HIGH'], [0, 3, 'MEDIUM'], [3, 6, 'LOW'],
