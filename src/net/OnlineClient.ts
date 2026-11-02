@@ -1,5 +1,5 @@
 import {
-  CHAT_MAX, PROTOCOL_VERSION, cleanLine, normalizeCode, parseServer,
+  CHAT_MAX, PROTOCOL_VERSION, cleanLine, isRoomCode, normalizeCode, parseServer,
   type ChatMsg, type ClientMsg, type LookDTO, type PlayerView, type Pose, type ServerMsg,
 } from './protocol';
 
@@ -109,7 +109,9 @@ export class OnlineClient {
   }
 
   join(raw: string): void {
-    this.open({ kind: 'join', code: normalizeCode(raw) });
+    const code = normalizeCode(raw);
+    if (!isRoomCode(code)) return this.stop('El código de sala debe tener 6 letras o números válidos (sin I, L, O, 0 ni 1).');
+    this.open({ kind: 'join', code });
   }
 
   /** Salir de la sala y de la conexión: vuelve a ser sólo la partida de siempre. */
@@ -171,8 +173,8 @@ export class OnlineClient {
         this.on.room(msg.code, msg.you, msg.players, msg.chat);
         return;
       }
-      // Sin sala (código mal, sala caducada), llena u otra versión: no tiene sentido insistir.
-      if (msg.t === 'error' && (msg.code === 'room' || msg.code === 'full' || msg.code === 'version') && this.current !== 'in-room') {
+      // Una entrada rechazada (también hello/bad) vuelve al formulario; nunca se queda esperando una sala.
+      if (msg.t === 'error' && this.current !== 'in-room') {
         this.stop(msg.message);
         return;
       }
