@@ -1,0 +1,17 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Ver el Club de Boxeo Forja</title>
+<style>body{font:18px system-ui;background:#171a24;color:#eee1c5;max-width:650px;margin:60px auto;padding:20px}button{font:inherit;padding:18px;background:#e9ad64;border:0;cursor:pointer}p{line-height:1.6}</style>
+<h1>Club de Boxeo Forja</h1><p>Ring, sacos, entrenadora y cinco ejercicios. Vista jugable en una partida de demostración del puerto 5198, separada de tu guardado habitual.</p>
+<button id="open">Entrar en el club de boxeo</button><p>También puedes llegar desde Vallesco: Gimnasio Forja → puerta de boxeo junto a la salida. W/A/S/D para caminar; E para hablar o entrenar.</p><p id="status"></p>
+<script type="module">
+import {createInitialState,SaveSystem} from '/src/systems/SaveSystem.ts';
+import {getLocation,spawnToWorld} from '/src/systems/LocationSystem.ts';
+document.querySelector('#open').onclick=()=>{
+ if(location.port!=='5198')throw Error('Esta vista usa el puerto de demostración 5198');
+ const save=new SaveSystem();
+ if(save.inspect().status==='none'){
+  const state=createInitialState();state.locationId='boxing';state.position=spawnToWorld(getLocation('boxing').spawns.entry);state.facing='up';state.hour=17;state.minute=55;state.identity={name:'Demo Boxeo'};state.agenda.tour='skipped';
+  if(!save.save(state))throw Error('No se pudo preparar la demostración');
+ }
+ location.href='/';
+};
+</script></html>
