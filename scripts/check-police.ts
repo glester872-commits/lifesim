@@ -91,6 +91,23 @@ const patrols = (life: StreetLife): Walker[] => life.agents.filter((a) => a.role
   }
 }
 
+// La denuncia se deriva a una recepción abierta, también de madrugada y justo al abrir/cerrar Vallesco.
+{
+  for (let day = 1; day <= 7; day++) {
+    for (const [hour, minute] of [[0, 0], [7, 59], [8, 0], [12, 0], [21, 59], [22, 0], [23, 59]]) {
+      const now = absMinute(day, hour, minute);
+      const station = PLACES.find((p) => p.id === (hour >= 8 && hour < 22 ? 'vallesco-policia' : 'pc-comisaria'))!;
+      resetIncidents();
+      recordIncident({ location: 'district', zone: 'Plaza de la Fuente', at: now - 1, victim: 'player', amount: 12.5 });
+      for (const { location } of STREET_PROFILES) {
+        const lines = patrolLines(location, { day, hour, minute }, now);
+        assert.ok(lines.at(-1)?.includes(station.name), `${location}, día ${day} ${hour}:${minute}: la patrulla no remite a la comisaría abierta (${station.name})`);
+      }
+    }
+  }
+  resetIncidents();
+}
+
 // --------------------------------------------------- 2. aparición natural: hora, zona, cupo y salida
 /** Simula `hours` horas de juego desde `hour`: presencia (parte del tiempo con alguien), máximo a la vez y dónde se paran. */
 function watch(location: string, day: number, hour: number, hours: number, seed: number) {
@@ -241,7 +258,7 @@ resetIncidents();
   assert.equal(reportable(now), undefined, 'se ofrece denunciar un intento sin robo');
   const rob = recordIncident({ location: 'district', zone: 'Plaza de la Fuente', at: now - 20, victim: 'player', amount: 12.5 });
   assert.equal(reportable(now)?.id, rob.id);
-  assert.match(patrolLines('district', noon, now, 'la Comisaría de Puerta Central').join(' '), /Plaza de la Fuente.*Comisaría de Puerta Central/s, 'la patrulla no remite a la comisaría');
+  assert.match(patrolLines('district', noon, now).join(' '), /Plaza de la Fuente.*Policía de barrio · Vallesco/s, 'la patrulla no remite a la comisaría');
   assert.equal(fileReport(rob.id, now), true);
   assert.equal(fileReport(rob.id, now), false, 'se puede denunciar dos veces');
   assert.equal(reportable(now), undefined);

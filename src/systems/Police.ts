@@ -2,6 +2,7 @@
 // agente al hablarle (scenes/WorldScene) y scripts/check-police.ts.
 import type { ZoneDef } from '../data/zones.ts';
 import { STREET_PICKPOCKET } from './Pickpocket.ts';
+import { isOpen, placesTagged } from './Places.ts';
 import { identityOf, zoneActivity, zonesIn } from './Zones.ts';
 
 /**
@@ -161,12 +162,15 @@ export function deskBrief(location: string, clock: PoliceClock, now: number): st
 
 /**
  * Lo que dice un agente de patrulla al hablarle: un saludo según la hora, el riesgo de la calle ahora y, si lo hay, el
- * robo de hoy aquí; si el jugador tiene uno sin denunciar, dónde se denuncia.
+ * robo de hoy aquí; si el jugador tiene uno sin denunciar, una comisaría abierta donde se denuncia.
  */
-export function patrolLines(location: string, clock: PoliceClock, now: number, station?: string): string[] {
+export function patrolLines(location: string, clock: PoliceClock, now: number): string[] {
   const greet = clock.hour >= 6 && clock.hour < 14 ? 'Buenos días.' : clock.hour >= 14 && clock.hour < 21 ? 'Buenas tardes.' : 'Buenas noches.';
   const lines = [`${greet} ${risk(location, clock)}`, incidentsLine(now, location)];
   const own = reportable(now);
-  if (own) lines.push(`¿Te robaron a ti ${ago(now, own.at)}? La denuncia se pone en ${station ?? 'la comisaría'}, en recepción.`);
+  if (own) {
+    const station = placesTagged('police').find((p) => isOpen(p, clock.day, clock.hour, clock.minute));
+    lines.push(`¿Te robaron a ti ${ago(now, own.at)}? La denuncia se pone en ${station?.name ?? 'la comisaría'}, en recepción.`);
+  }
   return lines;
 }
