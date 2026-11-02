@@ -113,6 +113,18 @@ const hubOf = (stationId: string, c: { day: number; hour: number; minute: number
 /** Lo más que puede durar un robo en el andén (acercarse, tirón, persecución, escolta): después se cierra. */
 const PICKPOCKET_MAX_MS = 120_000;
 
+/**
+ * QA-04 · diagnóstico de la vía, por estación. Los contadores siempre cuentan (un entero por suceso, nada por fotograma);
+ * la consola, sólo con `lifesim.metro.trackDiag(true)` (TRACK_DIAG.log), y una línea por suceso.
+ *   invalid-destination  a un pasajero le tocaba un punto en la vía (PassengerAI.go lo corrige al borde)
+ *   invasion             alguien andando por la vía (la guarda de watchStuck lo devuelve al andén)
+ *   transition           alguien parado en la vía tras un cambio de estado (colocado o detenido ahí)
+ *   guard                la guarda ha actuado (invasion + transition)
+ *   stuck                el vigía de atascos (Recovery) ha tenido que intervenir
+ */
+export type TrackDiagKind = 'invalid-destination' | 'invasion' | 'transition' | 'guard' | 'stuck';
+export const TRACK_DIAG = { log: false };
+
 export class MetroSystem {
   readonly train: TrainSystem;
 
@@ -151,6 +163,10 @@ export class MetroSystem {
   private readonly debug: MetroDebug | null;
   private readonly announcer: Announcer;
   private readonly mapWidth: number;
+  /** Arriba del todo del andén (la fila del borde), en px: por encima es vía y nadie de la estación la pisa (QA-03). */
+  private readonly trackBottom: number;
+  /** QA-04: cuántas veces ha pasado cada cosa en esta estación desde que se montó (ver TrackDiagKind). */
+  readonly trackDiag: Record<TrackDiagKind, number> = { 'invalid-destination': 0, invasion: 0, transition: 0, guard: 0, stuck: 0 };
 
   private level: CrowdLevel;
   private tag: HourTag;
@@ -266,6 +282,7 @@ export class MetroSystem {
 
     const edgeY =
       def.edgeRow * TILE + 12;
+    this.trackBottom = def.edgeRow * TILE;
 
     this.doorSpots =
       TRAIN_DOOR_OFFSETS.map((offset) => ({
@@ -997,7 +1014,15 @@ export class MetroSystem {
         this.note(
           text,
         ),
+
+      flagTrack: (kind, detail) => this.flagTrack(kind, detail),
     };
+  }
+
+  /** QA-04: apunta un suceso de la vía (ver TrackDiagKind); a la consola, sólo con TRACK_DIAG.log. */
+  private flagTrack(kind: TrackDiagKind, detail: string): void {
+    this.trackDiag[kind]++;
+    if (TRACK_DIAG.log) console.warn(`[metro · ${this.stationId}] ${kind}: ${detail}`);
   }
 
   private freshLook(): NpcLook {
@@ -1185,15 +1210,39 @@ export class MetroSystem {
   private watchStuck(dt: number): void {
     const view = this.camera.worldView;
     const unseen = (x: number, y: number, key: string): boolean => this.watch.forced(key) || !view.contains(x, y);
+    // QA-03: la vía no se pisa, con el tren o sin él. Subir y bajar acaban en la línea amarilla (edgeY, dentro del andén) y
+    // ahí se desaparece o se aparece; quien acabe por encima (un camino roto, un salto de fotograma) vuelve al andén en el
+    // acto, se le vea o no, y retoma con su recuperación de siempre: el pasajero se va, el vigilante vuelve a su puesto.
+    // QA-04: es la red excepcional; lo normal es que no salte nunca (los destinos ya se validan en PassengerAI.go). Si salta,
+    // queda en trackDiag como `invasion` (andando) o `transition` (colocado o parado ahí por un cambio de estado).
+    const offTrack = (w: Walker, who: string): boolean => {
+      if (!w.visible || w.y >= this.trackBottom) return false;
+      this.flagTrack(w.moving ? 'invasion' : 'transition', `${who} en (${Math.round(w.x)}, ${Math.round(w.y)}) · tren ${this.train.state}`);
+      this.flagTrack('guard', who);
+      w.halt();
+      w.place({ x: Math.min(Math.max(w.x, 2 * TILE), this.mapWidth - 2 * TILE), y: this.layout.walkY }, 'down');
+      this.note('alguien pisaba la vía: vuelve al andén');
+      return true;
+    };
+    this.guards.forEach((g, i) => {
+      if (offTrack(g.walker, `vigilante ${i} ${g.state}`)) g.recover(2, false);
+    });
+    this.passengers.forEach((p, i) => {
+      if (offTrack(p.walker, `pasajero ${i} ${p.state}`)) p.recover(3, false);
+    });
     this.guards.forEach((g, i) => {
       const w = g.walker;
       const level = this.watch.check(`g${i}`, w.x / TILE, w.y / TILE, w.visible && w.moving && !w.talking, dt);
-      if (level) g.recover(level, unseen(w.x, w.y, `g${i}`));
+      if (!level) return;
+      this.flagTrack('stuck', `vigilante ${i} ${g.state} · nivel ${level}`);
+      g.recover(level, unseen(w.x, w.y, `g${i}`));
     });
     this.passengers.forEach((p, i) => {
       const w = p.walker;
       const level = this.watch.check(`p${i}`, w.x / TILE, w.y / TILE, w.visible && w.moving && !w.talking && !p.inIncident, dt);
-      if (level) p.recover(level, unseen(w.x, w.y, `p${i}`));
+      if (!level) return;
+      this.flagTrack('stuck', `pasajero ${i} ${p.state} · nivel ${level}`);
+      p.recover(level, unseen(w.x, w.y, `p${i}`));
     });
   }
 
