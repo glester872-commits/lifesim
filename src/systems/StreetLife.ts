@@ -315,6 +315,10 @@ export class StreetLife {
   private dirty?: TilePoint[];
   private readonly loc: LocationDef;
   private readonly profile: StreetProfile;
+  /** Patrullas a la vez en esta calle: la de su perfil (data/streets.ts `patrolCap`) o la de siempre (POLICE.patrolCap). */
+  private get patrolCap(): number {
+    return this.profile.patrolCap ?? POLICE.patrolCap;
+  }
   private readonly places: PlaceInfo[];
   private readonly graph: Set<string>;
   private readonly edges: string[];
@@ -1506,7 +1510,7 @@ export class StreetLife {
   /** Una patrulla que sale a atender: de la puerta de la comisaría o del borde más cercano, dentro del cupo. */
   private callPatrol(at: TilePoint): Walker | undefined {
     const rule = this.profile.trips.find((r) => r.role === PATROL);
-    if (!rule || this.patrols() >= POLICE.patrolCap || this.agents.length >= this.ceiling) return undefined;
+    if (!rule || this.patrols() >= this.patrolCap || this.agents.length >= this.ceiling) return undefined;
     const from = this.stationDoor() ?? this.nearestEdge(at);
     return from ? this.newWalker(rule, this.pointAt(from), []) : undefined;
   }
@@ -1592,7 +1596,7 @@ export class StreetLife {
     if (stays && (this.seats.has(to) || this.claimed.has(to))) return;
     const [gLo, gHi] = rule.group ?? [1, 1];
     // La patrulla, dentro del cupo compartido (POLICE.patrolCap): una pareja sólo si caben los dos.
-    const patrolRoom = rule.role === PATROL ? POLICE.patrolCap - this.patrols() : Infinity;
+    const patrolRoom = rule.role === PATROL ? this.patrolCap - this.patrols() : Infinity;
     const size = Math.max(1, Math.min(gLo + Math.floor(this.rng() * (gHi - gLo + 1)), target - this.walkers().length, patrolRoom));
 
     // A mitad de viaje: parados ya en su sitio, o en un tramo del camino.
@@ -1761,7 +1765,7 @@ export class StreetLife {
       // Taxi/VTC: con las recogidas en su cupo (RIDE.cap), nadie más sale a esperar uno.
       if (rule.ride && this.rides.length >= RIDE.cap) continue;
       // Patrullas: un cupo para todas las reglas de patrulla de la calle a la vez (systems/Police).
-      if (rule.role === PATROL && (this.patrols() + (rule.group?.[0] ?? 1) > POLICE.patrolCap || this.elapsed < this.patrolRestUntil)) continue;
+      if (rule.role === PATROL && (this.patrols() + (rule.group?.[0] ?? 1) > this.patrolCap || this.elapsed < this.patrolRestUntil)) continue;
       // Un viaje pesa lo que su regla por lo que tiran sus extremos: a una discoteca vacía no va nadie.
       const from = this.candidates(rule.from, clock, false);
       if (fromPoint && !from.some((c) => c.id === fromPoint)) continue;
