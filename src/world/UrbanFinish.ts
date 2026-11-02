@@ -362,11 +362,12 @@ function drawMetroTotemFine(ctx: Ctx): void {
 // ------------------------------------------------------------ decorativos
 
 /** Una bici pequeña (12 × 9) en su arco: la misma construcción que la aparcada suelta, a la escala del aparcabicis. */
-function bikeFine(ctx: Ctx, x: number, y: number, frame: string): void {
-  drawParkedBike(ctx, x, y + 9, frame, 2.8, 6);
+/** QA-01: a la escala de las de los ciclistas (rueda de radio 4, 10 px entre ejes); antes, radio 2,8 y 6 px. */
+function bikeFine(ctx: Ctx, x: number, ground: number, frame: string): void {
+  drawParkedBike(ctx, x, ground, frame, 4, 10);
 }
 
-/** Aparcabicis (32 × 20): tres arcos de tubo con su luz arriba y la pata de la derecha en sombra, y las tres bicis de siempre. */
+/** Aparcabicis (32 × 20): tres arcos de tubo con su luz arriba y la pata de la derecha en sombra, y dos bicis escalonadas. */
 function drawBikeRackFine(ctx: Ctx): void {
   for (const x of [3, 13, 23]) {
     px(ctx, STEEL, x, 7, 1, 12);
@@ -378,9 +379,9 @@ function drawBikeRackFine(ctx: Ctx): void {
     px(ctx, shade(STEEL, -0.35), x - 1, 18, 3, 1);
     px(ctx, shade(STEEL, -0.35), x + 5, 18, 3, 1);
   }
-  bikeFine(ctx, 1, 9, '#c0493f');
-  bikeFine(ctx, 11, 8, '#3f8f8a');
-  bikeFine(ctx, 21, 10, PALETTE.amber);
+  // La de atrás, dos filas más arriba y algo más oscura; la de delante, apoyada abajo.
+  bikeFine(ctx, 12, 17, shade('#3f8f8a', -0.12));
+  bikeFine(ctx, 0, 19, '#c0493f');
 }
 
 /** Flores en corros de un mismo color, no confeti. */

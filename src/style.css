@@ -1708,24 +1708,114 @@ body.has-touch .dialogue__choices li {
   box-shadow: 4px 4px 0 #000;
 }
 
-.title__logo {
-  margin: 0 0 18px;
-  font: 700 52px / 1 var(--ui-mono);
-  letter-spacing: 0.04em;
-  text-align: center;
-  color: var(--white);
-  text-shadow: 3px 3px 0 #000;
+/* La portada (ui/TitleScene): la calle detrás, a escala entera y sin suavizar; lo de cada vista, delante. */
+.title__scene {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #2c2c58;
 }
 
-.title__logo span {
-  color: var(--amber);
+.title__scene-art,
+.title__logo-art {
+  display: block;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
 }
 
-/* Sin vw: un tamaño que depende del ancho hace que el móvil ensanche la página para que quepa. */
-@media (max-width: 400px) {
-  .title__logo {
-    font-size: 40px;
+.title__scene-art {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.title__content {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  width: 100%;
+  min-height: 100%;
+}
+
+/* En el menú principal, el panel arriba en vertical (la calle queda debajo, a la vista) y a la izquierda en ancho. */
+.title.is-home .title__content {
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .title.is-home .title__content {
+    align-items: center;
+    justify-items: start;
+    padding-left: 4%;
   }
+}
+
+/* Panel sólido (sin desenfoque) un poco translúcido: se intuye la calle sin perder contraste. */
+.title__content .title__panel {
+  background: rgba(23, 26, 36, 0.92);
+  border-color: rgba(240, 180, 106, 0.45);
+}
+
+/* En el móvil, el menú principal no lleva caja: el logo sobre el cielo y los botones (opacos) sobre la calle; el
+   estado de la partida, en su franja oscura para que se lea encima de cualquier fachada. */
+@media (max-width: 899px) {
+  .title.is-home .title__content .title__panel {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    padding-top: 12px;
+  }
+
+  .title.is-home .title__save,
+  .title.is-home .title__tagline {
+    padding: 6px 8px;
+    background: rgba(14, 15, 22, 0.86);
+  }
+}
+
+/* Pantalla baja y ancha (un móvil apaisado): el menú en dos columnas para que quepa sin desplazar; los botones, de 44 px. */
+@media (max-height: 500px) and (min-width: 600px) {
+  .title.is-home .title__content .title__panel {
+    max-width: 600px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .title.is-home .title__menu {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .title.is-home .title__tagline,
+  .title.is-home .title__save {
+    margin-bottom: 8px;
+  }
+}
+
+.title__logo {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 6px;
+  line-height: 0;
+}
+
+.title__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.title__tagline {
+  margin: 0 0 18px;
+  font: 700 11px / 1.4 var(--ui-mono);
+  letter-spacing: 0.3em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--amber);
 }
 
 .title__heading {
