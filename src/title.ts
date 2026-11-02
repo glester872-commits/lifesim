@@ -146,6 +146,7 @@ const button = (action: string, label: string, extra = ''): string => `<button t
 const back = button('main', 'Volver');
 
 function render(): void {
+  root.classList.toggle('is-home', view === 'main');
   // Salir del creador lo cierra entero (temporizador de la vista previa y escuchas).
   closeCreator?.();
   closeCreator = null;
@@ -256,7 +257,6 @@ function render(): void {
   }
   const said = view === 'loading' ? '' : `${notice ? `<p class="title__ok" role="status">${notice}</p>` : ''}${message ? `<p class="title__warn" role="alert">${message}</p>` : ''}`;
   panel.innerHTML = `<div class="title__panel">${head}${body}${said}</div>`;
-  root.classList.toggle('is-home', view === 'main');
   const logo = panel.querySelector<HTMLCanvasElement>('.title__logo-art');
   // Escala entera que quepa en el panel (de 3 a 7 veces el dibujo) y, en pantallas bajas (un móvil apaisado), en el alto.
   if (logo) paintLogo(logo, Math.max(3, Math.min(7, Math.floor(Math.min(window.innerWidth - 72, 400) / LOGO_W), Math.floor(window.innerHeight / 110))));
