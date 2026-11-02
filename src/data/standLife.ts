@@ -84,3 +84,5 @@ export const SIDE_TILES = Math.ceil((WIDEST_VIEW.width / TILE - STADIUM_TILES) /
 export const APRON_TILES = Math.ceil((WIDEST_VIEW.height / TILE - STADIUM_TILES) / 2);
 /** Las banderas, en las columnas junto al campo: con más gradas a los lados no se van al borde de fuera. */
 export const FLAG_TILES = 6;
+/** Sector visitante del fondo derecho, en tiles desde el campo: no se desplaza al ampliar la decoración. */
+export const AWAY_SECTION = { from: 3, to: 6 } as const;
