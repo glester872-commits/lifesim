@@ -11,6 +11,7 @@ import { SAVE_VERSION } from './config/constants';
 import type { GameStateData } from './types/game';
 import { BASE_DRAFT, newGameState, type CreatorDraft } from './systems/CharacterCreator';
 import { cleanName, DEFAULT_NAME } from './systems/PlayerIdentity';
+import { LOGO_W, paintLogo, startTitleScene } from './ui/TitleScene';
 
 /**
  * Pantalla de inicio (Alpha-01). Va antes que main.ts: hasta que se elige Continuar o Nueva partida no hay
@@ -19,9 +20,13 @@ import { cleanName, DEFAULT_NAME } from './systems/PlayerIdentity';
  * Volver aquí desde la partida es recargar la página (ui/PauseMenu): ninguna escena, escucha ni temporizador sobrevive.
  */
 
-const root = document.querySelector<HTMLElement>('#title');
-if (!root) throw new Error('Falta el nodo #title');
-const panel = root;
+const found = document.querySelector<HTMLElement>('#title');
+if (!found) throw new Error('Falta el nodo #title');
+const root = found;
+// Detrás, la calle de la portada (ui/TitleScene); delante, lo que cambia con cada vista. render() sólo toca `panel`.
+root.innerHTML = '<div class="title__scene" aria-hidden="true"></div><div class="title__content"></div>';
+const panel = root.querySelector<HTMLElement>('.title__content')!;
+const scene = startTitleScene(root.querySelector<HTMLElement>('.title__scene')!);
 // Detrás no se llega con Tab ni con el lector de pantalla: el HUD del juego no existe hasta que se entra.
 const behind = [document.querySelector<HTMLElement>('#overlay'), document.querySelector<HTMLElement>('#game')];
 for (const el of behind) if (el) el.inert = true;
@@ -149,7 +154,8 @@ function render(): void {
     void mountCreator();
     return;
   }
-  const head = `<h1 class="title__logo">LIFE<span>//</span>SIM</h1>`;
+  // El logotipo es un dibujo (ui/TitleScene.paintLogo); el texto sigue ahí para el lector de pantalla.
+  const head = `<h1 class="title__logo"><canvas class="title__logo-art" aria-hidden="true"></canvas><span class="title__sr">LIFE//SIM</span></h1>${view === 'main' ? '<p class="title__tagline">Una vida en la ciudad</p>' : ''}`;
   let body = '';
   if (view === 'main') {
     const state =
@@ -170,7 +176,7 @@ function render(): void {
         ${button('saves', 'Partidas')}
         ${button('controls', 'Controles')}
         ${button('settings', 'Ajustes')}
-        ${button('about', 'Acerca de')}
+        ${button('about', 'Créditos')}
       </nav>`;
   } else if (view === 'about') {
     body = `<div class="title__text">
@@ -250,6 +256,10 @@ function render(): void {
   }
   const said = view === 'loading' ? '' : `${notice ? `<p class="title__ok" role="status">${notice}</p>` : ''}${message ? `<p class="title__warn" role="alert">${message}</p>` : ''}`;
   panel.innerHTML = `<div class="title__panel">${head}${body}${said}</div>`;
+  root.classList.toggle('is-home', view === 'main');
+  const logo = panel.querySelector<HTMLCanvasElement>('.title__logo-art');
+  // Escala entera que quepa en el panel (de 3 a 7 veces el dibujo) y, en pantallas bajas (un móvil apaisado), en el alto.
+  if (logo) paintLogo(logo, Math.max(3, Math.min(7, Math.floor(Math.min(window.innerWidth - 72, 400) / LOGO_W), Math.floor(window.innerHeight / 110))));
   // El foco, en el primer botón que se puede usar: con el teclado se empieza a elegir sin ratón.
   panel.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
 }
@@ -262,8 +272,9 @@ async function boot(): Promise<void> {
     const { game } = await import('./main');
     // Se quita cuando la calle ya está montada (BootScene → World), no antes: así no se ve un lienzo negro.
     const hide = (): void => {
-      panel.hidden = true;
+      root.hidden = true;
       panel.innerHTML = '';
+      scene.stop();
       for (const el of behind) if (el) el.inert = false;
     };
     const timer = setTimeout(hide, 20_000);
