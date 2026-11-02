@@ -53,6 +53,8 @@ export interface PassengerWorld {
   exitingNear(x: number): boolean;
   /** Deja constancia de algo visible (panel de debug). */
   note(text: string): void;
+  /** QA-04: diagnóstico de la vía (MetroSystem.trackDiag): un destino que caía en la vía y se ha corregido. */
+  flagTrack(kind: 'invalid-destination', detail: string): void;
 }
 
 export const rand = (min: number, max: number): number => min + Math.random() * (max - min);
@@ -758,10 +760,21 @@ export class PassengerAI {
     this.startOffstage(this.respawnDelay());
   }
 
+  /**
+   * Todas las rutas del pasajero pasan por aquí. QA-04: ningún punto por encima de la línea amarilla (edgeY, donde se
+   * sube y se baja): por encima es vía. Un destino así es un fallo de quien lo calculó: se corrige al borde y se apunta
+   * (MetroSystem.trackDiag), no se teletransporta a nadie.
+   */
   private go(path: Vec2[], then: (() => void) | null, speedScale = 1): void {
+    const floor = this.world.layout.edgeY;
+    const safe = path.map((p) => {
+      if (p.y >= floor) return p;
+      this.world.flagTrack('invalid-destination', `${this.state} → (${Math.round(p.x)}, ${Math.round(p.y)})`);
+      return { x: p.x, y: floor };
+    });
     this.holdMs = 0;
     this.next = then;
-    this.walker.walk(path, this.speed * speedScale);
+    this.walker.walk(safe, this.speed * speedScale);
   }
 
   private hold(ms: number, then: (() => void) | null): void {

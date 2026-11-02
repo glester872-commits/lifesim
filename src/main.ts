@@ -50,6 +50,7 @@ import { StreetEvent } from './systems/StreetEvents';
 import { eventId, type EventInfo } from './systems/WorldEvents';
 import { EMERGENCIES } from './data/emergencies';
 import { clearForced, emergencyInfo, forceIncident } from './systems/Emergencies';
+import { TRACK_DIAG } from './systems/MetroSystem';
 import { auditableLocations, auditVenues, lastTransitionError } from './systems/VenueAudit';
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
@@ -477,6 +478,13 @@ if (import.meta.env.DEV) {
         pickpocket: () => {
           const world = game.scene.getScene('World') as WorldSceneType;
           return world.debugMetroPickpocket();
+        },
+        // QA-04: lifesim.metro.trackDiag() da los contadores de la vía de esta estación; trackDiag(true|false) enciende o
+        // apaga además el aviso en consola de cada suceso (apagado por defecto).
+        trackDiag: (log?: boolean) => {
+          if (log !== undefined) TRACK_DIAG.log = log;
+          const m = (game.scene.getScene('World') as WorldSceneType).metroSystem;
+          return m ? { ...m.trackDiag, consola: TRACK_DIAG.log } : 'aquí no hay andén';
         },
       },
 
