@@ -151,6 +151,8 @@ export class MetroSystem {
   private readonly debug: MetroDebug | null;
   private readonly announcer: Announcer;
   private readonly mapWidth: number;
+  /** Arriba del todo del andén (la fila del borde), en px: por encima es vía y nadie de la estación la pisa (QA-03). */
+  private readonly trackBottom: number;
 
   private level: CrowdLevel;
   private tag: HourTag;
@@ -266,6 +268,7 @@ export class MetroSystem {
 
     const edgeY =
       def.edgeRow * TILE + 12;
+    this.trackBottom = def.edgeRow * TILE;
 
     this.doorSpots =
       TRAIN_DOOR_OFFSETS.map((offset) => ({
@@ -1185,6 +1188,22 @@ export class MetroSystem {
   private watchStuck(dt: number): void {
     const view = this.camera.worldView;
     const unseen = (x: number, y: number, key: string): boolean => this.watch.forced(key) || !view.contains(x, y);
+    // QA-03: la vía no se pisa, con el tren o sin él. Subir y bajar acaban en la línea amarilla (edgeY, dentro del andén) y
+    // ahí se desaparece o se aparece; quien acabe por encima (un camino roto, un salto de fotograma) vuelve al andén en el
+    // acto, se le vea o no, y retoma con su recuperación de siempre: el pasajero se va, el vigilante vuelve a su puesto.
+    const offTrack = (w: Walker): boolean => {
+      if (!w.visible || w.y >= this.trackBottom) return false;
+      w.halt();
+      w.place({ x: Math.min(Math.max(w.x, 2 * TILE), this.mapWidth - 2 * TILE), y: this.layout.walkY }, 'down');
+      this.note('alguien pisaba la vía: vuelve al andén');
+      return true;
+    };
+    this.guards.forEach((g) => {
+      if (offTrack(g.walker)) g.recover(2, false);
+    });
+    this.passengers.forEach((p) => {
+      if (offTrack(p.walker)) p.recover(3, false);
+    });
     this.guards.forEach((g, i) => {
       const w = g.walker;
       const level = this.watch.check(`g${i}`, w.x / TILE, w.y / TILE, w.visible && w.moving && !w.talking, dt);
