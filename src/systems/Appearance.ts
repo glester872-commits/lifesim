@@ -79,6 +79,15 @@ export function withAppearance(base: HumanColors, changes: Appearance | undefine
     out.spots = undefined;
   }
   if (changes.shoes) out.shoes = getGarment(changes.shoes).color;
+  // CV-08A: las gafas puestas, con su cristal y su montura (world/HumanArt las pinta de frente y de perfil).
+  if (changes.glasses) {
+    const g = getGarment(changes.glasses);
+    out.glasses = g.lens ?? 'dark';
+    out.glassesFrame = g.color;
+  }
+  // Gorra y bufanda: world/HumanArt las pinta en todas las poses, encima del pelo y del cuello.
+  if (changes.cap) out.cap = getGarment(changes.cap).color;
+  if (changes.scarf) out.scarf = getGarment(changes.scarf).color;
   // Quien viste prendas (el jugador): cada una cambia también el corte y el tejido que se pinta.
   if (base.outfit) {
     const worn = (['top', 'bottom', 'shoes'] as const).flatMap((slot) => {

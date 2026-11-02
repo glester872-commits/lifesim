@@ -7,7 +7,11 @@ import { STREET_PROFILES } from '../src/data/streets.ts';
 import { PLACES } from '../src/data/places.ts';
 import { getOffer } from '../src/data/services.ts';
 import { profileFor, type Clock } from '../src/systems/Crowd.ts';
-import { getLocation } from '../src/systems/LocationSystem.ts';
+import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
+import { TILE } from '../src/config/constants.ts';
+import { VEHICLES } from '../src/data/vehicles.ts';
+import { withDistrictLanes } from '../src/systems/Districts.ts';
+import { Traffic } from '../src/systems/Traffic.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
 import { absMinute } from '../src/systems/Handoff.ts';
 import { identity } from '../src/systems/Service.ts';
@@ -225,7 +229,7 @@ resetIncidents();
     const team = [...s.life.responding];
     const cap = streetProfileFor('puerta-central')!.patrolCap ?? POLICE.patrolCap;
     let attending = false;
-    for (ms = 0; ms < POLICE.reachMs + POLICE.attendMs + 5_000 && s.life.responding.length > 0; ms += 100) {
+    for (ms = 0; ms < POLICE.chaseMs + POLICE.detainMs + POLICE.reachMs + POLICE.attendMs + 5_000 && s.life.responding.length > 0; ms += 100) {
       s.step(100);
       attending ||= team.some((a) => a.respond?.phase === 'ATTEND');
       assert.ok(patrols(s.life).length <= cap, `robo: ${patrols(s.life).length} patrullas con cupo ${cap}`);
@@ -269,4 +273,73 @@ resetIncidents();
   assert.equal(recentIncidents(now + POLICE.memoryMinutes + 1).length, 0);
 }
 
-console.log('Policía: comisaría, patrullas por barrio (hora, zona, cupo, salida), respuesta, cancelación, robo real y recepción OK');
+// --------------------------------------------------- 7. persecución: el agente cerca del ladrón sale tras él y acaba con la víctima
+{
+  let chased = 0;
+  let caught = 0;
+  for (let seed = 1; seed <= 80 && chased < 4; seed++) {
+    const s = street('puerta-central', SAT, 19, 300 + seed, { tx: 27, ty: 26 });
+    s.step(15_000);
+    // Un agente cerca del sitio del tirón: a cuatro tiles, donde se pueda estar.
+    const cop = patrols(s.life).find((a) => !a.leader);
+    const near = [[31, 26], [27, 30], [23, 26], [27, 22]].find(([x, y]) => isWalkable(getLocation('puerta-central'), x, y));
+    if (!cop || !near) continue;
+    Object.assign(cop, { x: near[0], y: near[1], path: [], staying: false, settled: false, timer: 0, delay: 0 });
+    if (!s.life.pickpocket.force({ tx: 27, ty: 26 }).ok) continue;
+    let chaser: Walker | undefined;
+    let incident = -1;
+    let phases = '';
+    for (let ms = 0; ms < 60_000 && (s.life.pickpocket.active || s.life.responding.length > 0); ms += 100) {
+      s.step(100);
+      if (!chaser) {
+        chaser = s.life.agents.find((a) => a.respond?.phase === 'CHASE');
+        incident = chaser?.respond?.incident ?? -1;
+      }
+      const p = chaser?.respond?.phase ?? '-';
+      if (chaser && !phases.endsWith(p)) phases += ` ${p}`;
+      assert.ok(patrols(s.life).length <= 3, 'la persecución saca agentes por encima del cupo');
+    }
+    if (!chaser) continue;
+    chased++;
+    const rec = incidentById(incident)!;
+    if (rec.caught) caught++;
+    assert.ok(phases.startsWith(' CHASE'), `la persecución no empieza corriendo (${phases})`);
+    assert.ok(rec.caught ? phases.includes('DETAIN') : !phases.includes('DETAIN'), `alcanzado y retenido no cuadran (${phases})`);
+    assert.ok(rec.attended, `tras la persecución nadie atiende a la víctima (${phases})`);
+    assert.equal(chaser.respond, undefined, `el agente sigue enganchado a la persecución (${phases})`);
+    assert.notEqual(chaser.gait, 'jog', 'el agente sigue corriendo después');
+    assert.ok(chaser.speed < 3.8, 'el agente no vuelve a su paso');
+  }
+  assert.ok(chased > 0, 'ningún agente salió tras el ladrón en 80 semillas con uno al lado');
+  console.log(`  persecución: ${chased} con agente cerca, ${caught} alcanzado(s); todos vuelven a su paso y sueltan el aviso`);
+}
+
+// --------------------------------------------------- 8. coche patrulla: uno por calle, va al aviso con luces, para y sigue
+{
+  const loc = getLocation('puerta-central');
+  const clock = { day: SAT, minuteOfDay: 19 * 60 };
+  const t = new Traffic(withDistrictLanes(loc, loc.traffic!), VEHICLES, [], loc.ground[0].length * TILE, seededRng(11));
+  const police = (): number => t.vehicles.filter((v) => v.type.id === 'police').length;
+  assert.ok(t.forceSpawn('police', clock), 'el coche patrulla no puede salir en Puerta Central');
+  assert.equal(t.forceSpawn('police', clock), false, 'sale un segundo coche patrulla en la misma calle');
+  // Muchas horas de tráfico: nunca dos.
+  for (let ms = 0; ms < 600_000; ms += 100) {
+    t.update(100, { day: SAT, minuteOfDay: 8 * 60 + ms / 500 }, []);
+    assert.ok(police() <= 1, 'dos coches patrulla a la vez');
+  }
+  // Un aviso: el que haya (o uno nuevo por el borde) va con las luces, para a la altura y, al soltarlo, sigue sin luces.
+  const row = loc.traffic!.lanes[0].row;
+  const car = t.callTo(20, row + 2, ['police'], clock);
+  assert.ok(car?.alert, 'el coche patrulla no acude al aviso con las luces');
+  let ms = 0;
+  while (!t.isStopped(car!) && t.has(car!) && ms < POLICE.reachMs) {
+    t.update(100, clock, []);
+    ms += 100;
+  }
+  assert.ok(t.isStopped(car!), 'el coche patrulla no para en el aviso');
+  t.release(car!);
+  assert.equal(car!.alert, undefined, 'las luces siguen encendidas al seguir su carril');
+  console.log(`  coche patrulla: uno por calle, llega al aviso en ${(ms / 1000).toFixed(1)} s con luces, para y sigue`);
+}
+
+console.log('Policía: comisaría, patrullas por barrio (hora, zona, cupo, salida), respuesta, cancelación, robo real, persecución, coche patrulla y recepción OK');

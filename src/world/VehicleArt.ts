@@ -250,6 +250,11 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
     px(ctx, PALETTE.outline, bx - 1, pr.belt + 1, 4, 4);
     px(ctx, t.trim.badge, bx, pr.belt + 2, 2, 2);
   }
+  if (t.trim?.band) {
+    // Coche patrulla: la franja azul recta a lo largo del costado, con su filo claro encima.
+    px(ctx, t.trim.band, 1, pr.belt + 3, L - 2, 3);
+    px(ctx, '#f6f4ee', 1, pr.belt + 2, L - 2, 1);
+  }
   if (t.trim?.stripe) {
     // Taxi: la banda roja en diagonal sobre la puerta delantera.
     const x0 = Math.round((pr.wsBase - 0.06) * L);
@@ -272,6 +277,13 @@ function car(p: Paint, t: VehicleType, base: CarProfile): VehicleLamps {
     else wheel(ctx, cx, cy, r);
   }
   const lamps: VehicleLamps = { head: [L - 2, pr.hood + 1], tail: [1, pr.deck + 1] };
+  if (t.trim?.roof === 'police') {
+    // El puente de luces: barra oscura con un azul a cada lado (se encienden en un aviso: TrafficView).
+    const mid = Math.round(((pr.roofRear + pr.roofFront) / 2) * L) - 3;
+    px(ctx, PALETTE.outline, mid - 1, pr.roof - 2, 8, 2);
+    px(ctx, '#2a3d6e', mid, pr.roof - 2, 6, 1);
+    return { ...lamps, roof: [mid + 2, pr.roof - 2] };
+  }
   if (t.trim?.roof !== 'taxi') return lamps;
   // El piloto de techo: caja blanca con el verde de libre.
   const mid = Math.round(((pr.roofRear + pr.roofFront) / 2) * L) - 2;
@@ -498,4 +510,5 @@ export function buildVehicleTextures(scene: Phaser.Scene): void {
   make(scene, 'veh-tail', 1, 2, (ctx) => px(ctx, '#ff5a44', 0, 0, 1, 2));
   make(scene, 'veh-roof-taxi', 2, 1, (ctx) => px(ctx, '#7cff8a', 0, 0, 2, 1));
   make(scene, 'veh-roof-beacon', 2, 1, (ctx) => px(ctx, '#ffb13a', 0, 0, 2, 1));
+  make(scene, 'veh-roof-police', 2, 1, (ctx) => px(ctx, '#5aa8ff', 0, 0, 2, 1));
 }

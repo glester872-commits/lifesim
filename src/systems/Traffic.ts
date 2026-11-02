@@ -51,6 +51,8 @@ export interface Vehicle<T extends MoverType = MoverType> {
    * queda parado hasta release() y sigue su carril hasta salir. Mientras, es de esa recogida y de ninguna otra.
    */
   stopAt?: number;
+  /** Va a un aviso (callTo): las luces del techo, encendidas hasta que sigue su carril (release). */
+  alert?: boolean;
 }
 
 export interface TrafficClock {
@@ -75,6 +77,8 @@ export function vehicleWeights<T extends MoverType>(def: LaneFlow, catalog: read
 
 /** Cuántos modelos recientes se recuerdan y cuánto pesa uno que acaba de salir. */
 const RECENT_MODELS = 4;
+/** Filas como mucho entre un aviso y el carril por el que llega el coche (Traffic.callTo). */
+const CALL_ROWS = 8;
 const REPEAT_WEIGHT = 0.35;
 /** Mismo modelo y color a menos de esto (px) de otro coche cuenta como clon; intentos de otro color antes de rendirse. */
 const CLONE_RANGE = 320;
@@ -286,6 +290,18 @@ export class Traffic<T extends MoverType = MoverType> {
     return v;
   }
 
+  /**
+   * Un coche de servicio (`types`: el patrulla) a un aviso en el tile (`tx`, `ty`): por el carril más cercano (a menos de
+   * CALL_ROWS filas), parando a su altura, con las luces. Como hail(): el que ya viene o uno nuevo por el borde, nunca al lado.
+   */
+  callTo(tx: number, ty: number, types: readonly string[], clock: TrafficClock): Vehicle<T> | undefined {
+    const lane = [...this.def.lanes].sort((a, b) => Math.abs(a.row - ty) - Math.abs(b.row - ty))[0];
+    if (!lane || Math.abs(lane.row - ty) > CALL_ROWS) return undefined;
+    const v = this.hail(lane.row, (tx + 0.5) * TILE, types, clock);
+    if (v) v.alert = true;
+    return v;
+  }
+
   /** Parado en su sitio de recogida (para que alguien suba: nunca con el coche en marcha). */
   isStopped(v: Vehicle<T>): boolean {
     return v.stopAt !== undefined && Math.abs(v.x - v.stopAt) < 1 && v.speed < 0.5;
@@ -299,6 +315,7 @@ export class Traffic<T extends MoverType = MoverType> {
   /** Ya han subido (o ya no hace falta): arranca y sigue su carril hasta salir. */
   release(v: Vehicle<T>): void {
     v.stopAt = undefined;
+    v.alert = undefined;
   }
 
   /** El más cercano delante en su carril. */
@@ -357,9 +374,12 @@ export class Traffic<T extends MoverType = MoverType> {
   private spawn(lane: Lane, x: number, clock: TrafficClock, atEdge = false, forced?: T): void {
     // Un modelo que acaba de salir pesa menos (un tercio): sin tiradas de más, el reparto de la hora sigue siendo el suyo.
     // Los grandes (autobuses, camiones) y los pocos que hay de un tipo (taxis) no entran: ya salen de uno en uno.
+    // Un tipo con tope (MoverType.max, el patrulla) que ya está completo no sale, ni a la fuerza.
+    const full = (t: T): boolean => t.max !== undefined && this.vehicles.filter((o) => o.type === t).length >= t.max;
     const weights = vehicleWeights(this.def, this.catalog, clock.day, clock.minuteOfDay / 60, lane).map(
-      ([t, w]): [T, number] => [t, t.length < 50 && w >= 4 && this.recent.includes(t.id) ? w * REPEAT_WEIGHT : w],
+      ([t, w]): [T, number] => [t, full(t) ? 0 : t.length < 50 && w >= 4 && this.recent.includes(t.id) ? w * REPEAT_WEIGHT : w],
     );
+    if (forced && full(forced)) return;
     const type = forced ?? pick(weights, this.rng);
     this.recent.push(type.id);
     if (this.recent.length > RECENT_MODELS) this.recent.shift();

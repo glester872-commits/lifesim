@@ -43,6 +43,11 @@ export interface StreetAct {
   days?: readonly number[];
   /** Sólo en estas fases del partido del Arena (systems/Match); entonces `shifts` no cuenta: manda el saque. */
   match?: readonly import('./cityEvents.ts').MatchPhase[];
+  /**
+   * CV-08A · lo que vende (data/services.ts): hablarle mientras vende abre su género, como al personal de una tienda.
+   * Sin él (o montando y recogiendo), se charla.
+   */
+  offers?: import('./services.ts').OfferId;
 }
 
 const WEEKEND = [4, 5, 6] as const;
@@ -53,37 +58,37 @@ export const STREET_ACTS: readonly StreetAct[] = [
   // llegada de la afición y recogen al empezar el partido (la bandeja vuelve a la salida).
   {
     id: 'ar-manta-bufandas', location: 'arena', kind: 'vendor', label: 'Alguien vendiendo bufandas en una manta', line: 'Bufandas, gorros y banderas. Turquesa y naranja, de todos los tamaños.',
-    pitch: ['AR_PITCH_A'], kit: [['blanket-clothes']], presence: 0.95, shifts: [], match: ['build-up', 'arrival'],
+    pitch: ['AR_PITCH_A'], kit: [['blanket-clothes']], presence: 0.95, shifts: [], match: ['build-up', 'arrival'], offers: 'street-bufandas',
   },
   {
     id: 'ar-bandeja', location: 'arena', kind: 'vendor', label: 'Alguien vendiendo pipas y agua', line: 'Pipas, agua y banderitas. ¡Que dentro cuesta el doble!',
-    pitch: ['AR_PITCH_B'], kit: [['tray']], presence: 0.9, shifts: [], match: ['build-up', 'arrival', 'leaving'],
+    pitch: ['AR_PITCH_B'], kit: [['tray']], presence: 0.9, shifts: [], match: ['build-up', 'arrival', 'leaving'], offers: 'street-bandeja-arena',
   },
   {
     id: 'ar-manta-camisetas', location: 'arena', kind: 'vendor', label: 'Alguien vendiendo camisetas en una manta', line: 'La camiseta del partido de hoy, con la fecha. Mañana ya no la hay.',
-    pitch: ['AR_PITCH_C'], kit: [['blanket-clothes']], presence: 0.7, shifts: [], match: ['arrival', 'leaving'],
+    pitch: ['AR_PITCH_C'], kit: [['blanket-clothes']], presence: 0.7, shifts: [], match: ['arrival', 'leaving'], offers: 'street-camisetas-arena',
   },
   // ---------------------------------------------------------------- Puerta Central (data/puertaCentral.ts)
   // Venta en manta, a lo largo del paseo de la plaza: bisutería, ropa y recuerdos. Mediodía y tarde, más el fin de semana.
   {
     id: 'pc-manta-bisuteria', location: 'puerta-central', kind: 'vendor', label: 'Alguien vendiendo en una manta', line: 'Pulseras a cinco, tres por diez. Mira sin compromiso.',
-    pitch: ['PC_STALL_A'], kit: [['blanket-trinkets']], presence: 0.8, shifts: [[11, 15], [17, 22]],
+    pitch: ['PC_STALL_A'], kit: [['blanket-trinkets']], presence: 0.8, shifts: [[11, 15], [17, 22]], offers: 'street-bisuteria',
   },
   {
     id: 'pc-manta-ropa', location: 'puerta-central', kind: 'vendor', label: 'Alguien vendiendo ropa en una manta', line: 'Camisetas y gorras. Todas las tallas, casi.',
-    pitch: ['PC_STALL_B'], kit: [['blanket-clothes']], presence: 0.6, shifts: [[12, 21.5]],
+    pitch: ['PC_STALL_B'], kit: [['blanket-clothes']], presence: 0.6, shifts: [[12, 21.5]], offers: 'street-ropa',
   },
   {
     id: 'pc-manta-recuerdos', location: 'puerta-central', kind: 'vendor', label: 'Alguien vendiendo recuerdos', line: 'Imanes, llaveros, abanicos. Para llevarse un poco de la plaza.',
-    pitch: ['PC_STALL_C'], kit: [['blanket-souvenirs']], presence: 0.75, shifts: [[10.5, 14.5], [16.5, 21]],
+    pitch: ['PC_STALL_C'], kit: [['blanket-souvenirs']], presence: 0.75, shifts: [[10.5, 14.5], [16.5, 21]], offers: 'street-recuerdos',
   },
   {
     id: 'pc-bandeja', location: 'puerta-central', kind: 'vendor', label: 'Alguien vendiendo gafas de sol', line: 'Gafas, abanicos, cargadores. Lo que haga falta, aquí lo llevo.',
-    pitch: ['PC_STALL_D'], kit: [['tray']], presence: 0.7, shifts: [[11.5, 20.5]],
+    pitch: ['PC_STALL_D'], kit: [['tray']], presence: 0.7, shifts: [[11.5, 20.5]], offers: 'street-gafas',
   },
   {
     id: 'pc-manta-finde', location: 'puerta-central', kind: 'vendor', label: 'Alguien con una manta de bisutería', line: 'Lo hago yo, a mano. Por eso no hay dos iguales.',
-    pitch: ['PC_STALL_E'], kit: [['blanket-trinkets']], presence: 0.85, shifts: [[12, 20]], days: WEEKEND,
+    pitch: ['PC_STALL_E'], kit: [['blanket-trinkets']], presence: 0.85, shifts: [[12, 20]], days: WEEKEND, offers: 'street-artesania',
   },
   // Artistas: guitarra junto al monumento, un grupo de baile con su altavoz, la estatua viviente y un dúo el fin de semana.
   {

@@ -14,6 +14,8 @@ export interface MenuOption {
   detail?: string;
   /** Si no se puede elegir, por qué; se ve al intentarlo. */
   disabled?: string;
+  /** Dibujo de lo que se compra (ui/ItemIcons: data URL de 12 × 12), a la izquierda del nombre. Decorativo. */
+  icon?: string;
 }
 
 interface Open {
@@ -135,6 +137,13 @@ export class Menu {
         const detail = document.createElement('span');
         detail.className = 'menu__detail';
         detail.textContent = o.detail ?? '';
+        if (o.icon) {
+          const img = document.createElement('img');
+          img.className = 'menu__icon';
+          img.src = o.icon;
+          img.alt = '';
+          label.prepend(img);
+        }
         li.append(label, detail);
         // Con el dedo (o el ratón), tocar una opción es elegirla: lo mismo que su número.
         li.addEventListener('click', () => this.confirm(i));

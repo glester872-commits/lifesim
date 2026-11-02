@@ -404,7 +404,10 @@ const garmentFor = (
   slot:
     | 'top'
     | 'bottom'
-    | 'shoes',
+    | 'shoes'
+    | 'glasses'
+    | 'cap'
+    | 'scarf',
 ): string | undefined =>
   typeof value ===
     'string' &&
@@ -499,6 +502,14 @@ function parseAppearance(
         shoes;
     }
 
+    // CV-08A: las gafas, como una prenda más (un id que no existe o que no es de gafas se descarta).
+    const glasses = garmentFor(a.glasses, 'glasses');
+    if (glasses) parsed.glasses = glasses;
+    const cap = garmentFor(a.cap, 'cap');
+    if (cap) parsed.cap = cap;
+    const scarf = garmentFor(a.scarf, 'scarf');
+    if (scarf) parsed.scarf = scarf;
+
     const tattoos =
       Array.isArray(
         a.tattoos,
@@ -585,7 +596,7 @@ function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly st
   const player = appearance.player;
   if (!player) return appearance;
   const own = { ...player };
-  for (const slot of ['top', 'bottom', 'shoes'] as const) if (own[slot] !== undefined && !wardrobe.includes(own[slot]!)) delete own[slot];
+  for (const slot of ['top', 'bottom', 'shoes', 'glasses', 'cap', 'scarf'] as const) if (own[slot] !== undefined && !wardrobe.includes(own[slot]!)) delete own[slot];
   return { ...appearance, player: own };
 }
 

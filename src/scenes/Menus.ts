@@ -1,6 +1,7 @@
 import { getLocation } from '../systems/LocationSystem';
 import type { Services } from '../services';
-import { getCatalog, type Catalog } from '../data/catalogs';
+import { getCatalog, type Catalog, type Product } from '../data/catalogs';
+import { garmentIcon, itemIcon } from '../ui/ItemIcons';
 import { getItem } from '../data/items';
 import { getActivity, getOffMapPlace, type ActivityDef } from '../data/activities';
 import { STOPS, type TransitStop } from '../data/transit';
@@ -40,7 +41,10 @@ import { closedLines, isOpen, placeForInterior, placeInfo } from '../systems/Pla
 const CHECKOUT_MINUTES = 2;
 
 /** Dónde va una prenda, dicho en la ficha antes de probarla o comprarla. */
-const SLOT_LABEL = { top: 'arriba (torso y brazos)', bottom: 'abajo (piernas)', shoes: 'en los pies' } as const;
+/** El dibujo de un producto de catálogo (ui/ItemIcons): el objeto que da o la tarjeta que recarga. */
+const productIcon = (p: Product): string => itemIcon('item' in p.effect ? p.effect.item : p.effect.card);
+
+const SLOT_LABEL = { top: 'arriba (torso y brazos)', bottom: 'abajo (piernas)', shoes: 'en los pies', glasses: 'en la cara', cap: 'en la cabeza', scarf: 'al cuello' } as const;
 import { UPGRADES, getHome, getUpgrade } from '../data/housing';
 import { buy, buyBlocker, installAll, installedIn, layout, move, moveBlocker, movePlans, moveSummary, optionsOf, quote as housingQuote, relocate, slotName, storedIn, type HousingState } from '../systems/Housing';
 import { owed, statusOf as billStatus, unpaid } from '../systems/Household';
@@ -110,7 +114,7 @@ export class Menus {
     const shut = stall?.closed() ?? null;
     const options: MenuOption[] = catalog.products.map((p) => {
       const trial = purchase(wallet, p);
-      return { label: p.label, detail: euros(p.price), disabled: shut ?? (trial.ok ? undefined : trial.message) };
+      return { label: p.label, detail: euros(p.price), disabled: shut ?? (trial.ok ? undefined : trial.message), icon: productIcon(p) };
     });
     options.push({ label: 'Salir' });
     menu.open(
@@ -154,7 +158,7 @@ export class Menus {
     const { state, menu } = this.services;
     const options: MenuOption[] = catalog.products.map((p) => {
       const have = 'item' in p.effect ? (state.wallet.inventory[p.effect.item] ?? 0) : 0;
-      return { label: p.label, detail: `${euros(p.price)} · ${productUse(p)}${have ? ` · llevas ${have}` : ''}` };
+      return { label: p.label, detail: `${euros(p.price)} · ${productUse(p)}${have ? ` · llevas ${have}` : ''}`, icon: productIcon(p) };
     });
     options.push({ label: 'Salir' });
     menu.open(title, `${catalog.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
@@ -866,8 +870,13 @@ export class Menus {
    * actividades con su precio (la barra) o un cambio de aspecto (la barbera).
    * Lugar → servicio → esta interacción → la transacción → el estado.
    */
-  openOffer(id: OfferId, who: string, note = '', selected = 0): void {
+  openOffer(id: OfferId, who: string, note = '', selected = 0, stall?: { closed: () => string | null }): void {
     const offer = getOffer(id);
+    if (offer.kind === 'catalog') {
+      // CV-08A · una manta o una bandeja: el catálogo de siempre, «en vivo» y sólo mientras el puesto sigue montado.
+      this.openCatalog(`${offer.title} · ${who}`, offer.catalog, note, selected, undefined, stall);
+      return;
+    }
     if (offer.kind === 'training') {
       const { state, menu } = this.services;
       const location = state.locationId;
@@ -1050,10 +1059,11 @@ export class Menus {
     const current = state.appearanceOf('player');
     const lines = stockOf(storeId, state.wardrobe, current);
     const options: MenuOption[] = lines.map((l) => {
-      if (l.wearing) return { label: l.def.name, detail: 'la llevas', disabled: 'Ya la llevas puesta.' };
-      if (l.owned) return { label: l.def.name, detail: 'tuya · ponértela' };
+      const icon = garmentIcon(l.def);
+      if (l.wearing) return { label: l.def.name, detail: 'la llevas', disabled: 'Ya la llevas puesta.', icon };
+      if (l.owned) return { label: l.def.name, detail: 'tuya · ponértela', icon };
       const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment);
-      return { label: l.def.name, detail: `${euros(l.price)}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message };
+      return { label: l.def.name, detail: `${euros(l.price)}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
     });
     options.push({ label: 'Sólo miraba' });
     menu.open(`${store.name} · ${who}`, `${store.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
@@ -1185,13 +1195,18 @@ export class Menus {
     const owned = state.wardrobe.map(getGarment);
     const options: MenuOption[] = owned.map((g) => ({
       label: g.name,
-      detail: current[g.slot] === g.id ? 'puesta' : g.slot === 'top' ? 'arriba' : g.slot === 'bottom' ? 'abajo' : 'pies',
+      detail: current[g.slot] === g.id ? 'puesta' : g.slot === 'top' ? 'arriba' : g.slot === 'bottom' ? 'abajo' : g.slot === 'glasses' ? 'cara' : g.slot === 'cap' ? 'cabeza' : g.slot === 'scarf' ? 'cuello' : 'pies',
       disabled: current[g.slot] === g.id ? 'Ya la llevas puesta.' : undefined,
+      icon: garmentIcon(g),
     }));
     options.push(
       { label: 'Lo de siempre arriba', detail: current.top ? '' : 'puesto', disabled: current.top ? undefined : 'Ya lo llevas.' },
       { label: 'Lo de siempre abajo', detail: current.bottom ? '' : 'puesto', disabled: current.bottom ? undefined : 'Ya lo llevas.' },
       { label: 'Lo de siempre en los pies', detail: current.shoes ? '' : 'puesto', disabled: current.shoes ? undefined : 'Ya lo llevas.' },
+      // CV-08A: las gafas se quitan como cualquier prenda.
+      { label: 'Sin gafas', detail: current.glasses ? '' : 'así', disabled: current.glasses ? undefined : 'No llevas gafas.' },
+      { label: 'Sin gorra', detail: current.cap ? '' : 'así', disabled: current.cap ? undefined : 'No llevas gorra.' },
+      { label: 'Sin bufanda', detail: current.scarf ? '' : 'así', disabled: current.scarf ? undefined : 'No llevas bufanda.' },
       { label: 'Cerrar' },
     );
     const inked = current.tattoos?.length ?? 0;
@@ -1203,7 +1218,7 @@ export class Menus {
         menu.close();
         return;
       }
-      const next = i < owned.length ? wear(current, owned[i].id) : takeOff(current, (['top', 'bottom', 'shoes'] as const)[i - owned.length]);
+      const next = i < owned.length ? wear(current, owned[i].id) : takeOff(current, (['top', 'bottom', 'shoes', 'glasses', 'cap', 'scarf'] as const)[i - owned.length]);
       state.setAppearance('player', next);
       clock.advanceMinutes(2);
       this.host.persist();

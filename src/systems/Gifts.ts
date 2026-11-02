@@ -16,6 +16,12 @@ import { applyDelta, noteSocialMemory, type SocialDelta, type SocialMoment, type
 export const GIFTS: Readonly<Record<string, Omit<SocialDelta, 'romance' | 'attraction'> & { attraction?: number; given: string }>> = {
   'gift-chocolates': { friendship: 6, trust: 2, mood: 10, given: 'Le das la caja de bombones.' },
   'gift-cologne': { friendship: 8, trust: 3, mood: 12, attraction: 2, given: 'Le das la colonia, envuelta en el papel verde de Velarde.' },
+  // CV-08A · de las mantas de Puerta Central: detalles de poco precio, que suman menos.
+  'gift-bracelet': { friendship: 3, trust: 0, mood: 6, given: 'Le das la pulsera de hilo y te ayuda a atarla.' },
+  'gift-necklace': { friendship: 5, trust: 1, mood: 8, given: 'Le das el colgante. Lo mira a contraluz antes de ponérselo.' },
+  'gift-magnet': { friendship: 2, trust: 0, mood: 4, given: 'Le das el imán. «Para la nevera», dice, y se ríe.' },
+  'gift-keyring': { friendship: 2, trust: 0, mood: 4, given: 'Le das el llavero y lo engancha en sus llaves en el momento.' },
+  'gift-fan': { friendship: 3, trust: 0, mood: 6, given: 'Le das el abanico. Lo abre y se da aire, aunque no haga calor.' },
 };
 
 /** La nota que deja en su memoria: así se sabe si ya hubo regalo hoy. */

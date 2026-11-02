@@ -55,6 +55,8 @@ export interface HumanColors {
   brows?: NpcLook['brows'];
   jaw?: NpcLook['jaw'];
   glasses?: NpcLook['glasses'];
+  /** CV-08A: color de la montura (unas gafas compradas); sin él, el gris oscuro de siempre. */
+  glassesFrame?: string;
   piercing?: NpcLook['piercing'];
   headphones?: string;
   cane?: boolean;
@@ -296,7 +298,7 @@ function face(ctx: Ctx, side: boolean, b: number, c: HumanColors): void {
     else if (c.facialHair === 'moustache') px(ctx, hair, 11, 7 + b, 1, 1);
     else if (c.facialHair === 'stubble') px(ctx, skinShade, 8, 7 + b, 4, 2);
     if (c.brows === 'thick') px(ctx, hair, 10, 4 + b, 2, 1);
-    if (c.glasses) px(ctx, c.glasses === 'dark' ? PALETTE.ink : '#3a3a44', 9, 5 + b, 4, 1);
+    if (c.glasses) px(ctx, c.glasses === 'dark' ? PALETTE.ink : c.glassesFrame ?? '#3a3a44', 9, 5 + b, 4, 1);
     if (c.piercing === 'nose') px(ctx, '#d8d2c4', 12, 6 + b, 1, 1);
     if (c.headphones) px(ctx, c.headphones, 6, 4 + b, 2, 3);
     return;
@@ -329,8 +331,9 @@ function face(ctx: Ctx, side: boolean, b: number, c: HumanColors): void {
   if (c.glasses === 'dark') {
     px(ctx, PALETTE.ink, 5, 5 + b, 2, 2);
     px(ctx, PALETTE.ink, 9, 5 + b, 2, 2);
-    px(ctx, PALETTE.ink, 7, 5 + b, 2, 1);
-  } else if (c.glasses) px(ctx, '#3a3a44', 5, 5 + b, 6, 1);
+    // El puente, del color de la montura: así unas de aviador doradas no son unas negras.
+    px(ctx, c.glassesFrame ?? PALETTE.ink, 7, 5 + b, 2, 1);
+  } else if (c.glasses) px(ctx, c.glassesFrame ?? '#3a3a44', 5, 5 + b, 6, 1);
   if (c.piercing === 'nose') px(ctx, '#d8d2c4', 8, 6 + b, 1, 1);
   else if (c.piercing === 'brow') px(ctx, '#d8d2c4', 10, 4 + b, 1, 1);
   if (c.headphones) {

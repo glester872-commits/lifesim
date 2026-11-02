@@ -106,9 +106,10 @@ for (const r of ['commuter', 'commuter-student', 'metro-arrival']) assert.ok(mor
 for (const r of ['returning', 'shopper']) assert.ok(evening.roles.has(r), `sin ${r} por la tarde`);
 
 // --------------------------------------------------- 4. tráfico: más y de todo, en hora punta más
-function traffic(flowOf: 'cars' | 'bikes', fromMin: number, toMin: number): Map<string, number> {
+const sum = (m: Map<string, number>): number => [...m.values()].reduce((a, b) => a + b, 0);
+function traffic(flowOf: 'cars' | 'bikes', fromMin: number, toMin: number, seed = 7): Map<string, number> {
   const flow = flowOf === 'cars' ? loc.traffic! : loc.traffic!.bikes!;
-  const t = new Traffic(withDistrictLanes(loc, flow), flowOf === 'cars' ? VEHICLES : BIKES, [], loc.ground[0].length * 16, seededRng(7));
+  const t = new Traffic(withDistrictLanes(loc, flow), flowOf === 'cars' ? VEHICLES : BIKES, [], loc.ground[0].length * 16, seededRng(seed));
   const seen = new Set<number>();
   const by = new Map<string, number>();
   for (let min = fromMin - 20; min < toMin; min++) {
@@ -122,9 +123,10 @@ function traffic(flowOf: 'cars' | 'bikes', fromMin: number, toMin: number): Map<
   }
   return by;
 }
-const sum = (m: Map<string, number>): number => [...m.values()].reduce((a, b) => a + b, 0);
-const rushCars = traffic('cars', 7.5 * 60, 9.5 * 60);
-const midCars = traffic('cars', 10.5 * 60, 12.5 * 60);
+// Hora punta frente a media mañana, sumando varias semillas: con una sola, la diferencia (~2 %) cabe en el azar.
+const SEEDS = [5, 6, 7, 8];
+const rushCars = new Map([['*', SEEDS.reduce((n, s) => n + sum(traffic('cars', 7.5 * 60, 9.5 * 60, s)), 0)]]);
+const midCars = new Map([['*', SEEDS.reduce((n, s) => n + sum(traffic('cars', 10.5 * 60, 12.5 * 60, s)), 0)]]);
 const dayCars = traffic('cars', 6 * 60, 22 * 60);
 for (const id of ['van', 'bus']) assert.ok(dayCars.has(id), `no pasa ningún ${id}`);
 assert.ok(['small-truck', 'delivery-truck'].some((id) => dayCars.has(id)), 'no pasa ningún camión');
