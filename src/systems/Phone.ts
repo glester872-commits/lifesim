@@ -795,7 +795,7 @@ function parseThread(v: unknown): PhoneThread | null {
   if (Array.isArray(v.messages)) {
     t.messages = v.messages
       .filter((m): m is Record<string, unknown> => isRecord(m) && (m.from === 'me' || m.from === 'them') && typeof m.text === 'string')
-      .map((m): PhoneMessage => ({ from: m.from as 'me' | 'them', text: (m.text as string).slice(0, 400), at: num(m.at), ...(typeof m.id === 'string' && m.id.length <= 64 ? { id: m.id } : {}), ...(m.free === true ? { free: true as const } : {}) }))
+      .map((m): PhoneMessage => ({ from: m.from as 'me' | 'them', text: graphemes(m.text as string).slice(0, m.free === true ? MESSAGE_MAX : 400).join(''), at: num(m.at), ...(typeof m.id === 'string' && m.id.length <= 64 ? { id: m.id } : {}), ...(m.free === true ? { free: true as const } : {}) }))
       .slice(-MAX_MESSAGES);
   }
   t.unread = Math.max(0, Math.min(t.messages.filter((m) => m.from === 'them').length, Math.floor(num(v.unread))));
