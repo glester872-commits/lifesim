@@ -366,9 +366,15 @@ function drawFireEngine(ctx: Ctx): void {
 /** Colores de cuadro de las bicis aparcadas: cada sitio la suya (tiles: `variants`), dos vecinas nunca iguales. */
 const BIKE_FRAMES = ['#c0493f', '#3f8f8a', '#d9a03c', '#3f5f8a'] as const;
 
-/** Bici aparcada (16 × 16): la de los ciclistas sin nadie encima, apoyada en la fila de abajo (world/CyclistArt). */
+/**
+ * Bici aparcada: la misma que montan los ciclistas (world/CyclistArt: rueda de radio 4 y 10 px entre ejes, unos 19 px de
+ * punta a punta), sin nadie encima, apoyada en la fila de abajo. QA-01: antes iba a radio 3,4 y 8 px entre ejes, la
+ * mitad de alta que un peatón. No cabe en un tile: la textura mide BIKE_W y sobresale 2 px por lado de su tile, como una
+ * bici de verdad junto a la de al lado; la caja de choque (tiles.ts `foot`) sigue siendo la del tile.
+ */
+const BIKE_W = TILE + 4;
 function drawBike(ctx: Ctx, frame: string = BIKE_FRAMES[0]): void {
-  drawParkedBike(ctx, 0, 15, frame, 3.4, 8);
+  drawParkedBike(ctx, 1, 15, frame, 4, 10);
 }
 
 function drawBin(ctx: Ctx): void {
@@ -994,8 +1000,8 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-car-c', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'compact', 1));
   make(scene, 'prop-van', TILE * 3, TILE * 2, drawVan);
   make(scene, 'prop-fire-engine', TILE * 4, TILE * 2, drawFireEngine);
-  make(scene, 'prop-bike', TILE, TILE, (ctx) => drawBike(ctx));
-  BIKE_FRAMES.forEach((c, v) => make(scene, `prop-bike-${v}`, TILE, TILE, (ctx) => drawBike(ctx, c)));
+  make(scene, 'prop-bike', BIKE_W, TILE, (ctx) => drawBike(ctx));
+  BIKE_FRAMES.forEach((c, v) => make(scene, `prop-bike-${v}`, BIKE_W, TILE, (ctx) => drawBike(ctx, c)));
   make(scene, 'prop-bin', TILE, TILE, drawBin);
   make(scene, 'prop-bin-tall', TILE, TILE * 2, drawBinTall);
   make(scene, 'prop-bin-pair', TILE * 2, TILE * 2, drawBinPair);

@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import { drawWord, glow, make, px, shade, type Ctx } from './paint';
+import { drawParkedBike } from './CyclistArt';
 
 /**
  * Piezas urbanas de Visual V2 (design/ART_BIBLE.md). La plazuela del metro es
@@ -145,30 +146,18 @@ function drawStreetLampArt(ctx: Ctx): void {
   px(ctx, '#c9a27a', 6, 27, 5, 1);
 }
 
-/** Una bici de lado, pequeña: ruedas, cuadro de su color y sillín. */
-function bike(ctx: Ctx, x: number, y: number, frame: string): void {
-  for (const cx of [x + 2, x + 9]) {
-    px(ctx, PALETTE.ink, cx - 2, y + 4, 5, 5);
-    px(ctx, shade(STEEL, -0.05), cx - 1, y + 5, 3, 3);
-    px(ctx, PALETTE.ink, cx, y + 6, 1, 1);
-  }
-  px(ctx, frame, x + 3, y + 4, 6, 1);
-  px(ctx, frame, x + 5, y + 2, 1, 3);
-  px(ctx, frame, x + 8, y + 2, 1, 3);
-  px(ctx, PALETTE.ink, x + 4, y + 1, 3, 1);
-  px(ctx, STEEL_LIT, x + 8, y + 1, 3, 1);
-}
-
-/** Aparcabicis: tres arcos de acero y tres bicis distintas, escalonadas. */
+/**
+ * Aparcabicis: tres arcos de acero y dos bicis a la escala de las de los ciclistas (QA-01: antes, tres en miniatura),
+ * escalonadas: la de atrás, dos filas más arriba y un punto más oscura, asoma entre los arcos.
+ */
 function drawBikeRack(ctx: Ctx): void {
   for (const x of [3, 13, 23]) {
     px(ctx, STEEL, x, 6, 1, 13);
     px(ctx, STEEL, x + 6, 6, 1, 13);
     px(ctx, STEEL_LIT, x, 5, 7, 1);
   }
-  bike(ctx, 1, 9, LINE_RED);
-  bike(ctx, 11, 8, '#3f8f8a');
-  bike(ctx, 21, 10, PALETTE.amber);
+  drawParkedBike(ctx, 12, 17, shade('#3f8f8a', -0.12), 4, 10);
+  drawParkedBike(ctx, 0, 19, LINE_RED, 4, 10);
 }
 
 /** Jardinera de madera con arbusto y flores en dos colores. */
