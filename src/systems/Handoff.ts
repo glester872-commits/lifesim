@@ -41,6 +41,8 @@ export interface Handoff {
   /** Minutos absolutos de juego: (día − 1)·1440 + minuto del día. */
   enteredAt: number;
   leaveAt: number;
+  /** Ya estaba dentro cuando el jugador salió: al volver no aparece como recién llegado en la puerta. */
+  established?: true;
   /** Ya salió de verdad (el local lo vio irse por la puerta), y cuándo. */
   exitedAt?: number;
   /** Ya volvió a la calle (o se fue sin que nadie lo viera): la ficha se borra. */
@@ -88,6 +90,7 @@ export function enterPlace(p: {
   place: string; from: string; door: string; look: number; dressSeed: number; role: string; label: string; line: string; at: number; roll: number;
   /** Continuidad de visitantes observados al abandonar un interior: acotada por su aforo. */
   remaining?: number;
+  established?: true;
 }): Handoff | undefined {
   const place = handoffPlace(p.place);
   if (!place) return undefined;
@@ -97,6 +100,7 @@ export function enterPlace(p: {
     look: p.look, dressSeed: p.dressSeed, role: p.role, label: p.label, line: p.line,
     place: place.id, interior: place.interior!, from: p.from, door: p.door,
     enteredAt: p.at, leaveAt: p.at + (p.remaining === undefined ? lo + p.roll * (hi - lo) : Math.max(1, Math.min(90, p.remaining))), transit: place.type === 'transit',
+    established: p.established,
   };
   // La misma persona no está en dos sitios: si tenía otra ficha abierta, esa se cierra.
   for (const o of QUEUE) if (o.look === p.look && !o.done) o.done = true;
