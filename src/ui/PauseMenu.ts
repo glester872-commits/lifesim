@@ -22,13 +22,13 @@ export class PauseMenu {
   private status = '';
   private quitUnsaved = false;
   private returnFocus: HTMLElement | null = null;
+  private readonly background = new Map<HTMLElement, boolean>();
 
   constructor(root: HTMLElement, button: HTMLButtonElement, hooks: PauseHooks) {
     this.root = root;
     this.hooks = hooks;
     root.hidden = true;
     button.addEventListener('click', () => {
-      button.blur();
       if (!this.open) this.show();
     });
     root.addEventListener('click', (e) => {
@@ -38,12 +38,17 @@ export class PauseMenu {
     // Las teclas se quedan aquí: ni Esc, ni E, ni las flechas llegan a Phaser mientras está abierta.
     root.addEventListener('keydown', (e) => {
       e.stopPropagation();
-      if (e.key === 'Escape') return this.hide();
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        return this.hide();
+      }
+      if (e.key !== 'Tab' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
       e.preventDefault();
-      const buttons = [...root.querySelectorAll<HTMLButtonElement>('button')];
+      const buttons = [...root.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
       const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      buttons[(at + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus();
+      const direction = e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1;
+      const next = at < 0 ? (direction > 0 ? 0 : buttons.length - 1) : (at + direction + buttons.length) % buttons.length;
+      buttons[next]?.focus();
     });
   }
 
@@ -58,6 +63,12 @@ export class PauseMenu {
     this.quitUnsaved = false;
     this.returnFocus = document.activeElement as HTMLElement | null;
     this.hooks.pause();
+    // #pause es hermano del juego y del resto de la interfaz: ni el lienzo ni el HUD reciben foco o clics.
+    for (const sibling of this.root.parentElement?.children ?? []) {
+      if (sibling === this.root || !(sibling instanceof HTMLElement)) continue;
+      this.background.set(sibling, sibling.inert);
+      sibling.inert = true;
+    }
     this.root.hidden = false;
     this.render();
   }
@@ -67,8 +78,11 @@ export class PauseMenu {
     this.open = false;
     this.root.hidden = true;
     this.root.innerHTML = '';
+    for (const [element, inert] of this.background) element.inert = inert;
+    this.background.clear();
     this.hooks.resume();
     this.returnFocus?.focus?.();
+    this.returnFocus = null;
   }
 
   private act(action: string): void {
