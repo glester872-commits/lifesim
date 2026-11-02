@@ -3,7 +3,7 @@ import { TILE } from '../config/constants';
 import { QUALITY } from '../config/quality';
 import { ARENA_CLUB } from '../data/cityEvents';
 import { RIVAL_KITS } from '../data/matchPlay';
-import { APRON_TILES, FLAG_TILES, SIDE_TILES, STAND_BUDGET } from '../data/standLife';
+import { APRON_TILES, AWAY_SECTION, FLAG_TILES, SIDE_TILES, STAND_BUDGET } from '../data/standLife';
 import { hashSeed } from '../systems/MetroDaily';
 import type { Chant, StandMood } from '../systems/StandLife';
 import { LAYER } from './Layers';
@@ -48,7 +48,7 @@ function drawBlock(ctx: Ctx, side: 'L' | 'R', frame: Frame, away: string | null)
       const id = `${side}:${x}:${y}`;
       if (unit('seat', id) >= fill) continue;
       // Del rival, una esquina del fondo de la derecha; los demás, del Halcón casi todos.
-      const visitor = !!away && side === 'R' && y < 7 * TILE && x > w / 2;
+      const visitor = !!away && side === 'R' && y < 7 * TILE && x > AWAY_SECTION.from * TILE && x < AWAY_SECTION.to * TILE;
       const r = unit('shirt', id);
       const shirt = visitor && away ? away : r < 0.4 ? TEAL : r < 0.6 ? ORANGE : NEUTRAL[Math.floor(unit('neutral', id) * NEUTRAL.length)];
       const skin = SKINS[Math.floor(unit('skin', id) * SKINS.length)];
