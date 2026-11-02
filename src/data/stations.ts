@@ -17,10 +17,12 @@ import type { PropKind } from '../types/game.ts';
  */
 
 /** Lo que se le ve hacer mientras lo usa (entities/Character.ts lo anima). */
-export type Motion = 'treadmill' | 'bike' | 'row' | 'bench' | 'squat' | 'curl' | 'cable' | 'stretch' | 'sip' | 'hang' | 'shoot' | 'play' | 'step';
+export type Motion = 'treadmill' | 'bike' | 'row' | 'bench' | 'squat' | 'curl' | 'cable' | 'stretch' | 'sip' | 'hang' | 'shoot' | 'play' | 'step' | 'boxing-guard' | 'boxing-footwork' | 'boxing-punch' | 'boxing-coordinate' | 'boxing-rope';
 
 export interface StationDef {
   name: string;
+  /** Sesión dirigida: coste, horario y frecuencia. Sin ello, conserva el entrenamiento libre existente. */
+  training?: { fee: number; hours: readonly [number, number]; every: number; grace: number };
   motion: Motion;
   /** Minutos de juego que se queda [mín, máx]; mandan sobre los del paso del plan. */
   minutes: readonly [number, number];
@@ -35,9 +37,15 @@ export interface StationDef {
   sets?: { work: readonly [number, number]; rest: readonly [number, number] };
 }
 
+const BOXING_SESSION = { fee: 6, hours: [8, 22], every: 30, grace: 5 } as const;
 const STRENGTH = { work: [4_500, 7_500], rest: [3_000, 6_000] } as const;
 
 export const STATIONS = {
+  'boxing-guard': { name: 'Guardia y defensa', motion: 'boxing-guard', minutes: [10, 16], settle: 'idle', training: BOXING_SESSION },
+  'boxing-footwork': { name: 'Juego de pies', motion: 'boxing-footwork', minutes: [10, 16], settle: 'idle', training: BOXING_SESSION },
+  'boxing-bag': { name: 'Técnica de saco', motion: 'boxing-punch', minutes: [10, 18], settle: 'idle', training: BOXING_SESSION },
+  'boxing-coordination': { name: 'Coordinación y combinaciones', motion: 'boxing-coordinate', minutes: [8, 14], settle: 'idle', training: BOXING_SESSION },
+  'boxing-resistance': { name: 'Resistencia con comba', motion: 'boxing-rope', minutes: [10, 16], settle: 'idle', training: BOXING_SESSION },
   treadmill: { name: 'Cinta de correr', motion: 'treadmill', minutes: [14, 32], mount: 'treadmill', settle: 'idle' },
   bike: { name: 'Bici estática', motion: 'bike', minutes: [12, 26], mount: 'exercise-bike', settle: 'sit' },
   rower: { name: 'Remo', motion: 'row', minutes: [8, 16], mount: 'rower', settle: 'sit' },

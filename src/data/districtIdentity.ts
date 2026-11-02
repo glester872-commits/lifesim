@@ -166,9 +166,11 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'velaria-station': 'velaria',
   'puerta-central': 'puerta-central',
   'puerta-central-station': 'puerta-central',
+  'puerta-central-l3-station': 'puerta-central',
   arena: 'arena',
   'arena-station': 'arena',
   // El Polígono Norte (Alpha-09), la parada de después de Ribera Norte: su propio barrio, la nave y el aparcamiento.
   'poligono-norte': 'poligono-norte',
   'decathlon-station': 'poligono-norte',
+  'decathlon-l3-station': 'poligono-norte',
 };

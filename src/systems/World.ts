@@ -16,7 +16,7 @@ import { activePopUp } from './PopUps.ts';
 import { actOn } from './StreetActs.ts';
 import { StreetEvent } from './StreetEvents.ts';
 import { whereabouts } from './Characters.ts';
-import { destinationsFrom } from './Transit.ts';
+import { routeBetween } from './Transit.ts';
 import { districtDensity, identityOf, zoneAt } from './Zones.ts';
 import { nightOwner, weekIndex } from './Calendar.ts';
 import { weatherAt } from './Weather.ts';
@@ -134,7 +134,8 @@ export function travel(from: string, to: string): Travel {
   if (map) return { mode: 'walk', map };
   if (!a.maps.length || !b.maps.length) return { mode: 'none', why: `${(a.maps.length ? b : a).name} aún no tiene mapa` };
   if (!a.stop || !b.stop) return { mode: 'none', why: 'sin parada de metro' };
-  const leg = destinationsFrom(STOPS.find((s) => s.id === a.stop)!).find((d) => d.stop.id === b.stop)!;
+  const leg = routeBetween(a.stop, b.stop);
+  if (!leg) return { mode: 'none', why: 'sin recorrido visitable' };
   return { mode: 'metro', from: a.stop, to: b.stop, minutes: leg.minutes, fare: leg.fare };
 }
 

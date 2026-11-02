@@ -1,22 +1,19 @@
 import type { Beat, Opener, PlanDef, StoryMessage } from '../systems/Story.ts';
+import { HOMES } from './housing.ts';
 
 /**
  * La visita a casa del jugador (systems/Story + data/housing.ts), compartida por quien tiene historia. Cada personaje
  * aporta sus palabras; aquí está la mecánica una sola vez:
  *
- * - dos planes, `visita` (Olmo 7) y `visita-estudio` (Estudio), con su rutina de ese día: va a la casa, se sienta en el
- *   sofá y se vuelve a la suya (la hora de salida la pone su rutina; no queda nada reservado);
+ * - un plan por vivienda (data/housing.ts HOMES: `visita` en Olmo 7, `visita-estudio` en el Estudio…), con su rutina de
+ *   ese día (`plan-<plan>`): va a la casa, se sienta en el sofá y se vuelve a la suya (la hora de salida la pone su
+ *   rutina; no queda nada reservado);
  * - la invitación (un hito que puede llegar por el móvil), con su plan según la casa donde vivas;
  * - una actividad compartida al hablar con ella durante la visita, que se recuerda (decisión `visita-plan`);
  * - lo que dice de la casa en el momento (una mejora instalada, si la hay) y al día siguiente (en persona o por móvil).
  */
 
 export interface VisitText {
-  /** Rutinas de data/characters.ts y el asiento del sofá de cada casa. */
-  routine: string;
-  routineStudio: string;
-  sofa: string;
-  sofaStudio: string;
   /** La flag de «ya es de su gente» y la del enfado (data/<npc>Story.ts). */
   friend: string;
   conflict: string;
@@ -40,11 +37,11 @@ export function visitPlans(t: VisitText): Record<string, PlanDef> {
     say: t.kept,
     then: { social: { friendship: 4, trust: 3, mood: 5 }, mood: 10, event: 'visita' },
   };
-  return {
-    visita: { routine: t.routine, point: t.sofa, from: '19:30', until: '21:00', place: 'tu piso', days: ANY_DAY, kept },
-    'visita-estudio': { routine: t.routineStudio, point: t.sofaStudio, from: '19:30', until: '21:00', place: 'tu estudio', days: ANY_DAY, kept },
-  };
+  return Object.fromEntries(HOMES.map((h): [string, PlanDef] => [h.visitPlan, { routine: visitRoutine(h.visitPlan), point: h.guestSeat, from: '19:30', until: '21:00', place: h.place, days: ANY_DAY, kept }]));
 }
+
+/** La rutina (data/characters.ts) del día de una visita a esa casa. */
+export const visitRoutine = (plan: string): string => `plan-${plan}`;
 
 /** Las invitaciones (una por casa) y la actividad compartida. Van al final de los hitos, salvo la actividad (del día). */
 export function visitBeats(t: VisitText): { invite: Beat[]; share: Beat } {
@@ -60,7 +57,7 @@ export function visitBeats(t: VisitText): { invite: Beat[]; share: Beat } {
     ],
   });
   return {
-    invite: [invite('visita', 'olmo7'), invite('visita-estudio', 'estudio')],
+    invite: HOMES.map((h) => invite(h.visitPlan, h.id)),
     share: {
       id: 'visita-comparte',
       when: { recent: { event: 'visita', days: 0 }, cooldown: 1 },

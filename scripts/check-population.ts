@@ -131,7 +131,10 @@ for (const seed of [1, 2, 3, 4]) {
   }
   pathFailures += street.pathFailures;
 }
-const companions = [...seen.values()];
+// La pareja de una patrulla va de uniforme y es anónima a propósito (data/streets.ts `patrol`: está trabajando, no sale con
+// nadie del censo): no es un grupo de extraños ni de conocidos, así que no cuenta en la proporción. Medido (ALPHA-10,
+// 16 sábados): eran ~27 de cada ~600 acompañantes, todos sin relación, y con la Ronda pesaban lo justo para cruzar el umbral.
+const companions = [...seen.values()].filter(({ c }) => !c.uniform);
 const tied = companions.filter(({ c }) => c.tie);
 assert.ok(companions.length >= 80, `pocos grupos en cuatro sábados: ${companions.length}`);
 // Medido (CV-05, 2026-10-22): esta prueba no es determinista; antes de la parroquia, 0,61–0,62 en cuatro tandas, y con

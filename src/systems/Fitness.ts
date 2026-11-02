@@ -9,10 +9,14 @@
  * menos: una tarde de gimnasio no cambia a nadie, hacen falta semanas.
  */
 
+import { getStation } from '../data/stations.ts';
+
 export type Intensity = 'soft' | 'normal' | 'hard';
 export type WorkoutKind = 'cardio' | 'strength' | 'mobility';
 
 export interface Fitness {
+  /** Técnica de boxeo; ausente en guardados antiguos equivale a cero. */
+  boxing?: number;
   /** Forma general, de 0 a 100. */
   fitness: number;
   /** Fuerza (pesas). */
@@ -34,6 +38,11 @@ export const START_FITNESS: Fitness = { fitness: 18, strength: 12, stamina: 16, 
 
 /** Qué clase de ejercicio es cada puesto del gimnasio (data/stations.ts). Lo que no está aquí no se entrena. */
 export const KIND_OF: Readonly<Record<string, WorkoutKind>> = {
+  'boxing-guard': 'mobility',
+  'boxing-footwork': 'cardio',
+  'boxing-bag': 'strength',
+  'boxing-coordination': 'cardio',
+  'boxing-resistance': 'cardio',
   treadmill: 'cardio',
   bike: 'cardio',
   rower: 'cardio',
@@ -88,6 +97,8 @@ export function settle(f: Fitness, nowMinute: number): Fitness {
 }
 
 export interface Quote {
+  fee: number;
+  wait: number;
   minutes: number;
   energy: number;
   /** Por qué no se puede ahora, o null. */
@@ -95,7 +106,7 @@ export interface Quote {
 }
 
 /** Cuánto dura y cuánta energía cuesta, con el cansancio de ahora; y si hoy se puede. */
-export function quote(f: Fitness, station: string, intensity: Intensity, energy: number): Quote {
+export function quote(f: Fitness, station: string, intensity: Intensity, energy: number, context?: { money: number; hour: number; minute: number }): Quote {
   const kind = KIND_OF[station];
   const i = INTENSITIES[intensity];
   const scale = KIND_SCALE[kind ?? 'cardio'];
@@ -106,7 +117,18 @@ export function quote(f: Fitness, station: string, intensity: Intensity, energy:
   if (!kind) blocked = 'Aquí no se entrena.';
   else if (energy < cost) blocked = 'No tienes fuerzas para tanto.';
   else if (intensity === 'hard' && f.fatigue >= 85) blocked = 'Estás muy cansado: algo más suave.';
-  return { minutes, energy: cost, blocked };
+  const training = getStation(station)?.training;
+  let wait = 0;
+  if (training && context) {
+    const now = context.hour * 60 + context.minute;
+    const [open, close] = training.hours.map(h => h * 60);
+    const offset = ((now - open) % training.every + training.every) % training.every;
+    wait = now < open ? open - now : offset < training.grace ? 0 : training.every - offset;
+    if (now >= close || now + wait + minutes > close) { blocked = 'No queda tiempo antes del cierre; vuelve mañana.'; wait = 0; }
+    else if (wait > 0) blocked = 'La próxima sesión empieza en ' + wait + ' min. Puedes esperar aquí.';
+    if (context.money < training.fee) blocked = 'La sesión cuesta €' + training.fee + '; no te llega.';
+  }
+  return { minutes, energy: cost, blocked, fee: training?.fee ?? 0, wait };
 }
 
 export interface Outcome {
@@ -139,7 +161,9 @@ export function train(f0: Fitness, station: string, intensity: Intensity, fracti
     fatigue: round2(FATIGUE[kind] * i.fatigue * fraction),
   };
   const counts = fraction >= 0.5;
+  const boxing = f.boxing ?? 0;
   const next: Fitness = {
+    ...(station.startsWith('boxing-') ? { boxing: round2(clamp(boxing + 0.8 * k * room(boxing))) } : f.boxing === undefined ? {} : { boxing }),
     fitness: round2(clamp(f.fitness + delta.fitness)),
     strength: round2(clamp(f.strength + delta.strength)),
     stamina: round2(clamp(f.stamina + delta.stamina)),
@@ -195,12 +219,13 @@ const word = (v: number): string => (v < 20 ? 'baja' : v < 40 ? 'regular' : v < 
 /** Una línea para el menú: cómo está cada cosa. */
 export function summary(f: Fitness): string {
   const tired = f.fatigue < 15 ? 'descansado' : f.fatigue < 40 ? 'algo cansado' : f.fatigue < 70 ? 'cansado' : 'agotado';
-  return `Forma ${word(f.fitness)} · fuerza ${word(f.strength)} · resistencia ${word(f.stamina)} · ${tired}.`;
+  return `Forma ${word(f.fitness)} · fuerza ${word(f.strength)} · resistencia ${word(f.stamina)} · ${tired}.${f.boxing === undefined ? '' : ` Técnica de boxeo ${f.boxing.toFixed(1)}/100.`}`;
 }
 
 /** Lo que se nota al acabar, en una frase: sólo si ha cambiado algo. */
 export function afterLine(delta: Outcome['delta'], station: string): string {
   const kind = KIND_OF[station];
+  if (station.startsWith('boxing-')) return 'Inés asiente: mejor equilibrio y manos de vuelta a la guardia. La técnica mejora con práctica y descanso.';
   if (kind === 'mobility') return 'Sales más suelto: se te ha ido parte del cansancio.';
   if (delta.stamina > 0.05 && delta.strength <= 0.05) return 'Notas el corazón y los pulmones trabajados.';
   if (delta.strength > 0.05) return 'Los músculos te piden descanso: buen trabajo.';
@@ -214,6 +239,7 @@ export function parseFitness(value: unknown): Fitness {
   if (typeof value !== 'object' || value === null) return { ...START_FITNESS };
   const v = value as Record<string, unknown>;
   return {
+    ...(v.boxing === undefined ? {} : { boxing: num(v.boxing, 0) }),
     fitness: num(v.fitness, START_FITNESS.fitness),
     strength: num(v.strength, START_FITNESS.strength),
     stamina: num(v.stamina, START_FITNESS.stamina),

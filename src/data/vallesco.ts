@@ -25,7 +25,12 @@ const W = 110;
  */
 const AV_FROM = 35;
 const AV_ROWS = 5;
-const H = 56 + AV_ROWS;
+/**
+ * ALPHA-08: la Ronda de la Vía, al sur de la vía (filas 56–73 de antes del ensanche). Se añade por debajo: nada de lo
+ * que ya había cambia de sitio, así que las partidas guardadas y los spawns siguen donde estaban.
+ */
+const RONDA_ROWS = 18;
+const H = 56 + RONDA_ROWS + AV_ROWS;
 export const sy = (y: number): number => (y >= AV_FROM ? y + AV_ROWS : y);
 
 /** [carácter, x, y, ancho, alto]. Leyenda en data/locations.ts. */
@@ -108,7 +113,18 @@ const GROUND = paint('g', [
   ['d', 68, 0, 18, 3],
   ['d', 74, 3, 12, 1],
   ['c', 74, 4, 2, 12],
-  ['R', 0, 55, W, 1], // la vía: límite sur del barrio
+  ['R', 0, 55, W, 1], // la vía: antes, el límite sur del barrio
+  // ALPHA-08 · Ronda de la Vía. Se cruza la vía a pie por el paso de tablones del Parque del Olmo y se baja por un
+  // pasaje entre dos portales hasta la Ronda: acera norte con los portales y el parque de bomberos (y el vado de la
+  // cochera), carril bici, la calzada de servicio con los coches aparcados y la acera sur contra las traseras.
+  ['c', 49, 55, 3, 1], // paso a nivel peatonal
+  ['c', 48, 56, 5, 8], // pasaje del paso, entre Ronda 12 y Ronda 16
+  [',', 0, 64, W, 2], // acera norte de la Ronda
+  ['.', 15, 65, 10, 1], // vado de la cochera, en el bordillo: la acera de los portales sigue entera
+  ['b', 0, 66, W, 1], // carril bici
+  ['.', 0, 67, W, 1], // calzada de servicio
+  [',', 0, 68, W, 1], // acera sur
+  ['z', 49, 66, 3, 2], // paso de peatones entre las dos aceras, a la salida del pasaje
 ], AVENUE);
 
 const b = (
@@ -164,7 +180,8 @@ const BUILDINGS: readonly BuildingDef[] = [
 
   // Calle Mayor, tramo este: vecinos a los dos lados.
   b('res-mayor-15', 'Mayor 15', 'res-brick', [76, 4, 10, 12], 's', 80, { floors: 3, point: 'RES_MAYOR_15_ENTRANCE', inspect: ['Una bici colgada en el balcón del primero. Nadie sabe cómo la subieron.'] }),
-  b('res-mayor-17', 'Mayor 17', 'res-plaster', [86, 6, 11, 10], 's', 91, { floors: 2, point: 'RES_MAYOR_17_ENTRANCE', inspect: ['«Se alquila habitación. Preguntar por Reme, segundo B».'] }),
+  // ALPHA-08: la habitación que se anunciaba en el portal es una vivienda del jugador (data/ronda.ts, data/housing.ts).
+  b('res-mayor-17', 'Mayor 17', 'res-plaster', [86, 6, 11, 10], 's', 91, { floors: 2, enter: into('mayor-17'), point: 'RES_MAYOR_17_ENTRANCE' }),
   // Mayor 19 y, en su planta baja de la esquina, la tienda de alimentación que cierra la última del barrio.
   b('res-mayor-19', 'Mayor 19', 'res-stone', [97, 3, 7, 13], 's', 100, { floors: 3, point: 'RES_MAYOR_19_ENTRANCE', inspect: ['Un portal de piedra con el número en azulejo.'] }),
   b('grocer', 'Alimentación Mari', 'grocer', [104, 3, 6, 13], 's', 106, { floors: 3, point: 'GROCER_ENTRANCE', inspect: ['Alimentación Mari. Fruta en cajas, pan de ayer a mitad de precio, hielo y pilas. Abre hasta la una.'] }),
@@ -186,12 +203,35 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('carmen-vuelta', 'Segunda Vuelta', 'thrift', [86, 51, 9, 4], 'n', 90, { enter: into('vuelta'), point: 'VUELTA_ENTRANCE' }),
   b('carmen-navaja', 'Navaja & Aro · barbería y piercing', 'piercing', [96, 51, 6, 4], 'n', 98, { point: 'NAVAJA_ENTRANCE', inspect: ['Navaja & Aro. El mismo mostrador para cortar el pelo y para perforar. Un cartel: «Con cita. O con suerte.»'] }),
   b('carmen-gaviota', 'Bar Gaviota', 'bar', [103, 51, 7, 4], 'n', 106, { point: 'GAVIOTA_ENTRANCE', inspect: ['Bar Gaviota. Pizarra de cañas y una nevera con pegatinas de todos los grupos que han tocado en el barrio.'] }),
+
+  // ALPHA-08 · Ronda de la Vía, acera norte: portales entre la vía y la calle, mirando al sur. El pasaje (48–52) baja del paso.
+  b('ronda-2', 'Ronda 2', 'res-modern', [2, 56, 12, 8], 's', 7, { floors: 3, point: 'RONDA_2_ENTRANCE', inspect: ['Un bloque nuevo de balcones corridos. En el portal, las bicis de medio edificio.'] }),
+  // El parque de bomberos (data/ronda.ts): las puertas de la cochera dan al vado; la de la guardia, a la acera.
+  b('ronda-bomberos', 'Parque de Bomberos de Vallesco', 'fire', [14, 56, 15, 8], 's', 26, { floors: 2, enter: into('bomberos'), point: 'BOMBEROS_ENTRANCE' }),
+  b('ronda-8', 'Ronda 8', 'res-brick', [29, 56, 10, 8], 's', 34, { floors: 3, enter: into('ronda-8'), point: 'RONDA_8_ENTRANCE' }),
+  b('ronda-12', 'Ronda 12', 'res-plaster', [39, 56, 9, 8], 's', 43, { floors: 3, point: 'RONDA_12_ENTRANCE', inspect: ['Tres timbres con nombre y uno con una pegatina: «Sin publicidad. Gracias».'] }),
+  b('ronda-16', 'Ronda 16', 'res-stone', [53, 56, 10, 8], 's', 58, { floors: 3, point: 'RONDA_16_ENTRANCE', inspect: ['Un portal de piedra con las macetas de alguien que madruga para regarlas.'] }),
+  b('ronda-20', 'Ronda 20', 'res-modern', [63, 56, 13, 8], 's', 69, { floors: 3, point: 'RONDA_20_ENTRANCE', inspect: ['El portero automático tiene cámara. Nadie se ha atrevido a saludar.'] }),
+  b('ronda-26', 'Ronda 26', 'res-brick', [76, 56, 11, 8], 's', 81, { floors: 3, point: 'RONDA_26_ENTRANCE', inspect: ['Ladrillo visto y un cartel en el ascensor: «Funciona. De verdad».'] }),
+  b('ronda-30', 'Ronda 30', 'res-plaster', [87, 56, 11, 8], 's', 92, { floors: 2, point: 'RONDA_30_ENTRANCE', inspect: ['En el buzón, un papel: «Se busca a quien deja la bici en el rellano. Con cariño».'] }),
+  b('backdrop-ronda-e', 'Talleres de la Vía', 'backdrop', [98, 56, 12, 8], undefined),
+  // Las traseras de la manzana de enfrente cierran la Ronda por el sur.
+  // ALPHA-10: en medio, frente al pasaje del paso, la comisaría de barrio (data/ronda.ts), con la puerta a la acera sur.
+  b('backdrop-ronda-s', 'Manzana sur', 'backdrop', [0, 69, 53, 5], undefined),
+  b('ronda-policia', 'Policía de barrio · Vallesco', 'police', [53, 69, 8, 5], 'n', 56, { enter: into('vallesco-policia'), point: 'VPOLICIA_ENTRANCE' }),
+  b('backdrop-ronda-s2', 'Manzana sur', 'backdrop', [61, 69, W - 61, 5], undefined),
 ];
 
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
 const row = (kind: PropKind, ty: number, xs: readonly number[]): PropPlacement[] => xs.map((tx) => at(kind, tx, ty));
 
 const PROPS: readonly PropPlacement[] = [
+  // ALPHA-08 · Ronda de la Vía: la autobomba en el vado, farolas y plátanos en el bordillo (fuera de las puertas) y un
+  // banco en el pasaje del paso, contra la pared de Ronda 16 (el otro lado queda libre para pasar).
+  at('fire-engine', 16, 65),
+  ...row('street-lamp', 65, [4, 30, 46, 55, 74, 96]),
+  ...row('plane-tree', 65, [12, 39, 62, 87, 104]),
+  at('bench', 52, 61),
   // Borde norte
   ...[[1, 0], [24, 0], [29, 2], [48, 2], [68, 0]].map(([x, y]) => at('tree', x, y)),
 
@@ -391,6 +431,11 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   'carmen-75': p(75, 45, 'path'), 'carmen-79': p(79, 45, 'path'), 'carmen-87': p(87, 45, 'path'), 'carmen-89': p(89, 45, 'path'),
   'carmen-93': p(93, 45, 'path'), 'carmen-96': p(96, 45, 'path'), 'carmen-99': p(99, 45, 'path'), 'carmen-106': p(106, 45, 'path'),
   'carmen-s80': p(80, 49, 'path'), 'carmen-s89': p(89, 49, 'path'), 'carmen-s90': p(90, 49, 'path'), 'carmen-s98': p(98, 49, 'path'), 'carmen-s106': p(106, 49, 'path'),
+  // ALPHA-08 · Ronda de la Vía: del paseo del parque al paso, el pasaje y la Ronda; sus dos aceras salen al resto de la ciudad.
+  'via-n': p(50, 52, 'path'), 'via-x': p(50, 55, 'path'), 'via-p': p(50, 60, 'path'), 'ronda-50': p(50, 64, 'path'), 'ronda-s50': p(50, 68, 'path'),
+  // Un solo borde por lado (la acera de los portales): la Ronda es una calle de vecinos, no de paso.
+  EDGE_RONDA_W: p(0, 64, 'edge'), EDGE_RONDA_E: p(W - 1, 64, 'edge'),
+  'ronda-s0': p(1, 68, 'path'), 'ronda-s109': p(W - 2, 68, 'path'),
 };
 
 type Link = readonly [string, string];
@@ -486,6 +531,14 @@ const LINKS: readonly Link[] = [
   ['STREET_BUS_SHELTER', 'BUS_STOP'], ['STREET_METRO_PORTICO', 'plazuela-4'], ['STREET_BANK_DOORWAY', 'mayor-64'],
   ['STREET_MAYOR_ASK', 'mayor-06'], ['STREET_PASAJE', 'pasaje'], ['STREET_OLMO_CORNER', 'olmo-23'], ['STREET_SOLAR', 'tintoreros-n'],
  ['STREET_PLAZA_SPOT', 'plaza-s'], ['STREET_METRO_EXIT', 'METRO_PLAZUELA_BENCH'],
+
+  // ALPHA-08 · Ronda de la Vía: del paseo del parque, por el paso y el pasaje, a la acera de los portales.
+  ['park-b1', 'via-n'], ['via-n', 'park-b2'],
+  ...chain('via-n', 'via-x', 'via-p', 'ronda-50'),
+  ...chain('EDGE_RONDA_W', 'RONDA_2_ENTRANCE', 'BOMBEROS_ENTRANCE', 'RONDA_8_ENTRANCE', 'RONDA_12_ENTRANCE', 'ronda-50',
+    'RONDA_16_ENTRANCE', 'RONDA_20_ENTRANCE', 'RONDA_26_ENTRANCE', 'RONDA_30_ENTRANCE', 'EDGE_RONDA_E'),
+  ...chain('ronda-s0', 'ronda-s50', 'VPOLICIA_ENTRANCE', 'ronda-s109'),
+  ['ronda-50', 'ronda-s50'],
 ];
 
 const BASE: LocationDef = {
@@ -524,6 +577,7 @@ const BASE: LocationDef = {
     { profile: 'vintage', tx: 74, ty: 37, w: 36, h: 18 }, // Calle del Carmen y su pasaje
     { profile: 'nightlife', tx: 10, ty: 16, w: 12, h: 10 }, // la puerta de la Sala Órbita, con su cola
     { profile: 'nightlife', tx: 27, ty: 49, w: 9, h: 6 }, // La Cepa, junto al parque
+    { profile: 'residential', tx: 0, ty: 56, w: W, h: 13 }, // ALPHA-08 · Ronda de la Vía: portales y el parque de bomberos
   ],
   // Escena de muestra (design/ART_BIBLE §15): la plazuela del metro con su tramo de avenida y los edificios
   // de alrededor. Ahí se prueba el estándar visual nuevo antes de llevarlo al resto del barrio.
@@ -552,7 +606,8 @@ const BASE: LocationDef = {
     perLane: 3,
     hourly: [[0, 1, 2], [1, 6.5, 1], [6.5, 7.5, 2], [7.5, 21, 3], [21, 24, 2]],
     bikes: {
-      lanes: [{ row: 31, dir: -1 }, { row: 39, dir: 1 }, { row: 47, dir: -1 }],
+      // El de la Ronda de la Vía (ALPHA-08) ya va en coordenadas ensanchadas: fila 66 de antes, 71 de ahora.
+      lanes: [{ row: 31, dir: -1 }, { row: 39, dir: 1 }, { row: 47, dir: -1 }, { row: 71, dir: 1 }],
       road: 'avenue',
       perLane: 2,
       hourly: [[0, 6.5, 1], [6.5, 22, 2], [22, 24, 1]],
@@ -582,6 +637,8 @@ const BASE: LocationDef = {
     { tx: 95, ty: 50, name: 'Columna de carteles', lines: ['Encima de un cartel de hace un año, uno de la semana pasada. Encima, pegatinas.'] },
     { tx: 96, ty: 44, name: 'Terraza del Molinillo', lines: ['Dos mesas y una sombrilla. Se sirve fuera cuando el café está abierto.'] },
     { tx: 72, ty: 2, name: 'Cajas de fruta', lines: ['Cajas apiladas como gradas alrededor de un trozo de tierra pisada en redondo. Colillas, vasos de plástico. Aquí se junta gente, y no de día.'] },
+    { tx: 49, ty: 54, name: 'Paso a nivel', lines: ['Un paso de tablones sobre la vía de servicio y un cartel: «Mire a ambos lados». Por aquí ya casi no pasa nada: la línea va bajo tierra.'] },
+    { tx: 20, ty: 65, name: 'Autobomba', lines: ['La autobomba del parque, lavada y aparcada en el vado, con el morro hacia la calle. Las luces azules, apagadas.'] },
     { tx: 83, ty: 2, name: 'Lámpara de pinza', lines: ['Una lámpara de obra enganchada a las cajas. El cable sube por la pared hasta una ventana del primero.'] },
   ],
   // Nombres para el mapa (tecla M): calles y zonas, sobre el suelo que ya las dibuja.
@@ -594,6 +651,7 @@ const BASE: LocationDef = {
     { name: 'Calle del Olmo', tx: 12, ty: 47 },
     { name: 'Parque del Olmo', tx: 48, ty: 53 },
     { name: 'Calle del Carmen', tx: 99, ty: 47 },
+    { name: 'Ronda de la Vía', tx: 40, ty: 67 },
   ],
   // Donde se compra: la máquina de la Calle Mayor.
   terminals: [{ tx: 29, ty: 16, name: 'Máquina expendedora', catalog: 'vending' }],

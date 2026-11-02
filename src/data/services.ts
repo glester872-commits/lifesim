@@ -23,6 +23,7 @@ export type ServiceActivity = 'post' | 'rounds' | 'serve';
  * (systems/Appearance.ts, systems/Activities.ts) que cambia el estado.
  */
 export type ServiceOffer =
+  | { kind: 'training'; title: string; points: readonly string[] }
   | { kind: 'appearance'; slot: import('./appearance.ts').AppearanceSlot; title: string; greeting: string; minutes: number }
   | { kind: 'activities'; title: string; activities: readonly string[] }
   /** Una tienda de ropa (data/retail.ts): su género y sus precios, cobrados por systems/Retail.ts. */
@@ -36,6 +37,7 @@ export type ServiceOffer =
   | { kind: 'gathering'; gathering: string };
 
 export const SERVICE_OFFERS = {
+  'boxing-coach': { kind: 'training', title: 'Inés · Club de Boxeo Forja', points: ['BOX_GUARD_01', 'BOX_FEET_01', 'BOX_BAG_01', 'BOX_COORD_01', 'BOX_ROPE_01'] },
   haircut: { kind: 'appearance', slot: 'hair', title: 'Barbería Nati · corte', greeting: 'Siéntate. ¿Cómo lo quieres?', minutes: 30 },
   // Lo que dura cada tatuaje va en su diseño (data/tattoos.ts); `minutes` es la consulta.
   tattoo: { kind: 'appearance', slot: 'tattoos', title: 'Tinta Carmen · tatuaje', greeting: '¿Dónde lo quieres? Primero la zona, luego el diseño.', minutes: 10 },
@@ -65,6 +67,11 @@ export const SERVICE_OFFERS = {
   'bar-larguero': { kind: 'activities', title: 'Barra · Bar El Larguero', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'bar-grada': { kind: 'activities', title: 'Barra · Taberna La Grada', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'police-desk': { kind: 'police', title: 'Comisaría de Puerta Central · recepción', street: 'puerta-central' },
+  // ALPHA-10 · la oficina de barrio de la Ronda (data/ronda.ts): la misma recepción, con el estado de Vallesco.
+  'police-desk-vallesco': { kind: 'police', title: 'Policía de barrio · Vallesco · recepción', street: 'district' },
+  // El parque de bomberos de la Ronda de la Vía: una visita a la cochera y consejos de prevención. Los incendios (ALPHA-10,
+  // systems/Emergencies) se viven en la calle, no aquí: la guardia no despacha avisos ni promete salidas.
+  'fire-desk': { kind: 'activities', title: 'Parque de Bomberos · guardia', activities: ['fire-visit', 'fire-advice'] },
   'parish-choir': { kind: 'gathering', gathering: 'coro' },
 } as const satisfies Record<string, ServiceOffer>;
 
@@ -98,6 +105,8 @@ export const SERVICE_ROLES = {
   // Quien abre y atiende un sitio de todos (la parroquia): sin uniforme de tienda, en su sitio.
   host: { label: 'Acogida', line: 'Pasa, que está abierto.', uniform: 'uniforme-sala', activity: 'post', offers: 'parish-choir' },
   // La guardia de la comisaría (systems/Police): el mismo uniforme que la patrulla de la calle.
+  // La guardia del parque de bomberos (data/ronda.ts): enseña la cochera y explica la prevención en casa.
+  firefighter: { label: 'Bombero de guardia', line: 'Buenas. Si es una emergencia, se llama al 112; si es una pregunta, pregunta.', uniform: 'uniforme-bomberos', activity: 'post', offers: 'fire-desk' },
   'police-officer': { label: 'Agente de guardia', line: 'Buenas. ¿En qué te puedo ayudar?', uniform: 'uniforme-policia', activity: 'post', offers: 'police-desk' },
   dj: { label: 'DJ', line: '(Señala los cascos y sonríe. No te oye.)', uniform: 'dj', activity: 'post' },
   barber: { label: 'Barbería', line: 'Si tienes prisa, vuelve mañana.', uniform: 'uniforme-barbero', activity: 'serve', offers: 'haircut' },

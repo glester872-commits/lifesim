@@ -118,6 +118,29 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     effects: { energy: 12 },
     lines: ['Te acurrucas con la manta y un libro que llevabas semanas empezando.', 'A la tercera página ya no estás en el salón.'],
   },
+  // Parque de Bomberos de la Ronda (data/services.ts 'fire-desk'): gratis, sólo pasa el rato. Cuentan lo que hay, no
+  // simulan salidas ni emergencias.
+  {
+    id: 'fire-visit',
+    name: 'Ver la cochera con la guardia (20 min)',
+    minutes: 20,
+    requires: { start: [10, 20] },
+    effects: {},
+    lines: [
+      'Te enseña la autobomba por dentro: la manguera enrollada, las botas puestas dentro de los pantalones para vestirse en un minuto y la escalera que se despliega hasta el cuarto piso.',
+      '«Las de verdad no son como en las películas», dice. «Casi todo es prevención y casi nada es correr». Luego te deja tocar la sirena. Apagada.',
+    ],
+  },
+  {
+    id: 'fire-advice',
+    name: 'Preguntar por prevención en casa (10 min)',
+    minutes: 10,
+    effects: {},
+    lines: [
+      'Detector de humo en el pasillo, el fuego apagado si sales de la cocina y los cargadores fuera de la cama.',
+      '«Y si un día huele a gas, no enciendas ni la luz: sales, cierras y llamas desde la calle».',
+    ],
+  },
   {
     id: 'watch-tv',
     name: 'Ver la tele (1 h)',

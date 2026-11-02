@@ -86,7 +86,8 @@ export const ZONES: readonly ZoneDef[] = [
   // Por defecto, todo el barrio es de vecinos: poca gente, portales.
   {
     id: 'vallesco-residencial', name: 'Calles residenciales', type: 'residential', location: 'district', districtId: 'vallesco',
-    rects: [{ tx: 0, ty: 0, w: 110, h: 61 }],
+    // ALPHA-08: hasta la Ronda de la Vía (filas 61–78), al otro lado del paso del parque.
+    rects: [{ tx: 0, ty: 0, w: 110, h: 79 }],
     population: { label: 'vecinos, gente que entra y sale de casa', roles: { returning: 1.3, 'dog-walker': 1.2, errands: 0.8 } },
     activity: { bands: [[7, 9, 1.1], [9, 13, 0.7], [13, 15, 0.8], [15, 19, 0.8], [19, 22, 1.1], [22, 24, 0.5]], rest: 0.25, weekend: 0.9, outdoor: 0.4, variation: 0.1 },
     ambience: 'residential',

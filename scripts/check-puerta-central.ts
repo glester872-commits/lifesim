@@ -57,7 +57,8 @@ assert.equal(stop(ID).station, 'puerta-central-station');
 assert.equal(minutes(ID, 'velaria'), LINES[0].minutesPerStop);
 assert.equal(minutes('velaria', 'cuatro-rios'), LINES[0].minutesPerStop, 'cambió Velaria → Cuatro Ríos');
 assert.equal(minutes('cuatro-rios', 'vallesco'), LINES[0].minutesPerStop, 'cambió Cuatro Ríos → Vallesco');
-assert.ok((stop(ID).hub ?? 0) > 0 && STOPS.every((s) => s.id === ID || !s.hub), 'el andén de Puerta Central no va más lleno que los demás');
+assert.ok((stop(ID).hub ?? 0) > 0 && STOPS.filter(s => s.line === 'L2').every((s) => s.id === ID || !s.hub), 'el andén de Puerta Central no va más lleno que los demás');
+assert.equal(stop('puerta-central-l3').hub, stop(ID).hub, 'ambos andenes del intercambiador comparten afluencia');
 let busier = 0;
 for (let day = 1; day <= 14; day++) {
   const daily = metroDay(day);

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { lampShadow } from '../world/LampShadows';
 import { PLAYER_BODY, PLAYER_SPEED } from '../config/constants';
-import type { Facing } from '../types/game';
+import type { Facing, Vec2 } from '../types/game';
 import { PLAYER_H, PLAYER_W } from '../world/TextureFactory';
 import { every } from '../world/Motion';
 import { BENCH_BAR, RACK_EMPTY, REPS, SETUP_MS } from './Character';
@@ -46,7 +46,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Sentado o yendo a sentarse o a levantarse: no anda con las teclas. */
   private seat: { facing: Facing; lift: number; since: number; settled: boolean } | null = null;
   /** Entrenando en una máquina o en su sitio (data/stations.ts), o yendo a ella: tampoco anda con las teclas. */
-  private training: { motion: Motion | 'basket'; facing: Facing; sits: boolean; sets: boolean; since: number; settled: boolean; x: number; y: number } | null = null;
+  private training: { route?: readonly Vec2[]; motion: Motion | 'basket'; facing: Facing; sits: boolean; sets: boolean; since: number; settled: boolean; x: number; y: number } | null = null;
   /** Lo que se ve de la máquina mientras se usa: la banda, la jaula vacía (debajo) y la barra (encima). */
   private gearUnder?: Phaser.GameObjects.Image;
   private gearOver?: Phaser.GameObjects.Image;
@@ -199,15 +199,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
    * coloca delante, con el mismo cuerpo, poses y repeticiones que la gente del gimnasio (entities/Character).
    * Sin cuerpo desde el primer paso: la máquina es sólida y va a subirse a ella.
    */
-  startTraining(x: number, y: number, facing: Facing, motion: Motion | 'basket', sits: boolean, sets: boolean): void {
+  startTraining(x: number, y: number, facing: Facing, motion: Motion | 'basket', sits: boolean, sets: boolean, route?: readonly Vec2[], onReady?: () => void): void {
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(0, 0);
     body.enable = false;
-    this.training = { motion, facing, sits, sets, since: 0, settled: false, x, y };
-    this.glide(x, y, () => {
+    this.training = { motion, facing, sits, sets, since: 0, settled: false, x, y, route: route ? [{ x: this.x, y: this.y }, ...route] : undefined };
+    this.glidePath(route ?? [{ x, y }], () => {
       if (!this.training) return;
       this.anims.stop();
       this.training = { ...this.training, since: this.scene.time.now, settled: true };
+      onReady?.();
     });
   }
 
@@ -218,7 +219,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.gear('under', null);
     this.gear('over', null);
     this.setOrigin(0.5, 1);
-    this.glide(x, y, () => {
+    const route = this.training.route ? [...this.training.route].reverse() : [{ x, y }];
+    this.glidePath(route, () => {
       this.training = null;
       const body = this.body as Phaser.Physics.Arcade.Body;
       body.enable = true;
@@ -266,6 +268,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         over = 'fx-barbell';
         barY = BENCH_BAR[half];
       }
+      if (tr.motion.startsWith('boxing-')) { over = 'fx-boxing-' + dir + '-' + half; barY = 12; }
       if (tr.motion === 'shoot') {
         over = 'fx-ball';
         barY = half ? 12 : -4;
@@ -312,6 +315,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       else this.gearOver = img;
     }
     img.setTexture(key).setPosition(Math.round(x), Math.round(y)).setDepth(depth).setVisible(true);
+  }
+
+  /** Pasos validados por Navigation: también se recorren a la vuelta, sin cortar por cuerdas ni sacos. */
+  private glidePath(route: readonly Vec2[], done: () => void): void {
+    let index = 0;
+    const next = (): void => {
+      const p = route[index++];
+      if (!p) { done(); return; }
+      if (Math.hypot(this.x - p.x, this.y - p.y) < 0.5) next();
+      else this.glide(p.x, p.y, next);
+    };
+    next();
   }
 
   /** Los pasos cortos hasta (x, y) andando, mirando hacia donde va; luego `then`. */

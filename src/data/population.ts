@@ -3,7 +3,9 @@ import type { OfferId, ServiceId } from './services.ts';
 import { CR_PROFILES } from './cuatroRiosVenues.ts';
 import { VL_PROFILES } from './velariaVenues.ts';
 import { PC_PROFILES } from './puertaCentralVenues.ts';
+import { RONDA_PROFILES } from './ronda.ts';
 import { AR_PROFILES } from './arenaVenues.ts';
+import { BOXING_PROFILE } from './boxing.ts';
 import { DECATHLON_PROFILE } from './decathlon.ts';
 
 /**
@@ -173,6 +175,7 @@ export function arcadeProfile(place: string, pre: string, cashier: string): Popu
 }
 
 export const POPULATION_PROFILES: readonly PopulationProfile[] = [
+  BOXING_PROFILE,
   {
     place: 'gym',
     // Antes del trabajo, a medio gas; a mediodía, flojo; de cinco a nueve y media, lleno; al cierre, casi vacío.
@@ -644,6 +647,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   ...CR_PROFILES,
   ...VL_PROFILES,
   ...PC_PROFILES,
+  ...RONDA_PROFILES,
   ...AR_PROFILES,
   DECATHLON_PROFILE,
   {

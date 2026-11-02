@@ -33,7 +33,7 @@ function homeStep(): TourStep {
 function transportStep(): TourStep {
   const line = LINES[0];
   const card = CATALOGS.find((c) => c.id === 'transport-machine')?.products.find((p) => p.effect && 'issue' in p.effect && p.effect.issue);
-  const stops = STOPS.filter((s) => s.id !== 'vallesco').sort((a, b) => Math.abs(a.order) - Math.abs(b.order)).slice(0, 4).map((s) => s.name.split(' · ')[0]);
+  const stops = STOPS.filter((s) => s.line === line.id && s.id !== 'vallesco').sort((a, b) => Math.abs(a.order) - Math.abs(b.order)).slice(0, 4).map((s) => s.name.split(' · ')[0]);
   return {
     title: 'Transporte',
     text: `La boca de metro está en esta misma calle. Sin tarjeta no se sube: en la máquina del vestíbulo cuesta ${card ? euros(card.price) : 'poco'} con saldo. La ${line.name} va a ${stops.join(', ')} y más; ${line.minutesPerStop} min por parada y ${euros(line.fare)} el viaje.`,

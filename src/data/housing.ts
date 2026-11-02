@@ -19,8 +19,12 @@ export interface HomeDef {
   door: string;
   /** Alquiler semanal que se anuncia desde que vives ahí (data/household.ts). */
   rent: number;
-  /** Plan de visita (data/saraStory.ts, data/adaStory.ts) que se fija al recibir a alguien aquí. */
+  /** Plan de visita (data/visits.ts) que se fija al recibir a alguien aquí; su rutina es `plan-<visitPlan>` (data/characters.ts). */
   visitPlan: string;
+  /** Asiento (punto del interior) donde se sienta quien viene de visita. */
+  guestSeat: string;
+  /** Cómo se dice en una invitación: «en tu piso». */
+  place: string;
   /** Lo que se cuenta de la casa antes de mudarse. */
   text: string;
   /** Mudarse aquí desde otra casa. */
@@ -40,6 +44,8 @@ export const HOMES: readonly HomeDef[] = [
     door: 'home-door',
     rent: 45,
     visitPlan: 'visita',
+    guestSeat: 'HOME_SOFA_02',
+    place: 'tu piso',
     text: 'Dos plantas de ventana, cocina, baño, dormitorio y un salón con sitio de sobra. Es donde empiezas.',
     move: { fee: 100, free: 150 },
   },
@@ -50,8 +56,35 @@ export const HOMES: readonly HomeDef[] = [
     door: 'res-olmo-11',
     rent: 35,
     visitPlan: 'visita-estudio',
+    guestSeat: 'STUDIO_SOFA_02',
+    place: 'tu estudio',
     text: 'Un estudio compacto: todo en una sola habitación, con el baño aparte. Pequeño, luminoso y €10 más barato a la semana.',
     move: { fee: 150, free: 250 },
+  },
+  // ALPHA-08 (data/ronda.ts): las dos nuevas, una a cada extremo del barrio y del precio.
+  {
+    id: 'ronda8',
+    name: 'Piso · Ronda 8',
+    location: 'ronda-8',
+    door: 'ronda-8',
+    rent: 55,
+    visitPlan: 'visita-ronda8',
+    guestSeat: 'R8_SOFA_02',
+    place: 'tu piso de la Ronda',
+    text: 'Al otro lado de la vía, en la Ronda nueva: dormitorio, despacho con ventana, baño y un salón con comedor. El más grande del barrio, y el más lejos de la Calle Mayor: se cruza por el paso del Parque del Olmo.',
+    move: { fee: 180, free: 350 },
+  },
+  {
+    id: 'mayor17',
+    name: 'Habitación · Mayor 17',
+    location: 'mayor-17',
+    door: 'res-mayor-17',
+    rent: 25,
+    visitPlan: 'visita-mayor17',
+    guestSeat: 'M17_SOFA_02',
+    place: 'tu habitación de la Mayor',
+    text: 'La habitación que anunciaba el portal: dormitorio pequeño con escritorio y, abajo, baño, cocina y un sofá de dos plazas. Encima de la Calle Mayor, con el horno y el metro a dos pasos. La más barata y la más pequeña.',
+    move: { fee: 60, free: 90 },
   },
 ];
 
@@ -74,6 +107,15 @@ export const SLOTS: Readonly<Record<string, Readonly<Record<string, Slot>>>> = {
   estudio: {
     'pared-dormitorio': { name: 'la pared de la cama', tx: 7, ty: 1, w: 2, h: 2 },
     'esquina-salon': { name: 'la esquina del salón', tx: 11, ty: 8, w: 2, h: 2 },
+  },
+  ronda8: {
+    'pared-dormitorio': { name: 'la pared del dormitorio', tx: 10, ty: 1, w: 1, h: 2 },
+    'esquina-salon': { name: 'la esquina del salón', tx: 15, ty: 8, w: 2, h: 2 },
+    despacho: { name: 'el rincón del despacho', tx: 16, ty: 2, w: 1, h: 2 },
+  },
+  mayor17: {
+    'pared-dormitorio': { name: 'la pared de la cama', tx: 11, ty: 1, w: 1, h: 2 },
+    'esquina-salon': { name: 'la esquina de la salita', tx: 12, ty: 6, w: 1, h: 1 },
   },
 };
 
@@ -134,6 +176,16 @@ export const UPGRADES: readonly UpgradeDef[] = [
         props: [{ kind: 'painting', tx: 7, ty: 1 }],
         inspects: [{ tx: 7, ty: 2, name: 'Cuadro del Carmen', lines: ['La lámina del mural, sobre la cabecera. En un estudio pequeño, lo único que mandas tú.'] }],
       },
+      ronda8: {
+        slot: 'pared-dormitorio',
+        props: [{ kind: 'painting', tx: 10, ty: 1 }],
+        inspects: [{ tx: 10, ty: 2, name: 'Cuadro del Carmen', lines: ['La lámina del mural, entre el espejo y la ventana. Desde aquí, el Carmen queda al otro lado de la vía.'] }],
+      },
+      mayor17: {
+        slot: 'pared-dormitorio',
+        props: [{ kind: 'painting', tx: 11, ty: 1 }],
+        inspects: [{ tx: 11, ty: 2, name: 'Cuadro del Carmen', lines: ['La lámina del mural sobre la cama. Lo único de la habitación que no estaba cuando llegaste.'] }],
+      },
     },
   },
   {
@@ -154,6 +206,16 @@ export const UPGRADES: readonly UpgradeDef[] = [
         slot: 'esquina-salon',
         props: [{ kind: 'floor-lamp', tx: 12, ty: 9 }],
         inspects: [{ tx: 11, ty: 9, name: 'Lámpara de pie', lines: ['Luz cálida en la esquina. En el estudio, es lo que separa «salón» de «dormitorio».'] }],
+      },
+      ronda8: {
+        slot: 'esquina-salon',
+        props: [{ kind: 'floor-lamp', tx: 16, ty: 9 }],
+        inspects: [{ tx: 15, ty: 9, name: 'Lámpara de pie', lines: ['Luz cálida junto al comedor. El salón grande, por fin, con un rincón.'] }],
+      },
+      mayor17: {
+        slot: 'esquina-salon',
+        props: [{ kind: 'floor-lamp', tx: 12, ty: 6 }],
+        inspects: [{ tx: 12, ty: 7, name: 'Lámpara de pie', lines: ['Luz cálida junto a la tele. La salita parece otra.'] }],
       },
     },
   },
@@ -176,6 +238,11 @@ export const UPGRADES: readonly UpgradeDef[] = [
         { slot: 'esquina-salon', props: [{ kind: 'plant', tx: 12, ty: 9 }], inspects: [{ tx: 11, ty: 9, name: 'Monstera', lines: ['La esquina del estudio ya tiene a alguien. Verde.'] }] },
         { slot: 'pared-dormitorio', props: [{ kind: 'plant', tx: 8, ty: 2 }], inspects: [{ tx: 8, ty: 3, name: 'Monstera', lines: ['Al lado de la cama. Lo primero que ves al despertar es una hoja.'] }] },
       ],
+      ronda8: [
+        { slot: 'esquina-salon', props: [{ kind: 'plant', tx: 16, ty: 9 }], inspects: [{ tx: 15, ty: 9, name: 'Monstera', lines: ['En la esquina del salón grande, junto al comedor. Hasta parece pequeña.'] }] },
+        { slot: 'despacho', props: [{ kind: 'plant', tx: 16, ty: 2 }], inspects: [{ tx: 16, ty: 3, name: 'Monstera', lines: ['En el despacho, junto a la ventana: trabajar con una hoja enorme al lado.'] }] },
+      ],
+      mayor17: { slot: 'esquina-salon', props: [{ kind: 'plant', tx: 12, ty: 6 }], inspects: [{ tx: 12, ty: 7, name: 'Monstera', lines: ['La salita es pequeña y la monstera, no. Se llevan bien.'] }] },
     },
   },
 ];

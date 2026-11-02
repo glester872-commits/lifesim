@@ -4,6 +4,7 @@ import { FACINGS, type Facing, type NpcLook } from '../types/game';
 import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import { blob, drawWord, make, px, shade, sprinkle, type Ctx } from './paint';
 import { buildBuildingTextures } from './BuildingArt';
+import { buildBoxingTextures } from './BoxingArt';
 import { buildPropTextures } from './PropArt';
 import { buildUrbanTextures } from './UrbanArt';
 import { buildVegetationTextures } from './Vegetation';
@@ -935,6 +936,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'ui-prompt', TILE, TILE, drawPrompt);
 
   buildPropTextures(scene);
+  buildBoxingTextures(scene);
   buildUrbanTextures(scene);
   buildPopUpTextures(scene);
   buildVegetationTextures(scene);

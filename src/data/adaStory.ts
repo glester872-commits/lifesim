@@ -17,7 +17,6 @@ const WEEKEND = [5, 6];
 
 /** La visita a tu casa (data/visits.ts): sus palabras, secas y justas. */
 const VISIT: VisitText = {
-  routine: 'plan-visita', routineStudio: 'plan-visita-estudio', sofa: 'HOME_SOFA_02', sofaStudio: 'STUDIO_SOFA_02',
   friend: 'ada_friend', conflict: 'ada_conflict',
   ask: ['Oye. Nunca he visto tu casa. ¿Me invitas {cuando}? Llevo yo el agua, que tú no tienes de la buena.'],
   yes: { label: 'Claro, ven {cuando}', reply: ['Bien. {cuando} en {lugar}. Soy puntual, aviso.'] },

@@ -341,6 +341,28 @@ function drawVan(ctx: Ctx): void {
   px(ctx, PALETTE.ink, w - 11, 26, 6, 4);
 }
 
+/** Autobomba de perfil (64 × 32): cabina a la derecha, caja roja con la franja reflectante, la escalera encima y las luces azules. */
+function drawFireEngine(ctx: Ctx): void {
+  const w = TILE * 4;
+  const red = '#c8302a';
+  px(ctx, 'rgba(0,0,0,0.35)', 2, 29, w - 3, 3);
+  px(ctx, shade(red, -0.2), 1, 9, w - 2, 20);
+  px(ctx, red, 1, 8, w - 2, 19);
+  px(ctx, shade(red, 0.18), 2, 8, w - 4, 1);
+  // La escalera sobre la caja y las persianas de los cofres.
+  px(ctx, PALETTE.metal, 3, 4, 40, 2);
+  for (let x = 5; x < 42; x += 4) px(ctx, PALETTE.metal, x, 3, 1, 4);
+  for (let x = 4; x < 42; x += 9) px(ctx, shade(red, -0.12), x, 11, 8, 10);
+  // Franja reflectante y cabina con su luna.
+  px(ctx, '#e9ecd2', 1, 21, w - 2, 2);
+  px(ctx, PALETTE.glass, 48, 10, 13, 7);
+  px(ctx, PALETTE.glassLit, 48, 10, 13, 1);
+  px(ctx, '#3b6fd8', 50, 6, 4, 2);
+  px(ctx, '#3b6fd8', 56, 6, 4, 2);
+  // Ruedas.
+  for (const x of [6, 18, 48]) px(ctx, PALETTE.ink, x, 25, 7, 5);
+}
+
 /** Colores de cuadro de las bicis aparcadas: cada sitio la suya (tiles: `variants`), dos vecinas nunca iguales. */
 const BIKE_FRAMES = ['#c0493f', '#3f8f8a', '#d9a03c', '#3f5f8a'] as const;
 
@@ -971,6 +993,7 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-car-b', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'sedan', 1));
   make(scene, 'prop-car-c', TILE * 3, TILE * 2, (ctx) => drawParked(ctx, 'compact', 1));
   make(scene, 'prop-van', TILE * 3, TILE * 2, drawVan);
+  make(scene, 'prop-fire-engine', TILE * 4, TILE * 2, drawFireEngine);
   make(scene, 'prop-bike', TILE, TILE, (ctx) => drawBike(ctx));
   BIKE_FRAMES.forEach((c, v) => make(scene, `prop-bike-${v}`, TILE, TILE, (ctx) => drawBike(ctx, c)));
   make(scene, 'prop-bin', TILE, TILE, drawBin);

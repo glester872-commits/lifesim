@@ -106,6 +106,7 @@ assert.ok(/escortRoute = \[[\s\S]{0,700}?\.walkY[\s\S]{0,700}?\.gate\b[\s\S]{0,4
 const store = new Map<string, string>();
 const save = new SaveSystem({ read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) });
 const full: GameStateData = {
+  metroJourney: null,
   money: 42.5,
   energy: 77,
   day: 9,

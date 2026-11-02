@@ -13,6 +13,8 @@ import { ARENA } from './arena.ts';
 import { AR_INTERIORS } from './arenaVenues.ts';
 import { DECATHLON_STORE } from './decathlon.ts';
 import { POLIGONO_NORTE } from './poligonoNorte.ts';
+import { BOXING } from './boxing.ts';
+import { RONDA_INTERIORS } from './ronda.ts';
 import { rebased } from './velariaVenues.ts';
 import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PARISH, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
 
@@ -467,6 +469,39 @@ const DECATHLON_STATION = platform(
   [VESTIBULE_GUARD],
 );
 
+/** L3 exprés: dos andenes propios, con el mismo trazado seguro y los mismos pools. */
+const PUERTA_CENTRAL_L3 = platform(
+  'puerta-central-l3-station', 'Metro · Puerta Central · L3 exprés',
+  { location: 'puerta-central', spawn: 'pc-metro' },
+  { label: 'Línea 3 · exprés a Polígono Norte', location: 'decathlon-l3-station' },
+  [], [VESTIBULE_GUARD],
+);
+const DECATHLON_L3 = platform(
+  'decathlon-l3-station', 'Metro · Polígono Norte · L3 exprés',
+  { location: 'poligono-norte', spawn: 'pn-metro' },
+  { label: 'Línea 3 · exprés a Puerta Central', location: 'puerta-central-l3-station' },
+  [], [VESTIBULE_GUARD],
+);
+
+/** Pasillo físico dentro de la zona validada; no es un trayecto en tren. */
+function correspondence(base: LocationDef, other: LocationDef, line: string): LocationDef {
+  return {
+    ...base,
+    name: base.name.includes('L3') ? base.name : base.name + ' · L2',
+    ground: base.ground.map((row, y) => y === 11 ? row.slice(0, 7) + 'Y' + row.slice(8) : row),
+    portals: [...base.portals, {
+      id: 'transfer', tx: 7, ty: 11, label: 'Correspondencia · ' + line + ' · 2 min a pie · sin recargo',
+      to: { location: other.id, spawn: 'transfer' }, minutes: 2,
+    }],
+    points: { ...base.points, [base.id + ':exit']: { tx: 11, ty: 13, kind: 'exit' } },
+    spawns: { ...base.spawns, transfer: { tx: 7, ty: 11, facing: 'up' } },
+    inspects: [...(base.inspects ?? []), {
+      tx: 6, ty: 12, name: 'Correspondencia · ' + line,
+      lines: ['A la izquierda del vestíbulo, el pasillo de correspondencia: 2 min a pie. El billete se valida al subir al primer tren y vale hasta salir a la calle. Servicio continuo; espera junto a las puertas del andén elegido. Al recargar reapareces en un andén seguro con el mismo saldo y reloj.'],
+    }],
+  };
+}
+
 /** Tres taburetes a la barra, delante del mostrador (fila 6), mirando hacia él. */
 const BAR_STOOLS: Record<string, PointDef> = Object.fromEntries([2, 3, 4].map((x, i) => [`BAR_STOOL_0${i + 1}`, { tx: x, ty: 6, kind: 'seat', facing: 'up' } as PointDef]));
 
@@ -580,8 +615,11 @@ export const LOCATIONS: readonly LocationDef[] = [
   VALLESCO,
   HOME,
   STUDIO,
+  // ALPHA-08 (data/ronda.ts): el parque de bomberos de la Ronda de la Vía y las dos viviendas nuevas.
+  ...RONDA_INTERIORS,
   CAFE,
   GYM,
+  BOXING,
   FASHION,
   SUPERMARKET,
   RESTAURANT,
@@ -617,7 +655,8 @@ export const LOCATIONS: readonly LocationDef[] = [
   ...VL_INTERIORS,
   // Puerta Central (data/puertaCentral.ts): la Calle de la Puerta y la plaza, su estación y sus locales.
   PUERTA_CENTRAL,
-  PUERTA_CENTRAL_STATION,
+  correspondence(PUERTA_CENTRAL_STATION, PUERTA_CENTRAL_L3, 'L3 exprés → Polígono Norte'),
+  correspondence(PUERTA_CENTRAL_L3, PUERTA_CENTRAL_STATION, 'L2 → Arena / Vallesco / Ribera'),
   ...PC_INTERIORS,
   // Distrito Arena (data/arena.ts): el estadio y su explanada, la estación, los locales y los dos bares.
   ARENA,
@@ -626,7 +665,8 @@ export const LOCATIONS: readonly LocationDef[] = [
   ...ARENA_BARS,
   // Polígono Norte (data/poligonoNorte.ts): la explanada y el aparcamiento de Decathlon, su estación y la nave por dentro.
   POLIGONO_NORTE,
-  DECATHLON_STATION,
+  correspondence(DECATHLON_STATION, DECATHLON_L3, 'L3 exprés → Puerta Central'),
+  correspondence(DECATHLON_L3, DECATHLON_STATION, 'L2 → Ribera / Vallesco / Arena'),
   DECATHLON_STORE,
 ];
 

@@ -70,7 +70,7 @@ function categoryOf(p: PlaceInfo): PoiCategory {
   const tag = (t: string): boolean => p.tags.includes(t);
   const byType: Partial<Record<PlaceType, PoiCategory>> = { home: 'home', public: tag('sport') ? 'park' : 'plaza' };
   if (byType[p.type]) return byType[p.type]!;
-  if (p.type === 'transit') return p.building ? 'metro' : 'bus';
+  if (p.type === 'transit') return p.building || p.interior ? 'metro' : 'bus';
   if (tag('nightlife')) return 'night';
   if (tag('food')) return 'food';
   if (tag('fashion') || tag('shop')) return 'shop';
@@ -187,6 +187,20 @@ for (const loc of allLocations()) {
   if (loc.kind !== 'exterior') continue;
   for (const portal of loc.portals) {
     if (!portal.train && !DOOR_OF.has(portal.to.location)) DOOR_OF.set(portal.to.location, { mapId: loc.id, tx: portal.tx, ty: portal.ty });
+  }
+}
+
+// Los andenes de correspondencia comparten la boca de su estación. También sirve a interiores anidados.
+for (let changed = true; changed;) {
+  changed = false;
+  for (const loc of allLocations()) {
+    const door = DOOR_OF.get(loc.id);
+    if (!door) continue;
+    for (const portal of loc.portals) {
+      if (portal.train || getLocation(portal.to.location).kind !== 'interior' || DOOR_OF.has(portal.to.location)) continue;
+      DOOR_OF.set(portal.to.location, door);
+      changed = true;
+    }
   }
 }
 

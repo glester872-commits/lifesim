@@ -21,7 +21,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone' | 'gem' | 'star' | 'frame' | 'lotus' | 'shield';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone' | 'gem' | 'star' | 'frame' | 'lotus' | 'shield' | 'flame';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -69,6 +69,9 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   // Comisaría (Policía de Distrito, ficticia): piedra clara, cristal con luz fría, la banda azul marino del uniforme con
   // su filo amarillo de toldo y el escudo de rótulo. Se reconoce desde la plaza sin leer nada.
   police: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#dfe3e6', shop: 'glass', upper: 'windows', lit: PALETTE.glassLit, door: 'glass', awning: ['#1f2c4a', '#d8e04a'], sign: 'shield' },
+  // Parque de bomberos (ficticio): ladrillo rojo, las puertas de la cochera enrollables de chapa, ventanas de guardia
+  // arriba, la marquesina de rayas rojas y blancas y la llama de rótulo. Se distingue de la comisaría desde la acera.
+  fire: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#a8382f', shop: 'shutter', upper: 'windows', lit: PALETTE.amber, door: 'metal', awning: ['#c8302a', PALETTE.white], sign: 'flame' },
   'res-plaster': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.wallLit, 0.05), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood', mat: 'stucco' },
   metro: { roof: PALETTE.night, roofLit: shade(PALETTE.night, 0.06), wall: PALETTE.night, shop: 'metro', upper: 'windows', lit: PALETTE.amber, door: 'stairs' },
   gym: { roof: PALETTE.roofBLit, roofLit: shade(PALETTE.roofBLit, 0.05), wall: PALETTE.metal, shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass', sign: 'dumbbell' },
@@ -1612,7 +1615,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
     sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e', bread: PALETTE.amber, phone: NEON_CYAN,
-    gem: BRASS, star: BRASS, frame: BRASS, lotus: BRASS, shield: '#d8e04a',
+    gem: BRASS, star: BRASS, frame: BRASS, lotus: BRASS, shield: '#d8e04a', flame: '#f2c230',
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -1647,6 +1650,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     case 'key': p(4, 5, 4, 4); px(ctx, PALETTE.ink, 5, 6, 2, 2); p(8, 7, 5, 1); p(11, 8, 1, 2); break;
     case 'drop': p(7, 4, 2, 2); p(6, 6, 4, 2); p(5, 8, 6, 3); p(6, 11, 4, 1); break;
     case 'book': p(4, 5, 4, 6); p(8, 5, 4, 6); px(ctx, PALETTE.ink, 8, 5, 1, 6); break;
+    case 'flame': px(ctx, '#c8302a', 7, 3, 2, 2); px(ctx, '#c8302a', 6, 5, 4, 3); px(ctx, '#c8302a', 5, 8, 6, 3); px(ctx, '#f2c230', 7, 7, 2, 3); px(ctx, '#f2c230', 6, 9, 4, 2); p(5, 11, 6, 1); break;
     case 'flag': p(5, 4, 1, 8); px(ctx, RUST, 6, 4, 5, 2); px(ctx, PALETTE.amber, 6, 6, 5, 2); break;
     case 'plate': p(4, 6, 8, 1); p(4, 9, 8, 1); px(ctx, PALETTE.glassLit, 4, 7, 3, 2); break;
     case 'note': px(ctx, NEON_CYAN, 4, 9, 3, 3); px(ctx, NEON_CYAN, 9, 8, 3, 3); p(6, 4, 1, 6); p(11, 3, 1, 6); p(6, 3, 6, 2); break;

@@ -32,7 +32,7 @@ const homeAt = (id: string, owned: string[]): HousingState => ({ home: id, owned
 assert.ok(UPGRADES.length >= 3, 'al menos tres mejoras');
 assert.ok(UPGRADES.some((u) => u.kind === 'funcional') && UPGRADES.some((u) => u.kind === 'expresiva'), 'una funcional y una expresiva');
 assert.equal(new Set(ids).size, ids.length, 'ids repetidos');
-assert.equal(HOMES.length, 2, 'dos viviendas');
+assert.equal(HOMES.length, 4, 'cuatro viviendas (ALPHA-08: Ronda 8 y Mayor 17)');
 for (const home of HOMES) {
   const base = baseLocation(home.location);
   assert.equal(base.home, home.id, `${home.id}: la localización no apunta a su vivienda`);
@@ -103,7 +103,7 @@ for (const home of HOMES) {
     assert.ok(loc.spots?.some((s) => s.housing), `${home.id}: falta el catálogo`);
     // La visita: la ruta de la puerta al sofá de invitados existe.
     const exit = Object.entries(loc.points!).find(([, p]) => p.kind === 'exit')![0];
-    const seat = home.visitPlan === 'visita' ? 'HOME_SOFA_02' : 'STUDIO_SOFA_02';
+    const seat = home.guestSeat;
     assert.ok(route(exit, seat), `${home.id}+[${owned}]: sin ruta de la puerta al sofá`);
     // Lo comprado e instalado se ve y se toca desde la misma definición.
     for (const id of installedIn(h)) {

@@ -60,9 +60,18 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-mayor-17', name: 'Mayor 17', type: 'residence', tags: ['home'], building: 'res-mayor-17', capacity: 8 },
   { id: 'res-mayor-19', name: 'Mayor 19', type: 'residence', tags: ['home'], building: 'res-mayor-19', capacity: 9 },
   { id: 'res-mayor-22', name: 'Mayor 22', type: 'residence', tags: ['home'], building: 'res-mayor-22', capacity: 7 },
+  // ALPHA-08 · Ronda de la Vía, al otro lado del paso del parque (data/vallesco.ts). Ronda 8 es también la vivienda `ronda8`.
+  { id: 'res-ronda-2', name: 'Ronda 2', type: 'residence', tags: ['home'], building: 'ronda-2', capacity: 14 },
+  { id: 'res-ronda-8', name: 'Ronda 8', type: 'residence', tags: ['home'], building: 'ronda-8', capacity: 8 },
+  { id: 'res-ronda-12', name: 'Ronda 12', type: 'residence', tags: ['home'], building: 'ronda-12', capacity: 9 },
+  { id: 'res-ronda-16', name: 'Ronda 16', type: 'residence', tags: ['home'], building: 'ronda-16', capacity: 10 },
+  { id: 'res-ronda-20', name: 'Ronda 20', type: 'residence', tags: ['home'], building: 'ronda-20', capacity: 14 },
+  { id: 'res-ronda-26', name: 'Ronda 26', type: 'residence', tags: ['home'], building: 'ronda-26', capacity: 10 },
+  { id: 'res-ronda-30', name: 'Ronda 30', type: 'residence', tags: ['home'], building: 'ronda-30', capacity: 8 },
 
   // Negocios con interior
   { id: 'cafe', name: 'Cafetería Pausa', type: 'business', tags: ['food', 'social', WORK], building: 'cafe-door', anchors: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], capacity: 10, hours: [7, 22], why: 'Desayunar algo rápido y llevarse pan o bollería para casa.' },
+  { id: 'boxing', name: 'Club de Boxeo Forja', type: 'business', tags: ['sport', 'social', 'work'], interior: 'boxing', capacity: 7, hours: [8, 22], why: 'Entrenamiento dirigido de guardia, pies, saco, coordinación y resistencia, con técnica y forma física persistentes.' },
   { id: 'gym', name: 'Gimnasio Forja', type: 'business', tags: ['sport', 'social', WORK], building: 'gym-door', capacity: 18, hours: [6, 23] },
   { id: 'clothing-store', name: 'Hilo · moda', type: 'business', tags: ['shop', 'fashion', WORK], building: 'fashion-door', capacity: 14, hours: [10, 21], why: 'Ropa de temporada: lo que compras te lo llevas puesto y se queda en tu armario.' },
   { id: 'supermarket', name: 'Súper Rosales', type: 'business', tags: ['shop', 'food', WORK], building: 'super-door', capacity: 20, hours: [9, 22], hoursByDay: { sunday: [10, 15] }, why: 'La compra para cocinar en casa: comer por menos de lo que cuesta fuera.' },
@@ -101,6 +110,13 @@ export const PLACES: readonly PlaceDef[] = [
 
   // La iglesia de la plaza (CV-05): visita libre en su horario y, los domingos de 12:00 a 13:30, el ensayo abierto del coro (data/parish.ts).
   { id: 'parish', name: 'Parroquia de San Blas', type: 'public', tags: ['social', 'quiet'], building: 'parish-door', capacity: 30, hours: [9, 20.5], why: 'Sentarse un rato en silencio y, los domingos a mediodía, cantar con el coro del barrio.' },
+
+  // El parque de bomberos de la Ronda (data/ronda.ts): guardia de 24 horas. Se ve la cochera y se pregunta por prevención;
+  // de su puerta sale la dotación de los incendios de la Ronda (ALPHA-10, data/emergencies.ts).
+  { id: 'bomberos', name: 'Parque de Bomberos de Vallesco', type: 'public', tags: ['fire', 'civic'], building: 'ronda-bomberos', capacity: 8, hours: [0, 24], why: 'Ver la cochera con la guardia y preguntar por prevención en casa.' },
+
+  // ALPHA-10 · la oficina de barrio de la policía, en la acera sur de la Ronda (data/ronda.ts): la recepción de siempre sin coger el metro.
+  { id: 'vallesco-policia', name: 'Policía de barrio · Vallesco', type: 'business', tags: ['police', 'civic'], building: 'ronda-policia', capacity: 6, hours: [8, 22], why: 'Preguntar cómo está el barrio y, si te han robado en la calle, poner la denuncia sin ir hasta Puerta Central.' },
 
   // Transporte y espacio público
   { id: 'metro-vallesco', name: 'Metro · Vallesco', type: 'transit', tags: ['transit'], building: 'metro-door', anchors: ['METRO_PLAZUELA_BENCH'], capacity: 60 },
@@ -203,7 +219,7 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'pc-cafe', name: 'Café Central', type: 'business', tags: ['food', 'social', WORK], building: 'pc-cafe', anchors: ['PC_CAFE_TERRACE_01', 'PC_CAFE_TERRACE_02'], capacity: 12, hours: [7.5, 22.5], why: 'Café y desayuno en la barra o en la terraza de la plaza, viendo pasar a medio mundo.' },
   { id: 'pc-pizza', name: 'Pizzería Vesubio', type: 'business', tags: ['food', 'social', WORK], building: 'pc-pizza', capacity: 20, hours: [12, 24], why: 'Pizza en mesa o para llevar, en plena Calle de la Puerta.' },
   { id: 'pc-burger', name: 'Burger Plaza', type: 'business', tags: ['food', 'social', 'nightlife', WORK], building: 'pc-burger', capacity: 20, hours: [11, 2], why: 'Hamburguesa en mesa o para llevar; abierta hasta las dos para quien sale.' },
-  { id: 'metro-puerta-central', name: 'Metro · Puerta Central', type: 'transit', tags: ['transit'], building: 'pc-metro', anchors: ['PC_METRO_MEET_03', 'PC_METRO_MEET_04'], capacity: 120 },
+  { id: 'metro-puerta-central', name: 'Metro · Puerta Central · L2 / L3', type: 'transit', tags: ['transit'], building: 'pc-metro', anchors: ['PC_METRO_MEET_03', 'PC_METRO_MEET_04'], capacity: 120 },
   { id: 'metro-puerta-central-oeste', name: 'Metro · Puerta Central (oeste)', type: 'transit', tags: ['transit'], building: 'pc-metro-w', anchors: ['PC_METRO_MEET_01', 'PC_METRO_MEET_02'], capacity: 120 },
   // ------------------------------------------------------------------ Distrito Arena (data/arena.ts)
   { id: 'res-ar-1', name: 'Avenida del Estadio 1', type: 'residence', tags: ['home'], building: 'ar-res-1', capacity: 14 },
@@ -215,7 +231,9 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'ar-deportes', name: 'Deportes Arena', type: 'business', tags: ['shop', 'sport', WORK], building: 'ar-deportes', capacity: 6, hours: [10, 21], days: [0, 1, 2, 3, 4, 5], why: 'Chándal, camisetas técnicas y zapatillas: ropa de deporte que te llevas puesta.' },
   // Abre todos los días hasta tarde: el fin de semana es cuando hay partido.
   // El metro del Polígono Norte (Alpha-09): por donde llega casi toda la gente que no viene en coche.
-  { id: 'metro-poligono-norte', name: 'Metro · Polígono Norte', type: 'transit', tags: ['transit'], building: 'pn-metro', capacity: 40 },
+  { id: 'metro-puerta-central-l3', name: 'Andén L3 · Puerta Central', type: 'transit', tags: ['transit'], interior: 'puerta-central-l3-station', capacity: 40 },
+  { id: 'metro-poligono-norte-l3', name: 'Andén L3 · Polígono Norte', type: 'transit', tags: ['transit'], interior: 'decathlon-l3-station', capacity: 40 },
+  { id: 'metro-poligono-norte', name: 'Metro · Polígono Norte · L2 / L3', type: 'transit', tags: ['transit'], building: 'pn-metro', capacity: 40 },
   // Decathlon (data/decathlon.ts): la nave del Polígono Norte (data/poligonoNorte.ts); se entra por su puerta de la explanada.
   { id: 'decathlon-tienda', name: 'Decathlon · Polígono Norte', type: 'business', tags: ['shop', 'sport', WORK], building: 'pn-decathlon', capacity: 30, hours: [9, 21], days: [0, 1, 2, 3, 4, 5], why: 'Una nave de deporte: montaña, running, ciclismo. Y el trabajo de sección, si firmas.' },
   { id: 'ar-oficial', name: 'Tienda Oficial Halcones', type: 'business', tags: ['shop', 'sport', 'stadium', WORK], building: 'ar-oficial', capacity: 8, hours: [10, 21.5], why: 'Las camisetas y la sudadera del club: te las llevas puestas.' },
