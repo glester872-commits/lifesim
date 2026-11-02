@@ -749,8 +749,9 @@ export class PassengerAI {
       return;
     }
     if (level === 3) {
-      if (this.state !== 'LEAVING_STATION') this.leave();
-      else if (dest) this.walker.walk([dest], this.speed || this.world.cfg.npcWalkingSpeed);
+      // La guarda de la vía detiene y recoloca al pasajero: su ruta de salida puede haberse perdido.
+      if (this.state !== 'LEAVING_STATION' || !dest) this.leave();
+      else this.walker.walk([dest], this.speed || this.world.cfg.npcWalkingSpeed);
       return;
     }
     if (!unseen) return;

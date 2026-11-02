@@ -64,6 +64,9 @@ async () => {
     for (let i = 0; i < 60 * 120 && m.train.state !== want; i++) step(1);
     if (m.train.state !== want) { forced.push({ want, skipped: true }); continue; }
     const pax = m.passengers.filter((p) => p.walker.visible && !p.inIncident && ['WAITING', 'WALKING_TO_PLATFORM', 'REACTING_TO_TRAIN', 'LEAVING_STATION'].includes(p.state)).slice(0, 2);
+    // Al menos uno ya se iba: halt() borrará su ruta al devolverlo al andén.
+    if (pax[0]) pax[0].recover(3, false);
+    const startStates = pax.map((p) => p.state);
     const guard = m.guards.find((q) => q.walker.visible && !q.handlingIncident);
     const a = diag();
     for (const p of pax) p.walker.place({ x: p.walker.x, y: 3 * 16 }, 'up');
@@ -71,10 +74,18 @@ async () => {
     step(1);
     const next = [...pax.map((p) => p.walker.y), ...(guard ? [guard.walker.y] : [])].map((y) => Math.round(y));
     const fired = delta(a, diag());
-    step(60 * 12);
-    const paxOk = pax.every((p) => !p.walker.visible || p.state === 'OFFSTAGE' || p.state === 'LEAVING_STATION' || p.walker.y >= edge);
+    const resumed = pax.every((p) => p.state === 'LEAVING_STATION' && p.walker.moving);
+    const starts = pax.map((p) => ({ x: p.walker.x, y: p.walker.y }));
+    const progressed = pax.map(() => false);
+    for (let i = 0; i < 60 * 12; i++) {
+      step(1);
+      pax.forEach((p, j) => {
+        if (!p.walker.visible || p.state === 'OFFSTAGE' || Math.hypot(p.walker.x - starts[j].x, p.walker.y - starts[j].y) > 1) progressed[j] = true;
+      });
+    }
+    const paxOk = resumed && pax.every((p, i) => progressed[i] && (!p.walker.visible || p.walker.y >= edge));
     const guardHome = guard ? Math.hypot(guard.walker.x - guard.post.x, guard.walker.y - guard.post.y) < 4 || guard.state !== 'RETURN_TO_POSITION' : true;
-    forced.push({ want, train: m.train.state, victims: pax.length + (guard ? 1 : 0), nextFrameY: next, fired, paxOk, guardHome, guardState: guard?.state });
+    forced.push({ want, train: m.train.state, victims: pax.length + (guard ? 1 : 0), startStates, nextFrameY: next, fired, resumed, progressed, paxOk, guardHome, guardState: guard?.state });
   }
 
   const pass = natural.cycles >= CYCLES && natural.onTrackAfterPhysics === 0 && natural.diag['invalid-destination'] === 0 && natural.diag.invasion === 0 && natural.diag.transition === 0 && natural.diag.guard === 0
