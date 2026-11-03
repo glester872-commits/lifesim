@@ -7,8 +7,12 @@ import { Crowd, profileFor, type Clock } from '../src/systems/Crowd.ts';
 import { absMinute, enterPlace, handoffs, insideLooks, insideOf, MAX_PER_PLACE, resetHandoffs } from '../src/systems/Handoff.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
 import { findPoint } from '../src/systems/Navigation.ts';
-import { placeInfo } from '../src/systems/Places.ts';
+import { placeInfo, workingAt } from '../src/systems/Places.ts';
 import { StreetLife, streetProfileFor } from '../src/systems/StreetLife.ts';
+import { POPULATION } from '../src/config/population.ts';
+import { IDENTITIES } from '../src/systems/People.ts';
+import { CHOIR } from '../src/data/parish.ts';
+import { gatheringReservedLooks, guestsOf } from '../src/systems/Parish.ts';
 
 const DAY = 2; // martes
 const at = (m: number): Clock => ({ day: DAY + Math.floor(m / 1440), hour: Math.floor((m % 1440) / 60), minute: m % 60 });
@@ -105,4 +109,71 @@ const inside = { tx: 3, ty: 3 };
   resetHandoffs();
 }
 
-console.log('check-handoff: la calle apunta a quien ve entrar, el local lo tiene dentro (misma cara y ropa), sale a su hora por su puerta, sin duplicados ni cola infinita, OK');
+// 5. Salir y volver enseguida no convierte a la clientela establecida en una entrada nueva.
+{
+  resetHandoffs();
+  const clock = at(17 * 60);
+  const place = placeInfo('supermarket')!;
+  const loc = getLocation(place.interior!);
+  const room = () => new Crowd(loc, place, profileFor(place.id)!, seededRng(123));
+  const far = { tx: -999, ty: -999 };
+  const first = room();
+  first.populate(clock, far);
+  const observed = first.agents.filter((a) => a.kind === 'visitor' && !a.guest);
+  assert.ok(observed.length > 0);
+  first.rememberVisitors(clock);
+  const endTimes = handoffs().filter((h) => !h.done).map((h) => h.leaveAt);
+  const exit = loc.portals.find((p) => p.to.location !== loc.id)!;
+  const player = { tx: exit.tx, ty: exit.ty };
+  const back = room();
+  back.populate(clock, player);
+  for (const old of observed) {
+    const a = back.agents.find((a) => a.look === old.look);
+    assert.ok(a?.point, `${old.look}: visita recordada sin actividad`);
+    assert.ok(Math.hypot(a.x - player.tx, a.y - player.ty) >= POPULATION.spawnClearance, `${old.look}: reaparece en la puerta o encima del jugador`);
+  }
+  back.rememberVisitors(clock);
+  assert.deepEqual(handoffs().filter((h) => !h.done).map((h) => h.leaveAt), endTimes, 'volver prolonga la visita');
+  // Si no hay un puesto válido, tampoco se amontonan en la puerta como alternativa.
+  const full = room();
+  full.claim(new Set(Object.keys(loc.points ?? {})));
+  full.populate(clock, player);
+  assert.ok(!full.agents.some((a) => a.handoff), 'sin puestos libres: las visitas recordadas aparecen en la puerta');
+  resetHandoffs();
+  console.log('  visitas recordadas: vuelven a su actividad, lejos del jugador y sin prolongar la estancia');
+}
+
+// 6. Una ficha propia no obliga a irse, pero trabajo y coro tienen prioridad cuando empieza su reserva.
+{
+  const far = { tx: -999, ty: -999 };
+  const place = placeInfo('supermarket')!;
+  const profile = { ...profileFor(place.id)!, staff: [], maxVisitors: 1 };
+  const workBefore: Clock = { day: 4, hour: 20, minute: 29 };
+  const workAfter: Clock = { day: 4, hour: 20, minute: 30 };
+  const worker = IDENTITIES.find((p) => !workingAt(p.work, abs(workBefore)) && workingAt(p.work, abs(workAfter)));
+  assert.ok(worker, 'sin caso de trabajo que empiece durante una visita');
+  const choirBefore: Clock = { day: 7, hour: 11, minute: 14 };
+  const choirAfter: Clock = { day: 7, hour: 11, minute: 15 };
+  const singer = guestsOf(CHOIR, 7)[0];
+  assert.ok(singer !== undefined);
+  assert.ok(!gatheringReservedLooks(abs(choirBefore)).includes(singer) && gatheringReservedLooks(abs(choirAfter)).includes(singer));
+  for (const { label, look, before, after } of [
+    { label: 'trabajo', look: worker.index, before: workBefore, after: workAfter },
+    { label: 'coro', look: singer, before: choirBefore, after: choirAfter },
+  ]) {
+    resetHandoffs();
+    const h = enterPlace({ place: place.id, from: place.locationId, door: place.entrances[0], look, dressSeed: 42, role: '', label: '', line: '', at: abs(before) - 3, roll: 0.5, remaining: 45 })!;
+    const crowd = new Crowd(getLocation(place.interior!), place, profile, seededRng(1));
+    crowd.populate(before, far);
+    const a = crowd.agents.find((a) => a.handoff === h.token);
+    assert.ok(a, `${label}: no se reconstruyó la visita`);
+    crowd.update(0, before, far);
+    assert.ok(!a.leaveSoon && !a.leaving, `${label}: la ficha propia fuerza una salida anticipada`);
+    crowd.update(5_001, after, far);
+    assert.ok(a.leaveSoon || a.leaving || !crowd.agents.includes(a), `${label}: sigue de ocio al empezar la reserva`);
+  }
+  resetHandoffs();
+  console.log('  visitas reconstruidas: su ficha no las expulsa, trabajo y coro sí al empezar la reserva');
+}
+
+console.log('check-handoff: entradas, visitas recordadas, reservas y salidas sin duplicados, OK');

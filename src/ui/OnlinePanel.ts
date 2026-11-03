@@ -85,11 +85,13 @@ export class OnlinePanel {
       hooks.typing(true);
     });
     this.root.addEventListener('focusout', (e) => {
-      if (!(e.target instanceof HTMLInputElement)) return;
-      if (e.relatedTarget instanceof HTMLInputElement && this.root.contains(e.relatedTarget)) return;
-      this.typingNow = false;
-      hooks.typing(false);
-      if (this.stale) this.render();
+      if (e.target instanceof HTMLInputElement) {
+        if (e.relatedTarget instanceof HTMLInputElement && this.root.contains(e.relatedTarget)) return;
+        this.typingNow = false;
+        hooks.typing(false);
+      }
+      // El foco pasa al botón antes de su clic: conservarlo también si llegan más mensajes mientras se pulsa.
+      if (this.stale && !(e.relatedTarget instanceof Node && this.root.contains(e.relatedTarget))) this.render();
     });
     this.root.addEventListener('keydown', (e) => {
       // Esc sale del campo (y no llega al juego: no abre la pausa).
@@ -158,9 +160,10 @@ export class OnlinePanel {
 
   private onMessage(msg: ServerMsg): void {
     if (msg.t === 'joined') {
+      const known = this.players.has(msg.player.session);
       this.players.set(msg.player.session, msg.player);
       this.remotes?.upsert(msg.player);
-      this.note(`${msg.player.name} ha entrado.`);
+      if (!known) this.note(`${msg.player.name} ha entrado.`);
     } else if (msg.t === 'left') {
       const p = this.players.get(msg.session);
       this.players.delete(msg.session);
@@ -236,14 +239,15 @@ export class OnlinePanel {
 
   /**
    * Con el foco en un campo, repintarlo todo borraría lo que se está escribiendo (y un acento a medias): entonces
-   * sólo se pone al día la lista del chat y el resto espera a soltar el campo. `force`: cambia el estado de la sala.
+   * sólo se pone al día la lista del chat. Se conserva también el botón al que pasa el foco, hasta activarlo o salir
+   * del panel, para no cancelar un clic o perder la navegación con Tab. `force`: cambia el estado de la sala.
    */
   private render(force = false): void {
     const state = this.client.state;
     this.button.textContent = this.unread ? `Online · ${this.unread}` : state === 'in-room' ? `Online · ${this.players.size}` : 'Online';
     this.button.classList.toggle('is-live', state === 'in-room');
     if (!this.open) return;
-    if (this.typingNow && !force && this.logEl?.isConnected) {
+    if (!force && this.logEl?.isConnected && (this.typingNow || this.root.contains(document.activeElement))) {
       this.fillLog(this.logEl);
       this.stale = true;
       return;

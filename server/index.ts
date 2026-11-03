@@ -155,7 +155,8 @@ export function startServer(opts: ServerOptions = {}): Promise<RunningServer> {
       // Una pestaña recargada empieza a contar desde 0 (y puede salir en otra zona): orden y velocidad, desde aquí.
       member.seq = -1;
       member.last = null;
-      broadcast(room, { t: 'presence', session: member.session, presence: 'connected' }, member);
+      // La misma sesión puede volver con otro nombre o ropa: los compañeros necesitan la ficha completa.
+      broadcast(room, { t: 'joined', player: view(member) }, member);
       log(`rejoin room=${room.code} session=${member.session}`);
     } else {
       if (room.members.size >= MAX_PLAYERS) return fail(conn, 'full', 'La sala está llena.');

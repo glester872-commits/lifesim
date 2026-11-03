@@ -7,6 +7,8 @@ import { getJob } from '../src/data/jobs.ts';
 import { UNIFORM_LOOKS } from '../src/data/npcs.ts';
 import { hire, nextShift, onShift, situationFor, work } from '../src/systems/Jobs.ts';
 import { placeForInterior } from '../src/systems/Places.ts';
+import { withAppearance, withUniform } from '../src/systems/Appearance.ts';
+import type { HumanColors } from '../src/world/HumanArt.ts';
 
 const job = getJob('decathlon');
 const looks = UNIFORM_LOOKS.filter((l) => l.id.startsWith('decathlon_employee'));
@@ -64,4 +66,31 @@ const done = work(hired, at(lvl.start), situationFor(hired, day).choices[0]).pro
 assert.equal(onShift(done, job.id, day, at(lvl.start) + lvl.hours * 60), false, 'sigue con uniforme tras el turno');
 assert.equal(onShift({ ...hired, status: 'fired' } as typeof hired, job.id, day, at(lvl.start)), false, 'uniforme sin contrato');
 
-console.log(`check-uniform: OK (${looks.length} empleados distintos con chaleco ${VEST}, personal y clientela, tienda con gente, turno y fin de turno)`);
+// 7 · El corte personal no tapa el uniforme, tampoco con abrigo, capucha o botas.
+const base: HumanColors = {
+  cloth: '#c9743f', clothDark: '#9d5730', trousers: '#3c4152', shoes: '#23262f',
+  hair: '#2a2430', skin: '#e3b692', build: 'athletic',
+  outfit: { top: 'hoodie', bottom: 'jeans', shoes: 'sneaker' },
+};
+for (const top of [undefined, 'sudadera-archivo', 'abrigo-lana', 'blazer-entallado']) {
+  const changes = { top, bottom: 'pantalon-pata', shoes: 'bota-cuero', hair: 'bob' as const };
+  const saved = structuredClone(changes);
+  const personal = withAppearance(base, changes);
+  const before = structuredClone(personal);
+  Object.freeze(personal);
+  for (const uniform of looks) {
+    const wearing = withUniform(personal, uniform);
+    assert.equal(wearing.outfit, undefined, `${top ?? 'ropa de fábrica'}: el corte personal tapa el uniforme`);
+    assert.equal(wearing.cloth, uniform.cloth);
+    assert.equal(wearing.trousers, uniform.trousers);
+    assert.equal(wearing.badge, uniform.badge);
+    assert.equal(wearing.sleeves, uniform.sleeves);
+    assert.equal(wearing.sleeveLen, undefined, 'el uniforme hereda el largo de manga personal');
+    for (const key of ['skin', 'hair', 'hairStyle', 'build', 'shoes'] as const) assert.equal(wearing[key], personal[key], `el uniforme cambia ${key}`);
+  }
+  assert.deepEqual(personal, before, 'el uniforme modifica la ropa personal');
+  assert.deepEqual(changes, saved, 'el uniforme modifica la apariencia guardada');
+  assert.deepEqual(withUniform(withAppearance(base, changes), null), personal, 'al quitarse el uniforme no vuelve la ropa personal');
+}
+
+console.log(`check-uniform: OK (${looks.length} empleados distintos con chaleco ${VEST}, personal y clientela, tienda con gente, turno y fin de turno, corte del uniforme y restauración de ropa personal)`);

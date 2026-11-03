@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { startServer } from '../server/index.ts';
-import { CHAT_MAX, LOOK_CODE_PREFIX, MAX_FRAME, MAX_PLAYERS, PROTOCOL_VERSION, decodeLook, encodeLook, parseServer, type ServerMsg } from '../src/net/protocol.ts';
+import { CHAT_MAX, LOOK_CODE_PREFIX, MAX_FRAME, MAX_PLAYERS, PROTOCOL_VERSION, decodeLook, encodeLook, parseServer, type LookDTO, type ServerMsg } from '../src/net/protocol.ts';
 
 // 0 · Aspecto para pasar a mano (sin red): vuelve igual, con Unicode; lo que no es del catálogo o no es un código, fuera.
 {
@@ -34,7 +34,7 @@ interface Client {
   closed: Promise<number>;
 }
 
-function connect(playerId: string, name: string, origin?: string): Promise<Client> {
+function connect(playerId: string, name: string, origin?: string, look: LookDTO = { hair: 'bob', skin: 'tone-3', top: '<script>' }): Promise<Client> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(URL, origin ? { origin } : {});
     const inbox: ServerMsg[] = [];
@@ -67,7 +67,7 @@ function connect(playerId: string, name: string, origin?: string): Promise<Clien
           assert.equal(inbox.filter(pred).length, 0, `${name}: llega algo que no debía`);
         },
       };
-      if (playerId) c.send({ t: 'hello', v: PROTOCOL_VERSION, playerId, name, look: { hair: 'bob', skin: 'tone-3', top: '<script>' } });
+      if (playerId) c.send({ t: 'hello', v: PROTOCOL_VERSION, playerId, name, look });
       resolve(c);
     });
   });
@@ -157,13 +157,17 @@ assert.equal(await old.closed, 4001);
 // 5 · B se cae y vuelve con el mismo navegador: «reconectando», después «conectado», misma sesión, sin clones.
 B.ws.close();
 assert.equal(((await A.next(isT('presence'))) as Of<'presence'>).presence, 'reconnecting');
-const B2 = await connect('player-bbbbbbbb', 'Marta');
+const B2 = await connect('player-bbbbbbbb', 'Marta nueva', undefined, { hair: 'ponytail', top: 'camiseta-grafica' });
 B2.send({ t: 'join', code: roomA.code });
 const again = (await B2.next(isT('room'))) as Of<'room'>;
 assert.equal(again.you, sessB, 'al volver es otra sesión (un clon)');
 assert.equal(again.players.length, 2, 'hay clones en la sala');
 assert.ok(again.chat.length >= 3, 'el chat de la sala no sigue ahí al volver');
-assert.equal(((await A.next(isT('presence'))) as Of<'presence'>).presence, 'connected');
+const refreshed = (await A.next(isT('joined'))) as Of<'joined'>;
+assert.equal(refreshed.player.session, sessB, 'la ficha actualizada no conserva la sesión');
+assert.equal(refreshed.player.name, 'Marta nueva', 'los compañeros no reciben el nombre actualizado');
+assert.deepEqual(refreshed.player.look, { hair: 'ponytail', top: 'camiseta-grafica' }, 'los compañeros no reciben el aspecto actualizado');
+assert.equal(refreshed.player.presence, 'connected');
 await A.none(isT('joined'));
 // La pestaña recargada cuenta desde 1 otra vez: sus movimientos llegan (no se toman por desordenados).
 B2.send({ t: 'move', seq: 1, pose: pose(300, 300) });

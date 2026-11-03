@@ -3178,8 +3178,7 @@ export class WorldScene extends Phaser.Scene {
         // Un agente de patrulla: saludo, cómo está la calle ahora y el robo de hoy si lo hay (systems/Police). No charla.
         this.startTalk(target.sprite);
         const { state } = this.services;
-        const station = PLACES.find((p) => p.tags.includes('police'))?.name;
-        this.openDialogue(target.def.name, patrolLines(state.locationId, state, Math.floor(this.absMinute()), station));
+        this.openDialogue(target.def.name, patrolLines(state.locationId, state, Math.floor(this.absMinute())));
       } else if (survivor) {
         this.startTalk(target.sprite);
         this.talkSurvivor(target.def.name, target.sprite, survivor);

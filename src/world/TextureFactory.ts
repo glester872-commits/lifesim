@@ -21,7 +21,7 @@ import { colorsOf, drawHuman, PLAYER_POSES, POSES, type HumanColors, type Pose }
 import { drawPersonFine, setPremium } from './HumanArtHD';
 import { HdCache, type HdBackend } from './HdCache';
 import type { Appearance } from '../data/appearance';
-import { withAppearance } from '../systems/Appearance';
+import { withAppearance, withUniform } from '../systems/Appearance';
 import { WEATHER_LOOKS } from './WeatherLooks';
 
 export const PLAYER_W = 16;
@@ -532,12 +532,10 @@ export const playerUniformId = (): string | null => playerUniform?.id ?? null;
 export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearance, build: HumanColors['build'] = playerBuild): void {
   if (id === 'player') {
     playerBuild = build;
-    const u = playerUniform;
-    const colors = {
+    const colors = withUniform({
       ...withAppearance(PLAYER_COLORS, changes),
       build,
-      ...(u ? { cloth: u.cloth, clothDark: u.clothDark, sleeves: u.sleeves, sleeveLen: undefined, trousers: u.trousers ?? PLAYER_COLORS.trousers, badge: u.badge, belt: u.belt, ...(u.belt ? { outfit: undefined } : {}), ink: [] } : {}),
-    };
+    }, playerUniform);
     for (const facing of FACINGS) {
       for (const pose of PLAYER_POSES) {
         const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;

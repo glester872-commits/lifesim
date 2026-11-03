@@ -398,7 +398,7 @@ export class Crowd {
       if (workingAt(IDENTITIES[a.look]?.work, now) || gatheringReservedLooks(now).includes(a.look)) continue;
       enterPlace({ place: this.place.id, from: this.place.locationId, door, look: a.look,
         dressSeed: a.dressSeed ?? a.id, role: a.role, label: a.label, line: a.line, at: now,
-        roll: 0.5, remaining: Math.max(5, Math.min(45, a.timer / MS_PER_GAME_MINUTE + 10)) });
+        roll: 0.5, remaining: Math.max(5, Math.min(45, a.timer / MS_PER_GAME_MINUTE + 10)), established: true });
     }
   }
 
@@ -445,10 +445,12 @@ export class Crowd {
       if (!onShift(role, level)) for (const a of here) a.leaveSoon = true;
     }
 
-    const reserved = new Set([...gatheringReservedLooks(this.now), ...insideLooks(this.now)]);
+    const gathering = new Set(gatheringReservedLooks(this.now));
+    const inside = insideLooks(this.now);
     for (const a of this.agents) {
-      if (a.kind !== 'visitor' || a.guest || a.handoff || a.leaving) continue;
-      if (reserved.has(a.look) || workingAt(IDENTITIES[a.look]?.work, this.now)) {
+      if (a.kind !== 'visitor' || a.guest || a.leaving) continue;
+      // Su propia ficha reserva la identidad, pero no la exime de trabajo ni de encuentros posteriores.
+      if (gathering.has(a.look) || (!a.handoff && inside.has(a.look)) || workingAt(IDENTITIES[a.look]?.work, this.now)) {
         a.leaveSoon = true;
         a.timer = 0;
       }
@@ -963,7 +965,7 @@ export class Crowd {
     if (!role) return;
     const plan = this.buildPlan(role);
     let agent: Agent | undefined;
-    if (this.now - h.enteredAt >= FRESH_MINUTES && plan.length > 0) {
+    if ((h.established || this.now - h.enteredAt >= FRESH_MINUTES) && plan.length > 0) {
       const far = (id: string): boolean => this.distance(this.pointAt(id), player) >= POPULATION.spawnClearance && this.seatOk(id);
       const progress = (this.now - h.enteredAt) / Math.max(1, h.leaveAt - h.enteredAt);
       for (let k = Math.min(plan.length - 1, Math.floor(progress * plan.length)); k < plan.length && !agent; k++) {
@@ -980,6 +982,8 @@ export class Crowd {
       }
     }
     if (!agent) {
+      // Sin puesto válido, una visita ya establecida no reaparece en la puerta encima del jugador.
+      if (h.established) return;
       agent = this.newAgent('visitor', role.role, role.label, role.line, this.door, h.look);
       if (!agent) return;
       agent.plan = plan;
