@@ -71,7 +71,8 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     kit: { props: ['planter', 'bush'], on: 'open', every: 10, max: 6 },
     crowd: { sport: 3, everyday: 2.4, street: 1.3, smart: 1 },
     vehicles: { all: { casual: 1.8, rental: 1.8, skater: 4, commuter: 0.6 } },
-    facades: ['res-*', 'bar', 'cafe', 'restaurant', 'super', 'arcade', 'sports', 'gym', 'pharmacy', 'coffee', 'backdrop'],
+    // La escuela de baile de la calle de la Ribera (data/ribera.ts 'ribera-dance').
+    facades: ['res-*', 'bar', 'cafe', 'restaurant', 'super', 'arcade', 'sports', 'gym', 'pharmacy', 'coffee', 'dance-school', 'backdrop'],
     ambience: { leaf: 1.6, paper: 0.5, steam: 0.7 },
   },
   // Calma: color apagado, luz de casa, poco rótulo; lo que hay en la acera es de vecinos.
@@ -192,7 +193,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     kit: { props: ['bin', 'bollard', 'ad-panel'], on: 'facade', every: 8, max: 8 },
     crowd: { sport: 3.5, everyday: 2.5, street: 1.5, smart: 0.4 },
     vehicles: { all: { van: 1.4, bus: 1.2, taxi: 1.3, premium: 0.5 } },
-    facades: ['res-*', 'stadium', 'team-store', 'sports', 'bar', 'restaurant', 'cafe', 'metro', 'backdrop'],
+    facades: ['res-*', 'stadium', 'team-store', 'sports', 'bar', 'restaurant', 'cafe', 'metro', 'mma-gym', 'backdrop'],
     ambience: { leaf: 0.4, paper: 1.8, steam: 0.8 },
   },
   // Boca de metro: acero y granito, luz más neutra; la gente de paso de cualquier sitio.

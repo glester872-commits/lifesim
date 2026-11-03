@@ -161,15 +161,12 @@ export const GYM: LocationDef = {
   ],
   ambient: '#e2ebff',
   ...exitTo('gym-door', 18, GYM_H),
-  portals: [...exitTo('gym-door', 18, GYM_H).portals, { id: 'mma', tx: 23, ty: 13, label: 'Academia MMA Forja · tatami y sacos', to: { location: 'academy-mma', spawn: 'entry' } }],
-  spawns: { ...exitTo('gym-door', 18, GYM_H).spawns, mma: { tx: 23, ty: 12, facing: 'up' } },
-  inspects: [{ tx: 23, ty: 1, name: 'MMA en Forja', lines: ['La puerta de MMA está junto a la salida de la sala, a la derecha. El boxeo se ha ido a su propio local: Doble Guardia, en la calle Afluente de Cuatro Ríos.'] }],
+  // La academia de MMA fue un anexo de esta sala hasta que se mudó a su local del Arena: la puerta se tapió; queda el aviso.
+  inspects: [{ tx: 23, ty: 1, name: 'Aviso del tablón', lines: ['«La Academia MMA se ha mudado: ahora en la Avenida del Estadio 27, en Arena (metro, parada Arena). El boxeo, en Doble Guardia, calle Afluente de Cuatro Ríos.»'] }],
   // Nadie colocado a mano: la gente la pone data/population.ts según la hora.
   npcs: [],
   points: {
     GYM_EXIT: p(18, 14, 'exit', 'up'),
-    // Las puertas de los anexos (club de boxeo y academia de MMA): por aquí entran y salen los personajes con nombre.
-    GYM_MMA_DOOR: p(23, 11, 'wait', 'up'),
     GYM_RECEPTION: p(21, 11, 'interact', 'up'),
     GYM_STAFF: p(21, 9, 'work', 'down'),
     GYM_TRAINING_ZONE: p(9, 8, 'meet'),

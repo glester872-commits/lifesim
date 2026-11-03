@@ -14,13 +14,15 @@ import { dress } from '../systems/Dressing.ts';
  *   y 22–23 acera norte de la Avenida del Estadio
  *   y 24–28 la avenida: carril bici, un carril por sentido y carril bici. Dos pasos con semáforo
  *   y 29–31 acera sur, ancha: la gente de los bares sale a la puerta con la caña
- *   y 32–39 los bajos del barrio: deportes, la tienda oficial, hamburguesas, dos bares, pizzería, café y portales
+ *   y 32–39 los bajos del barrio: deportes, la tienda oficial, hamburguesas, dos bares, pizzería, café y portales; al
+ *           fondo este, pasado el número 25, la Academia MMA Arena (Avenida del Estadio 27, x 56–63), con su puerta a la acera
  *
  * La gente de la calle entra por cualquiera de los cinco tornos (AR_GATE_*) y desaparece. El jugador entra por la
  * Puerta 3, la de la tribuna (data/stadium.ts), con la entrada del partido que vende la taquilla (systems/Tickets): la
  * puerta del edificio lleva `enter` como cualquier local, y el interior dice que es un recinto con entrada (`venue`).
  */
-const W = 56;
+// 64 desde la Academia MMA Arena: el barrio creció ocho columnas al este para su local, sin quitar ninguna vivienda ni bajo.
+const W = 64;
 const H = 40;
 
 type Paint = readonly [string, number, number, number, number];
@@ -35,7 +37,7 @@ function paint(fill: string, rects: readonly Paint[]): string[] {
 
 const GROUND = paint('g', [
   // El perímetro del estadio y la explanada: granito de punta a punta.
-  ['P', 0, 0, 6, 16], ['P', 50, 0, 6, 16],
+  ['P', 0, 0, 6, 16], ['P', 50, 0, W - 50, 16],
   ['P', 0, 16, W, 6],
   // La franja podotáctil delante de la boca de metro.
   ['T', 1, 21, 3, 1],
@@ -81,6 +83,8 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('ar-cafe', 'Café del Córner', 'cafe', [40, 32, 5, 8], 'n', 42, { enter: into('ar-cafe'), point: 'AR_CAFE_ENTRANCE' }),
   b('ar-res-2', 'Avenida del Estadio 21', 'res-plaster', [45, 32, 5, 8], 'n', 47, { point: 'AR_RES_2_ENTRANCE' }),
   b('ar-res-3', 'Avenida del Estadio 25', 'res-modern', [50, 32, 6, 8], 'n', 52, { point: 'AR_RES_3_ENTRANCE' }),
+  // Academia MMA Arena · Avenida del Estadio 27: local propio, el último de la acera sur (data/academyRooms.ts).
+  b('ar-mma', 'Academia MMA Arena', 'mma-gym', [56, 32, 8, 8], 'n', 59, { enter: into('academy-mma'), point: 'AR_MMA_ENTRANCE' }),
 ];
 
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
@@ -102,7 +106,7 @@ const PROPS: readonly PropPlacement[] = [
   at('metro-totem', 6, 18),
   ...many('bin', [[10, 20], [17, 19], [34, 20], [37, 20]]),
   // La avenida: farolas contra la fachada de la acera sur y carteles del partido en la acera norte.
-  ...many('street-lamp-art', [[4, 31], [17, 31], [28, 31], [39, 31], [49, 31], [9, 22], [33, 22]]),
+  ...many('street-lamp-art', [[4, 31], [17, 31], [28, 31], [39, 31], [49, 31], [62, 31], [9, 22], [33, 22]]),
   ...many('ad-panel', [[24, 22], [52, 22]]),
   at('poster-column', 17, 22),
   // El tablón del barrio (systems/Boards): junto al metro, fuera de los caminos de la gente.
@@ -115,7 +119,7 @@ const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['fa
 const pad = (x: number): string => String(x).padStart(2, '0');
 
 /** Columnas de las puertas de la acera sur: su nodo en el bordillo (fila 29). */
-const SOUTH_DOORS = [2, 7, 14, 20, 26, 31, 37, 42, 47, 52] as const;
+const SOUTH_DOORS = [2, 7, 14, 20, 26, 31, 37, 42, 47, 52, 59] as const;
 /** Nodos de la acera norte (fila 23) y de la explanada (fila 21). */
 const NORTH = [2, 11, 14, 19, 27, 35, 41, 43, 50] as const;
 const PLAZA = [11, 19, 27, 35, 43, 50] as const;
@@ -181,10 +185,10 @@ const LINKS: readonly Link[] = [
   ...chain('EDGE_AR_NW', ...NORTH.map((x) => `ar-n${pad(x)}`), 'EDGE_AR_NE'),
   ['ar-n14', 'ar-s14'], ['ar-n41', 'ar-s41'],
   // Acera sur, con cada puerta.
-  ...chain('EDGE_AR_SW', 'ar-s02', 'ar-s07', 'ar-s14', 'ar-s20', 'ar-s26', 'ar-s31', 'ar-s37', 'ar-s41', 'ar-s42', 'ar-s47', 'ar-s52', 'EDGE_AR_SE'),
+  ...chain('EDGE_AR_SW', 'ar-s02', 'ar-s07', 'ar-s14', 'ar-s20', 'ar-s26', 'ar-s31', 'ar-s37', 'ar-s41', 'ar-s42', 'ar-s47', 'ar-s52', 'ar-s59', 'EDGE_AR_SE'),
   ['AR_RES_1_ENTRANCE', 'ar-s02'], ['AR_DEPORTES_ENTRANCE', 'ar-s07'], ['AR_OFICIAL_ENTRANCE', 'ar-s14'], ['AR_BURGER_ENTRANCE', 'ar-s20'],
   ['AR_LARGUERO_ENTRANCE', 'ar-s26'], ['AR_PIZZA_ENTRANCE', 'ar-s31'], ['AR_GRADA_ENTRANCE', 'ar-s37'], ['AR_CAFE_ENTRANCE', 'ar-s42'],
-  ['AR_RES_2_ENTRANCE', 'ar-s47'], ['AR_RES_3_ENTRANCE', 'ar-s52'],
+  ['AR_RES_2_ENTRANCE', 'ar-s47'], ['AR_RES_3_ENTRANCE', 'ar-s52'], ['AR_MMA_ENTRANCE', 'ar-s59'],
   ['AR_DEPORTES_WINDOW', 'ar-s07'], ['AR_OFICIAL_WINDOW', 'ar-s14'],
   ['AR_LARGUERO_OUT_01', 'ar-s26'], ['AR_LARGUERO_OUT_02', 'ar-s26'], ['AR_LARGUERO_OUT_03', 'AR_LARGUERO_OUT_02'],
   ['AR_GRADA_OUT_01', 'ar-s37'], ['AR_GRADA_OUT_02', 'ar-s37'], ['AR_GRADA_OUT_03', 'AR_GRADA_OUT_02'],
@@ -246,7 +250,7 @@ const BASE: LocationDef = {
     // La taquilla: el partido que se vende, el precio y la entrada (systems/Tickets, scenes/Menus.openTickets).
     { tx: 52, ty: 18, name: 'Taquillas', lines: ['Taquillas del Estadio del Halcón: el próximo partido en casa, su precio y la entrada, con fila y asiento.'], venue: 'estadio-halcon' },
     { tx: 25, ty: 15, name: 'Puerta 3 · Tribuna', lines: ['Una placa de bronce: «Estadio del Halcón. CD Halcones del Arena». Encima, un halcón turquesa con las alas abiertas.'] },
-    { tx: 6, ty: 18, name: 'Plano del barrio', lines: ['Distrito Arena: el estadio, la explanada y la Avenida del Estadio. Puertas 1 a 5, de oeste a este. Alguien ha escrito «aquí se canta» en la 1.'] },
+    { tx: 6, ty: 18, name: 'Plano del barrio', lines: ['Distrito Arena: el estadio, la explanada y la Avenida del Estadio. Puertas 1 a 5, de oeste a este. Alguien ha escrito «aquí se canta» en la 1.', 'Academia MMA Arena: Avenida del Estadio 27, acera sur, al fondo a la derecha. Desde el metro, cruza por el paso este y sigue la acera hasta el final.'] },
     { tx: 46, ty: 20, name: 'Kiosco', lines: ['Bufandas, la revista del club y pipas. En la portada, el once de la temporada con los brazos cruzados.'] },
   ],
   areas: [

@@ -28,7 +28,7 @@ export interface StationDef {
    * Se practica a mano y no pasa sola: 'kicks' es la clase de patadas de taekwondo (systems/Taekwondo), con el pao que
    * tiene delante a dos tiles. El reloj y el cobro son los de cualquier clase; lo que se gana sale de lo bien hecho.
    */
-  drill?: 'kicks' | 'punches';
+  drill?: 'kicks' | 'punches' | 'steps';
   motion: Motion;
   /** Minutos de juego que se queda [mín, máx]; mandan sobre los del paso del plan. */
   minutes: readonly [number, number];
@@ -55,9 +55,10 @@ export const STATIONS = {
   'boxing-coordination': { name: 'Coordinación y combinaciones', motion: 'boxing-coordinate', minutes: [8, 14], settle: 'idle', training: BOXING_SESSION },
   'boxing-resistance': { name: 'Resistencia con comba', motion: 'boxing-rope', minutes: [10, 16], settle: 'idle', training: BOXING_SESSION },
   // Academias (data/academyRooms.ts). MMA: saco y pies con guantes (las poses del boxeo), y el suelo del tatami.
-  'mma-bag': { name: 'Saco y rodillazos', motion: 'boxing-punch', minutes: [10, 18], settle: 'idle', training: { academy: 'mma' } },
+  'mma-bag': { name: 'Saco: manos y rodillas', motion: 'boxing-punch', minutes: [10, 18], settle: 'idle', training: { academy: 'mma' } },
   'mma-ground': { name: 'Derribos y suelo', motion: 'mma-ground', minutes: [10, 16], settle: 'idle', training: { academy: 'mma' } },
   'mma-footwork': { name: 'Desplazamientos', motion: 'boxing-footwork', minutes: [8, 14], settle: 'idle', training: { academy: 'mma' } },
+  'mma-conditioning': { name: 'Acondicionamiento: comba y pesa rusa', motion: 'boxing-rope', minutes: [8, 14], settle: 'idle', training: { academy: 'mma' } },
   // Taekwondo (Escuela de Taekwondo Vallesco): tres líneas de paos, una por patada para quien practica solo (la gente
   // las alterna con su movimiento); el jugador, en cualquiera, hace la clase de patadas entera (drill). La demostración
   // es del ayudante: no se entrena en ella.
@@ -68,8 +69,8 @@ export const STATIONS = {
   'tkd-forms': { name: 'Formas (poomsae)', motion: 'tkd-form', minutes: [10, 16], settle: 'idle', training: { academy: 'taekwondo' } },
   'tkd-stretch': { name: 'Flexibilidad', motion: 'stretch', minutes: [6, 12], settle: 'idle', training: { academy: 'taekwondo' } },
   // Baile: pasos, coreografía con los brazos y estiramientos.
-  'dance-steps': { name: 'Pasos básicos', motion: 'dance-step', minutes: [10, 16], settle: 'idle', training: { academy: 'dance' } },
-  'dance-choreo': { name: 'Coreografía', motion: 'dance-arms', minutes: [10, 18], settle: 'idle', training: { academy: 'dance' } },
+  'dance-steps': { name: 'Pasos básicos', motion: 'dance-step', minutes: [10, 16], settle: 'idle', training: { academy: 'dance' }, drill: 'steps' },
+  'dance-choreo': { name: 'Coreografía', motion: 'dance-arms', minutes: [10, 18], settle: 'idle', training: { academy: 'dance' }, drill: 'steps' },
   'dance-stretch': { name: 'Estiramientos', motion: 'stretch', minutes: [6, 12], settle: 'idle', training: { academy: 'dance' } },
   treadmill: { name: 'Cinta de correr', motion: 'treadmill', minutes: [14, 32], mount: 'treadmill', settle: 'idle' },
   bike: { name: 'Bici estática', motion: 'bike', minutes: [12, 26], mount: 'exercise-bike', settle: 'sit' },

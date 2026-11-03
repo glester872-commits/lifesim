@@ -3,12 +3,12 @@ import { ACADEMIES, type Discipline } from './academies.ts';
 import type { PopulationProfile, StaffRole, VisitorRole } from './population.ts';
 
 /**
- * Las salas de las academias nuevas (data/academies.ts): anexos de un gimnasio de barrio, como el club de boxeo de
- * Forja. Una planta común (tatami, espejos al norte, bancos y agua junto a la puerta) y lo propio de cada disciplina
+ * Las salas de las academias nuevas (data/academies.ts). Una planta común (tatami, espejos al norte, bancos y agua junto a la puerta) y lo propio de cada disciplina
  * en datos: qué puestos hay, dónde y qué cuelga del techo. Ningún código por disciplina: academyRoom() las monta.
  *
- *   MMA · Forja (Vallesco), al lado del boxeo · Baile · Velaria Club (Velaria) · Taekwondo · local propio en Vallesco:
- *   la Escuela de Taekwondo Vallesco (Ronda de la Vía 34), con tatami, paos y la puerta a la calle.
+ *   MMA · local propio en Arena: la Academia MMA Arena (Avenida del Estadio 27), con zona de golpeo, tatami de lucha y
+ *   acondicionamiento · Baile · Velaria Club (Velaria) · Taekwondo · local propio en Vallesco: la Escuela de Taekwondo
+ *   Vallesco (Ronda de la Vía 34), con tatami, paos y la puerta a la calle.
  */
 
 const W = 20;
@@ -23,6 +23,8 @@ interface RoomSpec {
   ambient: string;
   /** Suelo de la zona de práctica ('m' suelo de gimnasio; 'Q' tatami). */
   floor?: string;
+  /** Zonas con otro suelo dentro de la sala: [carácter, x, y, ancho, alto] (el tatami de la lucha en MMA). */
+  paint?: readonly (readonly [string, number, number, number, number])[];
   /** El gimnasio por el que se entra y el sitio donde se reaparece al volver. */
   back: { location: string; spawn: string; label: string };
   props: readonly PropPlacement[];
@@ -43,6 +45,9 @@ const ground = (floor = 'm'): string[] =>
 
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
 
+const painted = (rows: string[], rects: NonNullable<RoomSpec['paint']>): string[] =>
+  rows.map((row, y) => [...row].map((c, x) => rects.find(([, rx, ry, w, h]) => x >= rx && x < rx + w && y >= ry && y < ry + h)?.[0] ?? c).join(''));
+
 function academyRoom(s: RoomSpec): LocationDef {
   const a = ACADEMIES[s.academy]!;
   const point = (tx: number, ty: number, kind: PointDef['kind'], facing: Facing, use?: string): PointDef => ({ tx, ty, kind, facing, ...(use ? { use } : {}) });
@@ -50,7 +55,7 @@ function academyRoom(s: RoomSpec): LocationDef {
     id: a.location,
     name: a.name,
     kind: 'interior',
-    ground: ground(s.floor),
+    ground: painted(ground(s.floor), s.paint ?? []),
     ambient: s.ambient,
     props: [
       at('clock', 16, 1),
@@ -81,21 +86,30 @@ const board = (id: Discipline, extra: string): string[] => {
   return [`${a.name}. Cada día de ${hh(a.hours[0])} a ${hh(a.hours[1])}, una clase cada ${a.every} minutos y ${a.grace} para entrar. €${a.fee} la clase o bono de ${a.pass.classes} por €${a.pass.price}. Habla con ${a.instructor}.`, extra];
 };
 
+/**
+ * Academia MMA Arena · Avenida del Estadio 27 (data/arena.ts 'ar-mma'). Tres zonas: al oeste, la de golpeo (dos sacos y
+ * la marca de desplazamientos); en medio, el tatami de lucha (x 7–13), que es también el área de los ejercicios por
+ * parejas y se reserva entero mientras dura uno (data/academies.ts `ring`); al este, el acondicionamiento (comba y
+ * pesas rusas). Rubén mira el tatami desde el borde. Antes era un anexo del Gimnasio Forja: el id 'academy-mma' y los
+ * puntos MMA_ se conservan, así que la ficha, el bono y la técnica guardados siguen valiendo.
+ */
 export const MMA_ROOM = academyRoom({
-  academy: 'mma', pre: 'MMA_', ambient: '#e8e2d8',
-  back: { location: 'gym', spawn: 'mma', label: 'Volver al Gimnasio Forja' },
+  academy: 'mma', pre: 'MMA_', ambient: '#e6e4de',
+  back: { location: 'arena', spawn: 'ar-mma', label: 'Salir a la Avenida del Estadio' },
+  paint: [['Q', 7, 3, 7, 7]],
   props: [
-    ...[3, 7, 11].map((tx) => at('boxing-bag', tx, 4)),
-    at('yoga-mat', 5, 8), at('yoga-mat', 9, 8),
-    at('mirror', 14, 1), at('mirror', 5, 1),
+    at('boxing-bag', 3, 4), at('boxing-bag', 5, 4),
+    at('kettlebells', 16, 9),
+    at('mirror', 3, 1), at('mirror', 16, 1),
   ],
   stations: {
-    BAG_01: [3, 5, 'mma-bag', 'up'], BAG_02: [7, 5, 'mma-bag', 'up'], BAG_03: [11, 5, 'mma-bag', 'up'],
-    GROUND_01: [5, 8, 'mma-ground', 'up'], GROUND_02: [9, 8, 'mma-ground', 'up'],
-    FEET_01: [14, 8, 'mma-footwork', 'left'],
+    BAG_01: [3, 5, 'mma-bag', 'up'], BAG_02: [5, 5, 'mma-bag', 'up'],
+    FEET_01: [4, 8, 'mma-footwork', 'right'],
+    GROUND_01: [8, 8, 'mma-ground', 'up'], GROUND_02: [11, 8, 'mma-ground', 'up'],
+    COND_01: [16, 4, 'mma-conditioning', 'down'], COND_02: [17, 7, 'mma-conditioning', 'left'],
   },
-  coach: [15, 5, 'left'],
-  board: board('mma', 'Saco con guantes, derribos y suelo sobre tatami, y desplazamientos. Sin sparring: nadie golpea a nadie.'),
+  coach: [14, 6, 'left'],
+  board: board('mma', 'Golpeo (puños con las dos manos y patadas con las dos piernas) en los sacos, lucha en el tatami (clinch, derribo, suelo y escape) y acondicionamiento. Ejercicios por parejas supervisados por Rubén en el tatami; nadie golpea ni agarra a quien no está en el ejercicio.'),
 });
 
 /**
@@ -123,9 +137,13 @@ export const TKD_ROOM = academyRoom({
   board: board('taekwondo', 'Patadas con las dos piernas sobre paos (frontal, circular y lateral), formas y flexibilidad. Cinturones con examen cuando toca: asistencia y técnica. Descalzos en el tatami.'),
 });
 
+/**
+ * Escuela de Baile Ribera Norte (data/ribera.ts 'ribera-dance'). Antes era un anexo de Velaria Club: el id
+ * 'academy-dance' y los puntos DANCE_ se conservan, así que la técnica y el bono guardados siguen valiendo.
+ */
 export const DANCE_ROOM = academyRoom({
   academy: 'dance', pre: 'DANCE_', ambient: '#fbeef0',
-  back: { location: 'vl-gym', spawn: 'dance', label: 'Volver a Velaria Club' },
+  back: { location: 'ribera', spawn: 'ribera-dance', label: 'Salir a la Ribera' },
   props: [
     ...[2, 5, 8, 11, 14].map((tx) => at('mirror', tx, 1)),
     at('yoga-mat', 15, 9),
@@ -169,8 +187,9 @@ const profile = (id: Discipline, pre: string, offers: string, coach: string, coa
 
 export const ACADEMY_PROFILES: readonly PopulationProfile[] = [
   profile('mma', 'MMA_', 'mma-coach', 'Rubén · entrenador', 'Primero la base: si te tiran, te levantas. Luego, todo lo demás.', [
-    student('MMA_', 'mma_striking', 'Alumno al saco', 'Mano, mano, rodilla. Y vuelve a cubrirte.', [['BAG', 'BAG_'], ['FOOTWORK', 'FEET_']]),
-    student('MMA_', 'mma_ground', 'Alumna en el tatami', 'En el suelo manda la cadera, no los brazos.', [['GROUND', 'GROUND_'], ['BAG', 'BAG_']]),
+    student('MMA_', 'mma_striking', 'Alumno al saco', 'Jab, directo, patada. Y vuelve a cubrirte.', [['BAG', 'BAG_'], ['FOOTWORK', 'FEET_']]),
+    student('MMA_', 'mma_ground', 'Alumna en el tatami', 'En el suelo manda la cadera, no los brazos.', [['GROUND', 'GROUND_'], ['CONDITIONING', 'COND_']]),
+    student('MMA_', 'mma_conditioning', 'Alumno con la comba', 'Tres minutos de comba y uno de pesa rusa. Otra vez.', [['CONDITIONING', 'COND_'], ['BAG', 'BAG_']]),
   ]),
   profile('taekwondo', 'TKD_', 'tkd-coach', 'Min-ji · maestra', 'La patada sale de la cadera. Y vuelve igual de rápido.', [
     student('TKD_', 'tkd_kicks', 'Alumno pateando el pao', 'Rodilla arriba, extiende, recoge. Y la otra pierna.', [['KICK', 'KICK_'], ['KICK', 'KICK_']]),

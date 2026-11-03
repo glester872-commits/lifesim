@@ -292,6 +292,8 @@ export type BuildingStyle =
   | 'home'
   | 'dojang'
   | 'boxing-club'
+  | 'mma-gym'
+  | 'dance-school'
   | 'police'
   | 'fire'
   | 'res-brick'

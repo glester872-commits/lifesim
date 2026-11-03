@@ -41,14 +41,14 @@ import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { STATIONS, getStation, type StationId } from '../data/stations';
 import { COURTS, type ShootingSpot } from '../data/courts';
 import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } from '../systems/Basketball';
-import { KIND_OF, afterLine, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
+import { KIND_OF, afterLine, practiceMma, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
 import { ACADEMIES, getAcademy } from '../data/academies';
 import { charge, NO_MEMBERSHIP, settlePlan } from '../systems/Academy';
 import { formatDate } from '../systems/Calendar';
-import { applyDrill, BELTS, coachLines, createDrill, drillDone, EXAM_PASS, kickPhase, kickTotal, PUNCH_OF, START_TKD, startKick, stepDrill, summarize, type Drill, type Kick, type Strike } from '../systems/Taekwondo';
+import { applyDrill, BELTS, coachLines, createDrill, drillDone, EXAM_PASS, KICK_ORDER, kickPhase, kickTotal, PUNCH_OF, START_TKD, STEP_ORDER, startKick, stepDrill, summarize, type Drill, type Kick, type Strike } from '../systems/Taekwondo';
 import { kickPose } from '../world/HumanArt';
-import { createBout, stepBout, MOVES, STYLE_MOVES, type Bout, type MoveId, type Style } from '../systems/Sparring';
-import { afterBout, register, rivalFor, status as tournamentStatus, TOURNAMENTS, NO_RECORD, type Entry } from '../systems/Tournaments';
+import { createBout, DRILL_LABEL, slotsOf, stepBout, type Bout, type Drill as MmaDrill, type MoveId, type Style } from '../systems/Sparring';
+import { afterBout, hasTournament, register, rivalFor, status as tournamentStatus, TOURNAMENTS, NO_RECORD, type Entry } from '../systems/Tournaments';
 import { SparringView, sparPose } from '../world/SparringView';
 
 /** La clase de patadas en curso (systems/Taekwondo): el reloj de la clase, la patada elegida y la distancia al pao. */
@@ -672,7 +672,7 @@ export class WorldScene extends Phaser.Scene {
         const free = this.interactables.find(t => t.kind === 'station' && t.station === target.station && !this.stationBusy(t.point));
         this.openTraining(free?.kind === 'station' ? free : target);
       },
-      fight: (style, tournament) => this.startSpar(style, tournament),
+      fight: (style, tournament, drill) => this.startSpar(style, tournament, drill),
       canBoard: (locationId) => !this.leaving && this.services.state.locationId === locationId && !!this.metro?.train.doorsOpen,
       persist: () => this.persist(),
       arriveByTrain: (locationId, minutes) => this.arriveByTrain(locationId, minutes),
@@ -1305,6 +1305,8 @@ export class WorldScene extends Phaser.Scene {
       guard: Phaser.Input.Keyboard.KeyCodes.L,
       kickLeft: Phaser.Input.Keyboard.KeyCodes.J,
       kickRight: Phaser.Input.Keyboard.KeyCodes.K,
+      // MMA (systems/Sparring): la acción de lucha de la fase (clinch, derribo, fijación o escape).
+      grab: Phaser.Input.Keyboard.KeyCodes.G,
       bag: Phaser.Input.Keyboard.KeyCodes.I,
       map: Phaser.Input.Keyboard.KeyCodes.M,
       phone: Phaser.Input.Keyboard.KeyCodes.P,
@@ -2268,7 +2270,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Admisión atómica: ruta y espacio antes del cobro; torneo interrumpido queda perdido en el guardado. */
-  private startSpar(style: Style, tournament: boolean): void {
+  private startSpar(style: Style, tournament: boolean, drill: MmaDrill | null = null): void {
     const { state, dialogue, clock } = this.services;
     const a = getAcademy(style)!;
     const zone = a.spar;
@@ -2295,7 +2297,7 @@ export class WorldScene extends Phaser.Scene {
     // El compañero: su nivel base (data/academies.ts spar.level) más lo que tú hayas progresado.
     let level = Math.min(0.65, (zone.level ?? 0.15) + (state.fitness.skills?.[style] ?? 0) / 100);
     let look = zone.look;
-    if (tournament) {
+    if (tournament && hasTournament(style)) {
       const def = TOURNAMENTS[style];
       let e = state.fitness.tournaments?.[style];
       const s = tournamentStatus(def, e, state.day, state.hour * 60 + state.minute, state.fitness.skills?.[style] ?? 0);
@@ -2321,8 +2323,8 @@ export class WorldScene extends Phaser.Scene {
     clock.advanceMinutes(2);
     state.energy -= 2;
     this.syncState(); this.persist();
-    const bout = createBout(style, level, hashSeed(style, state.day, this.absMinute()));
-    const spar = { bout, selected: STYLE_MOVES[style][0]!, view: null as SparringView | null, entry, ready: false, from, opponent, style, last: this.time.now, hud: 0, releasing: false };
+    const bout = createBout(style, level, hashSeed(style, state.day, this.absMinute()), drill);
+    const spar = { bout, selected: slotsOf(bout)[0] ?? ('clinch' as MoveId), view: null as SparringView | null, entry, ready: false, from, opponent, style, last: this.time.now, hud: 0, releasing: false };
     this.spar = spar;
     this.services.input.releaseAll();
     this.player.startTraining(zone.tx * TILE + TILE / 2, (zone.ty + 1) * TILE, 'right', 'boxing-guard', false, false,
@@ -2330,7 +2332,7 @@ export class WorldScene extends Phaser.Scene {
         if (this.spar !== spar) return;
         spar.view = new SparringView(this, zone.tx, zone.ty, look);
         spar.ready = true; spar.last = this.time.now;
-        this.services.sparPanel.open(a.name + ' · ' + opponent, bout);
+        this.services.sparPanel.open(a.name + ' · ' + (bout.drill ? DRILL_LABEL[bout.drill] + ' con ' + opponent.toLowerCase() : opponent), bout);
       });
   }
 
@@ -2342,14 +2344,18 @@ export class WorldScene extends Phaser.Scene {
     const dt = Math.min(50, Math.max(0, delta));
     s.last = time;
     if (this.services.clock.isPaused || document.hidden) return;
-    for (const [i, key] of ['one', 'two', 'three'].entries()) if (this.pressedAny([key])) s.selected = STYLE_MOVES[s.style][i]!;
+    const slots = slotsOf(s.bout);
+    for (const [i, key] of ['one', 'two', 'three'].entries()) if (slots[i] && this.pressedAny([key])) s.selected = slots[i]!;
     const side = this.pressedAny(['kickLeft']) ? 'L' : this.pressedAny(['kickRight']) ? 'R' : null;
     const fore = this.heldAny('kickFore', 'right', 'rightAlt');
     const back = this.heldAny('kickBack', 'left', 'leftAlt');
-    const events = stepBout(s.bout, dt, { move: fore === back ? 0 : fore ? 1 : -1, block: this.heldAny('guard'), attack: side && s.bout.p.energy + MOVES[s.selected].energy <= this.services.state.energy ? { id: s.selected, side } : null });
-    this.player.kickFrame(sparPose(s.bout.p, s.bout.t, true), Math.round(s.bout.p.x * TILE));
+    // La energía la juzga el combate (systems/Sparring): lo que no llega no empieza y se dice por qué.
+    const events = stepBout(s.bout, dt, { move: fore === back ? 0 : fore ? 1 : -1, block: this.heldAny('guard'), attack: side ? { id: s.selected, side } : null,
+      grab: this.pressedAny(['grab']), energy: this.services.state.energy });
+    const pose = sparPose(s.bout, 'p', true);
+    this.player.kickFrame(pose.pose, Math.round(s.bout.p.x * TILE), pose.dy);
     s.view?.render(s.bout);
-    for (const e of events) this.services.sparPanel.say(e.text, (e.kind === 'hit' && e.who === 'p') || (e.kind === 'blocked' && e.who === 'o'));
+    for (const e of events) if (e.text) this.services.sparPanel.say(e.text, (e.kind === 'hit' && e.who === 'p') || (e.kind === 'blocked' && e.who === 'o'));
     if (time - s.hud > 80) {
       this.services.sparPanel.render(s.bout, s.opponent, s.selected);
       this.frameAcademyPanel(this.services.sparPanel.top, this.player.x + (s.bout.o.x - s.bout.p.x) * TILE / 2);
@@ -2367,14 +2373,24 @@ export class WorldScene extends Phaser.Scene {
     const { state } = this.services;
     const won = !abandoned && s.bout.won === true;
     const before = state.fitness.fights?.[s.style] ?? NO_RECORD;
-    const r = s.entry ? afterBout(TOURNAMENTS[s.style], s.entry, won, before) : null;
+    const r = s.entry && hasTournament(s.style) ? afterBout(TOURNAMENTS[s.style], s.entry, won, before) : null;
     const record = r?.record ?? { ...before, bouts: before.bouts + 1, wins: before.wins + (won ? 1 : 0) };
     state.fitness = { ...state.fitness, fatigue: Math.min(100, state.fitness.fatigue + 5), fights: { ...state.fitness.fights, [s.style]: record },
       ...(r ? { tournaments: { ...state.fitness.tournaments, [s.style]: r.entry } } : {}) };
     state.energy = Math.max(0, state.energy - s.bout.p.energy);
-    if (r?.prize) state.as('Premio · ' + TOURNAMENTS[s.style].name, () => { state.money += r.prize; });
-    const lines = [abandoned ? 'Abandonas el combate.' : (won ? 'Ganas' : 'Pierdes') + ' ' + s.bout.p.score + '–' + s.bout.o.score + ' (' + s.bout.how + ').',
-      'Golpes limpios: ' + s.bout.p.landed + '. Paradas: ' + s.bout.p.blocks + '.', ...(r ? [r.text] : [])];
+    if (r?.prize && hasTournament(s.style)) state.as('Premio · ' + TOURNAMENTS[s.style].name, () => { state.money += r.prize; });
+    // MMA: sube sólo lo que se practicó de verdad en el ejercicio (también si se abandona: lo hecho, hecho está).
+    const t = s.bout.p.tech;
+    let practiced: string[] = [];
+    if (s.style === 'mma') {
+      const out = practiceMma(state.fitness, t);
+      state.fitness = out.next;
+      practiced = ['Practicado: ' + t.punches + ' de puños, ' + t.kicks + ' de patadas y ' + t.grappling + ' de lucha.',
+        ...(t.punches + t.kicks + t.grappling ? ['Progreso: puños +' + out.gained.punches.toFixed(2) + ', patadas +' + out.gained.kicks.toFixed(2) + ', lucha +' + out.gained.grappling.toFixed(2) + '.'] : ['Sin técnica a distancia, no hay progreso que apuntar.'])];
+    }
+    const head = s.style === 'mma' ? (abandoned ? 'Dejas el ejercicio.' : 'Fin del ejercicio: ' + s.bout.p.score + '–' + s.bout.o.score + '.')
+      : abandoned ? 'Abandonas el combate.' : (won ? 'Ganas' : 'Pierdes') + ' ' + s.bout.p.score + '–' + s.bout.o.score + ' (' + s.bout.how + ').';
+    const lines = [head, 'Acciones limpias: ' + s.bout.p.landed + '. Paradas: ' + s.bout.p.blocks + '.', ...practiced, ...(r ? [r.text] : [])];
     this.persist();
     this.restoreAcademyFrame();
     this.services.sparPanel.close(); s.view?.destroy(); s.view = null;
@@ -2392,6 +2408,8 @@ export class WorldScene extends Phaser.Scene {
 
   private destroySpar(): void {
     this.restoreAcademyFrame();
+    // Salir de la escena (recargar, cambiar de sitio) suelta también el tatami o el ring reservados.
+    this.ringHold = null;
     this.spar?.view?.destroy();
     this.spar = null;
     this.services.sparPanel.close();
@@ -2440,12 +2458,14 @@ export class WorldScene extends Phaser.Scene {
     this.workout = { point: target.point, station: target.station, intensity, minutes, startMinute: this.absMinute(), from: { x: this.player.x, y: this.player.y }, releasing: false, hintAt: 0, mates: new Set() };
     if (def.drill) {
       // El blanco, en la dirección en que se mira: el pao a dos tiles (patadas) o el saco delante (golpes).
+      // En la clase de pasos no hay blanco: sin pao ni distancia.
       const kicks = def.drill === 'kicks';
+      const steps = def.drill === 'steps';
       const axis = FACING_AXIS[target.facing];
-      const base = kicks ? 2 : 1;
-      const pad = loc.props.find((pr) => pr.kind === (kicks ? 'kick-pad' : 'boxing-bag') && pr.tx === p.tx + base * axis.x && pr.ty === p.ty + base * axis.y) ?? null;
+      const base = steps ? 0 : kicks ? 2 : 1;
+      const pad = steps ? null : loc.props.find((pr) => pr.kind === (kicks ? 'kick-pad' : 'boxing-bag') && pr.tx === p.tx + base * axis.x && pr.ty === p.ty + base * axis.y) ?? null;
       const level = Math.floor((state.fitness.skills?.[def.training!.academy] ?? 0) / 4);
-      this.workout.kicks = { drill: createDrill(hashSeed('kicks', state.day, at), level, exam, kicks ? 'kicks' : 'punches'), t0: 0, t: 0, last: 0, hud: 0, offset: 0, kick: kicks ? 'front' : 'jab', dir: target.facing === 'left' ? -1 : 1, axis, base, facing: target.facing, pad };
+      this.workout.kicks = { drill: createDrill(hashSeed('kicks', state.day, at), level, exam, def.drill, target.station), t0: 0, t: 0, last: 0, hud: 0, offset: 0, kick: steps ? 'sway' : kicks ? 'front' : 'jab', dir: target.facing === 'left' ? -1 : 1, axis, base, facing: target.facing, pad };
     }
     if (academy) this.persist();
     // La gente lo sabe ya: quien iba de camino a ese puesto lo cancela, sin esperar al siguiente fotograma.
@@ -2461,7 +2481,7 @@ export class WorldScene extends Phaser.Scene {
           this.workout.kicks.t0 = this.time.now;
           this.workout.kicks.last = this.time.now;
           const set = this.workout.kicks.drill.set;
-          this.services.kickDrill.open(this.workout.kicks.drill.exam ? `Examen de cinturón · ${STATIONS[target.station].name}` : `${set === 'punches' ? 'Clase de saco' : 'Clase de patadas'} · ${STATIONS[target.station].name}`, set);
+          this.services.kickDrill.open(this.workout.kicks.drill.exam ? `Examen de cinturón · ${STATIONS[target.station].name}` : `${set === 'punches' ? 'Clase de saco' : set === 'steps' ? 'Clase de pasos' : 'Clase de patadas'} · ${STATIONS[target.station].name}`, set);
         }
       });
   }
@@ -2511,15 +2531,18 @@ export class WorldScene extends Phaser.Scene {
     const t = k.t;
     const { input } = this.services;
     const punches = k.drill.set === 'punches';
+    // Clase de pasos: 1/2/3 eligen el paso y J/K el pie de apoyo; sin blanco ni distancia.
+    const steps = k.drill.set === 'steps';
     if (!punches) {
-      if (this.pressedAny(['one'])) k.kick = 'front';
-      if (this.pressedAny(['two'])) k.kick = 'round';
-      if (this.pressedAny(['three'])) k.kick = 'side';
+      const order = steps ? STEP_ORDER : KICK_ORDER;
+      if (this.pressedAny(['one'])) k.kick = order[0];
+      if (this.pressedAny(['two'])) k.kick = order[1];
+      if (this.pressedAny(['three'])) k.kick = order[2];
     }
     const kicking = k.drill.current !== null && t < k.drill.current.start + kickTotal(k.drill.current.kick);
     // En guardia se ajusta la distancia; a mitad de golpe, no: el pie de apoyo no resbala.
     const step = punches ? PUNCH_STEP : KICK_STEP;
-    if (!kicking) {
+    if (!kicking && !steps) {
       const fore = this.heldAny('kickFore', ...FORE_KEYS[k.facing]);
       const back = this.heldAny('kickBack', ...FORE_KEYS[BACK_OF[k.facing]]);
       k.offset = Math.min(step.fore, Math.max(-step.back, k.offset + ((fore ? 1 : 0) - (back ? 1 : 0)) * step.speed * dt / 1000));
@@ -2536,19 +2559,20 @@ export class WorldScene extends Phaser.Scene {
     const ev = stepDrill(k.drill, t, distance, guard);
     if (ev) {
       this.services.kickDrill.say(ev.text, ev.grade === 'perfect' || ev.grade === 'good');
-      if (ev.contact && k.drill.current) this.flashPad(k.pad, punches);
+      if (ev.contact && k.drill.current && !steps) this.flashPad(k.pad, punches);
     }
     const cur = k.drill.current;
     const phase = cur ? kickPhase(cur.kick, t - cur.start) : null;
     const dx = Math.round(k.offset * TILE * k.axis.x);
     const dy = Math.round(k.offset * TILE * k.axis.y);
+    // Clase de pasos: sin fotogramas propios, se queda la pose de la estación.
     if (punches) {
       // Golpe: el guante de esa mano sale en la extensión y vuelve; de perfil, si es la de cerca, se estira el brazo.
       const near = k.facing === 'right' ? 'R' : k.facing === 'left' ? 'L' : null;
       const out = cur && phase === 'extend' ? cur.leg : null;
       const glove = k.drill.guardSince >= 0 ? 'B' : out ?? 'G';
       this.player.kickFrame(out && out === near ? 9 : 8, dx, dy, `fx-glove-${k.facing}-${glove}`);
-    } else {
+    } else if (!steps) {
       const pose = cur && phase ? kickPose(phase === 'extend' ? (cur.kick as Kick) : 'chamber', (cur.leg === 'R') === (k.facing === 'right')) : 8;
       this.player.kickFrame(pose, dx, dy);
     }
@@ -2596,6 +2620,24 @@ export class WorldScene extends Phaser.Scene {
         summary(out.next),
       ];
       this.player.kickFrame(8, 0);
+      this.player.stopTraining(w.from.x, w.from.y, () => {
+        this.workout = null;
+        this.services.input.setContext({ action: null, back: false, busy: false });
+        this.services.dialogue.start(STATIONS[w.station].name, lines);
+      });
+      return;
+    }
+    if (k.drill.set === 'steps') {
+      // La clase de pasos (academia de baile): técnica de baile, forma y energía de los pasos; sin cinturones.
+      state.fitness = out.next;
+      state.energy = Math.max(0, state.energy - Math.round(k.drill.energy * 10) / 10);
+      this.persist();
+      const coachName = getAcademy('dance')?.instructor ?? 'La instructora';
+      const lines = [
+        `Clase de pasos${s.done < 1 ? ' (cortada)' : ''}: ${s.perfect} perfectos, ${s.good} buenos y ${s.wrong + s.missed} fallos (${Math.round(s.accuracy * 100)}%).`,
+        ...coachLines(k.drill, s, coachName),
+        summary(out.next),
+      ];
       this.player.stopTraining(w.from.x, w.from.y, () => {
         this.workout = null;
         this.services.input.setContext({ action: null, back: false, busy: false });

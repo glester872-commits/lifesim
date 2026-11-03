@@ -21,8 +21,8 @@ const enterable = rows.filter((r) => r.kind === 'enterable');
 
 for (const r of rows) assert.deepEqual(r.problems, [], `${r.name}: ${r.problems.join(' | ')}`);
 const names = (kind: string): string[] => rows.filter((r) => r.kind === kind).map((r) => r.name).sort();
-assert.deepEqual(names('enterable'), ['Bar Ribera', 'Café del Río', 'Casa Mar', 'Colmado Ribera', 'Ribera Sport', 'Salón Recreativo Nova'], 'los locales de los que se entra');
-assert.deepEqual(names('residence'), ['Ribera 1', 'Ribera 2'], 'las viviendas');
+assert.deepEqual(names('enterable'), ['Bar Ribera', 'Café del Río', 'Casa Mar', 'Colmado Ribera', 'Escuela de Baile Ribera Norte', 'Ribera Sport', 'Salón Recreativo Nova'], 'los locales de los que se entra');
+assert.deepEqual(names('residence'), ['Ribera 2'], 'las viviendas');
 assert.deepEqual(names('kiosk'), ['Heladería del Muelle'], 'el quiosco');
 // Ningún negocio de Ribera queda fuera del inventario (ni con fachada sin puerta ni olvidado).
 for (const p of placesOfType('business').filter((x) => x.locationId === 'ribera')) assert.ok(rows.some((r) => r.place === p.id), `${p.name} sin inventariar`);

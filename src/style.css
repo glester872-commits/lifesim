@@ -2214,6 +2214,9 @@ body.has-touch .dialogue__choices li {
 
 .spar__score { font-weight: 700; font-size: 17px; margin: 6px 0; }
 .spar__clock { color: var(--amber); margin-bottom: 4px; }
+/* MMA: fase de la lucha y equilibrio; los botones que no tocan en la sesión no se ven. */
+.spar__phase { font-size: 13px; margin-bottom: 4px; opacity: 0.9; }
+.spar__phase[hidden], .kick__btn[hidden] { display: none; }
 
 .kick__title {
   color: var(--amber);
@@ -2294,8 +2297,10 @@ body.has-touch .dialogue__choices li {
   gap: 6px;
 }
 
-/* En el saco (ui/KickDrill modo golpes) se ocultan las patadas y aparece la guardia: hidden gana al display de la rejilla. */
+/* En el saco (ui/KickDrill modo golpes) se ocultan las patadas y aparece la guardia; en la clase de pasos, la distancia:
+   hidden gana al display de la rejilla. */
 .kick__types[hidden],
+.kick__moves[hidden],
 .kick__btn[hidden] {
   display: none;
 }

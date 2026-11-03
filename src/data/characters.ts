@@ -126,16 +126,16 @@ export const CHARACTERS: readonly CharacterDef[] = [
         ],
       },
       {
-        // Compañera de clase (data/academies.ts): los miércoles, MMA en Forja en vez de cinta (el boxeo se fue a Cuatro
-        // Ríos, Doble Guardia, y a otro barrio no se va andando).
+        // Los miércoles hacía MMA en Forja. La academia se mudó al Arena (otro barrio: no se va andando), así que ese día
+        // se queda con el core en las esterillas de Forja. El id de la rutina se conserva.
         id: 'forja-mma-sara',
         days: on('wednesday'),
         weight: 2,
         stops: [
-          { at: '09:40', point: 'CAFE_TABLE_05', alt: ['CAFE_WINDOW_SEAT'], lines: ['Hoy MMA. Rubén dice que tengo buena cadera. Lo tomo como un cumplido.'], going: ['Voy a por un café, que hoy hay MMA.'] },
+          { at: '09:40', point: 'CAFE_TABLE_05', alt: ['CAFE_WINDOW_SEAT'], lines: ['La MMA se ha ido al Arena. Rubén decía que tenía buena cadera; ahora se la enseño a las esterillas.'], going: ['Voy a por un café antes del gym.'] },
           inside('11:00', SARA_HOME, 'Clase online y luego, a Forja.'),
-          { at: '18:00', point: 'MMA_BAG_03', alt: ['MMA_BAG_01'], lines: ['Saco, sí. Cardio de verdad y un vídeo para luego.', 'No me mires que se me baja la guardia.'], going: ['Me voy a MMA a Forja, que hoy toca saco.'] },
-          { at: '21:00', point: 'PLAZA_BENCH_03', optional: true, lines: ['Después del saco, sentarse en la plaza sabe a gloria.'], going: ['Bajo a la plaza a que me dé el aire.'] },
+          { at: '18:00', point: 'GYM_MAT_01', alt: ['GYM_MAT_02'], lines: ['Core, sí. Desde que la MMA se fue al Arena, los miércoles son de esterilla.', 'No me mires, que pierdo la cuenta.'], going: ['Me voy a Forja, hoy toca core.'] },
+          { at: '21:00', point: 'PLAZA_BENCH_03', optional: true, lines: ['Después del core, sentarse en la plaza sabe a gloria.'], going: ['Bajo a la plaza a que me dé el aire.'] },
           inside('22:15', SARA_HOME, 'Me voy a dormir. Mañana no muevo los brazos.'),
         ],
       },
@@ -428,15 +428,15 @@ export const CHARACTERS: readonly CharacterDef[] = [
         ],
       },
       {
-        // Compañera de clase (data/academyRooms.ts): MMA en Forja dos tardes; quien coincide con ella ahí la va conociendo.
+        // Iba a MMA en Forja dos tardes; con la academia en el Arena, esas tardes hace pesas en Forja. Id conservado.
         id: 'forja-mma',
         days: on('monday', 'wednesday'),
         weight: 2,
         stops: [
           inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Llego tarde a la academia. La otra academia, la de los apuntes.'),
-          { at: '13:30', point: 'CAFE_TABLE_01', alt: ['CAFE_WINDOW_SEAT'], lines: ['Esta tarde, MMA. Hoy me desahogo con el saco.'], going: ['Pausa para comer algo.'] },
+          { at: '13:30', point: 'CAFE_TABLE_01', alt: ['CAFE_WINDOW_SEAT'], lines: ['Esta tarde, pesas. La MMA se fue al Arena y me pilla lejos.'], going: ['Pausa para comer algo.'] },
           inside('14:40', 'STUDY_CENTER_ENTRANCE', 'Vuelta a los apuntes.'),
-          { at: '19:00', point: 'MMA_BAG_02', alt: ['MMA_GROUND_02'], lines: ['Mano, mano, rodilla. Llevo un mes y ya no me caigo. Casi.', 'Aquí se piensa menos que en la academia. Se agradece.'], going: ['Me voy a MMA, a Forja. Hoy toca saco.'] },
+          { at: '19:00', point: 'GYM_WEIGHTS_01', alt: ['GYM_WEIGHTS_02'], lines: ['Mancuernas. Echo de menos el saco, pero el Arena me pilla a una hora de metro.', 'Aquí se piensa menos que en la academia. Se agradece.'], going: ['Me voy a Forja, hoy toca pesas.'] },
           inside('21:00', ADA_HOME, 'Ducha y a repasar. Me duele todo, pero bien.'),
         ],
       },
