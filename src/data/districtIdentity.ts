@@ -144,6 +144,15 @@ export const DISTRICT_IDENTITIES: Readonly<Record<string, DistrictIdentity>> = {
     scooters: 1.2,
     security: 1.6, events: 2, ambience: 1.5,
   },
+  // Campo Alto (data/campoAlto.ts): periferia residencial y deportiva; mañanas de colegio y metro, tardes de parque.
+  'campo-alto': {
+    name: 'Campo Alto', tagline: 'vecinos, parque y deporte de barrio: tranquilo, con vida por las tardes',
+    density: { bands: [[7, 9.5, 0.9], [9.5, 16, 0.6], [16, 20, 1.2], [20, 24, 0.4]], rest: 0.2, weekend: 1.2 },
+    groups: { family: 1.5, sport: 1.3, leisure: 1.2, commute: 1.1, food: 0.9, nightlife: 0.3 },
+    traffic: { vehicles: 0.6, bikes: 1, deliveries: 0.8 },
+    scooters: 0.5,
+    security: 0.7, events: 0.4, ambience: 1,
+  },
   luna: {
     name: 'Luna', tagline: 'el barrio de la noche',
     density: { bands: [[8, 17, 0.35], [17, 21, 0.9], [21, 24, 1.8], [0, 6, 1.9]], rest: 0.5, weekend: 1.5 },
@@ -169,6 +178,8 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'puerta-central-l3-station': 'puerta-central',
   arena: 'arena',
   'arena-station': 'arena',
+  'campo-alto': 'campo-alto',
+  'campo-alto-station': 'campo-alto',
   // El Polígono Norte (Alpha-09), la parada de después de Ribera Norte: su propio barrio, la nave y el aparcamiento.
   'poligono-norte': 'poligono-norte',
   'decathlon-station': 'poligono-norte',

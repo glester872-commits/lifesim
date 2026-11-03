@@ -756,4 +756,23 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       patrol([9.5, 21], ['PN_DECATHLON_WAIT_', 'PN_PARK_'], 'Una vuelta por el aparcamiento. Los sábados siempre abren algún coche.', { weight: 0.4 }),
     ],
   },
+  // Campo Alto (data/campoAlto.ts): barrio de vecinos con parque y un café. Tranquilo; las tardes y el fin de semana, más gente.
+  {
+    location: 'campo-alto',
+    bands: [[7, 9.5, 'LOW'], [9.5, 16, 'LOW'], [16, 20, 'MEDIUM'], [20, 22, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 1, 1],
+    scale: 0.8,
+    maxWalkers: 10,
+    bursts: [{ point: 'CA_METRO_ENTRANCE', every: [[7, 22, 14]], size: [1, 2] }],
+    trips: [
+      { role: 'commuter', label: 'Vecino camino del metro', line: 'Dos transbordos hasta el centro. Pero tengo parque.', weight: 3, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
+      { role: 'returning', label: 'Vecina de vuelta a casa', line: 'Aquí se oye a los pájaros. Y a los del fútbol del sábado.', weight: 3, hours: [16.5, 21], from: TRANSIT, to: HOMES },
+      { role: 'coffee', label: 'Alguien que baja al café', line: 'Un cortado, y luego, el parque.', weight: 3, hours: [7.5, 20], from: HOMES, to: { tags: ['food'] } },
+      { role: 'park-elders', label: 'Vecino en la plaza del parque', line: 'Aquí me siento todas las tardes. Hasta que me echen.', weight: 2, hours: [10, 20], from: HOMES, to: { points: ['CA_PARK_'] }, stay: [10, 30], stayState: 'PHONE', then: HOMES_OR_CITY, max: 3 },
+      { role: 'passer-by', label: 'Alguien atajando por el barrio', line: 'Por aquí se llega antes. Si no te pierdes.', weight: 1, hours: [7, 22], from: CITY, to: CITY },
+      // La limpieza viaria (carrito y escoba): la calle y la acera central, de madrugada.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Tiques, latas y envoltorios. Lo de siempre en un barrio.', weight: 6, hours: [7.5, 9.5], from: CITY, to: CITY, via: ['ca-n23', 'ca-m23', 'ca-park', 'ca-s23'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      patrol([9, 21], ['CA_METRO_WAIT_', 'CA_PARK_'], 'Una vuelta por el parque y la boca de metro. Tranquilo, de momento.', { weight: 0.4 }),
+    ],
+  },
 ];

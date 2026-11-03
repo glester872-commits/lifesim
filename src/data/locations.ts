@@ -11,6 +11,8 @@ import { PUERTA_CENTRAL } from './puertaCentral.ts';
 import { PC_INTERIORS } from './puertaCentralVenues.ts';
 import { ARENA } from './arena.ts';
 import { AR_INTERIORS } from './arenaVenues.ts';
+import { CAMPO_ALTO } from './campoAlto.ts';
+import { CA_INTERIORS } from './campoAltoVenues.ts';
 import { DECATHLON_STORE } from './decathlon.ts';
 import { POLIGONO_NORTE } from './poligonoNorte.ts';
 import { BOXING } from './boxing.ts';
@@ -597,6 +599,16 @@ const ARENA_STATION = platform(
   [VESTIBULE_GUARD],
 );
 
+// Campo Alto (data/campoAlto.ts): la parada de L2 más allá del Arena; la misma estación, sale a la calle del barrio.
+const CAMPO_ALTO_STATION = platform(
+  'campo-alto-station',
+  'Metro · Campo Alto',
+  { location: 'campo-alto', spawn: 'ca-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
 /** Los dos bares del Distrito Arena: la planta del Bar Ribera con su prefijo, su barra y su puerta (la gente, en data/arenaVenues.ts). */
 const arenaBar = (id: string, name: string, pre: string, ambient: string, wall: string): LocationDef => ({
   ...rebased(BAR, 'BAR_', `${pre}_`),
@@ -665,6 +677,10 @@ export const LOCATIONS: readonly LocationDef[] = [
   ARENA_STATION,
   ...AR_INTERIORS,
   ...ARENA_BARS,
+  // Campo Alto (data/campoAlto.ts): la calle, el parque, su estación y el café.
+  CAMPO_ALTO,
+  CAMPO_ALTO_STATION,
+  ...CA_INTERIORS,
   // Polígono Norte (data/poligonoNorte.ts): la explanada y el aparcamiento de Decathlon, su estación y la nave por dentro.
   POLIGONO_NORTE,
   correspondence(DECATHLON_STATION, DECATHLON_L3, 'L3 exprés → Puerta Central'),

@@ -246,5 +246,11 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'ar-cafe', name: 'Café del Córner', type: 'business', tags: ['food', 'social', WORK], building: 'ar-cafe', capacity: 10, hours: [7.5, 21], why: 'Café y tostada en la barra, viendo la fachada del estadio.' },
   { id: 'metro-arena', name: 'Metro · Arena', type: 'transit', tags: ['transit'], building: 'ar-metro', anchors: ['AR_METRO_MEET_01'], capacity: 200 },
   { id: 'explanada-arena', name: 'Explanada del Estadio', type: 'public', tags: ['social', 'outdoor', 'stadium'], anchors: ['AR_FANS_01', 'AR_FANS_03', 'AR_FANS_05', 'AR_FANS_07'], capacity: 120 },
+  // Campo Alto (data/campoAlto.ts): tres portales de vecinos, el café y la boca de metro.
+  { id: 'res-ca-1', name: 'Calle del Campo 2', type: 'residence', tags: ['home'], building: 'ca-res-1', capacity: 14 },
+  { id: 'res-ca-2', name: 'Calle del Campo 6', type: 'residence', tags: ['home'], building: 'ca-res-2', capacity: 12 },
+  { id: 'res-ca-3', name: 'Calle del Campo 12', type: 'residence', tags: ['home'], building: 'ca-res-3', capacity: 16 },
+  { id: 'ca-cafe', name: 'Café Campo Alto', type: 'business', tags: ['food', 'social', WORK], building: 'ca-cafe', capacity: 10, hours: [7.5, 21], why: 'Café y tostada en la barra, a dos pasos del parque.' },
+  { id: 'metro-campo-alto', name: 'Metro · Campo Alto', type: 'transit', tags: ['transit'], building: 'ca-metro', capacity: 40 },
   { id: 'plaza-puerta-central', name: 'Plaza de la Puerta', type: 'public', tags: ['social', 'outdoor'], anchors: ['PC_BENCH_01', 'PC_BENCH_02', 'PC_BENCH_03', 'PC_BENCH_04'], capacity: 40 },
 ];
