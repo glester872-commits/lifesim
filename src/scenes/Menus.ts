@@ -30,6 +30,11 @@ import { PLAYER_COLORS } from '../world/TextureFactory';
 import { pairingFor, type MenuItem, type MoreOption, type ServiceMenu } from '../data/menus';
 import { STATIONS, type StationId } from '../data/stations';
 import { INTENSITIES, INTENSITY_ORDER, quote, settle, summary, type Intensity } from '../systems/Fitness';
+import { getAcademy } from '../data/academies';
+import { buyPass, covered, NO_MEMBERSHIP, periodFrom, setAutoRenew, subscribe } from '../systems/Academy';
+import { BELTS, EXAM_PASS, examReady, START_TKD } from '../systems/Taekwondo';
+import { TOURNAMENTS, status as tournamentStatus, when } from '../systems/Tournaments';
+import type { Style } from '../systems/Sparring';
 import { getGig, getSkill, type CourseDef, type GigDef, type PracticeSite } from '../data/study';
 import {
   acceptGig, attend, classBlocker, courseAt, courseOffer, deliver, deliverBlocker, demo, demoBlocker, enroll, enrollBlocker, gigAt, gigDeadline, gigStatus, gigTerms,
@@ -54,6 +59,7 @@ export interface MenuHost {
   persist(): void;
   canBoard(locationId: string): boolean;
   trainAt(point: string): void;
+  fight(style: Style, tournament: boolean): void;
   /** Llega en tren a esa localización (andén, spawn 'train'). */
   arriveByTrain(locationId: string, minutes?: number): void;
   /** Entra andando en una localización por su entrada (spawn 'entry'): el interior de un sitio sin mapa. */
@@ -878,14 +884,7 @@ export class Menus {
       return;
     }
     if (offer.kind === 'training') {
-      const { state, menu } = this.services;
-      const location = state.locationId;
-      const points = offer.points.map(id => ({ id, point: getLocation(location).points?.[id] })).filter(p => p.point?.use);
-      menu.open(offer.title, (state.fitness.boxing ?? 0) < 2 ? 'Primero equilibrio y guardia. Te enseño una técnica cada vez. Sesiones a las horas y a las medias, 08:00–22:00; cinco minutos para empezar. €6 por sesión, guantes incluidos.' : 'Se nota la práctica: recuperas la guardia con más control. Sigue con pies y coordinación. Sesiones cada media hora, 08:00–22:00. €6 por sesión.',
-        [...points.map(p => ({ label: STATIONS[p.point!.use as StationId].name, detail: 'Elegir duración y comprobar disponibilidad' })), { label: 'Ahora no' }], i => {
-          menu.close();
-          if (i < points.length && state.locationId === location) this.host.trainAt(points[i].id);
-        });
+      this.openAcademy(id, offer, who, note, selected);
       return;
     }
     if (offer.kind === 'activities') {
@@ -935,6 +934,111 @@ export class Menus {
       this.host.persist();
       dialogue.start(who, [result.message, `${formatClock(state.day, state.hour, state.minute)}.`]);
     }, undefined, note, selected);
+  }
+
+  /**
+   * Quien da las clases de una academia (data/academies.ts): lo que dice según lo avanzado, horario, precio y bono que
+   * queda; a qué ejercicio ir (el puesto cobra al empezar: WorldScene.startWorkout) o comprar el bono. Igual para todas.
+   */
+  private openAcademy(id: OfferId, offer: Extract<ServiceOffer, { kind: 'training' }>, who: string, note: string, selected: number): void {
+    const { state, menu } = this.services;
+    const a = getAcademy(offer.academy);
+    if (!a) return;
+    const location = state.locationId;
+    const points = offer.points.map(p => ({ id: p, point: getLocation(location).points?.[p] })).filter(p => p.point?.use);
+    const m = state.fitness.academies?.[a.id] ?? NO_MEMBERSHIP;
+    const level = state.fitness.skills?.[a.id] ?? 0;
+    const hh = (h: number): string => `${String(h).padStart(2, '0')}:00`;
+    const tkd = a.id === 'taekwondo' && state.fitness.taekwondo ? ` Cinturón ${BELTS[state.fitness.taekwondo.belt].name}, ${state.fitness.taekwondo.attended} clases.` : '';
+    const body = `${level < a.progressedAt ? a.lines.intro : a.lines.progressed}${tkd} Clases cada ${a.every} min, ${hh(a.hours[0])}–${hh(a.hours[1])}; ${a.grace} min para entrar. ${euros(a.fee)} la clase o bono de ${a.pass.classes} por ${euros(a.pass.price)}${a.monthly ? `; cuota de ${euros(a.monthly.price)} al mes` : ''}.${m.pass ? ` Te quedan ${m.pass} del bono.` : ''}${covered(m, state.day) ? ` Cuota pagada hasta el ${formatDate(m.plan!.until, false)}.` : ''} ${a.skill}: ${level.toFixed(1)}/100.`;
+    const options: MenuOption[] = [
+      ...points.map(p => ({ label: STATIONS[p.point!.use as StationId].name, detail: 'Elegir duración y comprobar disponibilidad' })),
+      { label: `Bono de ${a.pass.classes} clases`, detail: euros(a.pass.price), disabled: state.money < a.pass.price ? `El bono cuesta ${euros(a.pass.price)}; no te llega.` : undefined },
+      ...(a.spar ? [{ label: 'Combates y torneo', detail: 'Rival, guardia, distancia y marcador' }] : []),
+      ...(a.monthly ? [{ label: 'Cuota mensual', detail: covered(m, state.day) ? `pagada hasta el ${formatDate(m.plan!.until, false)}` : `${euros(a.monthly.price)} al mes` }] : []),
+      { label: 'Ahora no' },
+    ];
+    menu.open(`${a.name} · ${who}`, body, options, i => {
+      if (i < points.length) {
+        menu.close();
+        if (state.locationId === location) this.host.trainAt(points[i].id);
+        return;
+      }
+      if (i === points.length) {
+        const r = buyPass(a, m, state.money);
+        if (r.ok) {
+          state.as(`Bono · ${a.name}`, () => { state.money = r.money; });
+          state.fitness = { ...state.fitness, academies: { ...state.fitness.academies, [a.id]: r.membership } };
+          this.host.persist();
+        }
+        this.openOffer(id, who, r.message, i);
+        return;
+      }
+      if (a.spar && i === points.length + 1) { this.openFighting(a.id as Style); return; }
+      if (a.monthly && i === points.length + 1 + (a.spar ? 1 : 0)) { this.openMonthly(id, offer, who); return; }
+      menu.close();
+    }, undefined, note, selected);
+  }
+
+  /**
+   * La cuota mensual (systems/Academy): qué cubre, cuánto, el saldo que queda y las fechas antes de confirmar; con cuota,
+   * activar o cancelar la renovación (cancelar deja entrar hasta el final de lo pagado).
+   */
+  private openMonthly(id: OfferId, offer: Extract<ServiceOffer, { kind: 'training' }>, who: string, note = ''): void {
+    const { state, menu } = this.services;
+    const a = getAcademy(offer.academy);
+    if (!a?.monthly) return;
+    const price = a.monthly.price;
+    const m = state.fitness.academies?.[a.id] ?? NO_MEMBERSHIP;
+    const back = (msg: string): void => this.openMonthly(id, offer, who, msg);
+    const save = (next: typeof m): void => {
+      state.fitness = { ...state.fitness, academies: { ...state.fitness.academies, [a.id]: next } };
+      this.host.persist();
+    };
+    if (covered(m, state.day)) {
+      const p = m.plan!;
+      const body = `Cuota pagada del ${formatDate(p.from, false)} al ${formatDate(p.until, false)}: clases y combates de práctica sin pagar aparte. Renovación automática: ${p.auto ? `sí, ${euros(price)} el ${formatDate(p.until + 1, false)} si hay saldo` : 'no; al acabar, la cuota vence sin deuda'}.`;
+      menu.open(`${a.name} · Cuota`, body, [
+        p.auto ? { label: 'Cancelar la renovación', detail: `sigues entrando hasta el ${formatDate(p.until, false)}` } : { label: 'Activar la renovación automática', detail: `${euros(price)} cada mes, si hay saldo` },
+        { label: 'Volver' },
+      ], (i) => {
+        if (i === 0) {
+          save(setAutoRenew(m, !p.auto));
+          back(p.auto ? 'Renovación cancelada. Lo pagado sigue valiendo.' : 'Renovación automática activada.');
+          return;
+        }
+        this.openOffer(id, who, '', 0);
+      }, undefined, note);
+      return;
+    }
+    const p = periodFrom(state.day);
+    const short = state.money < price;
+    const lapsed = m.plan?.status === 'lapsed' ? ' Tu cuota anterior venció: se empieza de nuevo hoy y no se cobran los meses sin cuota.' : '';
+    const body = `Un mes de ${a.name}: todas las clases y los combates de práctica, sin pagar aparte.${lapsed} Cuota ${euros(price)} · saldo ${euros(state.money)} → ${euros(Math.round((state.money - price) * 100) / 100)}. Cubre del ${formatDate(p.from, false)} al ${formatDate(p.until, false)}. No se renueva sola salvo que lo actives.`;
+    menu.open(`${a.name} · Cuota mensual`, body, [
+      { label: `Pagar ${euros(price)}`, detail: `hasta el ${formatDate(p.until, false)}`, disabled: short ? `La cuota cuesta ${euros(price)}; no te llega.` : undefined },
+      { label: `Pagar y renovar cada mes`, detail: 'se cobra al vencer si hay saldo; sin saldo, vence', disabled: short ? `La cuota cuesta ${euros(price)}; no te llega.` : undefined },
+      { label: 'Volver' },
+    ], (i) => {
+      if (i > 1) { this.openOffer(id, who, '', 0); return; }
+      const r = subscribe(a, m, state.money, state.day);
+      if (!r.ok) { back(r.message); return; }
+      state.as(`Cuota mensual · ${a.name}`, () => { state.money = r.money; });
+      save(i === 1 ? setAutoRenew(r.membership, true) : r.membership);
+      back(`${r.message} Cubre hasta el ${formatDate(r.until, false)}.`);
+    }, undefined, note);
+  }
+
+  openFighting(style: Style): void {
+    const { state, menu } = this.services;
+    const a = getAcademy(style)!;
+    const def = TOURNAMENTS[style];
+    const s = tournamentStatus(def, state.fitness.tournaments?.[style], state.day, state.hour * 60 + state.minute, state.fitness.skills?.[style] ?? 0);
+    menu.open(a.name + ' · Combates', 'Dos asaltos de 40 s, guardia L, distancia A/D, ataques 1/2/3 con J o K. Se reservan 2 min del reloj al entrar. El resto de la sala espera durante el combate supervisado. Abandonar o recargar el torneo cuenta como derrota. ' + def.name + ': ' + when(def) + '.', [
+      { label: 'Combate de práctica', detail: 'La misma reserva de clase; sin premios' },
+      { label: s.can === 'fight' ? 'Continuar torneo' : 'Inscribirse y disputar semifinal', detail: s.reason, disabled: s.can ? undefined : s.reason },
+      { label: 'Volver' },
+    ], i => { menu.close(); if (i < 2) this.host.fight(style, i === 1); });
   }
 
   /**
@@ -1446,7 +1550,7 @@ export class Menus {
     const { state, menu, clock } = this.services;
     const now = (state.day - 1) * 1440 + state.hour * 60 + state.minute;
     const f = settle(state.fitness, now);
-    const context = { money: state.money, hour: state.hour, minute: state.minute };
+    const context = { money: state.money, hour: state.hour, minute: state.minute, at: now };
     const quotes = INTENSITY_ORDER.map(i => quote(f, station, i, state.energy, context));
     const options: MenuOption[] = INTENSITY_ORDER.map((i, k) => ({
       label: INTENSITIES[i].label,
@@ -1462,6 +1566,45 @@ export class Menus {
         clock.advanceMinutes(wait); this.host.persist(); this.openTraining(station, onStart);
       } else menu.close();
     }, undefined, quotes[0].fee ? 'Se cobra una vez al empezar. E/Esc termina antes; sólo cuenta lo entrenado. Recargar interrumpe lo pendiente sin reembolso ni progreso extra.' : '', 1);
+  }
+
+  /**
+   * Delante de una línea de paos (data/stations.ts drill 'kicks'): la clase de patadas o, si toca, el examen del cinturón
+   * siguiente (systems/Taekwondo.examReady: asistencia y técnica reales). Se cobra como cualquier clase de la academia.
+   */
+  openKickClass(station: StationId, onStart: (exam: boolean) => void): void {
+    const { state, menu, clock } = this.services;
+    const now = (state.day - 1) * 1440 + state.hour * 60 + state.minute;
+    const q = quote(settle(state.fitness, now), station, 'normal', state.energy, { money: state.money, hour: state.hour, minute: state.minute, at: now });
+    const tkd = state.fitness.taekwondo ?? START_TKD;
+    const technique = state.fitness.skills?.taekwondo ?? 0;
+    const exam = examReady(tkd, technique);
+    const fee = q.fee ? ` · ${euros(q.fee)}` : '';
+    // El saco de boxeo (drill 'punches'): misma clase, sin examen de cinturón.
+    const st = STATIONS[station];
+    const punches = 'drill' in st && st.drill === 'punches';
+    const options: MenuOption[] = punches
+      ? [{ label: 'Clase de saco', detail: `jab, directo, combinaciones y guardia${fee}`, disabled: q.blocked ?? undefined }]
+      : [
+          { label: 'Clase de patadas', detail: `8 órdenes · las dos piernas${fee}`, disabled: q.blocked ?? undefined },
+          { label: exam.ok ? `Examen de cinturón ${exam.belt.name}` : 'Examen de cinturón', detail: exam.ok ? `10 órdenes · se aprueba con un ${EXAM_PASS * 100}%${fee}` : exam.reason, disabled: q.blocked ?? (exam.ok ? undefined : exam.reason) },
+        ];
+    const starts = options.length;
+    if (q.wait > 0) options.push({ label: 'Esperar a la próxima clase', detail: `${q.wait} min · sin coste` });
+    options.push({ label: 'Cancelar' });
+    const help = punches
+      ? `Técnica de boxeo ${(state.fitness.skills?.boxing ?? 0).toFixed(1)}. Jab con la mano izquierda (J), directo con la derecha (K), guardia con L (mantener); W y S para la distancia al saco. También con los botones del panel.`
+      : `Cinturón ${BELTS[tkd.belt].name} · ${tkd.attended} clases · técnica ${technique.toFixed(1)}. Patada con 1, 2 y 3; pierna con J (izquierda) y K (derecha); A y D para la distancia. También con los botones del panel.`;
+    menu.open(STATIONS[station].name.toUpperCase(), help, options, (i) => {
+      if (i < starts) {
+        menu.close();
+        onStart(i === 1);
+      } else if (q.wait > 0 && i === starts) {
+        clock.advanceMinutes(q.wait);
+        this.host.persist();
+        this.openKickClass(station, onStart);
+      } else menu.close();
+    }, undefined, q.fee ? 'Se cobra una vez al empezar (o gasta una del bono). Esc termina antes: cuenta lo hecho. Recargar a mitad no cobra otra vez la misma clase ni da progreso.' : '');
   }
 
   openSpot(name: string, activityIds: readonly string[], note = ''): void {

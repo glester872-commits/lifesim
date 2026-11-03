@@ -1,6 +1,11 @@
 import type { LocationDef, PointDef } from '../types/game.ts';
+import { ACADEMIES } from './academies.ts';
 
-/** Anexo de Forja, Vallesco. Las cuerdas son colisiones reales; sólo se entra al ring por su puerta sur. */
+/**
+ * Doble Guardia, escuela de boxeo de Cuatro Ríos (Afluente 10, bajo): local propio con la puerta a la calle (data/cuatroRios.ts
+ * 'boxing-door'). Antes era el anexo del Gimnasio Forja; el id 'boxing' se conserva, así que lo guardado dentro sigue valiendo.
+ * Las cuerdas son colisiones reales; sólo se entra al ring por su puerta sur.
+ */
 const W = 28, H = 20;
 const ground = Array.from({ length: H }, (_, y) => Array.from({ length: W }, (_, x) => {
   if (y < 2 || y === H - 1 || x === 0 || x === W - 1) return 'W';
@@ -14,7 +19,7 @@ const ground = Array.from({ length: H }, (_, y) => Array.from({ length: W }, (_,
 }).join(''));
 const use = (tx: number, ty: number, station: string, facing: PointDef['facing'] = 'up'): PointDef => ({ tx, ty, kind: 'interact', facing, use: station });
 export const BOXING: LocationDef = {
-  id: 'boxing', name: 'Club de Boxeo Forja · Vallesco', kind: 'interior', ground, ambient: '#e5e1d5',
+  id: 'boxing', name: 'Doble Guardia · Cuatro Ríos', kind: 'interior', ground, ambient: '#e5e1d5',
   props: [
     { kind: 'boxing-sign', tx: 9, ty: 1 }, { kind: 'clock', tx: 19, ty: 1 },
     ...[2, 12].flatMap(tx => [4, 12].map(ty => ({ kind: 'boxing-post' as const, tx, ty }))),
@@ -26,7 +31,7 @@ export const BOXING: LocationDef = {
     { kind: 'mirror', tx: 17, ty: 1 }, { kind: 'mirror', tx: 22, ty: 1 },
     ...[5, 14, 21].map(tx => ({ kind: 'tube-light' as const, tx, ty: 3 })),
   ],
-  portals: [{ id: 'exit', tx: 14, ty: 18, label: 'Volver al Gimnasio Forja', to: { location: 'gym', spawn: 'boxing' } }],
+  portals: [{ id: 'exit', tx: 14, ty: 18, label: 'Salir a la calle Afluente', to: { location: 'cuatro-rios', spawn: 'boxing-door' } }],
   spawns: { entry: { tx: 14, ty: 17, facing: 'up' } }, npcs: [],
   points: {
     BOX_EXIT: { tx: 14, ty: 18, kind: 'exit' },
@@ -40,14 +45,15 @@ export const BOXING: LocationDef = {
     BOX_REST_02: { tx: 11, ty: 15, kind: 'wait', facing: 'up' },
   },
   inspects: [
-    { tx: 13, ty: 15, name: 'Clases de boxeo · horario', lines: ['Club de Boxeo Forja. Cada día de 08:00 a 22:00. Sesiones a las horas y a las medias, con cinco minutos para empezar. Cada sesión cuesta €6; material y guantes incluidos. Elige duración en el puesto o habla con Inés.', 'Guardia y pies en el ring; saco, coordinación y resistencia fuera. Sin sparring ni golpes a otras personas. Puedes parar con E o Esc: sólo cuenta lo entrenado. Al recargar se interrumpe la sesión pendiente, sin volver a cobrar ni regalar progreso.'] },
+    { tx: 13, ty: 15, name: 'Clases de boxeo · horario', lines: ['Doble Guardia, Afluente 10 (bajo), Cuatro Ríos. Cada día de 08:00 a 22:00. Sesiones a las horas y a las medias, con cinco minutos para empezar. Cada sesión cuesta €6; material y guantes incluidos. Elige duración en el puesto o habla con Inés.', 'Guardia y pies en el ring; saco, coordinación y resistencia fuera. Combates supervisados y torneo dominical hablando con Inés. Puedes parar con E o Esc: sólo cuenta lo entrenado. Al recargar se interrumpe la sesión pendiente, sin volver a cobrar ni regalar progreso.'] },
     { tx: 19, ty: 11, name: 'Material del club', lines: ['Guantes prestados, vendas, manoplas y combas. Límpialos y devuélvelos al terminar.'] },
   ],
 };
 
 export const BOXING_PROFILE = {
   place: 'boxing', bands: [[8, 12, 'LOW'], [12, 16, 'LOW'], [16, 21, 'MEDIUM'], [21, 22, 'LOW']],
-  weekday: [0, 0, 0, 0, 0, 0, -1], maxVisitors: 5,
+  // El cupo de la academia cuenta al jugador: la gente le deja siempre su sitio.
+  weekday: [0, 0, 0, 0, 0, 0, -1], maxVisitors: ACADEMIES.boxing!.capacity - 1,
   staff: [{ service: 'gym-staff', label: 'Inés · entrenadora', line: 'Primero control; después velocidad. La guardia vuelve a casa contigo.', points: ['BOX_COACH_01'], offers: 'boxing-coach' }],
   visitors: [
     { role: 'boxing_bag', label: 'Alumno al saco', line: 'Suelta el aire al golpear. Y vuelve a la guardia.', weight: 3, plan: [

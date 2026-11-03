@@ -11,10 +11,14 @@ import { SaveSystem, createInitialState, restore } from '../src/systems/SaveSyst
 import { mapPositionOf } from '../src/systems/WorldMap.ts';
 
 const loc = getLocation('boxing'); validate(loc);
+// Doble Guardia: local propio en Cuatro Ríos con la puerta a la calle; de Forja no queda acceso ni puerta.
+const street = getLocation('cuatro-rios');
+const door = street.buildings!.find(b=>b.enter?.location===loc.id)!;
+assert.ok(door && door.style==='boxing-club', 'sin fachada propia en Cuatro Ríos');
+assert.ok(loc.portals.some(p=>p.to.location===street.id&&street.spawns[p.to.spawn]), 'no se sale a la calle');
+assert.equal(mapPositionOf(loc.id,{x:232,y:288})!.mapId,'cuatro-rios');
 const gym = getLocation('gym');
-assert.ok(gym.portals.some(p=>p.to.location===loc.id));
-assert.ok(loc.portals.some(p=>p.to.location===gym.id&&gym.spawns[p.to.spawn]));
-assert.equal(mapPositionOf(loc.id,{x:232,y:288})!.mapId,'district');
+assert.ok(!gym.portals.some(p=>p.to.location===loc.id) && !gym.spawns.boxing && !Object.keys(gym.points??{}).some(k=>k.includes('BOXING')), 'quedan restos del anexo en Forja');
 assert.equal(placeInfo('boxing')!.hours![0],8);
 const names=['boxing-guard','boxing-footwork','boxing-bag','boxing-coordination','boxing-resistance'] as const;
 for(const name of names){
@@ -27,12 +31,12 @@ for(const name of names){
  assert.ok(quote(START_FITNESS,name,'normal',100,{money:10,hour:22,minute:0}).blocked);
  assert.ok(quote(START_FITNESS,name,'normal',0,{money:10,hour:18,minute:0}).blocked);
  const out=train(START_FITNESS,name,'normal',1,600,1,100);
- assert.ok(out.next.boxing!>0);assert.equal(out.next.total,1);
- assert.equal(train(START_FITNESS,name,'normal',0,600,1,100).next.boxing,undefined);
+ assert.ok(out.next.skills!.boxing>0);assert.equal(out.next.total,1);
+ assert.equal(train(START_FITNESS,name,'normal',0,600,1,100).next.skills,undefined);
 }
-assert.equal(parseFitness({...START_FITNESS,boxing:500}).boxing,100);
-assert.equal(parseFitness({...START_FITNESS,boxing:-5}).boxing,0);
-assert.equal(parseFitness({...START_FITNESS,boxing:NaN}).boxing,0);
+assert.equal(parseFitness({...START_FITNESS,boxing:500}).skills!.boxing,100);
+assert.equal(parseFitness({...START_FITNESS,boxing:-5}).skills!.boxing,0);
+assert.equal(parseFitness({...START_FITNESS,boxing:NaN}).skills!.boxing,0);
 assert.deepEqual(parseFitness(START_FITNESS),START_FITNESS,'guardados anteriores no cambian de forma');
 for(const [id,p] of Object.entries(loc.points!)){
  if(!p.use)continue;
@@ -67,7 +71,7 @@ const saves=new SaveSystem({read:k=>memory.get(k)??null,write:(k,v)=>void memory
 const trained=train(START_FITNESS,'boxing-bag','normal',1,720,1,100);
 const state={...createInitialState(),money:114,hour:12,minute:0,locationId:'boxing',position:{x:232,y:288},fitness:trained.next};
 assert.ok(saves.save(state));let loaded=restore(saves.load());
-for(let i=0;i<4;i++){assert.equal(loaded.money,114);assert.equal(loaded.fitness!.boxing,trained.next.boxing);assert.equal(loaded.fitness!.total,1);assert.ok(saves.save(loaded));loaded=restore(saves.load());}
+for(let i=0;i<4;i++){assert.equal(loaded.money,114);assert.equal(loaded.fitness!.skills!.boxing,trained.next.skills!.boxing);assert.equal(loaded.fitness!.total,1);assert.ok(saves.save(loaded));loaded=restore(saves.load());}
 assert.ok(saves.save({...loaded,locationId:'gym',position:{x:328,y:208}}));
-assert.equal(saves.load()!.fitness!.boxing,trained.next.boxing,'salir no pierde progreso');
+assert.equal(saves.load()!.fitness!.skills!.boxing,trained.next.skills!.boxing,'salir no pierde progreso');
 console.log('Boxeo PASS: 5 ejercicios, coste/horario/espera, técnica y forma física, guardados idempotentes, ring/sacos sólidos y '+uses+' usos NPC en '+used.size+' puestos.');

@@ -72,6 +72,9 @@ import { appearanceToLook } from './world/RemotePlayers';
 import { MobileControls } from './ui/MobileControls';
 import { PauseMenu } from './ui/PauseMenu';
 import { PlayerInput } from './systems/PlayerInput';
+import { KickDrill } from './ui/KickDrill';
+import { SparPanel } from './ui/SparPanel';
+import { SimulationPause } from './systems/SimulationPause';
 import { METRO_CONFIG } from './config/metro';
 import { cityAt, districtAt, travel, worldTree } from './systems/World';
 import { matchNow, upcomingMatches } from './systems/Match';
@@ -93,10 +96,11 @@ const state = new GameState(initial);
 const dialogue = new DialogueSystem();
 const menu = new Menu(requireEl('#menu'));
 // Ni el móvil encima del mapa ni el mapa encima del móvil: primero se cierra uno.
-const phone = new PhoneScreen(requireEl('#phone'), requireEl('#phone-button') as HTMLButtonElement, requireEl('#phone-toast'), state, () => dialogue.isOpen || menu.isOpen || services.map.isOpen);
+const phone = new PhoneScreen(requireEl('#phone'), requireEl('#phone-button') as HTMLButtonElement, requireEl('#phone-toast'), state, () => dialogue.isOpen || menu.isOpen || services.map.isOpen || services.kickDrill.isOpen || services.sparPanel.isOpen);
 const clock = new TimeSystem(state);
 // Tras dormir, un turno o el metro, el reloj espera a que se lea lo que ha pasado (systems/TimeSystem.release).
 clock.holdJumps = true;
+const input = new PlayerInput();
 const services: Services = {
   state,
   clock,
@@ -104,14 +108,16 @@ const services: Services = {
   dialogue,
   save,
   hint: new TargetHint(requireEl('#hint')),
+  kickDrill: new KickDrill(requireEl('#kick-drill'), input),
+  sparPanel: new SparPanel(requireEl('#spar-panel'), input),
   metroDebug: METRO_CONFIG.debug ? new MetroDebug(requireEl('#metro-debug')) : null,
   announcer: new Announcer(requireEl('#announce')),
   place: new PlaceBanner(requireEl('#place')),
   metroEvents: new MetroEventManager(state),
   menu,
   // No se abre encima de un diálogo o un menú: primero se termina lo que se estaba haciendo.
-  map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen || phone.isOpen),
-  input: new PlayerInput(),
+  map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen || phone.isOpen || services.kickDrill.isOpen || services.sparPanel.isOpen),
+  input,
   phone,
   audio: new CityAudio(requireEl('#sound-button') as HTMLButtonElement),
   // Alpha-06: sala online opcional. Sólo sale el nombre, el aspecto (ids de catálogo) y dónde está el avatar.
@@ -272,19 +278,28 @@ const game = new Phaser.Game({
 export { game };
 
 // Pausa (ui/PauseMenu): la escena se para entera (reloj, gente, autoguardado) y al seguir no queda ninguna tecla pulsada.
+const simulationPause = new SimulationPause((paused) => {
+  services.input.releaseAll();
+  game.scene.getScene('World')?.input?.keyboard?.resetKeys();
+  if (paused) game.scene.pause('World');
+  else game.scene.resume('World');
+});
 const pauseMenu = new PauseMenu(requireEl('#pause'), requireEl('#pause-button') as HTMLButtonElement, {
   pause: () => {
-    services.input.releaseAll();
-    game.scene.pause('World');
+    simulationPause.set('menu', true);
   },
   resume: () => {
-    game.scene.getScene('World')?.input.keyboard?.resetKeys();
-    game.scene.resume('World');
+    simulationPause.set('menu', false);
   },
   save: () => save.save(state.snapshot),
   name: () => state.identity.name,
 });
 game.events.on('lifesim:pause', () => pauseMenu.show());
+// Una carga o cambio de sala iniciado antes de ocultarse también nace detenido.
+game.events.on('lifesim:world-ready', () => {
+  simulationPause.set('hidden', document.hidden);
+  if (simulationPause.paused) game.scene.pause('World');
+});
 
 // Girar el móvil, cambiar de monitor o hacer zoom en el navegador cambia el tamaño físico.
 // El observador además recoge el tamaño definitivo: en móvil, al arrancar el
@@ -973,8 +988,12 @@ window.addEventListener('beforeunload', () => {
 // AUD-008 (CV-08): en el móvil el navegador puede cerrar una pestaña en segundo plano sin `beforeunload`, y el
 // autoguardado (tiempo de escena) se para mientras está oculta: se guarda al ocultarse y al salir de la página.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') save.save(state.snapshot);
+  const hidden = document.visibilityState === 'hidden';
+  simulationPause.set('hidden', hidden);
+  if (hidden) save.save(state.snapshot);
 });
 window.addEventListener('pagehide', () => {
+  simulationPause.set('hidden', true);
   save.save(state.snapshot);
 });
+window.addEventListener('pageshow', () => simulationPause.set('hidden', document.hidden));

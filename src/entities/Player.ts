@@ -302,6 +302,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.sync();
   }
 
+  /**
+   * Pateando el pao (systems/Taekwondo): la pose de la patada (world/HumanArt 38–45, o la guardia) en su puesto, `dx`
+   * px más cerca o más lejos del pao. El pie de apoyo no se mueve durante la patada: la distancia sólo cambia en guardia.
+   */
+  kickFrame(pose: number, dx: number, dy = 0, over: string | null = null): void {
+    const tr = this.training;
+    if (!tr?.settled) return;
+    this.dir = tr.facing;
+    this.anims.stop();
+    this.setTexture(`player-${tr.facing}-${pose}`);
+    this.setPosition(tr.x + dx, tr.y + dy);
+    this.gear('under', null);
+    // Los guantes de boxeo (world/BoxingArt fx-glove-*), encima, a la altura de las manos.
+    this.gear('over', over, tr.x + dx, tr.y + dy - 12, tr.y + dy + 0.5);
+    this.sync();
+  }
+
   /** Un accesorio de la máquina (la banda, la jaula vacía, la barra), o fuera si no hay. */
   private gear(which: 'under' | 'over', key: string | null, x = 0, y = 0, depth = 0): void {
     let img = which === 'under' ? this.gearUnder : this.gearOver;

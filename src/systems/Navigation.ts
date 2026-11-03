@@ -122,6 +122,24 @@ for (const loc of allLocations()) {
     if (exit) DOORS.set(b.enter.location, { exit, entrance: b.point, outside: loc.id });
   }
 }
+// Anexos: un interior al que se entra desde otro (el club de boxeo o una academia, desde su gimnasio). Su salida lleva
+// a un sitio del interior de fuera; la entrada es el punto de al lado (nunca uno encima de donde se llega).
+for (const inner of allLocations()) {
+  if (inner.kind !== 'interior' || DOORS.has(inner.id)) continue;
+  const back = inner.portals.find((p) => !p.train && getLocation(p.to.location).kind === 'interior');
+  const exit = Object.entries(inner.points ?? {}).find(([, p]) => p.kind === 'exit')?.[0];
+  const outer = back && getLocation(back.to.location);
+  const spot = outer?.spawns[back!.to.spawn];
+  const entrance = spot && Object.entries(outer!.points ?? {}).find(([, p]) => Math.max(Math.abs(p.tx - spot.tx), Math.abs(p.ty - spot.ty)) === 1)?.[0];
+  if (exit && entrance) DOORS.set(inner.id, { exit, entrance, outside: outer!.id });
+}
+
+/** De un sitio hacia fuera hasta la calle: él mismo, el interior que lo rodea (si es un anexo) y la calle. */
+function outward(location: string): string[] {
+  const out = [location];
+  for (let door = DOORS.get(location); door && !out.includes(door.outside); door = DOORS.get(door.outside)) out.push(door.outside);
+  return out;
+}
 
 export interface Leg {
   location: string;
@@ -148,15 +166,23 @@ export function worldRoute(fromId: string, toId: string): Leg[] | null {
   };
   if (from.location === to.location) return add(fromId, toId) ? legs : null;
 
-  const out = DOORS.get(from.location);
-  const inn = DOORS.get(to.location);
-  if (out && !add(fromId, out.exit)) return null;
-  const start = out ? out.entrance : fromId;
-  const end = inn ? inn.entrance : toId;
-  if (POINTS.get(start)?.location !== POINTS.get(end)?.location) return null;
-  if (!add(start, end)) return null;
-  if (inn && !add(inn.exit, toId)) return null;
-  return legs;
+  // Sale puerta a puerta hasta el sitio que comparten (la calle, o el gimnasio de un anexo) y entra puerta a puerta.
+  const up = outward(from.location);
+  const down = outward(to.location);
+  const common = up.find((l) => down.includes(l));
+  if (!common) return null;
+  let at = fromId;
+  for (const loc of up.slice(0, up.indexOf(common))) {
+    const door = DOORS.get(loc)!;
+    if (!add(at, door.exit)) return null;
+    at = door.entrance;
+  }
+  for (const loc of down.slice(0, down.indexOf(common)).reverse()) {
+    const door = DOORS.get(loc)!;
+    if (!add(at, door.entrance)) return null;
+    at = door.exit;
+  }
+  return add(at, toId) ? legs : null;
 }
 
 /** Camino por tiles dentro de una localización, entre dos tiles cualesquiera. */

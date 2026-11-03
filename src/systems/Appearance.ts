@@ -113,8 +113,10 @@ export function withUniform(base: HumanColors, uniform: NpcLook | null): HumanCo
     sleeveLen: undefined,
     trousers: uniform.trousers ?? base.trousers,
     badge: uniform.badge,
-    // Sin corte personal, Garments no vuelve a vestir el chaleco con capucha, abrigo o pantalón corto.
-    outfit: uniform.outfit,
+    // Sin corte personal, Garments no vuelve a vestir el chaleco con capucha, abrigo o pantalón corto. Con cinturón
+    // (dobok, world/HumanArt), sin prenda encima que lo tape.
+    outfit: uniform.belt ? undefined : uniform.outfit,
+    belt: uniform.belt,
     ink: [],
   };
 }

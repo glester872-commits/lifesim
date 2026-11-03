@@ -9,14 +9,26 @@
  * menos: una tarde de gimnasio no cambia a nadie, hacen falta semanas.
  */
 
+import { getAcademy } from '../data/academies.ts';
 import { getStation } from '../data/stations.ts';
+import { classSlot, covered, holdsClass, NO_MEMBERSHIP, parseMembership, type Membership } from './Academy.ts';
+import { parseTkd, type TkdProgress } from './Taekwondo.ts';
+import { parseEntries, parseRecords, type Entry, type FightRecord } from './Tournaments.ts';
 
 export type Intensity = 'soft' | 'normal' | 'hard';
 export type WorkoutKind = 'cardio' | 'strength' | 'mobility';
 
 export interface Fitness {
-  /** Técnica de boxeo; ausente en guardados antiguos equivale a cero. */
-  boxing?: number;
+  /** Técnica de cada disciplina (data/academies.ts), de 0 a 100; sin entrada, cero. Los guardados de antes traían `boxing`. */
+  skills?: Record<string, number>;
+  /** La ficha en cada academia: bono y última clase pagada (systems/Academy). */
+  academies?: Record<string, Membership>;
+  /** Taekwondo (systems/Taekwondo): coordinación, flexibilidad, equilibrio, cinturón y asistencia. */
+  taekwondo?: TkdProgress;
+  /** Torneo de cada disciplina (systems/Tournaments): el de su día y la fase a la que se llegó. */
+  tournaments?: Partial<Record<'taekwondo' | 'boxing', Entry>>;
+  /** Combates hechos, ganados y títulos, por disciplina. */
+  fights?: Partial<Record<'taekwondo' | 'boxing', FightRecord>>;
   /** Forma general, de 0 a 100. */
   fitness: number;
   /** Fuerza (pesas). */
@@ -43,6 +55,17 @@ export const KIND_OF: Readonly<Record<string, WorkoutKind>> = {
   'boxing-bag': 'strength',
   'boxing-coordination': 'cardio',
   'boxing-resistance': 'cardio',
+  'mma-bag': 'strength',
+  'mma-ground': 'strength',
+  'mma-footwork': 'cardio',
+  'tkd-kicks-front': 'cardio',
+  'tkd-kicks-round': 'cardio',
+  'tkd-kicks-side': 'cardio',
+  'tkd-forms': 'mobility',
+  'tkd-stretch': 'mobility',
+  'dance-steps': 'cardio',
+  'dance-choreo': 'cardio',
+  'dance-stretch': 'mobility',
   treadmill: 'cardio',
   bike: 'cardio',
   rower: 'cardio',
@@ -106,7 +129,11 @@ export interface Quote {
 }
 
 /** Cuánto dura y cuánta energía cuesta, con el cansancio de ahora; y si hoy se puede. */
-export function quote(f: Fitness, station: string, intensity: Intensity, energy: number, context?: { money: number; hour: number; minute: number }): Quote {
+/**
+ * `context.at`: minuto absoluto de ahora. Con él, una clase de academia ya pagada o con bono no pide dinero (systems/Academy);
+ * sin él, se pide el precio de la suelta.
+ */
+export function quote(f: Fitness, station: string, intensity: Intensity, energy: number, context?: { money: number; hour: number; minute: number; at?: number }): Quote {
   const kind = KIND_OF[station];
   const i = INTENSITIES[intensity];
   const scale = KIND_SCALE[kind ?? 'cardio'];
@@ -117,18 +144,33 @@ export function quote(f: Fitness, station: string, intensity: Intensity, energy:
   if (!kind) blocked = 'Aquí no se entrena.';
   else if (energy < cost) blocked = 'No tienes fuerzas para tanto.';
   else if (intensity === 'hard' && f.fatigue >= 85) blocked = 'Estás muy cansado: algo más suave.';
-  const training = getStation(station)?.training;
+  const academy = getAcademy(getStation(station)?.training?.academy ?? '');
   let wait = 0;
-  if (training && context) {
+  let fee = academy?.fee ?? 0;
+  if (academy && context) {
+    // Lo que ya impedía entrenar (energía, cansancio) antes de mirar el horario.
+    const before = blocked;
     const now = context.hour * 60 + context.minute;
-    const [open, close] = training.hours.map(h => h * 60);
-    const offset = ((now - open) % training.every + training.every) % training.every;
-    wait = now < open ? open - now : offset < training.grace ? 0 : training.every - offset;
+    const [open, close] = academy.hours.map(h => h * 60);
+    const offset = ((now - open) % academy.every + academy.every) % academy.every;
+    wait = now < open ? open - now : offset < academy.grace ? 0 : academy.every - offset;
     if (now >= close || now + wait + minutes > close) { blocked = 'No queda tiempo antes del cierre; vuelve mañana.'; wait = 0; }
     else if (wait > 0) blocked = 'La próxima sesión empieza en ' + wait + ' min. Puedes esperar aquí.';
-    if (context.money < training.fee) blocked = 'La sesión cuesta €' + training.fee + '; no te llega.';
+    // Ya pagada (esta misma clase) o con bono: no se paga otra vez. Pagada y aún en curso: se vuelve a ella ya, sin
+    // esperar a la siguiente (la reserva vale hasta que empieza otra).
+    const m = f.academies?.[academy.id] ?? NO_MEMBERSHIP;
+    const held = context.at !== undefined && holdsClass(academy, m, context.at);
+    if (held) {
+      blocked = before;
+      wait = 0;
+    }
+    const slot = context.at === undefined ? null : classSlot(academy, context.at);
+    // Con la cuota del mes, tampoco (el día sale del minuto absoluto, como en systems/Academy.charge).
+    const plan = context.at !== undefined && covered(m, Math.floor(context.at / 1440) + 1);
+    if (held || plan || (slot !== null && m.pass > 0)) fee = 0;
+    if (context.money < fee) blocked = 'La sesión cuesta €' + fee + '; no te llega.';
   }
-  return { minutes, energy: cost, blocked, fee: training?.fee ?? 0, wait };
+  return { minutes, energy: cost, blocked, fee, wait };
 }
 
 export interface Outcome {
@@ -161,9 +203,16 @@ export function train(f0: Fitness, station: string, intensity: Intensity, fracti
     fatigue: round2(FATIGUE[kind] * i.fatigue * fraction),
   };
   const counts = fraction >= 0.5;
-  const boxing = f.boxing ?? 0;
+  // La técnica de la disciplina, si el puesto es de una academia: también cuesta más cuanto más alta, y con el límite del día.
+  const academy = getStation(station)?.training?.academy;
+  const skill = academy ? (f.skills?.[academy] ?? 0) : 0;
+  const skills = academy ? { ...f.skills, [academy]: round2(clamp(skill + 0.8 * k * room(skill))) } : f.skills;
   const next: Fitness = {
-    ...(station.startsWith('boxing-') ? { boxing: round2(clamp(boxing + 0.8 * k * room(boxing))) } : f.boxing === undefined ? {} : { boxing }),
+    ...(skills ? { skills } : {}),
+    ...(f.academies ? { academies: f.academies } : {}),
+    ...(f.taekwondo ? { taekwondo: f.taekwondo } : {}),
+    ...(f.tournaments ? { tournaments: f.tournaments } : {}),
+    ...(f.fights ? { fights: f.fights } : {}),
     fitness: round2(clamp(f.fitness + delta.fitness)),
     strength: round2(clamp(f.strength + delta.strength)),
     stamina: round2(clamp(f.stamina + delta.stamina)),
@@ -219,13 +268,15 @@ const word = (v: number): string => (v < 20 ? 'baja' : v < 40 ? 'regular' : v < 
 /** Una línea para el menú: cómo está cada cosa. */
 export function summary(f: Fitness): string {
   const tired = f.fatigue < 15 ? 'descansado' : f.fatigue < 40 ? 'algo cansado' : f.fatigue < 70 ? 'cansado' : 'agotado';
-  return `Forma ${word(f.fitness)} · fuerza ${word(f.strength)} · resistencia ${word(f.stamina)} · ${tired}.${f.boxing === undefined ? '' : ` Técnica de boxeo ${f.boxing.toFixed(1)}/100.`}`;
+  const skills = Object.entries(f.skills ?? {}).map(([id, v]) => ` ${getAcademy(id)?.skill ?? id} ${v.toFixed(1)}/100.`).join('');
+  return `Forma ${word(f.fitness)} · fuerza ${word(f.strength)} · resistencia ${word(f.stamina)} · ${tired}.${skills}`;
 }
 
 /** Lo que se nota al acabar, en una frase: sólo si ha cambiado algo. */
 export function afterLine(delta: Outcome['delta'], station: string): string {
   const kind = KIND_OF[station];
-  if (station.startsWith('boxing-')) return 'Inés asiente: mejor equilibrio y manos de vuelta a la guardia. La técnica mejora con práctica y descanso.';
+  const academy = getAcademy(getStation(station)?.training?.academy ?? '');
+  if (academy) return academy.lines.after;
   if (kind === 'mobility') return 'Sales más suelto: se te ha ido parte del cansancio.';
   if (delta.stamina > 0.05 && delta.strength <= 0.05) return 'Notas el corazón y los pulmones trabajados.';
   if (delta.strength > 0.05) return 'Los músculos te piden descanso: buen trabajo.';
@@ -234,12 +285,32 @@ export function afterLine(delta: Outcome['delta'], station: string): string {
 
 const num = (v: unknown, fallback: number, lo = 0, hi = 100): number => (typeof v === 'number' && Number.isFinite(v) ? clamp(v, lo, hi) : fallback);
 
+/** La técnica guardada; un guardado de antes de las academias traía sólo `boxing` y pasa a skills.boxing. */
+function parseSkills(v: Record<string, unknown>): Pick<Fitness, 'skills'> {
+  const raw = typeof v.skills === 'object' && v.skills !== null ? (v.skills as Record<string, unknown>) : {};
+  const skills: Record<string, number> = {};
+  for (const [id, x] of Object.entries(raw)) if (getAcademy(id)) skills[id] = num(x, 0);
+  if (v.boxing !== undefined && skills.boxing === undefined) skills.boxing = num(v.boxing, 0);
+  return Object.keys(skills).length ? { skills } : {};
+}
+
+function parseAcademies(v: unknown): Pick<Fitness, 'academies'> {
+  if (typeof v !== 'object' || v === null) return {};
+  const academies: Record<string, Membership> = {};
+  for (const [id, m] of Object.entries(v)) if (getAcademy(id)) academies[id] = parseMembership(m);
+  return Object.keys(academies).length ? { academies } : {};
+}
+
 /** Lee lo guardado: partidas anteriores no lo tienen (se empieza de cero) y un campo mal formado se repone, no rompe la carga. */
 export function parseFitness(value: unknown): Fitness {
   if (typeof value !== 'object' || value === null) return { ...START_FITNESS };
   const v = value as Record<string, unknown>;
   return {
-    ...(v.boxing === undefined ? {} : { boxing: num(v.boxing, 0) }),
+    ...parseSkills(v),
+    ...parseAcademies(v.academies),
+    ...(parseTkd(v.taekwondo) ? { taekwondo: parseTkd(v.taekwondo) } : {}),
+    ...(parseEntries(v.tournaments) ? { tournaments: parseEntries(v.tournaments) } : {}),
+    ...(parseRecords(v.fights) ? { fights: parseRecords(v.fights) } : {}),
     fitness: num(v.fitness, START_FITNESS.fitness),
     strength: num(v.strength, START_FITNESS.strength),
     stamina: num(v.stamina, START_FITNESS.stamina),

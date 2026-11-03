@@ -36,6 +36,8 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   M: { key: 'tile-metro', solid: true, variants: 2 },
   z: { key: 'tile-crosswalk', solid: false, variants: 1 },
   m: { key: 'tile-gym-floor', solid: false, variants: 2 },
+  // Tatami del dojang (world/DojangArt.ts): placas de goma en damero.
+  Q: { key: 'tile-tatami', solid: false, variants: 2 },
   k: { key: 'tile-court', solid: false, variants: 2 },
   '=': { key: 'tile-asphalt-centre', solid: false, variants: 1 },
   // Carril bici pintado en la calzada, junto al bordillo: lo pinta world/Surfaces con el asfalto.
@@ -134,6 +136,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'boxing-post': { key: 'prop-boxing-post', tilesHigh: 2 },
   'boxing-rack': { key: 'prop-boxing-rack', tilesHigh: 2, tilesWide: 3 },
   'boxing-sign': { key: 'prop-boxing-sign', tilesHigh: 1, tilesWide: 5 },
+  // Dojang (world/DojangArt.ts): el pao de pie al que se patea (sólido) y el rótulo de la sala.
+  'kick-pad': { key: 'prop-kick-pad', tilesHigh: 2, shadow: [10, 4] },
+  'dojang-sign': { key: 'prop-dojang-sign', tilesHigh: 1, tilesWide: 4 },
   // El plátano de sombra: la copa desborda su tile y tapa a quien pasa por detrás.
   tree: { key: 'prop-tree', tilesHigh: 4, variants: 4, shadow: [14, 5], cast: 12, castBlob: [40, 14] },
   bush: { key: 'prop-bush', tilesHigh: 1 },

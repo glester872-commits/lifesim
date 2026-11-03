@@ -42,6 +42,50 @@ import { STATIONS, getStation, type StationId } from '../data/stations';
 import { COURTS, type ShootingSpot } from '../data/courts';
 import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } from '../systems/Basketball';
 import { KIND_OF, afterLine, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
+import { ACADEMIES, getAcademy } from '../data/academies';
+import { charge, NO_MEMBERSHIP, settlePlan } from '../systems/Academy';
+import { formatDate } from '../systems/Calendar';
+import { applyDrill, BELTS, coachLines, createDrill, drillDone, EXAM_PASS, kickPhase, kickTotal, PUNCH_OF, START_TKD, startKick, stepDrill, summarize, type Drill, type Kick, type Strike } from '../systems/Taekwondo';
+import { kickPose } from '../world/HumanArt';
+import { createBout, stepBout, MOVES, STYLE_MOVES, type Bout, type MoveId, type Style } from '../systems/Sparring';
+import { afterBout, register, rivalFor, status as tournamentStatus, TOURNAMENTS, NO_RECORD, type Entry } from '../systems/Tournaments';
+import { SparringView, sparPose } from '../world/SparringView';
+
+/** La clase de patadas en curso (systems/Taekwondo): el reloj de la clase, la patada elegida y la distancia al pao. */
+interface KickState {
+  drill: Drill;
+  /** time de Phaser al empezar (en guardia, en su sitio); 0 mientras va hacia el puesto. */
+  t0: number;
+  /**
+   * El reloj de la clase (ms): suma pasos cortos (KICK_MAX_STEP) y sólo con el juego en marcha. En pausa o con la
+   * pestaña oculta no avanza, y al volver no salta: las órdenes no se pasan solas ni se acumulan.
+   */
+  t: number;
+  last: number;
+  hud: number;
+  /** Tiles hacia el pao (+) o alejándose (−) desde el puesto. */
+  offset: number;
+  kick: Strike;
+  dir: 1 | -1;
+  /** Hacia el blanco (un paso adelante) y a cuántos tiles empieza. */
+  axis: { x: number; y: number };
+  base: number;
+  facing: Facing;
+  pad: { tx: number; ty: number } | null;
+}
+
+/** Un paso adelante en cada orientación. */
+const FACING_AXIS: Readonly<Record<Facing, { x: number; y: number }>> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+/** Las teclas de adelante y atrás según hacia dónde se mira. */
+const FORE_KEYS: Readonly<Record<Facing, readonly [string, string]>> = { up: ['up', 'upAlt'], down: ['down', 'downAlt'], left: ['left', 'leftAlt'], right: ['right', 'rightAlt'] };
+const BACK_OF: Readonly<Record<Facing, Facing>> = { up: 'down', down: 'up', left: 'right', right: 'left' };
+/** En el saco: poco hacia delante (está ahí mismo) y algo más hacia atrás. */
+const PUNCH_STEP = { fore: 0.35, back: 0.8, speed: 1.6 } as const;
+
+/** Cuánto puede acercarse y alejarse del pao (tiles) y a qué paso (tiles por segundo). */
+const KICK_STEP = { fore: 1.2, back: 0.8, speed: 1.6 } as const;
+/** Lo más que avanza la clase en un fotograma (ms): tras una pausa o una pestaña oculta, un paso normal y no un salto. */
+const KICK_MAX_STEP = 50;
 import { NPC } from '../entities/NPC';
 import { Walker } from '../entities/Walker';
 import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
@@ -459,7 +503,11 @@ export class WorldScene extends Phaser.Scene {
     cue: { text: string; until: number } | null;
     hintAt: number;
   } | null = null;
-  private workout: { point: string; station: StationId; intensity: Intensity; minutes: number; startMinute: number; from: Vec2; releasing: boolean; hintAt: number } | null = null;
+  private academyFramed = false;
+  /** El ring reservado para un combate (puestos de dentro), hasta `until` (minuto absoluto) o hasta acabar el combate. */
+  private ringHold: { location: string; until: number; points: Set<string> } | null = null;
+  private spar: { bout: Bout; selected: MoveId; view: SparringView | null; entry?: Entry; ready: boolean; from: Vec2; opponent: string; style: Style; last: number; hud: number; releasing: boolean } | null = null;
+  private workout: { point: string; station: StationId; intensity: Intensity; minutes: number; startMinute: number; from: Vec2; releasing: boolean; hintAt: number; mates: Set<string>; kicks?: KickState } | null = null;
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
   /** Compras, bolsa, destino del tren y sitios sin mapa. */
@@ -617,7 +665,14 @@ export class WorldScene extends Phaser.Scene {
       this.interactables.push({ kind: 'seat', x: seat.tx * TILE + TILE / 2, y: seat.ty * TILE + TILE / 2, seat });
     }
     this.menus = new Menus(this.services, {
-      trainAt: (point) => { const target = this.interactables.find(t => t.kind === 'station' && t.point === point); if (target?.kind === 'station') this.openTraining(target); },
+      // Si ese puesto está ocupado, otro libre del mismo ejercicio (los tres sacos de la academia); si no hay, se dice.
+      trainAt: (point) => {
+        const target = this.interactables.find(t => t.kind === 'station' && t.point === point);
+        if (target?.kind !== 'station') return;
+        const free = this.interactables.find(t => t.kind === 'station' && t.station === target.station && !this.stationBusy(t.point));
+        this.openTraining(free?.kind === 'station' ? free : target);
+      },
+      fight: (style, tournament) => this.startSpar(style, tournament),
       canBoard: (locationId) => !this.leaving && this.services.state.locationId === locationId && !!this.metro?.train.doorsOpen,
       persist: () => this.persist(),
       arriveByTrain: (locationId, minutes) => this.arriveByTrain(locationId, minutes),
@@ -859,6 +914,7 @@ export class WorldScene extends Phaser.Scene {
       this.services.input.releaseAll();
       this.services.input.setContext({ action: null, back: false, busy: false });
       // Si se cambia de escena entrenando, lo hecho hasta ahora cuenta y el puesto se suelta.
+      this.destroySpar();
       this.abortTraining();
       this.destroyCourt();
       this.services.hint.hide();
@@ -884,6 +940,9 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private dressedAt = 0;
+  /** El último día en que se miraron las cuotas mensuales, y lo que hay que contar de ellas cuando nada esté abierto. */
+  private plansDay = -1;
+  private planNews: string[] = [];
 
   /**
    * En el lugar de trabajo (LocationDef.workplace) con el turno abierto (systems/Jobs.onShift), el uniforme del empleo
@@ -895,13 +954,17 @@ export class WorldScene extends Phaser.Scene {
     const place = getLocation(state.locationId).workplace;
     const job = place ? jobDef(place) : null;
     const wearing = job?.uniform && onShift(state.job, job.id, state.day, Math.floor(this.absMinute())) ? (UNIFORM_LOOKS.find((l) => l.id === job.uniform) ?? null) : null;
-    setPlayerUniform(this, wearing, state.appearanceOf('player'));
+    // En el dojang, el dobok con el cinturón de su grado (systems/Taekwondo): al aprobar un examen, cambia ahí mismo.
+    const dobok = state.locationId === getAcademy('taekwondo')?.location ? (UNIFORM_LOOKS.find((l) => l.id === `dobok-${BELTS[state.fitness.taekwondo?.belt ?? 0].name}`) ?? null) : null;
+    setPlayerUniform(this, wearing ?? dobok, state.appearanceOf('player'));
   }
 
   update(time: number, delta: number): void {
     this.frameStart = performance.now();
     const { clock, dialogue, menu, map, input, phone } = this.services;
     input.beginFrame();
+    // El combate reserva la sala: no nacen ni atraviesan el tatami otros alumnos. Sus dos minutos se liquidan al entrar.
+    if (this.spar) { this.updateSpar(time, delta); return; }
     // El destino ya está confirmado: durante el fundido el mapa anterior no puede pisar su posición ni su reloj.
     if (this.leaving) { this.player.halt(); return; }
     // La sala online, cada fotograma: los demás se mueven y lo propio sale como mucho 10 veces por segundo.
@@ -910,6 +973,11 @@ export class WorldScene extends Phaser.Scene {
       this.dressedAt = time;
       this.dressForWork();
     }
+    if (this.plansDay !== this.services.state.day) {
+      this.plansDay = this.services.state.day;
+      this.settlePlans();
+    }
+    if (this.planNews.length && !dialogue.isOpen && !menu.isOpen && !this.workout) dialogue.start('Cuotas', this.planNews.splice(0));
     this.updateSound(time);
     this.matchView?.update(this.absMinute(), time);
     this.updateStand(time);
@@ -1195,6 +1263,7 @@ export class WorldScene extends Phaser.Scene {
       boundsWidth,
       boundsHeight + above,
     );
+    if (this.academyFramed) camera.useBounds = false;
   }
 
   /** Lo que tapan arriba el HUD y los botones de las esquinas (ui/HUD.topInset), en píxeles de mundo, con un margen. */
@@ -1229,6 +1298,10 @@ export class WorldScene extends Phaser.Scene {
       nine: Phaser.Input.Keyboard.KeyCodes.NINE,
       cancel: Phaser.Input.Keyboard.KeyCodes.ESC,
       cancelAlt: Phaser.Input.Keyboard.KeyCodes.Q,
+      // Taekwondo (ui/KickDrill): patada con la pierna izquierda y con la derecha.
+      guard: Phaser.Input.Keyboard.KeyCodes.L,
+      kickLeft: Phaser.Input.Keyboard.KeyCodes.J,
+      kickRight: Phaser.Input.Keyboard.KeyCodes.K,
       bag: Phaser.Input.Keyboard.KeyCodes.I,
       map: Phaser.Input.Keyboard.KeyCodes.M,
       phone: Phaser.Input.Keyboard.KeyCodes.P,
@@ -1322,6 +1395,8 @@ export class WorldScene extends Phaser.Scene {
     // El puesto de quien entrena es suyo: la gente del gimnasio no lo coge (y quien estuviera, ya se ha ido).
     if (this.workout) claimed.add(this.workout.point);
     if (this.court) claimed.add(this.court.point);
+    // El ring reservado para un combate (startSpar): ningún alumno coge sus puestos.
+    if (this.ringHold && this.ringHold.location === this.services.state.locationId && (this.spar || this.ringHold.until >= this.absMinute())) for (const p of this.ringHold.points) claimed.add(p);
     // En un recinto con entrada, el asiento de la entrada del jugador (systems/Tickets): nadie de la grada lo coge.
     const ticketSeat = this.ticketSeat();
     if (ticketSeat) claimed.add(ticketSeat);
@@ -2167,6 +2242,158 @@ export class WorldScene extends Phaser.Scene {
     return this.crowd?.service ?? this.street?.serviceAt(seat) ?? null;
   }
 
+  /** Encuadra cuerpos y blancos en la franja entre HUD y panel, sin cambiar la escala del mundo. Sólo al refrescar UI. */
+  private frameAcademyPanel(panelTop: number, midpointX: number): void {
+    const cam = this.cameras.main;
+    const canvas = this.game.canvas.getBoundingClientRect();
+    const top = Math.max(canvas.top + 16, this.services.hud.topInset() + 8);
+    const bottom = Math.max(top + 48, panelTop - 8);
+    const ratio = cam.height / Math.max(1, canvas.height);
+    const feet = Math.min(bottom - 8, (top + bottom) / 2 + 12 * cam.zoom / ratio);
+    const offset = ((feet - canvas.top) * ratio - cam.height / 2) / cam.zoom;
+    this.academyFramed = true;
+    cam.useBounds = false;
+    cam.setFollowOffset(this.player.x - midpointX, offset);
+    cam.centerOn(midpointX, this.player.y - offset);
+  }
+
+  private restoreAcademyFrame(): void {
+    if (!this.academyFramed) return;
+    this.academyFramed = false;
+    this.cameras.main.setFollowOffset(0, CAMERA_LOOK_UP);
+    this.fitCamera();
+  }
+
+  /** Admisión atómica: ruta y espacio antes del cobro; torneo interrumpido queda perdido en el guardado. */
+  private startSpar(style: Style, tournament: boolean): void {
+    const { state, dialogue, clock } = this.services;
+    const a = getAcademy(style)!;
+    const zone = a.spar;
+    if (!zone || state.locationId !== a.location || this.spar || this.workout || this.court || this.player.isBusyTraining) return;
+    const fail = (message: string): void => { dialogue.start(a.name, [message]); };
+    if (state.energy < 15 || state.fitness.fatigue >= 85) return fail('Descansa primero: hace falta energía 15 y cansancio menor de 85.');
+    if (state.hour < a.hours[0] || state.hour >= a.hours[1]) return fail('La academia está cerrada.');
+    const loc = getLocation(a.location);
+    const path = tilePath(loc, this.playerTile(), { tx: zone.tx, ty: zone.ty });
+    if (!path || !Array.from({length: 6}, (_, i) => isWalkable(loc, zone.tx - 1 + i, zone.ty)).every(Boolean)) return fail('No hay ruta libre al espacio de combate.');
+    // El ring se reserva entero para los dos: sus puestos quedan cogidos (placeCharacters) y quien esté dentro se va. Si aún
+    // hay alguien, se espera a que salga; la reserva dura unos minutos o hasta acabar el combate.
+    if (a.ring) {
+      const r = a.ring;
+      const inRing = (tx: number, ty: number): boolean => tx >= r.tx && tx < r.tx + r.w && ty >= r.ty && ty < r.ty + r.h;
+      this.ringHold = { location: a.location, until: this.absMinute() + 10, points: new Set(Object.entries(loc.points ?? {}).filter(([, p]) => inRing(p.tx, p.ty)).map(([id]) => id)) };
+      this.placeCharacters(0);
+      if (this.crowd?.agents.some(g => inRing(Math.round(g.x), Math.round(g.y))) || this.characters.some(c => c.sprite.visible && inRing(Math.floor(c.sprite.x / TILE), Math.floor(c.sprite.y / TILE) - 1))) return fail('Despejamos el ring para vosotros: en cuanto salgan los que están dentro, pídelo otra vez.');
+    }
+    const inside = (x: number, y: number): boolean => Math.abs(y / TILE - (zone.ty + 1)) < 0.8 && x / TILE >= zone.tx - 1 && x / TILE <= zone.tx + 4.8;
+    if (this.crowd?.agents.some(a => inside((a.x + 0.5) * TILE, (a.y + 1) * TILE)) || this.characters.some(c => c.sprite.visible && inside(c.sprite.x, c.sprite.y))) return fail('Espera a que quede libre el espacio de combate.');
+    let entry: Entry | undefined;
+    let opponent = 'Compañero de práctica';
+    // El compañero: su nivel base (data/academies.ts spar.level) más lo que tú hayas progresado.
+    let level = Math.min(0.65, (zone.level ?? 0.15) + (state.fitness.skills?.[style] ?? 0) / 100);
+    let look = zone.look;
+    if (tournament) {
+      const def = TOURNAMENTS[style];
+      let e = state.fitness.tournaments?.[style];
+      const s = tournamentStatus(def, e, state.day, state.hour * 60 + state.minute, state.fitness.skills?.[style] ?? 0);
+      if (!s.can) return fail(s.reason);
+      if (s.can === 'register') {
+        const r = register(def, e, state.money, state.day, state.hour * 60 + state.minute, state.fitness.skills?.[style] ?? 0);
+        if (!r.ok) return fail(r.message);
+        state.as('Inscripción · ' + def.name, () => { state.money = r.money; });
+        e = r.entry;
+      }
+      if (!e) return;
+      entry = { ...e };
+      const rival = rivalFor(def, e)!;
+      opponent = rival.name; level = rival.level; look = rival.look;
+      state.fitness = { ...state.fitness, tournaments: { ...state.fitness.tournaments, [style]: { day: e.day, stage: 'out' } } };
+    } else {
+      const r = charge(a, state.fitness.academies?.[style] ?? NO_MEMBERSHIP, state.money, this.absMinute());
+      if (!r.ok) return fail(r.message);
+      state.as('Clase · ' + a.name, () => { state.money = r.money; });
+      state.fitness = { ...state.fitness, academies: { ...state.fitness.academies, [style]: r.membership } };
+    }
+    const from = { x: this.player.x, y: this.player.y };
+    clock.advanceMinutes(2);
+    state.energy -= 2;
+    this.syncState(); this.persist();
+    const bout = createBout(style, level, hashSeed(style, state.day, this.absMinute()));
+    const spar = { bout, selected: STYLE_MOVES[style][0]!, view: null as SparringView | null, entry, ready: false, from, opponent, style, last: this.time.now, hud: 0, releasing: false };
+    this.spar = spar;
+    this.services.input.releaseAll();
+    this.player.startTraining(zone.tx * TILE + TILE / 2, (zone.ty + 1) * TILE, 'right', 'boxing-guard', false, false,
+      path.map(p => ({ x: p.tx * TILE + TILE / 2, y: (p.ty + 1) * TILE })), () => {
+        if (this.spar !== spar) return;
+        spar.view = new SparringView(this, zone.tx, zone.ty, look);
+        spar.ready = true; spar.last = this.time.now;
+        this.services.sparPanel.open(a.name + ' · ' + opponent, bout);
+      });
+  }
+
+  private updateSpar(time: number, delta: number): void {
+    const s = this.spar;
+    if (!s || !s.ready || s.releasing) return;
+    this.services.input.setContext({ action: null, back: false, busy: false });
+    this.prompt.setVisible(false);
+    const dt = Math.min(50, Math.max(0, delta));
+    s.last = time;
+    if (this.services.clock.isPaused || document.hidden) return;
+    for (const [i, key] of ['one', 'two', 'three'].entries()) if (this.pressedAny([key])) s.selected = STYLE_MOVES[s.style][i]!;
+    const side = this.pressedAny(['kickLeft']) ? 'L' : this.pressedAny(['kickRight']) ? 'R' : null;
+    const fore = this.heldAny('kickFore', 'right', 'rightAlt');
+    const back = this.heldAny('kickBack', 'left', 'leftAlt');
+    const events = stepBout(s.bout, dt, { move: fore === back ? 0 : fore ? 1 : -1, block: this.heldAny('guard'), attack: side && s.bout.p.energy + MOVES[s.selected].energy <= this.services.state.energy ? { id: s.selected, side } : null });
+    this.player.kickFrame(sparPose(s.bout.p, s.bout.t, true), Math.round(s.bout.p.x * TILE));
+    s.view?.render(s.bout);
+    for (const e of events) this.services.sparPanel.say(e.text, (e.kind === 'hit' && e.who === 'p') || (e.kind === 'blocked' && e.who === 'o'));
+    if (time - s.hud > 80) {
+      this.services.sparPanel.render(s.bout, s.opponent, s.selected);
+      this.frameAcademyPanel(this.services.sparPanel.top, this.player.x + (s.bout.o.x - s.bout.p.x) * TILE / 2);
+      this.services.hud.setClockMode('paused');
+      s.hud = time;
+    }
+    if (s.bout.ended) this.finishSpar(false);
+    else if (this.pressedAny(['cancel', 'cancelAlt'])) this.finishSpar(true);
+  }
+
+  private finishSpar(abandoned: boolean): void {
+    const s = this.spar;
+    if (!s || s.releasing) return;
+    s.releasing = true;
+    const { state } = this.services;
+    const won = !abandoned && s.bout.won === true;
+    const before = state.fitness.fights?.[s.style] ?? NO_RECORD;
+    const r = s.entry ? afterBout(TOURNAMENTS[s.style], s.entry, won, before) : null;
+    const record = r?.record ?? { ...before, bouts: before.bouts + 1, wins: before.wins + (won ? 1 : 0) };
+    state.fitness = { ...state.fitness, fatigue: Math.min(100, state.fitness.fatigue + 5), fights: { ...state.fitness.fights, [s.style]: record },
+      ...(r ? { tournaments: { ...state.fitness.tournaments, [s.style]: r.entry } } : {}) };
+    state.energy = Math.max(0, state.energy - s.bout.p.energy);
+    if (r?.prize) state.as('Premio · ' + TOURNAMENTS[s.style].name, () => { state.money += r.prize; });
+    const lines = [abandoned ? 'Abandonas el combate.' : (won ? 'Ganas' : 'Pierdes') + ' ' + s.bout.p.score + '–' + s.bout.o.score + ' (' + s.bout.how + ').',
+      'Golpes limpios: ' + s.bout.p.landed + '. Paradas: ' + s.bout.p.blocks + '.', ...(r ? [r.text] : [])];
+    this.persist();
+    this.restoreAcademyFrame();
+    this.services.sparPanel.close(); s.view?.destroy(); s.view = null;
+    this.services.input.releaseAll();
+    this.player.kickFrame(8, 0);
+    this.player.stopTraining(s.from.x, s.from.y, () => {
+      this.spar = null;
+      // Se suelta el ring: vuelve a ser de la clase.
+      this.ringHold = null;
+      this.placeCharacters(0);
+      this.persist();
+      this.services.dialogue.start(getAcademy(s.style)!.name, lines);
+    });
+  }
+
+  private destroySpar(): void {
+    this.restoreAcademyFrame();
+    this.spar?.view?.destroy();
+    this.spar = null;
+    this.services.sparPanel.close();
+  }
+
   /** Si alguien tiene ese puesto: quien lo usa, quien va de camino, un personaje con nombre o el propio jugador. */
   private stationBusy(point: string): boolean {
     return this.charactersOn.has(point) || this.workout?.point === point || this.court?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE') || (this.street?.isTaken(point) ?? false);
@@ -2180,29 +2407,60 @@ export class WorldScene extends Phaser.Scene {
       this.services.dialogue.start(STATIONS[target.station].name, ['Está ocupada. Cuando se libere, o prueba con otra.']);
       return;
     }
+    if (getStation(target.station)?.drill) {
+      this.menus.openKickClass(target.station, (exam) => this.startWorkout(target, 'normal', 30, exam));
+      return;
+    }
     this.menus.openTraining(target.station, (intensity, minutes) => this.startWorkout(target, intensity, minutes));
   }
 
   /** Reserva el puesto en el acto y echa a andar hacia él: desde aquí es del jugador. */
-  private startWorkout(target: Extract<Interactable, { kind: 'station' }>, intensity: Intensity, minutes: number): void {
+  private startWorkout(target: Extract<Interactable, { kind: 'station' }>, intensity: Intensity, minutes: number, exam = false): void {
     if (this.workout || this.stationBusy(target.point)) return;
     const def = getStation(target.station)!;
     const { state } = this.services;
-    const q = quote(settle(state.fitness, this.absMinute()), target.station, intensity, state.energy, { money: state.money, hour: state.hour, minute: state.minute });
+    const at = this.absMinute();
+    const q = quote(settle(state.fitness, at), target.station, intensity, state.energy, { money: state.money, hour: state.hour, minute: state.minute, at });
     if (q.blocked) { this.services.dialogue.start(def.name, [q.blocked]); return; }
     const loc = getLocation(state.locationId);
     const p = loc.points![target.point];
     const path = def.training ? tilePath(loc, this.playerTile(), p) : null;
     if (def.training && !path) { this.services.dialogue.start(def.name, ['No hay un camino libre hasta ese puesto.']); return; }
-    if (q.fee) state.as('Sesión · ' + def.name, () => { state.money -= q.fee; });
-    this.workout = { point: target.point, station: target.station, intensity, minutes, startMinute: this.absMinute(), from: { x: this.player.x, y: this.player.y }, releasing: false, hintAt: 0 };
-    if (q.fee) this.persist();
+    // Clase de academia (systems/Academy): ya pagada, del bono o pagando la suelta; una vez por clase, con la misma cartera.
+    const academy = getAcademy(def.training?.academy ?? '');
+    if (academy) {
+      const c = charge(academy, state.fitness.academies?.[academy.id] ?? NO_MEMBERSHIP, state.money, at);
+      if (!c.ok) { this.services.dialogue.start(def.name, [c.message]); return; }
+      if (c.via === 'fee') state.as('Sesión · ' + def.name, () => { state.money = c.money; });
+      state.fitness = { ...state.fitness, academies: { ...state.fitness.academies, [academy.id]: c.membership } };
+    }
+    this.workout = { point: target.point, station: target.station, intensity, minutes, startMinute: this.absMinute(), from: { x: this.player.x, y: this.player.y }, releasing: false, hintAt: 0, mates: new Set() };
+    if (def.drill) {
+      // El blanco, en la dirección en que se mira: el pao a dos tiles (patadas) o el saco delante (golpes).
+      const kicks = def.drill === 'kicks';
+      const axis = FACING_AXIS[target.facing];
+      const base = kicks ? 2 : 1;
+      const pad = loc.props.find((pr) => pr.kind === (kicks ? 'kick-pad' : 'boxing-bag') && pr.tx === p.tx + base * axis.x && pr.ty === p.ty + base * axis.y) ?? null;
+      const level = Math.floor((state.fitness.skills?.[def.training!.academy] ?? 0) / 4);
+      this.workout.kicks = { drill: createDrill(hashSeed('kicks', state.day, at), level, exam, kicks ? 'kicks' : 'punches'), t0: 0, t: 0, last: 0, hud: 0, offset: 0, kick: kicks ? 'front' : 'jab', dir: target.facing === 'left' ? -1 : 1, axis, base, facing: target.facing, pad };
+    }
+    if (academy) this.persist();
     // La gente lo sabe ya: quien iba de camino a ese puesto lo cancela, sin esperar al siguiente fotograma.
     this.placeCharacters(0);
     this.prompt.setVisible(false);
     this.player.startTraining(p.tx * TILE + TILE / 2, p.ty * TILE + TILE, target.facing, def.motion, def.settle === 'sit', !!def.sets,
       path?.map(p => ({ x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE })),
-      () => { if (def.training && this.workout?.point === target.point) this.workout.startMinute = this.absMinute(); });
+      () => {
+        if (!def.training || this.workout?.point !== target.point) return;
+        this.workout.startMinute = this.absMinute();
+        // En su sitio y en guardia: empieza la cuenta de la instructora.
+        if (this.workout.kicks) {
+          this.workout.kicks.t0 = this.time.now;
+          this.workout.kicks.last = this.time.now;
+          const set = this.workout.kicks.drill.set;
+          this.services.kickDrill.open(this.workout.kicks.drill.exam ? `Examen de cinturón · ${STATIONS[target.station].name}` : `${set === 'punches' ? 'Clase de saco' : 'Clase de patadas'} · ${STATIONS[target.station].name}`, set);
+        }
+      });
   }
 
   /** Cada fotograma entrenando: el movimiento, lo que queda, y E o Esc para terminar. */
@@ -2212,6 +2470,10 @@ export class WorldScene extends Phaser.Scene {
     if (!w) return;
     // Bajando de la máquina (o yendo a ella): sólo se espera.
     if (w.releasing || !this.player.isTraining) return;
+    if (w.kicks) {
+      this.updateKicks(w, w.kicks, time);
+      return;
+    }
     const def = getStation(w.station)!;
     this.player.trainingFrame(time, def.sets ? { work: (def.sets.work[0] + def.sets.work[1]) / 2, rest: (def.sets.rest[0] + def.sets.rest[1]) / 2 } : undefined);
     const done = this.absMinute() - w.startMinute;
@@ -2221,8 +2483,143 @@ export class WorldScene extends Phaser.Scene {
       this.services.hint.show(`Entrenando · ${def.name} · quedan ${left} min · terminar`);
     }
     this.services.input.setContext({ action: 'Terminar', back: false, busy: false });
+    this.noteClassmates(w);
     if (done >= w.minutes) this.finishWorkout(1);
     else if (this.pressedAny(['interact', 'cancel', 'cancelAlt'])) this.finishWorkout(done / w.minutes);
+  }
+
+  /** Alguna de estas teclas mantenida (teclado, táctil o el botón del panel). */
+  private heldAny(...names: string[]): boolean {
+    return names.some((n) => this.held(n));
+  }
+
+  /**
+   * La clase de patadas, cada fotograma (systems/Taekwondo): elegir patada (1/2/3), patear con la izquierda (J) o la
+   * derecha (K), acercarse o alejarse del pao en guardia (A/D o ◀ ▶), y el contacto en su instante. El panel
+   * (ui/KickDrill) lo cuenta; el pao encaja el golpe cuando de verdad llega. Esc termina antes.
+   */
+  private updateKicks(w: NonNullable<typeof this.workout>, k: KickState, time: number): void {
+    if (!k.t0) return;
+    const dt = Math.max(0, Math.min(KICK_MAX_STEP, time - k.last));
+    k.last = time;
+    // Reloj del juego parado (pausa, mapa, una lectura): la clase espera con él.
+    if (this.services.clock.isPaused) return;
+    k.t += dt;
+    const t = k.t;
+    const { input } = this.services;
+    const punches = k.drill.set === 'punches';
+    if (!punches) {
+      if (this.pressedAny(['one'])) k.kick = 'front';
+      if (this.pressedAny(['two'])) k.kick = 'round';
+      if (this.pressedAny(['three'])) k.kick = 'side';
+    }
+    const kicking = k.drill.current !== null && t < k.drill.current.start + kickTotal(k.drill.current.kick);
+    // En guardia se ajusta la distancia; a mitad de golpe, no: el pie de apoyo no resbala.
+    const step = punches ? PUNCH_STEP : KICK_STEP;
+    if (!kicking) {
+      const fore = this.heldAny('kickFore', ...FORE_KEYS[k.facing]);
+      const back = this.heldAny('kickBack', ...FORE_KEYS[BACK_OF[k.facing]]);
+      k.offset = Math.min(step.fore, Math.max(-step.back, k.offset + ((fore ? 1 : 0) - (back ? 1 : 0)) * step.speed * dt / 1000));
+    }
+    // Una pulsación, un golpe (mantener no repite: JustDown). En el saco, la mano decide: jab la izquierda, directo la derecha.
+    const guard = punches && this.heldAny('guard');
+    for (const [key, side] of [['kickLeft', 'L'], ['kickRight', 'R']] as const) {
+      if (!this.pressedAny([key])) continue;
+      if (punches) k.kick = PUNCH_OF[side];
+      startKick(k.drill, k.kick, side, t);
+    }
+    // Distancia al blanco, en tiles.
+    const distance = k.base - k.offset;
+    const ev = stepDrill(k.drill, t, distance, guard);
+    if (ev) {
+      this.services.kickDrill.say(ev.text, ev.grade === 'perfect' || ev.grade === 'good');
+      if (ev.contact && k.drill.current) this.flashPad(k.pad, punches);
+    }
+    const cur = k.drill.current;
+    const phase = cur ? kickPhase(cur.kick, t - cur.start) : null;
+    const dx = Math.round(k.offset * TILE * k.axis.x);
+    const dy = Math.round(k.offset * TILE * k.axis.y);
+    if (punches) {
+      // Golpe: el guante de esa mano sale en la extensión y vuelve; de perfil, si es la de cerca, se estira el brazo.
+      const near = k.facing === 'right' ? 'R' : k.facing === 'left' ? 'L' : null;
+      const out = cur && phase === 'extend' ? cur.leg : null;
+      const glove = k.drill.guardSince >= 0 ? 'B' : out ?? 'G';
+      this.player.kickFrame(out && out === near ? 9 : 8, dx, dy, `fx-glove-${k.facing}-${glove}`);
+    } else {
+      const pose = cur && phase ? kickPose(phase === 'extend' ? (cur.kick as Kick) : 'chamber', (cur.leg === 'R') === (k.facing === 'right')) : 8;
+      this.player.kickFrame(pose, dx, dy);
+    }
+    if (time - k.hud > 80) {
+      k.hud = time;
+      this.frameAcademyPanel(this.services.kickDrill.top, k.pad ? (this.player.x + (k.pad.tx + 0.5) * TILE) / 2 : this.player.x);
+      this.services.kickDrill.render(k.drill, t, k.kick, distance);
+    }
+    // El panel lleva sus botones (también «Terminar»): el «Volver» táctil no se superpone.
+    input.setContext({ action: null, back: false, busy: true });
+    if (drillDone(k.drill, t)) this.finishKicks(w, k);
+    else if (this.pressedAny(['cancel', 'cancelAlt'])) this.finishKicks(w, k);
+  }
+
+  /** El pao encaja el golpe un instante: se va hacia atrás y salta el polvo de la goma (world/DojangArt). */
+  private flashPad(pad: KickState['pad'], bag = false): void {
+    if (!pad) return;
+    // El saco se mece un píxel con el golpe; el pao se echa atrás y suelta el polvo de la goma.
+    const img = this.add.image(pad.tx * TILE + TILE / 2 + (bag ? 1 : 0), (pad.ty + 1) * TILE, bag ? 'prop-boxing-bag' : 'prop-kick-pad-hit').setOrigin(0.5, 1).setDepth((pad.ty + 1) * TILE + 0.5);
+    this.time.delayedCall(170, () => img.destroy());
+  }
+
+  /**
+   * Acaba la clase de patadas (entera o cortada con Esc): se liquida una vez lo hecho (systems/Taekwondo.applyDrill y
+   * Fitness.train con lo bien hecho), se gasta la energía de las patadas dadas y la instructora dice lo que vio.
+   */
+  private finishKicks(w: NonNullable<typeof this.workout>, k: KickState): void {
+    if (w.releasing) return;
+    w.releasing = true;
+    this.restoreAcademyFrame();
+    this.services.kickDrill.close();
+    this.services.hint.hide();
+    const { state } = this.services;
+    const s = summarize(k.drill);
+    const out = train(state.fitness, w.station, 'normal', s.accuracy, this.absMinute(), state.day, state.energy);
+    if (k.drill.set === 'punches') {
+      // El saco (Doble Guardia): técnica de boxeo, forma y energía de los golpes dados; sin cinturones.
+      state.fitness = out.next;
+      state.energy = Math.max(0, state.energy - Math.round(k.drill.energy * 10) / 10);
+      this.persist();
+      const coachName = getAcademy('boxing')?.instructor ?? 'La entrenadora';
+      const lines = [
+        `Saco${s.done < 1 ? ' (cortado)' : ''}: ${s.perfect} limpios, ${s.good} buenos, ${s.wrong} con la mano o el golpe equivocado y ${s.missed} sin dar (${Math.round(s.accuracy * 100)}%).`,
+        ...coachLines(k.drill, s, coachName),
+        summary(out.next),
+      ];
+      this.player.kickFrame(8, 0);
+      this.player.stopTraining(w.from.x, w.from.y, () => {
+        this.workout = null;
+        this.services.input.setContext({ action: null, back: false, busy: false });
+        this.services.dialogue.start(STATIONS[w.station].name, lines);
+      });
+      return;
+    }
+    const technique = out.next.skills?.taekwondo ?? 0;
+    const slot = state.fitness.academies?.taekwondo?.paid ?? -1;
+    const p = applyDrill(state.fitness.taekwondo ?? START_TKD, k.drill, slot, state.day, technique);
+    state.fitness = { ...out.next, taekwondo: p.next };
+    state.energy = Math.max(0, state.energy - Math.round(k.drill.energy * 10) / 10);
+    this.persist();
+    const coach = getAcademy('taekwondo')?.instructor ?? 'La instructora';
+    const lines = [
+      `${k.drill.exam ? 'Examen' : 'Clase'} de patadas${s.done < 1 ? ' (cortada)' : ''}: ${s.perfect} limpias, ${s.good} buenas, ${s.wrong} con la pierna o la patada equivocada y ${s.missed} sin dar (${Math.round(s.accuracy * 100)}%).`,
+      ...coachLines(k.drill, s, coach),
+      `Técnica ${technique.toFixed(1)} · coordinación ${p.next.coordination.toFixed(1)} · flexibilidad ${p.next.flexibility.toFixed(1)} · equilibrio ${p.next.balance.toFixed(1)} · cinturón ${BELTS[p.next.belt].name} · ${p.next.attended} clases${p.counted ? ' (+1)' : ''}.`,
+    ];
+    if (p.promoted) lines.push(`${coach} te ata el cinturón ${p.promoted.name}. Aprobado.`);
+    else if (k.drill.exam) lines.push(`Examen no superado: hace falta un ${EXAM_PASS * 100}% y has hecho un ${Math.round(s.accuracy * 100)}%.`);
+    this.player.kickFrame(8, 0);
+    this.player.stopTraining(w.from.x, w.from.y, () => {
+      this.workout = null;
+      this.services.input.setContext({ action: null, back: false, busy: false });
+      this.services.dialogue.start(STATIONS[w.station].name, lines);
+    });
   }
 
   /** Acaba la sesión (entera o cortada): se aplica lo hecho, baja de la máquina y suelta el puesto. */
@@ -2240,15 +2637,52 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Compañeros de clase (systems/Social): quien entrena en un puesto de esta misma academia mientras dura la clase,
+   * aunque llegue tarde o se vaya antes (se anota en la clase, Workout.mates). Sólo personajes con nombre y voz.
+   */
+  private noteClassmates(w: NonNullable<typeof this.workout>): void {
+    const academy = getStation(w.station)?.training?.academy;
+    if (!academy) return;
+    const here = this.services.state.locationId;
+    const loc = getLocation(here);
+    for (const c of this.characters) {
+      const at = c.now;
+      const use = at && at.location === here && !at.inside && !at.moving ? loc.points?.[at.stop.point]?.use : undefined;
+      if (use && getStation(use)?.training?.academy === academy && NAMED_VOICES[c.def.npc]) w.mates.add(c.def.npc);
+    }
+  }
+
+  /**
+   * Al terminar la clase, con quien la ha compartido: cuenta como encuentro y, una vez al día por persona, suma un poco
+   * de amistad, como una charla corta. Devuelve lo que se dice de cada uno.
+   */
+  private classmates(w: NonNullable<typeof this.workout>): string[] {
+    this.noteClassmates(w);
+    const { state } = this.services;
+    const out: string[] = [];
+    for (const c of this.characters) {
+      if (!w.mates.has(c.def.npc)) continue;
+      const before = state.socialOf(c.def.npc);
+      const fresh = before.lastInteraction?.day !== state.day;
+      const met = noteSocialEncounter(fresh ? applyDelta(before, { friendship: 2, attraction: 0, trust: 1, romance: 0, mood: 2 }) : before, { day: state.day, hour: state.hour, minute: state.minute });
+      state.setSocialProfile(c.def.npc, met);
+      out.push(fresh ? `${c.sprite.def.name} ha entrenado a tu lado: «Buena clase. ¿Repetimos la semana que viene?»` : `${c.sprite.def.name} también estaba en clase.`);
+    }
+    return out;
+  }
+
   /** Lo que deja lo entrenado hasta ahora: forma física y energía (se guarda). Devuelve lo que se le dice al jugador. */
   private applyWorkout(w: NonNullable<typeof this.workout>, fraction: number): string[] {
     const { state } = this.services;
     const out = train(state.fitness, w.station, w.intensity, Math.min(1, Math.max(0, fraction)), this.absMinute(), state.day, state.energy);
     state.fitness = out.next;
     state.energy = state.energy - out.energy;
+    const mates = fraction >= 0.5 ? this.classmates(w) : [];
     this.persist();
     if (fraction < 0.25) return ['Lo dejas por hoy.'];
     const lead = fraction >= 0.99 ? 'Sesión terminada.' : 'Lo dejas a medias.';
+    if (mates.length) return [`${lead} ${afterLine(out.delta, w.station)}`, ...mates, summary(out.next)];
     return [`${lead} ${afterLine(out.delta, w.station)}`, summary(out.next)];
   }
 
@@ -2400,6 +2834,14 @@ export class WorldScene extends Phaser.Scene {
   private abortTraining(): void {
     const w = this.workout;
     if (!w) return;
+    // Una clase de patadas cortada de golpe no da nada: lo pagado sigue pagado (systems/Academy: esa misma clase no
+    // se cobra otra vez) y se puede volver a hacer mientras dure.
+    if (w.kicks) {
+      this.restoreAcademyFrame();
+      this.services.kickDrill.close();
+      this.workout = null;
+      return;
+    }
     const done = (this.absMinute() - w.startMinute) / w.minutes;
     if (!w.releasing && this.player.isTraining) this.applyWorkout(w, done);
     this.workout = null;
@@ -3927,6 +4369,27 @@ export class WorldScene extends Phaser.Scene {
     }
     const choices = ev.choices;
     dialogue.ask(speaker, ev.lines, choices.map((c) => c.label), (i) => settle(choices[i].id));
+  }
+
+/**
+   * Cuotas mensuales vencidas (systems/Academy.settlePlan): renovar las automáticas con saldo, dejar vencidas las demás, sin
+   * deuda. Al cambiar de día y al cargar; repetirlo no cobra otra vez (cada periodo tiene su ficha).
+   */
+  private settlePlans(): void {
+    const { state } = this.services;
+    let changed = false;
+    for (const a of Object.values(ACADEMIES)) {
+      const m = state.fitness.academies?.[a.id];
+      if (!a.monthly || !m?.plan) continue;
+      const r = settlePlan(a, m, state.money, state.day);
+      if (r.membership === m) continue;
+      changed = true;
+      if (r.money !== state.money) state.as(`Cuota mensual · ${a.name}`, () => { state.money = r.money; });
+      state.fitness = { ...state.fitness, academies: { ...state.fitness.academies, [a.id]: r.membership } };
+      for (const c of r.charged) this.planNews.push(`${a.name}: cuota renovada (${euros(c.amount)}), del ${formatDate(c.from, false)} al ${formatDate(c.until, false)}.`);
+      if (r.lapsed) this.planNews.push(`${a.name}: la cuota ha vencido${m.plan.auto ? ' y no había saldo para renovarla; no queda nada a deber' : ''}. Se renueva hablando con ${a.instructor}.`);
+    }
+    if (changed) this.persist();
   }
 
   private persist(): void {

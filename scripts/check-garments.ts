@@ -1,7 +1,7 @@
 // La ropa de verdad (world/Garments.ts) sólo pinta ropa: ni cara ni pelo ni piel cambian, y de perfil a la izquierda es
 // el espejo exacto de la derecha. Y una prenda de tienda cambia el corte que se pinta (systems/Appearance.ts). `npm run check`.
 import assert from 'node:assert/strict';
-import { dress, PART_ARM, PART_BOTTOM, PART_SHOE, PART_SKIN, PART_TOP } from '../src/world/Garments.ts';
+import { dress, markerColors, partOf, PART_ARM, PART_BOTTOM, PART_SHOE, PART_SKIN, PART_TOP } from '../src/world/Garments.ts';
 import { withAppearance } from '../src/systems/Appearance.ts';
 import type { Outfit } from '../src/data/outfits.ts';
 
@@ -67,3 +67,10 @@ const worn = withAppearance(base, { top: 'sudadera-archivo', bottom: 'vaquero-re
 assert.deepEqual([worn?.top, worn?.bottom, worn?.shoes], ['hoodie', 'jeans', 'boot']);
 assert.equal(withAppearance({ ...colors }, { top: 'sudadera-archivo' }).outfit, undefined, 'sin outfit de fábrica no se inventa uno');
 console.log(`check-garments: ${tops.length} cortes × 3 vistas sin tocar la piel, izquierda = espejo, compras → corte. OK`);
+
+// QA-08: un cinturón rojo/azul no se convierte en camiseta/pantalón durante el acabado de prendas.
+for (const belt of ['#f2efe6','#e8c33a','#3f8f4a','#2f5f9e','#b8323a','#141414']) {
+  const c=markerColors({cloth:'#fff',clothDark:'#ddd',skin:'#d3a17c',hair:'#222',trousers:'#eee',shoes:'#222',belt});
+  const n=Number.parseInt(c.belt!.slice(1),16);
+  assert.equal(partOf(n>>16,(n>>8)&255,n&255,255),0,'el cinturón no es una prenda que se pueda repintar');
+}

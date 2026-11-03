@@ -368,6 +368,9 @@ export function getNpc(id: string): NpcDef {
 export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'uniforme-sala', cloth: '#efe9df', clothDark: '#c9c1b4', hair: '#2a2430', trousers: '#232329' },
   { id: 'uniforme-gym', cloth: '#b8423a', clothDark: '#8e3029', hair: '#4a3b2f', trousers: '#232329' },
+  // Dobok de la Escuela de Taekwondo Vallesco, uno por cinturón (systems/Taekwondo BELTS, mismos colores): el jugador se
+  // pone el de su grado en el dojang (scenes/WorldScene.dressForWork); la instructora y el ayudante, el negro.
+  ...([['blanco', '#f2efe6'], ['amarillo', '#e8c33a'], ['verde', '#3f8f4a'], ['azul', '#2f5f9e'], ['rojo', '#b8323a'], ['negro', '#141414']] as const).map(([name, belt]) => ({ id: `dobok-${name}`, cloth: '#f2efe6', clothDark: '#d6d0c4', hair: '#2a2430', trousers: '#ece7dc', sleeves: '#f2efe6', belt })),
   { id: 'uniforme-tienda', cloth: '#2a2830', clothDark: '#1c1a20', hair: '#6b5a3f', trousers: '#3a3a44' },
   { id: 'uniforme-super', cloth: '#4f7d3a', clothDark: '#3b5e2b', hair: '#241d16', trousers: '#33374a' },
   { id: 'uniforme-noche', cloth: '#1c1a22', clothDark: '#121016', hair: '#1a1614', trousers: '#1c1a22' },

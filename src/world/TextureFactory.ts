@@ -5,6 +5,7 @@ import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import { blob, drawWord, make, px, shade, sprinkle, type Ctx } from './paint';
 import { buildBuildingTextures } from './BuildingArt';
 import { buildBoxingTextures } from './BoxingArt';
+import { buildDojangTextures } from './DojangArt';
 import { buildPropTextures } from './PropArt';
 import { buildUrbanTextures } from './UrbanArt';
 import { buildVegetationTextures } from './Vegetation';
@@ -16,7 +17,7 @@ import { buildWeatherTextures } from './WeatherView';
 import { buildAtmosphereTextures } from './Atmosphere';
 import { buildAmbientTextures } from './AmbientArt';
 import { buildPopUpTextures } from './PopUpArt';
-import { colorsOf, drawHuman, POSES, type HumanColors, type Pose } from './HumanArt';
+import { colorsOf, drawHuman, PLAYER_POSES, POSES, type HumanColors, type Pose } from './HumanArt';
 import { drawPersonFine, setPremium } from './HumanArtHD';
 import { HdCache, type HdBackend } from './HdCache';
 import type { Appearance } from '../data/appearance';
@@ -536,7 +537,7 @@ export function repaintPerson(scene: Phaser.Scene, id: string, changes: Appearan
       build,
     }, playerUniform);
     for (const facing of FACINGS) {
-      for (const pose of POSES) {
+      for (const pose of PLAYER_POSES) {
         const tex = scene.textures.get(humanKey('player', facing, pose)) as Phaser.Textures.CanvasTexture;
         const ctx = tex.getContext();
         drawPersonFine(ctx, facing, pose, colors);
@@ -650,6 +651,19 @@ const fineBackend: HdBackend = {
 export const fineCache = new HdCache(fineBackend, FACINGS.length * POSES.length, FINE_ROW_W * PLAYER_H * 4, FINE_CACHE_MB * 2 ** 20);
 
 /** La textura de alguien ahora: la suya con el acabado, si ya está, o su página del atlas de siempre. */
+/**
+ * Una patada de alguien de la gente (world/HumanArt 38–45; no está en el atlas común): su propia textura, horneada la
+ * primera vez que se usa (los del dojang, en su puesto) y guardada. La cara sale del mismo catálogo que el atlas.
+ */
+export function kickTexture(scene: Phaser.Scene, id: string, facing: Facing, pose: Pose): string {
+  const key = `kick-${id}-${facing}-${pose}`;
+  if (scene.textures.exists(key)) return key;
+  const look = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS, ...WEATHER_LOOKS].find((l) => l.id === id);
+  if (!look) return personTexture(id);
+  make(scene, key, PLAYER_W, PLAYER_H, (ctx) => drawHuman(ctx, facing, pose, colorsOf(look)));
+  return key;
+}
+
 export const personTexture = (id: string): string => (fineCache.ready(id) ? fineKey(id) : (PAGE_OF.get(id) ?? PEOPLE));
 /** Siempre 1: un píxel de arte es uno de mundo (la firma se queda para entities/*). */
 export const personScale = (_id: string): number => 1;
@@ -830,7 +844,7 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-cafe-table', TILE, TILE, drawCafeTable);
 
   for (const facing of FACINGS) {
-    for (const pose of POSES) {
+    for (const pose of PLAYER_POSES) {
       // HD-03: a 16 × 24 y escala 1, la densidad del mundo (antes 28 × 42 a escala 16/28).
       make(scene, humanKey('player', facing, pose), PLAYER_W, PLAYER_H, (ctx) => drawPersonFine(ctx, facing, pose, PLAYER_COLORS));
     }
@@ -935,6 +949,7 @@ export function buildTextures(scene: Phaser.Scene): void {
 
   buildPropTextures(scene);
   buildBoxingTextures(scene);
+  buildDojangTextures(scene);
   buildUrbanTextures(scene);
   buildPopUpTextures(scene);
   buildVegetationTextures(scene);

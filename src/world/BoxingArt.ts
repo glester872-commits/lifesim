@@ -29,12 +29,50 @@ function gloves(ctx: Ctx,dir: Facing,extended: boolean): void {
 const LETTERS: Record<string, string[]> = {
  F:['111','100','110','100','100'],O:['111','101','101','101','111'],R:['110','101','110','101','101'],J:['001','001','001','101','111'],A:['010','101','111','101','101'],
  B:['110','101','110','101','110'],X:['101','101','010','101','101'],E:['111','100','110','100','111'],
+ D:['110','101','101','101','110'],L:['100','100','100','100','111'],G:['111','100','101','101','111'],U:['101','101','101','101','111'],I:['111','010','010','010','111'],
 };
+/** El rótulo de la pared: DOBLE GUARDIA, el nombre del local (antes, FORJA BOXEO del anexo). */
 function sign(ctx: Ctx): void {
   px(ctx,'#202b36',0,0,80,16);px(ctx,RED,0,14,80,2);
-  for(const [word,tx] of [['FORJA',8],['BOXEO',44]] as const) [...word].forEach((l,i)=>LETTERS[l].forEach((r,y)=>[...r].forEach((v,x)=>{if(v==='1')px(ctx,'#f0e1c5',tx+i*4+x,5+y,1,1)})));
+  for(const [word,tx] of [['DOBLE',8],['GUARDIA',40]] as const) [...word].forEach((l,i)=>LETTERS[l].forEach((r,y)=>[...r].forEach((v,x)=>{if(v==='1')px(ctx,'#f0e1c5',tx+i*4+x,5+y,1,1)})));
 }
+/**
+ * Los guantes de cada mano (izquierda azul, derecha roja) en las cuatro orientaciones: en guardia (G), con la izquierda
+ * lanzada (L), con la derecha lanzada (R) o la guardia alta (B). De perfil la mano de cerca es la derecha mirando a la
+ * derecha y la izquierda mirando a la izquierda (como world/HumanArt); de espaldas, la izquierda queda a la izquierda; de
+ * frente, a la derecha. Un dibujo por mano y gesto, no el mismo golpe recoloreado.
+ */
+type GloveState = 'G' | 'L' | 'R' | 'B';
+const HAND_COLOR = { L: BLUE, R: RED } as const;
+function handGloves(ctx: Ctx, dir: Facing, state: GloveState): void {
+  if (dir === 'left') {
+    // En espejo del perfil derecho: allí la de cerca es la derecha; aquí, la izquierda.
+    ctx.save(); ctx.translate(16, 0); ctx.scale(-1, 1);
+    sideGloves(ctx, state === 'L' ? 'near' : state === 'R' ? 'far' : state, HAND_COLOR.L, HAND_COLOR.R);
+    ctx.restore();
+    return;
+  }
+  if (dir === 'right') return sideGloves(ctx, state === 'R' ? 'near' : state === 'L' ? 'far' : state, HAND_COLOR.R, HAND_COLOR.L);
+  // De espaldas, la izquierda a la izquierda; de frente, al revés. Lanzada: arriba (se aleja) o abajo (viene hacia ti).
+  const [leftX, rightX] = dir === 'up' ? [3, 10] : [10, 3];
+  const out = dir === 'up' ? 5 : 12;
+  for (const hand of ['L', 'R'] as const) {
+    const x = hand === 'L' ? leftX : rightX;
+    if (state === 'B') glove(ctx, x + (x < 8 ? 1 : -1), 5, HAND_COLOR[hand]);
+    else if (state === hand) glove(ctx, x + (x < 8 ? 2 : -2), out, HAND_COLOR[hand]);
+    else glove(ctx, x, 9, HAND_COLOR[hand]);
+  }
+}
+/** De perfil: la de lejos primero (más oscura, detrás), la de cerca encima. */
+function sideGloves(ctx: Ctx, state: 'near' | 'far' | 'G' | 'B', nearColor: string, farColor: string): void {
+  const far = shade(farColor, -0.18);
+  if (state === 'B') { glove(ctx, 8, 5, far); glove(ctx, 10, 6, nearColor); return; }
+  glove(ctx, state === 'far' ? 13 : 6, state === 'far' ? 8 : 10, far);
+  glove(ctx, state === 'near' ? 12 : 9, state === 'near' ? 10 : 8, nearColor);
+}
+
 export function buildBoxingTextures(scene: Phaser.Scene): void {
+  for (const dir of ['up', 'down', 'left', 'right'] as const) for (const st of ['G', 'L', 'R', 'B'] as const) make(scene, 'fx-glove-' + dir + '-' + st, 16, 24, c => handGloves(c, dir, st));
   make(scene,'tile-boxing-canvas-0',TILE,TILE,canvas);
   make(scene,'tile-boxing-ropes-h-0',TILE,TILE,c=>ropes(c,false));make(scene,'tile-boxing-ropes-v-0',TILE,TILE,c=>ropes(c,true));
   make(scene,'prop-boxing-bag',TILE,TILE*3,bag);

@@ -6,6 +6,7 @@ import { PC_PROFILES } from './puertaCentralVenues.ts';
 import { RONDA_PROFILES } from './ronda.ts';
 import { AR_PROFILES } from './arenaVenues.ts';
 import { BOXING_PROFILE } from './boxing.ts';
+import { ACADEMY_PROFILES } from './academyRooms.ts';
 import { DECATHLON_PROFILE } from './decathlon.ts';
 
 /**
@@ -85,6 +86,11 @@ export interface PopulationProfile {
   weekday: readonly [number, number, number, number, number, number, number];
   /** Tope de visitantes por tamaño del local, además del aforo del lugar. */
   maxVisitors: number;
+  /**
+   * Caras fijas (systems/Crowd): cuántas personas son "de aquí" (las de una academia, de una clase a otra). Al entrar
+   * alguien, se prefiere una de ellas si está libre; sin ellas, cualquiera. Nunca se duplica una cara.
+   */
+  regulars?: number;
   staff: readonly StaffRole[];
   visitors: readonly VisitorRole[];
   /**
@@ -176,6 +182,7 @@ export function arcadeProfile(place: string, pre: string, cashier: string): Popu
 
 export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   BOXING_PROFILE,
+  ...ACADEMY_PROFILES,
   {
     place: 'gym',
     // Antes del trabajo, a medio gas; a mediodía, flojo; de cinco a nueve y media, lleno; al cierre, casi vacío.

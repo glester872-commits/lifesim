@@ -4,7 +4,7 @@ import { every } from '../world/Motion';
 import { TILE } from '../config/constants';
 import type { Facing, NpcDef } from '../types/game';
 import { findPoint } from '../systems/Navigation';
-import { personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
+import { kickTexture, personFrame, personScale, personTexture, showPerson } from '../world/TextureFactory';
 import type { Pose } from '../world/HumanArt';
 import { getStation, STATIONS, type Motion, type StationDef } from '../data/stations';
 import type { SeatIdle } from '../data/seating';
@@ -41,6 +41,10 @@ export const SETUP_MS = 1_300;
 export const REPS: Readonly<Record<string, readonly [Pose, Pose, number]>> = {
   'boxing-guard': [8, 8, 900], 'boxing-footwork': [1, 2, 220], 'boxing-punch': [8, 9, 260],
   'boxing-coordinate': [8, 9, 430], 'boxing-rope': [1, 2, 170],
+  // Academias: la patada (rodilla arriba y vuelta a la guardia), la forma (golpe y bloqueo alto), el suelo del tatami
+  // (abajo y arriba), los pasos de baile y los brazos de la coreografía.
+  // Patadas (world/HumanArt 38–45): de la recogida a la extensión. La circular, con la pierna de atrás.
+  'tkd-front': [38, 39, 360], 'tkd-round': [42, 44, 380], 'tkd-side': [38, 41, 420], 'tkd-form': [9, 21, 650], 'mma-ground': [22, 0, 700], 'dance-step': [1, 2, 300], 'dance-arms': [21, 35, 420],
   bike: [13, 14, 190],
   row: [19, 20, 760],
   bench: [11, 12, 1_050],
@@ -459,8 +463,16 @@ export class Character extends Phaser.GameObjects.Sprite {
     } else if (reps) {
       // Repeticiones: de una pose a la otra, cada uno a su ritmo y desde su punto.
       this.anims.stop();
-      const half = Math.floor((time + this.seed * 431) / (reps[2] * (0.92 + (this.seed % 4) * 0.05))) % 2;
-      this.setTexture(personTexture(id), personFrame(id, where.dir, half ? reps[1] : reps[0]));
+      const beat = Math.floor((time + this.seed * 431) / (reps[2] * (0.92 + (this.seed % 4) * 0.05)));
+      const half = beat % 2;
+      // Golpeando (boxeo): una mano y luego la otra; de perfil, el brazo de cerca se estira y el de lejos sale por detrás.
+      const hand = Math.floor(beat / 2) % 2 ? 'R' : 'L';
+      const boxing = activity.startsWith('boxing-') && reps[1] === 9;
+      const nearHand = where.dir === 'right' ? 'R' : where.dir === 'left' ? 'L' : null;
+      const pose = boxing && half && hand !== nearHand ? 8 : half ? reps[1] : reps[0];
+      // Una patada (dojang): su textura aparte, horneada al usarla; el resto, del atlas común.
+      if (pose >= 38) this.setTexture(kickTexture(this.scene, id, where.dir, pose));
+      else this.setTexture(personTexture(id), personFrame(id, where.dir, pose));
       under = RACK_EMPTY[activity] ?? null;
       // La barra del banco va en las manos: abajo en el pecho o arriba con los brazos estirados.
       if (activity === 'bench') {
@@ -468,7 +480,7 @@ export class Character extends Phaser.GameObjects.Sprite {
         barY = BENCH_BAR[half];
       }
       // La pelota va en las manos: arriba al tirar, a la altura del pecho al recogerla.
-      if (activity.startsWith('boxing-')) { over = 'fx-boxing-' + where.dir + '-' + half; barY = 12; }
+      if (activity.startsWith('boxing-')) { over = boxing ? 'fx-glove-' + where.dir + '-' + (half ? hand : 'G') : 'fx-boxing-' + where.dir + '-' + half; barY = 12; }
       if (activity === 'shoot') {
         over = 'fx-ball';
         barY = half ? 12 : -4;
