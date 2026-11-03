@@ -257,10 +257,9 @@ export class StreetPickpocket {
       let amount = 0;
       if (inc.victim === 'player') {
         this.stats.player++;
-        if (inc.success) {
-          const cash = this.cash();
-          amount = this.onRobbed?.({ amount: cash, noticed: inc.noticed }) ?? cash;
-        }
+        // También si falla: lo ha notado y tiene que saber qué ha pasado (amount 0: no se llevó nada).
+        const cash = inc.success ? this.cash() : 0;
+        if (inc.success || inc.noticed) amount = this.onRobbed?.({ amount: cash, noticed: inc.noticed }) ?? cash;
       } else {
         if (inc.success) amount = this.cash();
         if (inc.noticed) {

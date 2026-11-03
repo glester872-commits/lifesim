@@ -7,6 +7,7 @@ import { createSocialProfile, type SocialProfile, type SocialState } from '../sy
 import { createStory, type NamedStory, type StoryState } from '../systems/Story';
 import { createPhone, type PhoneNews, type PhoneState } from '../systems/Phone';
 import type { Ticket } from '../systems/Tickets';
+import { policeMemory, restoreIncidents } from '../systems/Police';
 import type { JobProgress } from '../systems/Jobs';
 import { recordMovement, type HouseholdState, type Movement } from '../systems/Household';
 import { emptyStudy, type StudyState } from '../systems/Study';
@@ -214,6 +215,8 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._phone = structuredClone(initial.phone ?? createPhone());
 
     this._tickets = structuredClone(initial.tickets ?? []);
+    // La comisaría recuerda lo de esta partida, no lo de otra (systems/Police guarda la única copia).
+    restoreIncidents(initial.police);
 
     this._job = structuredClone(initial.job ?? null);
 
@@ -783,6 +786,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       phone: structuredClone(this._phone),
 
       tickets: structuredClone(this._tickets),
+
+      police: policeMemory(),
 
       job: structuredClone(this._job),
 

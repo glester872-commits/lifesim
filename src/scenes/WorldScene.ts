@@ -698,12 +698,15 @@ export class WorldScene extends Phaser.Scene {
       this.street.pickpocket.onRobbed = ({ amount, noticed }): number => {
         const state = this.services.state;
         const took = Math.min(amount, Math.max(0, state.money));
-        if (took <= 0) return 0;
-        state.as('Te han robado', () => {
-          state.money = Math.round((state.money - took) * 100) / 100;
-        });
-        // Si lo nota, lo sabe en el momento; si no, lo verá en la cartera (el dinero del HUD baja igual).
-        if (noticed) this.services.dialogue.start('Tú', [`¡Eh! ¡Alguien te ha metido la mano en el bolsillo! Te faltan ${euros(took)}.`]);
+        if (took > 0) {
+          state.as('Te han robado', () => {
+            state.money = Math.round((state.money - took) * 100) / 100;
+          });
+          // Se guarda ya: cargar la partida en los segundos antes del autoguardado no devuelve el dinero.
+          this.persist();
+        }
+        // Si lo nota, lo sabe en el momento (también si no se llevó nada); si no, lo verá en la cartera.
+        if (noticed) this.services.dialogue.start('Tú', [took > 0 ? `¡Eh! ¡Alguien te ha metido la mano en el bolsillo! Te faltan ${euros(took)}.` : '¡Eh! Notas una mano en el bolsillo y te apartas a tiempo: no se lleva nada.']);
         return took;
       };
     }
