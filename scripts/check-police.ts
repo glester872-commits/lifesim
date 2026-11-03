@@ -16,7 +16,8 @@ import { seededRng } from '../src/systems/MetroDaily.ts';
 import { absMinute } from '../src/systems/Handoff.ts';
 import { identity } from '../src/systems/Service.ts';
 import { zoneAt } from '../src/systems/Zones.ts';
-import { deskBrief, fileReport, incidentById, patrolLines, POLICE, recentIncidents, recordIncident, reportable, resetIncidents } from '../src/systems/Police.ts';
+import { deskBrief, fileReport, incidentById, parsePolice, patrolLines, POLICE, policeMemory, recentIncidents, recordIncident, reportable, resetIncidents, restoreIncidents } from '../src/systems/Police.ts';
+import { SaveSystem, createInitialState, restore, type SaveStorage } from '../src/systems/SaveSystem.ts';
 import { PATROL, StreetLife, streetProfileFor, type Walker } from '../src/systems/StreetLife.ts';
 
 const TUE = 2;
@@ -357,6 +358,44 @@ resetIncidents();
   t.release(car!);
   assert.equal(car!.alert, undefined, 'las luces siguen encendidas al seguir su carril');
   console.log(`  coche patrulla: uno por calle, llega al aviso en ${(ms / 1000).toFixed(1)} s con luces, para y sigue`);
+}
+
+// ----------------------------------------------- la memoria de la comisaría se guarda con la partida (GameState.snapshot)
+{
+  const store = new Map<string, string>();
+  const storage: SaveStorage = { read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) };
+  const save = new SaveSystem(storage);
+  // Lo mismo que hace GameState: guardar copia el registro vivo; cargar lo sustituye.
+  const persist = (): void => assert.ok(save.save({ ...createInitialState(), police: policeMemory() }));
+  const reload = (): void => restoreIncidents(restore(save.load()).police);
+  const now = absMinute(5, 19, 30);
+  resetIncidents();
+  const a = recordIncident({ location: 'district', zone: 'Calle del Carmen', at: now - 20, victim: 'player', amount: 10.92 });
+  recordIncident({ location: 'district', zone: 'Calle del Carmen', at: now - 10, victim: 'npc', amount: 7 }).attended = true;
+  persist();
+  resetIncidents(); // recargar la página: el módulo empieza vacío
+  reload();
+  const back = reportable(now);
+  assert.ok(back && back.id === a.id && back.amount === 10.92, 'el robo denunciable no sobrevive a recargar');
+  assert.equal(recentIncidents(now).find((r) => r.victim === 'npc')?.attended, true, 'se pierde quién lo atendió');
+  // Denunciar, guardar, recargar: sigue denunciado y no se puede denunciar otra vez.
+  assert.ok(fileReport(back!.id, now));
+  persist();
+  resetIncidents();
+  reload();
+  assert.equal(reportable(now), undefined, 'tras recargar se puede volver a denunciar');
+  assert.equal(incidentById(a.id)?.reported, true);
+  // Los números de denuncia no se repiten tras cargar.
+  assert.ok(recordIncident({ location: 'district', zone: 'x', at: now, victim: 'npc', amount: 0 }).id > a.id + 1);
+  // Partida anterior (sin campo), memoria rota o registros sueltos mal formados: carga sin romper, vacía o sin lo malo.
+  restoreIncidents(restore({ ...createInitialState() }).police);
+  assert.equal(recentIncidents(now).length, 0, 'una partida anterior hereda robos de otra');
+  assert.equal(parsePolice('basura'), undefined);
+  const mixed = parsePolice({ nextId: 'x', incidents: [{ id: 3, at: now, amount: 5, location: 'district', zone: 'z', victim: 'player' }, { id: -1 }, null, { id: 4, at: now, amount: -2, location: 'd', zone: 'z', victim: 'npc' }] })!;
+  assert.equal(mixed.incidents.length, 1);
+  restoreIncidents(mixed);
+  assert.equal(recordIncident({ location: 'd', zone: 'z', at: now, victim: 'npc', amount: 0 }).id, 4, 'nextId roto repite números');
+  resetIncidents();
 }
 
 console.log('Policía: comisaría, patrullas por barrio (hora, zona, cupo, salida), respuesta, cancelación, robo real, persecución, coche patrulla y recepción OK');

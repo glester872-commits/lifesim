@@ -11,6 +11,7 @@ import { parseFitness, START_FITNESS } from './Fitness.ts';
 import { LOCATIONS, START_LOCATION, START_SPAWN } from '../data/locations.ts';
 import { getLocation, hasLocation, isWalkable, safePosition } from './LocationSystem.ts';
 import { mayStay, parseTickets, venueOf } from './Tickets.ts';
+import { parsePolice } from './Police.ts';
 import { parseSocialState } from './Social.ts';
 import { parseStories } from './Story.ts';
 import { createPhone, parsePhone } from './Phone.ts';
@@ -375,6 +376,8 @@ function parseState(value: unknown): GameStateData | null {
     phone: parsePhone(s.phone),
     // Una partida anterior a las entradas del estadio carga sin ninguna.
     tickets: parseTickets(s.tickets),
+    // Una partida anterior a la memoria de la comisaría carga sin robos que denunciar.
+    ...((police) => (police ? { police } : {}))(parsePolice(s.police)),
     // Una partida anterior al empleo carga sin contrato; el turno suelto de Decathlon sigue abierto.
     job: parseJob(s.job),
     // Una partida anterior a los gastos de casa empieza sus periodos el día que se carga: nada de alquiler atrasado.

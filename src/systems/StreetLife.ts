@@ -439,7 +439,8 @@ export class StreetLife {
       },
       responders: () => this.agents.filter((a) => a.respond).map((a) => `#${a.id}`),
       report: (victim, amount) => this.report(victim as Walker | 'player', amount),
-    });
+      // Su propia secuencia: con semilla en las simulaciones (reproducible) sin gastar tiradas de la calle.
+    }, rng === Math.random ? Math.random : seededRng(hashSeed('street-pickpocket', loc.id)));
     this.loc = loc;
     this.profile = profile;
     this.rng = rng;
@@ -1037,6 +1038,17 @@ export class StreetLife {
     // Llegó a la basura: la barre un momento (advance la quita al acabar y sigue su ruta).
     if (a.path.length === 0 && a.pickup !== undefined) {
       a.moving = false;
+      // Si otro está quieto en ese tile o acaba en él, no se queda encima: recoge y sigue.
+      const here = `${Math.round(a.x)},${Math.round(a.y)}`;
+      const shared = this.agents.some((o) => {
+        if (o === a) return false;
+        const end = o.path[o.path.length - 1];
+        return (end ? `${end.tx},${end.ty}` : `${Math.round(o.x)},${Math.round(o.y)}`) === here;
+      });
+      if (shared) {
+        this.finishPickup(a);
+        return;
+      }
       a.state = 'SWEEP';
       a.timer = between(this.rng, 2_200, 3_600);
       return;
@@ -1677,7 +1689,8 @@ export class StreetLife {
     if (ambient && this.rng() > weatherBias(rule, this.weather)) return;
     const from = fromPoint ?? this.pickEnd(rule.from, clock, undefined, false);
     if (!from) return;
-    const to = this.pickEnd(rule.to, clock, from, true, rule.role);
+    // Un viaje con `via` es una vuelta: puede acabar en la misma puerta.
+    const to = this.pickEnd(rule.to, clock, rule.via ? undefined : from, true, rule.role);
     if (!to) return;
     // Nadie sale por la puerta que tapa el jugador.
     if (!midway && distance(this.pointAt(from), player) < POPULATION.doorClearance) return;
@@ -1793,6 +1806,10 @@ export class StreetLife {
       if (!a.rule?.sweep || a.kind !== 'visitor' || a.pickup !== undefined || a.staying || a.timer > 0 || a.vanish || a.leader || a.path.length < 3) continue;
       const item = this.litter.nearest(a.x, a.y, 7, a.id, (id) => this.agents.some((x) => x.id === id));
       if (!item) continue;
+      if (this.reservedTiles().has(`${Math.round(item.tx)},${Math.round(item.ty)}`)) {
+        item.failed = true;
+        continue;
+      }
       const path = this.detour({ tx: Math.round(a.x), ty: Math.round(a.y) }, item);
       if (!path || path.length > 14) {
         item.failed = true;
@@ -2116,6 +2133,20 @@ export class StreetLife {
 
   /** Un tile libre junto al punto para quien acompaña: pisable, fuera de la calzada y sin nadie. */
   private sideTile(at: TilePoint): TilePoint | undefined {
+    const taken = this.reservedTiles();
+    const around: readonly (readonly [number, number])[] = [[-1, 0], [1, 0], [0, 1], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]];
+    for (const [dx, dy] of around) {
+      const tile = { tx: at.tx + dx, ty: at.ty + dy };
+      if (!isWalkable(this.loc, tile.tx, tile.ty) || this.onRoadway(tile) || taken.has(`${tile.tx},${tile.ty}`)) continue;
+      // En diagonal, sólo si no hay que atravesar una esquina.
+      if (dx !== 0 && dy !== 0 && (!isWalkable(this.loc, at.tx + dx, at.ty) || !isWalkable(this.loc, at.tx, at.ty + dy))) continue;
+      return tile;
+    }
+    return undefined;
+  }
+
+  /** Tiles que no son sitio para quedarse: ocupados, asientos y reservas, puestos del camarero y bases del personal. */
+  private reservedTiles(): Set<string> {
     const taken = this.occupiedTiles();
     for (const id of [...this.seats.seats(), ...this.claimed]) {
       const p = this.loc.points?.[id];
@@ -2127,15 +2158,11 @@ export class StreetLife {
       taken.add(`${p.tx},${p.ty}`);
     }
     for (const s of this.services) for (const t of s.tables) taken.add(`${t.def.service.tx},${t.def.service.ty}`);
-    const around: readonly (readonly [number, number])[] = [[-1, 0], [1, 0], [0, 1], [0, -1], [-1, 1], [1, 1], [-1, -1], [1, -1]];
-    for (const [dx, dy] of around) {
-      const tile = { tx: at.tx + dx, ty: at.ty + dy };
-      if (!isWalkable(this.loc, tile.tx, tile.ty) || this.onRoadway(tile) || taken.has(`${tile.tx},${tile.ty}`)) continue;
-      // En diagonal, sólo si no hay que atravesar una esquina.
-      if (dx !== 0 && dy !== 0 && (!isWalkable(this.loc, at.tx + dx, at.ty) || !isWalkable(this.loc, at.tx, at.ty + dy))) continue;
-      return tile;
+    for (const post of this.profile.staff ?? []) {
+      const p = this.pointAt(post.base);
+      taken.add(`${p.tx},${p.ty}`);
     }
-    return undefined;
+    return taken;
   }
 
   private onRoadway(tile: TilePoint): boolean {

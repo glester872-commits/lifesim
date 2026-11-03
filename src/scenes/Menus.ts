@@ -32,9 +32,9 @@ import { STATIONS, type StationId } from '../data/stations';
 import { INTENSITIES, INTENSITY_ORDER, quote, settle, summary, type Intensity } from '../systems/Fitness';
 import { getAcademy } from '../data/academies';
 import { buyPass, covered, NO_MEMBERSHIP, periodFrom, setAutoRenew, subscribe } from '../systems/Academy';
-import { BELTS, EXAM_PASS, examReady, START_TKD } from '../systems/Taekwondo';
+import { BELTS, DANCE_PATTERNS, EXAM_PASS, examReady, START_TKD } from '../systems/Taekwondo';
 import { TOURNAMENTS, status as tournamentStatus, when } from '../systems/Tournaments';
-import type { Style } from '../systems/Sparring';
+import { DRILL_LABEL, type Drill, type Style } from '../systems/Sparring';
 import { getGig, getSkill, type CourseDef, type GigDef, type PracticeSite } from '../data/study';
 import {
   acceptGig, attend, classBlocker, courseAt, courseOffer, deliver, deliverBlocker, demo, demoBlocker, enroll, enrollBlocker, gigAt, gigDeadline, gigStatus, gigTerms,
@@ -59,7 +59,7 @@ export interface MenuHost {
   persist(): void;
   canBoard(locationId: string): boolean;
   trainAt(point: string): void;
-  fight(style: Style, tournament: boolean): void;
+  fight(style: Style, tournament: boolean, drill?: Drill): void;
   /** Llega en tren a esa localización (andén, spawn 'train'). */
   arriveByTrain(locationId: string, minutes?: number): void;
   /** Entra andando en una localización por su entrada (spawn 'entry'): el interior de un sitio sin mapa. */
@@ -954,7 +954,7 @@ export class Menus {
     const options: MenuOption[] = [
       ...points.map(p => ({ label: STATIONS[p.point!.use as StationId].name, detail: 'Elegir duración y comprobar disponibilidad' })),
       { label: `Bono de ${a.pass.classes} clases`, detail: euros(a.pass.price), disabled: state.money < a.pass.price ? `El bono cuesta ${euros(a.pass.price)}; no te llega.` : undefined },
-      ...(a.spar ? [{ label: 'Combates y torneo', detail: 'Rival, guardia, distancia y marcador' }] : []),
+      ...(a.spar ? [a.id === 'mma' ? { label: 'Ejercicios por parejas', detail: 'Puños, patadas, lucha o los tres seguidos' } : { label: 'Combates y torneo', detail: 'Rival, guardia, distancia y marcador' }] : []),
       ...(a.monthly ? [{ label: 'Cuota mensual', detail: covered(m, state.day) ? `pagada hasta el ${formatDate(m.plan!.until, false)}` : `${euros(a.monthly.price)} al mes` }] : []),
       { label: 'Ahora no' },
     ];
@@ -1032,6 +1032,7 @@ export class Menus {
   openFighting(style: Style): void {
     const { state, menu } = this.services;
     const a = getAcademy(style)!;
+    if (style === 'mma') return this.openMmaDrills();
     const def = TOURNAMENTS[style];
     const s = tournamentStatus(def, state.fitness.tournaments?.[style], state.day, state.hour * 60 + state.minute, state.fitness.skills?.[style] ?? 0);
     menu.open(a.name + ' · Combates', 'Dos asaltos de 40 s, guardia L, distancia A/D, ataques 1/2/3 con J o K. Se reservan 2 min del reloj al entrar. El resto de la sala espera durante el combate supervisado. Abandonar o recargar el torneo cuenta como derrota. ' + def.name + ': ' + when(def) + '.', [
@@ -1039,6 +1040,28 @@ export class Menus {
       { label: s.can === 'fight' ? 'Continuar torneo' : 'Inscribirse y disputar semifinal', detail: s.reason, disabled: s.can ? undefined : s.reason },
       { label: 'Volver' },
     ], i => { menu.close(); if (i < 2) this.host.fight(style, i === 1); });
+  }
+
+  /**
+   * Los ejercicios por parejas de la Academia MMA Arena (systems/Sparring, estilo 'mma'): tres sesiones de una parte cada
+   * una y el ejercicio supervisado que pasa de golpear al clinch y del clinch al suelo. Misma reserva de clase que el
+   * resto (se paga una vez por clase; recargar no cobra otra), con el tatami reservado mientras dura.
+   */
+  private openMmaDrills(): void {
+    const { state, menu } = this.services;
+    const a = getAcademy('mma')!;
+    const m = state.fitness.mma;
+    const done = m ? ` Llevas ${m.sessions} ejercicios: puños ${m.punches.toFixed(1)}, patadas ${m.kicks.toFixed(1)}, lucha ${m.grappling.toFixed(1)}.` : '';
+    const drills: [Drill, string][] = [
+      ['punches', 'Jab con la izquierda (J) y directo con la derecha (K), guardia L, distancia A/D'],
+      ['kicks', 'Frontal (2) y circular (3) con cada pierna: J izquierda (rápida), K derecha (fuerte)'],
+      ['grappling', 'G: clinch → derribo → suelo; L defiende (base o enmarcar); atrás mantenido para soltarte'],
+      ['mixed', 'Golpeo, clinch y suelo en el mismo ejercicio, con Rubén mirando'],
+    ];
+    menu.open(a.name + ' · Ejercicios por parejas', `Dos asaltos de 40 s en el tatami con un compañero de clase; el tatami se reserva y nadie más entra. Esc para dejarlo cuando quieras. Sólo cuenta lo que practiques de verdad.${done}`, [
+      ...drills.map(([id, detail]) => ({ label: DRILL_LABEL[id], detail })),
+      { label: 'Volver' },
+    ], i => { menu.close(); if (i < drills.length) this.host.fight('mma', false, drills[i][0]); });
   }
 
   /**
@@ -1583,8 +1606,13 @@ export class Menus {
     // El saco de boxeo (drill 'punches'): misma clase, sin examen de cinturón.
     const st = STATIONS[station];
     const punches = 'drill' in st && st.drill === 'punches';
+    // La clase de pasos (drill 'steps'): el patrón de la estación, sin examen.
+    const steps = 'drill' in st && st.drill === 'steps';
+    const orders = (DANCE_PATTERNS[station] ?? DANCE_PATTERNS['dance-steps']).steps.length;
     const options: MenuOption[] = punches
       ? [{ label: 'Clase de saco', detail: `jab, directo, combinaciones y guardia${fee}`, disabled: q.blocked ?? undefined }]
+      : steps
+      ? [{ label: 'Clase de pasos', detail: `${orders} órdenes · paso y pie de apoyo${fee}`, disabled: q.blocked ?? undefined }]
       : [
           { label: 'Clase de patadas', detail: `8 órdenes · las dos piernas${fee}`, disabled: q.blocked ?? undefined },
           { label: exam.ok ? `Examen de cinturón ${exam.belt.name}` : 'Examen de cinturón', detail: exam.ok ? `10 órdenes · se aprueba con un ${EXAM_PASS * 100}%${fee}` : exam.reason, disabled: q.blocked ?? (exam.ok ? undefined : exam.reason) },
@@ -1594,6 +1622,8 @@ export class Menus {
     options.push({ label: 'Cancelar' });
     const help = punches
       ? `Técnica de boxeo ${(state.fitness.skills?.boxing ?? 0).toFixed(1)}. Jab con la mano izquierda (J), directo con la derecha (K), guardia con L (mantener); W y S para la distancia al saco. También con los botones del panel.`
+      : steps
+      ? `Técnica de baile ${(state.fitness.skills?.dance ?? 0).toFixed(1)}. Paso con 1 (lateral), 2 (atrás) y 3 (giro); apoyo con J (izquierdo) y K (derecho), a tiempo con la cuenta. También con los botones del panel.`
       : `Cinturón ${BELTS[tkd.belt].name} · ${tkd.attended} clases · técnica ${technique.toFixed(1)}. Patada con 1, 2 y 3; pierna con J (izquierda) y K (derecha); A y D para la distancia. También con los botones del panel.`;
     menu.open(STATIONS[station].name.toUpperCase(), help, options, (i) => {
       if (i < starts) {

@@ -42,21 +42,43 @@ export const LEG_LABEL: Readonly<Record<Leg, string>> = { L: 'izquierda', R: 'de
  * sus fases y su alcance, como las patadas: no es el mismo golpe pintado de otro color.
  */
 export type Punch = 'jab' | 'cross';
-export type Strike = Kick | Punch | 'guard';
-export type DrillSet = 'kicks' | 'punches';
+/** Pasos de baile (la clase de pasos): lateral, atrás y giro, con el pie de apoyo. La distancia no cuenta. */
+export type Step = 'sway' | 'back' | 'turn';
+export const STEP_ORDER: readonly Step[] = ['sway', 'back', 'turn'];
+export type Strike = Kick | Punch | Step | 'guard';
+export type DrillSet = 'kicks' | 'punches' | 'steps';
 
 export const STRIKES: Readonly<Record<Strike, KickDef>> = {
   ...KICKS,
   jab: { label: 'Jab', reach: [0.6, 1.5], energy: 0.3, chamberMs: 70, extendMs: 60, holdMs: 90, recoilMs: 130 },
   cross: { label: 'Directo', reach: [0.6, 1.4], energy: 0.45, chamberMs: 110, extendMs: 80, holdMs: 100, recoilMs: 170 },
   guard: { label: 'Guardia', reach: [0, 99], energy: 0, chamberMs: 0, extendMs: 0, holdMs: 0, recoilMs: 0 },
+  sway: { label: 'Paso lateral', reach: [0, 99], energy: 0.15, chamberMs: 60, extendMs: 70, holdMs: 70, recoilMs: 90 },
+  back: { label: 'Paso atrás', reach: [0, 99], energy: 0.2, chamberMs: 70, extendMs: 80, holdMs: 70, recoilMs: 100 },
+  turn: { label: 'Giro', reach: [0, 99], energy: 0.25, chamberMs: 80, extendMs: 100, holdMs: 80, recoilMs: 100 },
+};
+
+/**
+ * Las clases de pasos, por estación (data/stations.ts): la secuencia [paso, pie de apoyo] y el compás (ms entre órdenes).
+ * Una estación nueva con `drill: 'steps'` es una entrada aquí; sin la suya, la de 'dance-steps'.
+ */
+export const DANCE_PATTERNS: Readonly<Record<string, { gap: number; steps: readonly (readonly [Step, Leg])[] }>> = {
+  'dance-steps': {
+    gap: 1_500,
+    steps: [['sway', 'L'], ['sway', 'R'], ['back', 'L'], ['back', 'R'], ['sway', 'L'], ['sway', 'R'], ['turn', 'R'], ['turn', 'L']],
+  },
+  'dance-choreo': {
+    gap: 1_050,
+    steps: [['sway', 'R'], ['back', 'L'], ['turn', 'R'], ['sway', 'L'], ['sway', 'R'], ['back', 'R'], ['turn', 'L'], ['back', 'L'], ['sway', 'R'], ['turn', 'R'], ['sway', 'L'], ['turn', 'L']],
+  },
 };
 
 /** Qué golpe sale con cada mano en el saco: el jab con la adelantada, el directo con la atrasada. */
 export const PUNCH_OF: Readonly<Record<Leg, Punch>> = { L: 'jab', R: 'cross' };
 
 /** Cómo se nombra el golpe (con su pierna o su mano). */
-const strikeName = (k: Strike, side: Leg): string => (k === 'jab' || k === 'cross' ? `${STRIKES[k].label} (mano ${LEG_LABEL[side]})` : `${STRIKES[k].label} ${LEG_LABEL[side]}`);
+const strikeName = (k: Strike, side: Leg): string =>
+  k === 'jab' || k === 'cross' ? `${STRIKES[k].label} (mano ${LEG_LABEL[side]})` : k === 'sway' || k === 'back' || k === 'turn' ? `${STRIKES[k].label} (apoyo ${side === 'L' ? 'izq.' : 'der.'})` : `${STRIKES[k].label} ${LEG_LABEL[side]}`;
 
 /** Ventanas de contacto alrededor del compás de cada orden (ms). */
 export const PERFECT_MS = 140;
@@ -123,9 +145,10 @@ const rngOf = (seed: number): (() => number) => {
  * Las órdenes de una clase: frontal, circular y lateral, siempre con las dos piernas y,
  * en el examen, las tres patadas con cada pierna. El compás se aprieta algo con el nivel.
  */
-export function createDrill(seed: number, level: number, exam = false, set: DrillSet = 'kicks'): Drill {
+export function createDrill(seed: number, level: number, exam = false, set: DrillSet = 'kicks', station = ''): Drill {
   const rng = rngOf(seed);
   if (set === 'punches') return punchDrill(rng, level);
+  if (set === 'steps') return danceDrill(station, level);
   // Las tres patadas desde la primera clase; el nivel sólo aprieta el compás.
   const kinds: Kick[] = ['front', 'round', 'side'];
   const n = exam ? 10 : 8;
@@ -168,6 +191,14 @@ function punchDrill(rng: () => number, level: number): Drill {
     at += gap;
   }
   return { cues, results: cues.map(() => null), exam: false, set: 'punches', guardSince: -1, current: null, kicks: 0, energy: 0, offBeat: 0, short: 0, long: 0, faults: {} };
+}
+
+/** La clase de pasos: el patrón de la estación (DANCE_PATTERNS), en orden; el nivel aprieta algo el compás. */
+function danceDrill(station: string, level: number): Drill {
+  const p = DANCE_PATTERNS[station] ?? DANCE_PATTERNS['dance-steps'];
+  const gap = Math.max(Math.round(p.gap * 0.8), p.gap - level * 10);
+  const cues: Cue[] = p.steps.map(([kick, leg], i) => ({ kick, leg, at: 2_400 + i * gap }));
+  return { cues, results: cues.map(() => null), exam: false, set: 'steps', guardSince: -1, current: null, kicks: 0, energy: 0, offBeat: 0, short: 0, long: 0, faults: {} };
 }
 
 /** Patear: si la anterior aún no ha vuelto a la guardia, no sale otra (no se encadenan dos a la vez). */
@@ -230,7 +261,7 @@ export function stepDrill(d: Drill, t: number, distance: number, guard = false):
       }
       if (best < 0) {
         d.offBeat++;
-        event = { contact: true, text: `${name}: ${d.set === 'punches' ? 'toca el saco' : 'toca el pao'}, pero fuera de compás.` };
+        event = { contact: true, text: `${name}: ${d.set === 'punches' ? 'toca el saco' : d.set === 'steps' ? 'bien marcado' : 'toca el pao'}, pero fuera de compás.` };
       } else {
         const cue = d.cues[best];
         const grade: Grade = cue.kick !== k.kick ? 'wrong-kick' : cue.leg !== k.leg ? 'wrong-leg' : Math.abs(contact - cue.at) <= PERFECT_MS ? 'perfect' : 'good';
@@ -283,6 +314,17 @@ export function summarize(d: Drill): DrillSummary {
 /** Lo que dice la instructora al acabar: lo que de verdad pasó, no una frase hecha. */
 export function coachLines(d: Drill, s: DrillSummary, coach: string): string[] {
   const lines: string[] = [];
+  if (d.set === 'steps') {
+    if (s.accuracy >= 0.85) lines.push(`${coach}: «Muy bien. Vas con la música y el peso cae en el pie que toca.»`);
+    else if (s.accuracy >= 0.55) lines.push(`${coach}: «Vas cogiendo el ritmo. Ahora, más limpio.»`);
+    else lines.push(`${coach}: «Despacio. Primero cuenta el compás; luego el paso.»`);
+    if (d.offBeat > 1) lines.push('Escucha la cuenta: te adelantas a la orden.');
+    const wrongLeg = d.results.filter((r) => r === 'wrong-leg').length;
+    if (wrongLeg >= 2) lines.push('Cambias de pie sin querer: mira cuál es el apoyo antes de mover.');
+    const missed = s.missed;
+    if (missed >= 2) lines.push(`Se te escaparon ${missed} órdenes: no pares, aunque falles una, entra en la siguiente.`);
+    return lines;
+  }
   const punches = d.set === 'punches';
   if (s.accuracy >= 0.85) lines.push(punches ? `${coach}: «Muy bien. Las dos manos salen y vuelven a la cara.»` : `${coach}: «Muy bien. Las dos piernas responden y el pie vuelve a la guardia.»`);
   else if (s.accuracy >= 0.55) lines.push(`${coach}: «Vas bien. Ahora, más limpio.»`);

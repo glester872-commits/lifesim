@@ -6,8 +6,8 @@ import { dressBins } from '../systems/Dressing.ts';
  * metro en medio, la calle de la ribera y el agua al sur), pero con otra
  * identidad: RIBERA + OCIO + DEPORTE + VIVIENDA MODERNA.
  *
- *   norte   bloques de vivienda moderna con comercio en la planta baja: el bar, el
- *           salón recreativo, un colmado y la tienda de deportes
+ *   norte   la escuela de baile y bloques de vivienda moderna con comercio en la planta
+ *           baja: el bar, el salón recreativo, un colmado y la tienda de deportes
  *   y 9–14  la calle de la ribera, peatonal, con las terrazas del bar, del Café del Río
  *           y de Casa Mar
  *   y 15–19 la plaza del metro (con el quiosco de helados), la pista de baloncesto y
@@ -66,8 +66,9 @@ const b = (
 const into = (location: string): BuildingDef['enter'] => ({ location, spawn: 'entry' });
 
 const BUILDINGS: readonly BuildingDef[] = [
-  // Norte: tres plantas de vivienda moderna con balcones corridos, y comercio abajo.
-  b('ribera-res-1', 'Ribera 1', 'res-modern', [1, 2, 6, 7], 's', 3, { floors: 3, point: 'RB_RES_1_ENTRANCE' }),
+  // Norte: la escuela de baile en la esquina oeste (data/academies.ts 'dance'; el interior es 'academy-dance', el de
+  // siempre), luego comercio abajo y vivienda moderna con balcones corridos.
+  b('ribera-dance', 'Escuela de Baile Ribera Norte', 'dance-school', [1, 2, 6, 7], 's', 3, { floors: 2, enter: into('academy-dance'), point: 'RB_DANCE_ENTRANCE' }),
   // El bar de siempre: su puerta y su interior no se mueven.
   b('bar-door', 'Bar Ribera', 'bar', [7, 2, 6, 7], 's', 8, { floors: 2, enter: into('bar'), point: 'RB_BAR_ENTRANCE' }),
   b('ribera-arcade', 'Salón Recreativo Nova', 'arcade', [13, 2, 6, 7], 's', 15, { floors: 2, enter: into('arcade'), point: 'RB_ARCADE_ENTRANCE' }),
@@ -177,7 +178,7 @@ const chain = (...ids: string[]): Link[] => ids.slice(1).map((id, i) => [ids[i],
 
 const LINKS: readonly Link[] = [
   // Acera norte, de oeste a este, con cada puerta en su sitio.
-  ...chain('EDGE_RIBERA_NW', 'RB_RES_1_ENTRANCE', 'rb-n06', 'RB_BAR_ENTRANCE', 'rb-n10', 'RB_ARCADE_ENTRANCE', 'rb-n16', 'rb-n20',
+  ...chain('EDGE_RIBERA_NW', 'RB_DANCE_ENTRANCE', 'rb-n06', 'RB_BAR_ENTRANCE', 'rb-n10', 'RB_ARCADE_ENTRANCE', 'rb-n16', 'rb-n20',
     'RB_COLMADO_ENTRANCE', 'RB_SPORTS_ENTRANCE', 'rb-n30', 'RB_RES_2_ENTRANCE', 'EDGE_RIBERA_NE'),
   ['RB_BAR_TERRACE_01', 'rb-n06'], ['RB_BAR_TERRACE_02', 'rb-n10'],
   // Acera sur.

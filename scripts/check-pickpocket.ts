@@ -132,11 +132,19 @@ function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phase
 
 // --------------------------------------------------- 4. la víctima es el jugador: se lleva efectivo (nunca más del que tiene)
 {
-  let robbedTimes = 0, noticed = 0, tries = 0, min = Infinity, max = 0;
+  let robbedTimes = 0, noticed = 0, tries = 0, foiled = 0, min = Infinity, max = 0;
   for (let seed = 1; seed <= 40 && robbedTimes < 8; seed++) {
     const r = runIncident(seed, true);
     tries++;
+    // Un aviso por robo como mucho: el dinero se quita una vez.
+    assert.ok(r.robbed.length <= 1, `seed ${seed}: ${r.robbed.length} avisos en un robo`);
     for (const x of r.robbed) {
+      // Falló y lo notó: se le dice, sin quitarle nada.
+      if (x.amount === 0) {
+        assert.ok(x.noticed, `seed ${seed}: aviso de un intento que no se notó`);
+        foiled++;
+        continue;
+      }
       robbedTimes++;
       if (x.noticed) noticed++;
       min = Math.min(min, x.amount);
@@ -146,7 +154,8 @@ function runIncident(seed: number, onPlayer: boolean): { life: StreetLife; phase
     assert.ok(r.life.agents.every((a) => !a.incident));
   }
   assert.ok(robbedTimes >= 3, `pocos robos al jugador (${robbedTimes} en ${tries})`);
-  console.log(`  jugador: ${robbedTimes} robos en ${tries} intentos (${noticed} notados), de ${min.toFixed(2)} a ${max.toFixed(2)} €`);
+  assert.ok(foiled >= 1, 'ningún intento fallido avisa al jugador');
+  console.log(`  jugador: ${robbedTimes} robos y ${foiled} intentos fallidos que nota, en ${tries} intentos (${noticed} robos notados), de ${min.toFixed(2)} a ${max.toFixed(2)} €`);
 }
 
 // --------------------------------------------------- 5. descanso: tras un robo no vuelve a salir solo hasta pasado su tiempo

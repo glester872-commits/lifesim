@@ -298,13 +298,11 @@ const VL_GYM_BASE = rebased(GYM, 'CRGYM_', 'VLGYM_');
 const VL_GYM: LocationDef = {
   ...VL_GYM_BASE,
   id: 'vl-gym', name: 'Velaria Club · gimnasio', ambient: '#eef2ff',
+  // El baile ya no es un anexo: tiene local propio en Ribera Norte (data/ribera.ts 'ribera-dance').
   portals: [
     { id: 'exit', tx: 9, ty: 11, label: 'Salir a la calle', to: { location: STREET, spawn: 'vl-gym' } },
-    { id: 'dance', tx: 1, ty: 10, label: 'Estudio de Baile Velaria · clases', to: { location: 'academy-dance', spawn: 'entry' } },
   ],
-  spawns: { entry: { tx: 9, ty: 10, facing: 'up' }, dance: { tx: 2, ty: 10, facing: 'up' } },
-  // La puerta del estudio de baile (anexo): por aquí entran y salen los personajes con nombre (systems/Navigation).
-  points: { ...VL_GYM_BASE.points, VLGYM_ACADEMY_DOOR: { tx: 3, ty: 10, kind: 'wait', facing: 'up' } },
+  spawns: { entry: { tx: 9, ty: 10, facing: 'up' } },
 };
 
 /** Café Aurelia: la planta del Café del Río; la terraza, en la plaza (data/streets.ts). */

@@ -292,6 +292,8 @@ export type BuildingStyle =
   | 'home'
   | 'dojang'
   | 'boxing-club'
+  | 'mma-gym'
+  | 'dance-school'
   | 'police'
   | 'fire'
   | 'res-brick'
@@ -773,6 +775,8 @@ export interface GameStateData {
   phone?: import('../systems/Phone.ts').PhoneState;
   /** Entradas de partido (systems/Tickets): de qué partido, su asiento y si ya ha pasado por la puerta. Opcional: una partida anterior carga sin entradas. */
   tickets?: import('../systems/Tickets.ts').Ticket[];
+  /** Lo que recuerda la comisaría (systems/Police): robos, quién los atendió y las denuncias. Sin campo: vacía. */
+  police?: import('../systems/Police.ts').PoliceMemory;
   /** Contrato del jugador (systems/Jobs): puesto, nivel, turnos hechos y faltas. Opcional: una partida anterior carga sin contrato. */
   job?: import('../systems/Jobs.ts').JobProgress | null;
   /** Gastos de casa y meta de ahorro (systems/Household). Opcional: una partida anterior empieza sus periodos al cargar. */

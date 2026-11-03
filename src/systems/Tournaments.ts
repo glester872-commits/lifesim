@@ -34,7 +34,11 @@ export interface TournamentDef {
   final: Opponent;
 }
 
-export const TOURNAMENTS: Readonly<Record<Style, TournamentDef>> = {
+/** Disciplinas con torneo. El MMA no tiene: sus ejercicios por parejas son de práctica. */
+export type TournamentStyle = Exclude<Style, 'mma'>;
+export const hasTournament = (s: Style): s is TournamentStyle => s !== 'mma';
+
+export const TOURNAMENTS: Readonly<Record<TournamentStyle, TournamentDef>> = {
   taekwondo: {
     style: 'taekwondo', name: 'Open de Taekwondo Vallesco', location: 'academy-tkd', weekday: 5, hour: 11, fee: 10,
     prizes: { champion: 40, runnerUp: 15 }, minSkill: 2,
@@ -133,7 +137,7 @@ export function parseEntries(v: unknown): Partial<Record<Style, Entry>> | undefi
 export function parseRecords(v: unknown): Partial<Record<Style, FightRecord>> | undefined {
   if (typeof v !== 'object' || v === null) return undefined;
   const out: Partial<Record<Style, FightRecord>> = {};
-  for (const style of ['taekwondo', 'boxing'] as const) {
+  for (const style of ['taekwondo', 'boxing', 'mma'] as const) {
     const r = (v as Record<string, unknown>)[style] as Record<string, unknown> | undefined;
     if (r && typeof r === 'object') out[style] = { bouts: int(r.bouts, 0, 1e6), wins: int(r.wins, 0, 1e6), titles: int(r.titles, 0, 1e6) };
   }

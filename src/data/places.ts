@@ -71,9 +71,9 @@ export const PLACES: readonly PlaceDef[] = [
 
   // Negocios con interior
   { id: 'cafe', name: 'Cafetería Pausa', type: 'business', tags: ['food', 'social', WORK], building: 'cafe-door', anchors: ['CAFE_TERRACE_01', 'CAFE_TERRACE_02'], capacity: 10, hours: [7, 22], why: 'Desayunar algo rápido y llevarse pan o bollería para casa.' },
-  { id: 'academy-mma', name: 'Academia MMA Forja', type: 'business', tags: ['sport', 'social', 'work'], interior: 'academy-mma', capacity: 7, hours: [9, 22], why: 'Clases dirigidas de saco, suelo y desplazamientos (data/academies.ts), con técnica y forma física persistentes.' },
+  { id: 'academy-mma', name: 'Academia MMA Arena', type: 'business', tags: ['sport', 'social', 'work'], building: 'ar-mma', interior: 'academy-mma', capacity: 7, hours: [9, 22], why: 'Avenida del Estadio 27, Arena: golpeo con las dos manos y las dos piernas, lucha en el tatami (clinch, derribo, suelo y escape) y acondicionamiento, con ejercicios por parejas supervisados (data/academies.ts, systems/Sparring).' },
   { id: 'academy-tkd', name: 'Escuela de Taekwondo Vallesco', type: 'business', tags: ['sport', 'social', 'work'], building: 'tkd-door', interior: 'academy-tkd', capacity: 7, hours: [10, 21], why: 'Dojang de la Ronda de la Vía 34: clases de patadas con las dos piernas sobre paos, formas y flexibilidad; cinturones con examen (systems/Taekwondo).' },
-  { id: 'academy-dance', name: 'Estudio de Baile Velaria', type: 'business', tags: ['sport', 'social', 'work'], interior: 'academy-dance', capacity: 7, hours: [10, 22], why: 'Clases de pasos, coreografía y estiramientos en Velaria (data/academies.ts), con técnica persistente.' },
+  { id: 'academy-dance', name: 'Escuela de Baile Ribera Norte', type: 'business', tags: ['sport', 'social', 'work'], building: 'ribera-dance', interior: 'academy-dance', capacity: 7, hours: [10, 22], why: 'Calle de la Ribera, en la acera norte de Ribera Norte: clases de pasos, coreografía y estiramientos (data/academies.ts), con técnica persistente.' },
   { id: 'boxing', name: 'Doble Guardia', type: 'business', tags: ['sport', 'social', 'work'], building: 'boxing-door', interior: 'boxing', capacity: 7, hours: [8, 22], why: 'Entrenamiento dirigido de guardia, pies, saco, coordinación y resistencia, con técnica y forma física persistentes.' },
   { id: 'gym', name: 'Gimnasio Forja', type: 'business', tags: ['sport', 'social', WORK], building: 'gym-door', capacity: 18, hours: [6, 23] },
   { id: 'clothing-store', name: 'Hilo · moda', type: 'business', tags: ['shop', 'fashion', WORK], building: 'fashion-door', capacity: 14, hours: [10, 21], why: 'Ropa de temporada: lo que compras te lo llevas puesto y se queda en tu armario.' },
@@ -128,7 +128,6 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'park', name: 'Parque del Olmo', type: 'public', tags: ['social', 'sport', 'outdoor'], anchors: ['PARK_BENCH_01', 'PARK_BENCH_02', 'PARK_COURT'], capacity: 25 },
 
   // Ribera Norte: el barrio del canal. Vivienda moderna arriba, ocio, terrazas y deporte abajo.
-  { id: 'res-ribera-1', name: 'Ribera 1', type: 'residence', tags: ['home'], building: 'ribera-res-1', capacity: 14 },
   { id: 'res-ribera-2', name: 'Ribera 2', type: 'residence', tags: ['home'], building: 'ribera-res-2', capacity: 14 },
   { id: 'bar-ribera', name: 'Bar Ribera', type: 'business', tags: ['food', 'social', 'nightlife', WORK], building: 'bar-door', anchors: ['RB_BAR_TERRACE_01', 'RB_BAR_TERRACE_02'], capacity: 16, hours: [11, 2] },
   {

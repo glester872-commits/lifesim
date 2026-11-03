@@ -63,15 +63,55 @@ export interface IncidentRecord {
   reported: boolean;
 }
 
-// ponytail: memoria de la sesión, no va en la partida guardada; al recargar, la comisaría no recuerda robos de antes.
+/** Lo que recuerda la comisaría, tal como se guarda con la partida (GameState.snapshot → SaveSystem). */
+export interface PoliceMemory {
+  incidents: IncidentRecord[];
+  nextId: number;
+}
+
+/** Cuántos robos recuerda como mucho (los más recientes). */
+const LOG_SIZE = 20;
+
+// La única copia viva: la calle, las patrullas y la recepción escriben aquí; la partida guardada la copia y la restaura.
 const LOG: IncidentRecord[] = [];
 let nextId = 1;
+
+/** Para guardar: una copia, no el registro vivo. */
+export const policeMemory = (): PoliceMemory => ({ incidents: structuredClone(LOG), nextId });
+
+/** Al cargar una partida (o empezar una): sustituye lo que hubiera. Sin memoria guardada, la comisaría empieza vacía. */
+export function restoreIncidents(m: PoliceMemory | undefined): void {
+  LOG.length = 0;
+  for (const r of (m?.incidents ?? []).slice(-LOG_SIZE)) LOG.push({ ...r });
+  // Nunca se repite un número de denuncia, aunque lo guardado venga corto.
+  nextId = Math.max(m?.nextId ?? 1, ...LOG.map((r) => r.id + 1), 1);
+}
+
+/** Lee lo guardado: un registro mal formado se descarta (nunca rompe la carga); una partida anterior carga sin memoria. */
+export function parsePolice(v: unknown): PoliceMemory | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+  const incidents: IncidentRecord[] = [];
+  for (const raw of Array.isArray(o.incidents) ? o.incidents : []) {
+    const r = raw as Record<string, unknown>;
+    if (typeof r !== 'object' || r === null) continue;
+    if (!num(r.id) || r.id < 1 || !num(r.at) || !num(r.amount) || r.amount < 0) continue;
+    if (typeof r.location !== 'string' || typeof r.zone !== 'string' || (r.victim !== 'player' && r.victim !== 'npc')) continue;
+    incidents.push({
+      id: Math.floor(r.id), kind: 'pickpocket', location: r.location, zone: r.zone, at: Math.floor(r.at), victim: r.victim,
+      amount: Math.round(r.amount * 100) / 100, attended: r.attended === true, reported: r.reported === true,
+      ...(r.caught === true ? { caught: true } : {}),
+    });
+  }
+  return { incidents: incidents.slice(-LOG_SIZE), nextId: num(o.nextId) && o.nextId >= 1 ? Math.floor(o.nextId) : 1 };
+}
 
 /** Un robo visto (por la víctima o por quien grita): lo apunta y devuelve su registro. */
 export function recordIncident(r: Pick<IncidentRecord, 'location' | 'zone' | 'at' | 'victim' | 'amount'>): IncidentRecord {
   const rec: IncidentRecord = { ...r, id: nextId++, kind: 'pickpocket', attended: false, reported: false };
   LOG.push(rec);
-  if (LOG.length > 20) LOG.shift();
+  if (LOG.length > LOG_SIZE) LOG.shift();
   return rec;
 }
 

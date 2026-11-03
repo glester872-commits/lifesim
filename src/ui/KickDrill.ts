@@ -1,5 +1,5 @@
 import type { PlayerInput } from '../systems/PlayerInput';
-import { contactDelay, KICK_ORDER, KICKS, LEG_LABEL, nextCue, STRIKES, type Drill, type DrillSet, type Grade, type Strike } from '../systems/Taekwondo';
+import { contactDelay, KICK_ORDER, KICKS, LEG_LABEL, nextCue, STEP_ORDER, STRIKES, type Drill, type DrillSet, type Grade, type Strike } from '../systems/Taekwondo';
 
 /**
  * El panel de la clase de patadas (systems/Taekwondo): la orden de ahora y las que vienen, la barra del compás con el
@@ -91,16 +91,26 @@ export class KickDrill {
   /** Patadas (elegir patada y pierna) o saco (cada mano su golpe, y la guardia mantenida). */
   open(title: string, set: DrillSet = 'kicks'): void {
     const punches = set === 'punches';
+    const steps = set === 'steps';
     this.title.textContent = title;
-    this.said.textContent = punches ? 'Guardia arriba, mentón abajo. La entrenadora cuenta.' : 'Saluda, guardia arriba. La instructora cuenta.';
-    this.root.querySelector<HTMLElement>('.kick__types')!.hidden = punches;
+    this.said.textContent = punches ? 'Guardia arriba, mentón abajo. La entrenadora cuenta.' : steps ? 'En tu sitio, peso en los dos pies. La instructora cuenta.' : 'Saluda, guardia arriba. La instructora cuenta.';
+    const types = this.root.querySelector<HTMLElement>('.kick__types')!;
+    types.hidden = punches;
+    types.setAttribute('aria-label', steps ? 'Paso' : 'Patada');
+    (steps ? STEP_ORDER : KICK_ORDER).forEach((k, i) => {
+      const b = this.kicks[i];
+      b.innerHTML = `<span class="kick__k">${i + 1}</span>${STRIKES[k].label}`;
+      b.setAttribute('aria-label', `${STRIKES[k].label} (${i + 1})`);
+    });
+    this.root.querySelector<HTMLElement>('.kick__moves')!.hidden = steps;
     this.root.querySelector<HTMLElement>('.kick__guard')!.hidden = !punches;
+    this.reach.hidden = steps;
     const [left, right] = this.root.querySelectorAll<HTMLButtonElement>('.kick__leg');
-    left.innerHTML = `<span class="kick__k">J</span>${punches ? 'Mano izq. · jab' : 'Izquierda'}`;
-    right.innerHTML = `<span class="kick__k">K</span>${punches ? 'Mano der. · directo' : 'Derecha'}`;
-    left.setAttribute('aria-label', punches ? 'Jab, mano izquierda (J)' : 'Pierna izquierda (J)');
-    right.setAttribute('aria-label', punches ? 'Directo, mano derecha (K)' : 'Pierna derecha (K)');
-    this.root.querySelector<HTMLElement>('.kick__help')!.textContent = punches ? 'W/S o ◀ ▶ distancia · L guardia' : 'A/D o ◀ ▶ distancia';
+    left.innerHTML = `<span class="kick__k">J</span>${punches ? 'Mano izq. · jab' : steps ? 'Apoyo izq.' : 'Izquierda'}`;
+    right.innerHTML = `<span class="kick__k">K</span>${punches ? 'Mano der. · directo' : steps ? 'Apoyo der.' : 'Derecha'}`;
+    left.setAttribute('aria-label', punches ? 'Jab, mano izquierda (J)' : steps ? 'Apoyo en el pie izquierdo (J)' : 'Pierna izquierda (J)');
+    right.setAttribute('aria-label', punches ? 'Directo, mano derecha (K)' : steps ? 'Apoyo en el pie derecho (K)' : 'Pierna derecha (K)');
+    this.root.querySelector<HTMLElement>('.kick__help')!.textContent = punches ? 'W/S o ◀ ▶ distancia · L guardia' : steps ? '1/2/3 paso · J/K apoyo' : 'A/D o ◀ ▶ distancia';
     this.root.hidden = false;
   }
 
@@ -126,14 +136,16 @@ export class KickDrill {
   /** Cada frame (o casi): la orden, el compás, la cola y la distancia. */
   render(d: Drill, t: number, kick: Strike, distance: number): void {
     const i = nextCue(d);
-    this.kicks.forEach((b, k) => b.classList.toggle('is-on', KICK_ORDER[k] === kick));
+    const steps = d.set === 'steps';
+    const order: readonly Strike[] = steps ? STEP_ORDER : KICK_ORDER;
+    this.kicks.forEach((b, k) => b.classList.toggle('is-on', order[k] === kick));
     if (i < 0) {
       this.cue.textContent = 'Fin de la serie';
       this.bar.style.width = '100%';
       this.now.classList.remove('is-on');
     } else {
       const c = d.cues[i];
-      this.cue.textContent = c.kick === 'guard' ? '¡Guardia!' : d.set === 'punches' ? `${STRIKES[c.kick].label} · mano ${LEG_LABEL[c.leg]}` : `${STRIKES[c.kick].label} · ${LEG_LABEL[c.leg]}`;
+      this.cue.textContent = c.kick === 'guard' ? '¡Guardia!' : steps ? `${STRIKES[c.kick].label} · apoyo ${c.leg === 'L' ? 'izq.' : 'der.'}` : d.set === 'punches' ? `${STRIKES[c.kick].label} · mano ${LEG_LABEL[c.leg]}` : `${STRIKES[c.kick].label} · ${LEG_LABEL[c.leg]}`;
       // La barra se llena hasta el compás; «Ahora» se enciende cuando hay que soltar la patada que pide.
       const prev = i > 0 ? d.cues[i - 1].at : 0;
       this.bar.style.width = `${Math.round(Math.min(1, Math.max(0, (t - prev) / (c.at - prev))) * 100)}%`;
@@ -141,6 +153,11 @@ export class KickDrill {
       this.now.classList.toggle('is-on', t >= release - 120 && t <= release + 160);
     }
     this.queue.textContent = d.cues.map((_, k) => (d.results[k] ? GRADE_MARK[d.results[k]!] : k === i ? '▸' : '·')).join(' ');
+    // En la clase de pasos no hay blanco: ni distancia ni alcance.
+    if (steps) {
+      this.reach.textContent = '';
+      return;
+    }
     const [lo, hi] = STRIKES[kick].reach;
     const ok = distance >= lo && distance <= hi;
     this.reach.textContent = `Distancia ${distance.toFixed(1)} · ${d.set === 'punches' ? 'el' : 'la'} ${STRIKES[kick].label.toLowerCase()} llega de ${lo} a ${hi}`;

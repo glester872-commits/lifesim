@@ -27,8 +27,10 @@ export interface Fitness {
   taekwondo?: TkdProgress;
   /** Torneo de cada disciplina (systems/Tournaments): el de su día y la fase a la que se llegó. */
   tournaments?: Partial<Record<'taekwondo' | 'boxing', Entry>>;
-  /** Combates hechos, ganados y títulos, por disciplina. */
-  fights?: Partial<Record<'taekwondo' | 'boxing', FightRecord>>;
+  /** Combates hechos, ganados y títulos, por disciplina (en MMA, ejercicios por parejas). */
+  fights?: Partial<Record<'taekwondo' | 'boxing' | 'mma', FightRecord>>;
+  /** MMA: lo practicado por parejas en cada parte (puños, patadas, lucha), de 0 a 100, y sesiones hechas. */
+  mma?: MmaProgress;
   /** Forma general, de 0 a 100. */
   fitness: number;
   /** Fuerza (pesas). */
@@ -46,6 +48,13 @@ export interface Fitness {
   total: number;
 }
 
+export interface MmaProgress {
+  punches: number;
+  kicks: number;
+  grappling: number;
+  sessions: number;
+}
+
 export const START_FITNESS: Fitness = { fitness: 18, strength: 12, stamina: 16, fatigue: 0, at: 0, day: 0, sessions: 0, total: 0 };
 
 /** Qué clase de ejercicio es cada puesto del gimnasio (data/stations.ts). Lo que no está aquí no se entrena. */
@@ -58,6 +67,7 @@ export const KIND_OF: Readonly<Record<string, WorkoutKind>> = {
   'mma-bag': 'strength',
   'mma-ground': 'strength',
   'mma-footwork': 'cardio',
+  'mma-conditioning': 'cardio',
   'tkd-kicks-front': 'cardio',
   'tkd-kicks-round': 'cardio',
   'tkd-kicks-side': 'cardio',
@@ -213,6 +223,7 @@ export function train(f0: Fitness, station: string, intensity: Intensity, fracti
     ...(f.taekwondo ? { taekwondo: f.taekwondo } : {}),
     ...(f.tournaments ? { tournaments: f.tournaments } : {}),
     ...(f.fights ? { fights: f.fights } : {}),
+    ...(f.mma ? { mma: f.mma } : {}),
     fitness: round2(clamp(f.fitness + delta.fitness)),
     strength: round2(clamp(f.strength + delta.strength)),
     stamina: round2(clamp(f.stamina + delta.stamina)),
@@ -301,6 +312,33 @@ function parseAcademies(v: unknown): Pick<Fitness, 'academies'> {
   return Object.keys(academies).length ? { academies } : {};
 }
 
+/**
+ * Lo que deja un ejercicio por parejas de MMA (systems/Sparring): sólo sube cada parte por lo que se practicó de verdad
+ * (contactos a distancia: golpes que llegan o se paran, intentos de lucha que se resuelven); lo que no se tocó no se mueve.
+ * Cada técnica suma poco, con tope por sesión, y cuesta más cuanto más alta. La técnica de MMA (skills.mma) sube con el total.
+ */
+export function practiceMma(f: Fitness, tech: { punches: number; kicks: number; grappling: number }): { next: Fitness; gained: Record<'punches' | 'kicks' | 'grappling', number> } {
+  const base = f.mma ?? { punches: 0, kicks: 0, grappling: 0, sessions: 0 };
+  const gain = (n: number, value: number): number => round2(Math.min(1.5, 0.12 * Math.max(0, n)) * room(value));
+  const gained = { punches: gain(tech.punches, base.punches), kicks: gain(tech.kicks, base.kicks), grappling: gain(tech.grappling, base.grappling) };
+  const total = tech.punches + tech.kicks + tech.grappling;
+  const skill = f.skills?.mma ?? 0;
+  const mma: MmaProgress = {
+    punches: round2(clamp(base.punches + gained.punches)),
+    kicks: round2(clamp(base.kicks + gained.kicks)),
+    grappling: round2(clamp(base.grappling + gained.grappling)),
+    sessions: base.sessions + (total > 0 ? 1 : 0),
+  };
+  const skills = total > 0 ? { ...f.skills, mma: round2(clamp(skill + Math.min(1, 0.04 * total) * room(skill))) } : f.skills;
+  return { next: { ...f, mma, ...(skills ? { skills } : {}) }, gained };
+}
+
+function parseMma(v: unknown): Pick<Fitness, 'mma'> {
+  if (typeof v !== 'object' || v === null) return {};
+  const r = v as Record<string, unknown>;
+  return { mma: { punches: num(r.punches, 0), kicks: num(r.kicks, 0), grappling: num(r.grappling, 0), sessions: Math.round(num(r.sessions, 0, 0, 1_000_000)) } };
+}
+
 /** Lee lo guardado: partidas anteriores no lo tienen (se empieza de cero) y un campo mal formado se repone, no rompe la carga. */
 export function parseFitness(value: unknown): Fitness {
   if (typeof value !== 'object' || value === null) return { ...START_FITNESS };
@@ -311,6 +349,7 @@ export function parseFitness(value: unknown): Fitness {
     ...(parseTkd(v.taekwondo) ? { taekwondo: parseTkd(v.taekwondo) } : {}),
     ...(parseEntries(v.tournaments) ? { tournaments: parseEntries(v.tournaments) } : {}),
     ...(parseRecords(v.fights) ? { fights: parseRecords(v.fights) } : {}),
+    ...parseMma(v.mma),
     fitness: num(v.fitness, START_FITNESS.fitness),
     strength: num(v.strength, START_FITNESS.strength),
     stamina: num(v.stamina, START_FITNESS.stamina),

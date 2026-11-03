@@ -4,9 +4,11 @@
  * misma para todas. Una academia nueva es una entrada más, su interior (LocationDef con puestos `use`) y sus puestos en
  * data/stations.ts con `training: { academy }`: sin una línea de lógica por disciplina.
  *
- * Piloto: el boxeo, hoy Doble Guardia, con local propio en Cuatro Ríos (data/boxing.ts). Las demás, con la misma planta (data/academyRooms.ts) en el
- * gimnasio de su barrio: MMA en Forja (Vallesco) y baile en Velaria Club. El taekwondo tiene local propio: la Escuela de
- * Taekwondo Vallesco, en la Ronda de la Vía 34, con puerta a la calle (data/vallesco.ts, 'tkd-door').
+ * Piloto: el boxeo, hoy Doble Guardia, con local propio en Cuatro Ríos (data/boxing.ts). Las demás, con la misma planta
+ * (data/academyRooms.ts). Con local propio y puerta a la calle: el taekwondo, la Escuela de Taekwondo Vallesco (Ronda de la
+ * Vía 34, data/vallesco.ts 'tkd-door'), y el MMA, la Academia MMA Arena (Avenida del Estadio 27, data/arena.ts 'ar-mma';
+ * antes, anexo de Forja: conserva sus ids), y el baile, la Escuela de Baile Ribera Norte (data/ribera.ts 'ribera-dance';
+ * antes, anexo de Velaria Club: conserva sus ids).
  */
 
 export type Discipline = 'boxing' | 'taekwondo' | 'mma' | 'dance';
@@ -71,9 +73,12 @@ export const ACADEMIES: Partial<Record<Discipline, AcademyDef>> = {
   },
   mma: {
     id: 'mma',
-    name: 'Academia MMA Forja',
+    name: 'Academia MMA Arena',
     location: 'academy-mma',
     instructor: 'Rubén',
+    // Ejercicios por parejas en el tatami (systems/Sparring, estilo 'mma'): el tatami entero se reserva mientras duran.
+    spar: { tx: 8, ty: 6, look: 'uniforme-gym', level: 0.15 },
+    ring: { tx: 7, ty: 3, w: 7, h: 7 },
     hours: [9, 22],
     every: 30,
     grace: 5,
@@ -82,8 +87,8 @@ export const ACADEMIES: Partial<Record<Discipline, AcademyDef>> = {
     capacity: 6,
     skill: 'Técnica de MMA',
     lines: {
-      intro: 'Primero la base: postura, caer y levantarse. Luego, combinaciones.',
-      progressed: 'Ya no te quedas plantado: entras, sales y te levantas rápido. Sigue con el suelo.',
+      intro: 'Tres cosas: manos, piernas y lucha. Primero la base: guardia, distancia y saber levantarse.',
+      progressed: 'Ya no te quedas plantado: golpeas, entras al clinch y te levantas rápido. Sigue con el suelo.',
       after: 'Rubén te tiende la mano para levantarte: mejor base y mejor guardia. Se gana con constancia.',
     },
     progressedAt: 2,
@@ -110,7 +115,7 @@ export const ACADEMIES: Partial<Record<Discipline, AcademyDef>> = {
   },
   dance: {
     id: 'dance',
-    name: 'Estudio de Baile Velaria',
+    name: 'Escuela de Baile Ribera Norte',
     location: 'academy-dance',
     instructor: 'Lucía',
     hours: [10, 22],

@@ -147,7 +147,7 @@ assert.deepEqual(parseMembership({ pass: -4, paid: 'x' }), { pass: 0, paid: -1 }
 assert.deepEqual(parseFitness(START_FITNESS), START_FITNESS, 'un guardado sin academias cambia de forma');
 
 // ----------------------------------------------- 7. salas: se entra desde su gimnasio, en su barrio, y se llega a cada puesto
-const DISTRICT: Record<string, string> = { boxing: 'cuatro-rios', mma: 'district', taekwondo: 'district', dance: 'velaria' };
+const DISTRICT: Record<string, string> = { boxing: 'cuatro-rios', mma: 'arena', taekwondo: 'district', dance: 'ribera' };
 for (const a of academies) {
   const loc = getLocation(a.location);
   validate(loc);
@@ -197,8 +197,39 @@ for (const profile of ACADEMY_PROFILES) {
   assert.ok(repeat >= 2, `${profile.place}: de un día a otro no repite casi nadie (${repeat})`);
 }
 
-// ----------------------------------------------- 9. compañeras con nombre: Ada y Sara llegan a su clase de MMA
-for (const [npc, routineId, location] of [['ada', 'forja-mma', 'academy-mma'], ['sara', 'forja-mma-sara', 'academy-mma']] as const) {
+// ----------------------------------------------- 9. traslado del MMA al Arena: local propio con puerta a la calle, sin anexo en Forja
+{
+  const arena = getLocation('arena');
+  const door = arena.buildings?.find((b) => b.id === 'ar-mma');
+  assert.ok(door?.enter?.location === 'academy-mma' && door.style === 'mma-gym', 'MMA: sin fachada ni puerta propia en Arena');
+  const homes = new Set(PLACES.filter((p) => p.type === 'residence').map((p) => p.building));
+  assert.ok(!homes.has('ar-mma'), 'MMA: ocupa una vivienda');
+  const gym = getLocation('gym');
+  assert.ok(!gym.portals.some((p) => p.to.location === 'academy-mma') && !gym.spawns.mma && !gym.points?.GYM_MMA_DOOR, 'Forja conserva la puerta vieja de MMA');
+  for (const loc of ['gym', 'district', 'arena']) for (const p of getLocation(loc).portals) assert.ok(getLocation(p.to.location).spawns[p.to.spawn], `${loc}: portal huérfano ${p.id}`);
+  // De la boca de metro a la puerta de la academia y de la puerta a cada puesto: camino real por la calle.
+  const legs = worldRoute('AR_METRO_ENTRANCE', 'MMA_BAG_01');
+  assert.ok(legs && legs[0].location === 'arena' && legs.at(-1)!.location === 'academy-mma', 'MMA: no se llega andando desde el metro de Arena');
+  for (const c of CHARACTERS) for (const r of c.routines) for (const st of r.stops) assert.ok(!st.point.startsWith('MMA_'), `${c.npc}: va a MMA_ desde otro barrio`);
+}
+
+// ----------------------------------------------- 9b. traslado del baile a Ribera Norte: local propio, sin anexo en Velaria Club
+{
+  const ribera = getLocation('ribera');
+  const door = ribera.buildings?.find((b) => b.id === 'ribera-dance');
+  assert.ok(door?.enter?.location === 'academy-dance' && door.style === 'dance-school', 'Baile: sin fachada ni puerta propia en Ribera');
+  const homes = new Set(PLACES.filter((p) => p.type === 'residence').map((p) => p.building));
+  assert.ok(!homes.has('ribera-dance'), 'Baile: ocupa una vivienda');
+  const vl = getLocation('vl-gym');
+  assert.ok(!vl.portals.some((p) => p.id === 'dance' || p.to.location === 'academy-dance') && !vl.spawns.dance && !vl.points?.VLGYM_ACADEMY_DOOR, 'Velaria Club conserva la puerta vieja del baile');
+  for (const loc of ['ribera', 'vl-gym']) for (const p of getLocation(loc).portals) assert.ok(getLocation(p.to.location).spawns[p.to.spawn], `${loc}: portal huérfano ${p.id}`);
+  const legs = worldRoute('RB_METRO_FRONT', 'DANCE_STEP_01');
+  assert.ok(legs && legs[0].location === 'ribera' && legs.at(-1)!.location === 'academy-dance', 'Baile: no se llega andando desde el metro de Ribera');
+  assert.ok(ACADEMIES.dance!.id === 'dance' && ACADEMIES.dance!.location === 'academy-dance', 'Baile: cambia su id o su sala (rompe guardados)');
+}
+
+// ----------------------------------------------- 10. Ada y Sara: las tardes de MMA de Forja pasan al gimnasio (no cruzan de barrio)
+for (const [npc, routineId, location] of [['ada', 'forja-mma', 'gym'], ['sara', 'forja-mma-sara', 'gym']] as const) {
   const def = CHARACTERS.find((c) => c.npc === npc)!;
   const routine = def.routines.find((r) => r.id === routineId)!;
   const classStop = routine.stops.find((st) => getLocation(location).points?.[st.point])!;

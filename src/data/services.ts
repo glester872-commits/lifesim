@@ -41,7 +41,7 @@ export type ServiceOffer =
 
 export const SERVICE_OFFERS = {
   'boxing-coach': { kind: 'training', academy: 'boxing', points: ['BOX_GUARD_01', 'BOX_FEET_01', 'BOX_BAG_01', 'BOX_COORD_01', 'BOX_ROPE_01'] },
-  'mma-coach': { kind: 'training', academy: 'mma', points: ['MMA_BAG_01', 'MMA_GROUND_01', 'MMA_FEET_01'] },
+  'mma-coach': { kind: 'training', academy: 'mma', points: ['MMA_BAG_01', 'MMA_FEET_01', 'MMA_GROUND_01', 'MMA_COND_01'] },
   'tkd-coach': { kind: 'training', academy: 'taekwondo', points: ['TKD_KICK_01', 'TKD_KICK_02', 'TKD_KICK_03', 'TKD_FORM_01', 'TKD_FLEX_01'] },
   'dance-coach': { kind: 'training', academy: 'dance', points: ['DANCE_STEP_01', 'DANCE_CHOREO_01', 'DANCE_FLEX_01'] },
   haircut: { kind: 'appearance', slot: 'hair', title: 'Barbería Nati · corte', greeting: 'Siéntate. ¿Cómo lo quieres?', minutes: 30 },
