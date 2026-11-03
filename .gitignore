@@ -34,3 +34,6 @@ dist-ssr
 design/hd02/evidence/
 design/hd02/review/shots/
 design/hd03/shots/
+
+# Agent harness local reports
+.agent-runs/
