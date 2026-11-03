@@ -38,7 +38,7 @@ export interface PortalDef {
 }
 
 export type PropKind =
-  | 'boxing-bag' | 'boxing-post' | 'boxing-rack' | 'boxing-sign'
+  | 'boxing-bag' | 'boxing-post' | 'boxing-rack' | 'boxing-sign' | 'kick-pad' | 'dojang-sign'
   | 'tree'
   | 'bush'
   | 'bench'
@@ -290,6 +290,8 @@ export interface MetroDef {
 /** Aspecto de un edificio. Cada estilo tiene su fachada, su tejado y su rótulo en BuildingArt. */
 export type BuildingStyle =
   | 'home'
+  | 'dojang'
+  | 'boxing-club'
   | 'police'
   | 'fire'
   | 'res-brick'
@@ -662,6 +664,8 @@ export interface NpcLook {
   reflective?: string;
   /** Placa al pecho (la policía ficticia de systems/Police): un punto de metal sobre la banda. */
   badge?: string;
+  /** Cinturón de taekwondo atado a la cintura del dobok (systems/Taekwondo BELTS): su color. */
+  belt?: string;
   /** Franja vertical por fuera de cada pernera (el uniforme de seguridad del metro). */
   stripe?: string;
   /** Calzado fijo al cambiar de capa; sin él, sale del id. */

@@ -83,7 +83,8 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     crowd: { everyday: 4, smart: 1, sport: 1.2, street: 0.4 },
     vehicles: { all: { van: 1.2, bus: 0.6 } },
     // Con su comercio de planta baja: el horno, la tienda de alimentación y el bar de abajo.
-    facades: ['home', 'res-*', 'civic', 'wine', 'bakery', 'grocer', 'bar', 'fire', 'police', 'backdrop'],
+    // La escuela de taekwondo de la Ronda (data/vallesco.ts 'tkd-door'): un local de barrio, como el horno o el bar.
+    facades: ['home', 'res-*', 'civic', 'wine', 'bakery', 'grocer', 'bar', 'fire', 'police', 'dojang', 'backdrop'],
     ambience: { leaf: 1, paper: 0.4, steam: 0.8 },
   },
   // Calle Mayor y avenida: el granito de siempre, gente de recados y de oficina.
@@ -142,7 +143,8 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     kit: { props: ['utility-box', 'crates', 'poster', 'bike', 'ad-panel'], on: 'facade', every: 6, max: 12 },
     crowd: { everyday: 4, street: 1.6, smart: 1.2, sport: 1 },
     vehicles: { all: { van: 1.6, 'small-truck': 1.5, 'delivery-truck': 1.4, premium: 0.4, courier: 1.6 }, morning: { bus: 1.4 }, evening: { bus: 1.3 } },
-    facades: ['res-*', 'super', 'fruit', 'bakery', 'restaurant', 'hair', 'phone', 'gym', 'pharmacy', 'grocer', 'fashion', 'streetwear', 'arcade', 'laundry', 'cafe', 'backdrop'],
+    // La escuela de boxeo Doble Guardia (Cuatro Ríos): un local de barrio, como el gimnasio.
+    facades: ['res-*', 'super', 'fruit', 'bakery', 'restaurant', 'hair', 'phone', 'gym', 'boxing-club', 'pharmacy', 'grocer', 'fashion', 'streetwear', 'arcade', 'laundry', 'cafe', 'backdrop'],
     ambience: { leaf: 0.5, paper: 1.6, steam: 1.3 },
   },
   // Velaria: piedra clara y limpia, luz cálida de escaparate y de farola de forja, jardineras y bolardos en vez de cajas y

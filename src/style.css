@@ -2190,3 +2190,178 @@ body.has-touch .dialogue__choices li {
 .phone__delete {
   border-color: rgba(240, 120, 106, 0.45);
 }
+
+/* Clase de patadas (ui/KickDrill): la orden, el compás, la distancia y los botones de las dos piernas. Abajo en el
+   centro, por encima del juego; con el dedo, los botones crecen. */
+.kick {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 24px));
+  padding: 10px 12px 8px;
+  border: 2px solid rgba(232, 227, 218, 0.16);
+  background: rgba(14, 15, 22, 0.92);
+  color: var(--white);
+  font: 13px var(--ui-mono);
+  pointer-events: auto;
+  z-index: 6;
+}
+
+.kick[hidden] {
+  display: none;
+}
+
+.spar__score { font-weight: 700; font-size: 17px; margin: 6px 0; }
+.spar__clock { color: var(--amber); margin-bottom: 4px; }
+
+.kick__title {
+  color: var(--amber);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kick__cue {
+  margin: 4px 0;
+  font-size: 22px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.kick__beat {
+  position: relative;
+  height: 10px;
+  background: rgba(232, 227, 218, 0.1);
+}
+
+.kick__bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: rgba(240, 180, 106, 0.55);
+}
+
+.kick__now {
+  position: absolute;
+  right: 0;
+  top: -18px;
+  font-size: 11px;
+  opacity: 0.25;
+}
+
+.kick__now.is-on {
+  color: var(--amber);
+  opacity: 1;
+}
+
+.kick__queue {
+  margin-top: 6px;
+  letter-spacing: 0.2em;
+}
+
+.kick__reach {
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+.kick__reach.is-ok {
+  color: #9fd89a;
+  opacity: 1;
+}
+
+.kick__said {
+  min-height: 1.3em;
+  margin: 6px 0;
+}
+
+.kick__said.is-good {
+  color: #9fd89a;
+}
+
+.kick__pad {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.kick__types,
+.kick__moves,
+.kick__legs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 6px;
+}
+
+/* En el saco (ui/KickDrill modo golpes) se ocultan las patadas y aparece la guardia: hidden gana al display de la rejilla. */
+.kick__types[hidden],
+.kick__btn[hidden] {
+  display: none;
+}
+
+.kick__btn {
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 2px solid rgba(232, 227, 218, 0.22);
+  background: rgba(232, 227, 218, 0.06);
+  color: var(--white);
+  font: 700 13px var(--ui-mono);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.kick__btn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+.kick__btn.is-on,
+.kick__btn.is-pressed {
+  border-color: var(--amber);
+  background: rgba(240, 180, 106, 0.18);
+}
+
+.kick__leg {
+  min-height: 52px;
+  font-size: 15px;
+}
+
+.kick__k {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 4px;
+  border: 1px solid rgba(232, 227, 218, 0.35);
+  font-size: 11px;
+}
+
+.kick__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.kick__help {
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+.kick__end {
+  min-height: 36px;
+  margin-left: auto;
+}
+
+body.has-touch .kick__btn {
+  min-height: 52px;
+}
+
+body.has-touch .kick__leg {
+  min-height: 64px;
+}
+
+body.has-touch .kick__help {
+  display: none;
+}

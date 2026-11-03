@@ -95,7 +95,10 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('cr-af-3', 'Afluente 3', 'res-brick', [6, 27, 6, 7], 'n', 9, { point: 'CR_AF_3_ENTRANCE' }),
   b('cr-sushi', 'Sushi Nori', 'restaurant', [12, 27, 5, 7], 'n', 14, { enter: into('sushi-nori'), point: 'CR_SUSHI_ENTRANCE' }),
   b('cr-af-7', 'Afluente 7', 'res-modern', [17, 27, 5, 7], 'n', 19, { point: 'CR_AF_7_ENTRANCE' }),
-  b('cr-af-10', 'Afluente 10', 'res-plaster', [26, 27, 6, 7], 'n', 28, { point: 'CR_AF_10_ENTRANCE' }),
+  // Afluente 10: el bloque se reparte como en cualquier calle, local en planta baja y portal de las viviendas al lado.
+  // El local es la escuela de boxeo Doble Guardia (data/boxing.ts), con su puerta a la acera.
+  b('boxing-door', 'Doble Guardia · boxeo', 'boxing-club', [26, 27, 3, 7], 'n', 27, { enter: { location: 'boxing', spawn: 'entry' }, point: 'CR_BOXING_ENTRANCE' }),
+  b('cr-af-10', 'Afluente 10', 'res-plaster', [29, 27, 3, 7], 'n', 30, { point: 'CR_AF_10_ENTRANCE' }),
   b('cr-af-12', 'Afluente 12', 'res-brick', [32, 27, 5, 7], 'n', 34, { point: 'CR_AF_12_ENTRANCE' }),
   b('cr-af-14', 'Afluente 14', 'res-stone', [37, 27, 5, 7], 'n', 39, { point: 'CR_AF_14_ENTRANCE' }),
   b('cr-af-16', 'Afluente 16', 'res-modern', [42, 27, 6, 7], 'n', 44, { point: 'CR_AF_16_ENTRANCE' }),

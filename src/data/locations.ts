@@ -14,6 +14,7 @@ import { AR_INTERIORS } from './arenaVenues.ts';
 import { DECATHLON_STORE } from './decathlon.ts';
 import { POLIGONO_NORTE } from './poligonoNorte.ts';
 import { BOXING } from './boxing.ts';
+import { ACADEMY_ROOMS } from './academyRooms.ts';
 import { RONDA_INTERIORS } from './ronda.ts';
 import { rebased } from './velariaVenues.ts';
 import { ARCADE, ARCHIVO, BARBERSHOP, CAFE_RIO, CASA_MAR, CLUB, COLMADO, FASHION, GYM, MOLINILLO, OFFICE, PARISH, PHARMACY, RESTAURANT, RETALES, RIBERA_SPORT, SUELA, SUPERMARKET, TINTA, VUELTA, WINE_BAR } from './interiors.ts';
@@ -620,6 +621,7 @@ export const LOCATIONS: readonly LocationDef[] = [
   CAFE,
   GYM,
   BOXING,
+  ...ACADEMY_ROOMS,
   FASHION,
   SUPERMARKET,
   RESTAURANT,

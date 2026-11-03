@@ -214,7 +214,9 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('ronda-20', 'Ronda 20', 'res-modern', [63, 56, 13, 8], 's', 69, { floors: 3, point: 'RONDA_20_ENTRANCE', inspect: ['El portero automático tiene cámara. Nadie se ha atrevido a saludar.'] }),
   b('ronda-26', 'Ronda 26', 'res-brick', [76, 56, 11, 8], 's', 81, { floors: 3, point: 'RONDA_26_ENTRANCE', inspect: ['Ladrillo visto y un cartel en el ascensor: «Funciona. De verdad».'] }),
   b('ronda-30', 'Ronda 30', 'res-plaster', [87, 56, 11, 8], 's', 92, { floors: 2, point: 'RONDA_30_ENTRANCE', inspect: ['En el buzón, un papel: «Se busca a quien deja la bici en el rellano. Con cariño».'] }),
-  b('backdrop-ronda-e', 'Talleres de la Vía', 'backdrop', [98, 56, 12, 8], undefined),
+  // Escuela de Taekwondo Vallesco · Ronda de la Vía 34: los antiguos Talleres de la Vía (una manzana de relleno, sin
+  // nadie dentro), convertidos en dojang con su puerta a la acera de la Ronda.
+  b('tkd-door', 'Escuela de Taekwondo Vallesco', 'dojang', [98, 56, 12, 8], 's', 104, { floors: 2, enter: into('academy-tkd'), point: 'TKD_ENTRANCE' }),
   // Las traseras de la manzana de enfrente cierran la Ronda por el sur.
   // ALPHA-10: en medio, frente al pasaje del paso, la comisaría de barrio (data/ronda.ts), con la puerta a la acera sur.
   b('backdrop-ronda-s', 'Manzana sur', 'backdrop', [0, 69, 53, 5], undefined),

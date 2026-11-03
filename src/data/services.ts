@@ -23,7 +23,8 @@ export type ServiceActivity = 'post' | 'rounds' | 'serve';
  * (systems/Appearance.ts, systems/Activities.ts) que cambia el estado.
  */
 export type ServiceOffer =
-  | { kind: 'training'; title: string; points: readonly string[] }
+  /** Quien da las clases de una academia (data/academies.ts): horario, precio, bono y a qué ejercicio ir. */
+  | { kind: 'training'; academy: import('./academies.ts').Discipline; points: readonly string[] }
   | { kind: 'appearance'; slot: import('./appearance.ts').AppearanceSlot; title: string; greeting: string; minutes: number }
   | { kind: 'activities'; title: string; activities: readonly string[] }
   /** Una tienda de ropa (data/retail.ts): su género y sus precios, cobrados por systems/Retail.ts. */
@@ -39,7 +40,10 @@ export type ServiceOffer =
   | { kind: 'catalog'; title: string; catalog: string };
 
 export const SERVICE_OFFERS = {
-  'boxing-coach': { kind: 'training', title: 'Inés · Club de Boxeo Forja', points: ['BOX_GUARD_01', 'BOX_FEET_01', 'BOX_BAG_01', 'BOX_COORD_01', 'BOX_ROPE_01'] },
+  'boxing-coach': { kind: 'training', academy: 'boxing', points: ['BOX_GUARD_01', 'BOX_FEET_01', 'BOX_BAG_01', 'BOX_COORD_01', 'BOX_ROPE_01'] },
+  'mma-coach': { kind: 'training', academy: 'mma', points: ['MMA_BAG_01', 'MMA_GROUND_01', 'MMA_FEET_01'] },
+  'tkd-coach': { kind: 'training', academy: 'taekwondo', points: ['TKD_KICK_01', 'TKD_KICK_02', 'TKD_KICK_03', 'TKD_FORM_01', 'TKD_FLEX_01'] },
+  'dance-coach': { kind: 'training', academy: 'dance', points: ['DANCE_STEP_01', 'DANCE_CHOREO_01', 'DANCE_FLEX_01'] },
   haircut: { kind: 'appearance', slot: 'hair', title: 'Barbería Nati · corte', greeting: 'Siéntate. ¿Cómo lo quieres?', minutes: 30 },
   // Lo que dura cada tatuaje va en su diseño (data/tattoos.ts); `minutes` es la consulta.
   tattoo: { kind: 'appearance', slot: 'tattoos', title: 'Tinta Carmen · tatuaje', greeting: '¿Dónde lo quieres? Primero la zona, luego el diseño.', minutes: 10 },

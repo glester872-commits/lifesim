@@ -876,12 +876,33 @@ export class Crowd {
     return { state: 'REST', points: seats, minutes: [left, left] };
   }
 
+  /**
+   * Las personas "de aquí" (PopulationProfile.regulars): siempre las mismas para este local, salidas de su id, y nunca
+   * alguien con trabajo fijo en otra parte. Así las clases de una academia tienen compañeros que se repiten.
+   */
+  private regulars: number[] | null = null;
+  regularLooks(): readonly number[] {
+    if (this.regulars) return this.regulars;
+    const want = this.profile.regulars ?? 0;
+    const rng = seededRng(hashSeed('regulars', this.place.id));
+    const pool = PASSENGER_LOOKS.map((_, i) => i).filter((i) => !IDENTITIES[i]?.work);
+    const out: number[] = [];
+    while (out.length < want && pool.length > 0) out.push(...pool.splice(Math.floor(rng() * pool.length), 1));
+    this.regulars = out;
+    return out;
+  }
+
   private pickLook(staff = false): number {
     // Las caras de quien viene a un encuentro son suyas aunque aún no hayan entrado: nadie de paso las lleva.
     const used = new Set([...this.agents.map((a) => a.look), ...gatheringReservedLooks(this.now), ...insideLooks(this.now)]);
     for (const p of IDENTITIES) if (workingAt(p.work, this.now) && !(staff && p.work === this.place.id)) used.add(p.index);
     const worn = outfitsOf(used);
     const n = PASSENGER_LOOKS.length;
+    // Las caras fijas del local (PopulationProfile.regulars: los de una academia), si alguna está libre.
+    if (!staff) {
+      const regular = this.regularLooks().filter((look) => !used.has(look));
+      if (regular.length > 0) return regular[Math.floor(this.rng() * regular.length)];
+    }
     const start = Math.floor(this.rng() * n);
     let free = -1;
     for (let i = 0; i < n; i++) {

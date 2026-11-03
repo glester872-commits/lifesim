@@ -32,6 +32,8 @@ export interface HumanColors {
   reflective?: string;
   /** Placa al pecho, encima de la banda (policía). */
   badge?: string;
+  /** Cinturón del dobok (taekwondo): la banda a la cintura con el nudo y las puntas delante. */
+  belt?: string;
   /** Píxeles de brazo que tapa la manga (0–5); por debajo, piel. Sin él, todo el brazo. */
   sleeveLen?: number;
   /** Tatuajes que se ven con la ropa de hoy (systems/Appearance.ts decide cuáles): dónde y de qué tinta. */
@@ -137,10 +139,27 @@ function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w:
  * Carrera (TextureFactory, `-run-`): 36 y 37 las dos zancadas en el aire, con la rodilla alta, el pie
  * de atrás con el talón arriba y los brazos doblados; entre una y otra, los apoyos de andar (1 y 2),
  * un píxel más abajo: el cuerpo sube y baja al correr.
+ *
+ * Patadas de taekwondo (systems/Taekwondo), de perfil y con las manos en guardia: 38 recogida (la rodilla arriba, el pie
+ * colgando), 39 frontal (la planta hacia arriba y delante), 40 circular (la pierna horizontal, golpea el empeine) y 41
+ * lateral (recta, golpea el canto), con la pierna de cerca; 42 a 45, lo mismo con la de lejos. El pie de apoyo, siempre en
+ * el suelo. Mirando a la derecha la de cerca es la derecha; en espejo, la izquierda.
  */
-export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37;
+export type Pose = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | 33 | 34 | 35 | 36 | 37 | 38 | 39 | 40 | 41 | 42 | 43 | 44 | 45;
 /** Las de la textura común de gente: todas menos las de pelea, que se hornean aparte y sólo para quien pelea. */
 export const POSES: readonly Pose[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 32, 33, 34, 35, 36, 37];
+/**
+ * Las patadas (38–45) no van en el atlas común de la gente (serían 22 MB más para que las use sólo quien está en el
+ * dojang): el jugador las hornea con las suyas (PLAYER_POSES) y la gente, al usarlas (world/TextureFactory.kickTexture).
+ */
+export const KICK_POSES: readonly Pose[] = [38, 39, 40, 41, 42, 43, 44, 45];
+export const PLAYER_POSES: readonly Pose[] = [...POSES, ...KICK_POSES];
+export type KickStage = 'chamber' | 'front' | 'round' | 'side';
+const KICK_STAGES: readonly KickStage[] = ['chamber', 'front', 'round', 'side'];
+/** La pose de una patada: la fase y si golpea la pierna de cerca (38–41) o la de lejos (42–45). */
+export const kickPose = (stage: KickStage, near: boolean): Pose => (38 + KICK_STAGES.indexOf(stage) + (near ? 0 : 4)) as Pose;
+const kickOf = (pose: Pose): { stage: KickStage; near: boolean } | null =>
+  pose >= 38 && pose <= 45 ? { stage: KICK_STAGES[(pose - 38) % 4], near: pose < 42 } : null;
 /** Corriendo: zancada en el aire. */
 const running = (pose: Pose): boolean => pose === 36 || pose === 37;
 /** Sólo la pelea existente: carga del golpe, esquive, cansancio, victoria y discusión. */
@@ -586,6 +605,15 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   px(ctx, tone(c.cloth, -0.07), 9, 11 + b, 1, 5 - b);
   px(ctx, c.clothDark, 10, 11 + b, 2, 5 - b);
   px(ctx, c.clothDark, 4, 16, 8, 1);
+  if (c.belt) {
+    // El cinturón del grado: la banda entera y, de frente, el nudo con las dos puntas cayendo.
+    px(ctx, c.belt, 4, 16, 8, 1);
+    if (!back) {
+      px(ctx, shade(c.belt, 0.18), 7, 16, 2, 1);
+      px(ctx, c.belt, 7, 17, 1, 2);
+      px(ctx, c.belt, 8, 17, 1, 3);
+    }
+  }
   if (!back) px(ctx, shade(c.skin, -0.06), 7, 10 + b, 2, 1); // escote
   // Volumen de la ropa: el hombro con luz, el cuello marcado, un pliegue al centro y el cinturón que
   // separa tronco y piernas. Un píxel cada cosa: se lee a distancia sin recargar.
@@ -891,16 +919,74 @@ function hat(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
   if (!back) px(ctx, shade(c.cap, -0.2), 4, 3 + b, 8, 1);
 }
 
+/** El pie de apoyo de una patada (poses 38–45): recto, con el pie plano un poco atrás. */
+function drawKickStand(ctx: Ctx, c: HumanColors, color: string): void {
+  leg(ctx, c, color, 5, 17, 3, 5);
+  px(ctx, c.shoes, 4, 22, 5, 2);
+  px(ctx, tone(c.shoes, -0.3), 4, 23, 5, 1);
+}
+
+/** Lo que se echa atrás el cuerpo al patear (px): sitio para la pierna. */
+const KICK_LEAN = 2;
+
+/**
+ * Cada fase de la pierna que golpea, en tramos [x, y, ancho, alto] desde la cadera (antes de echar el cuerpo atrás:
+ * llega a x = 17, el borde de la celda): muslo, espinilla y pie, de 3 px de grueso para que se lean por separado.
+ */
+const STRIKE: Readonly<Record<KickStage, readonly (readonly [number, number, number, number])[]>> = {
+  // Recogida: la rodilla arriba y delante, la espinilla colgando y el pie recogido bajo la rodilla.
+  chamber: [[9, 13, 4, 3], [12, 16, 3, 4], [12, 20, 4, 2]],
+  // Frontal: el muslo sube, la espinilla se estira hacia arriba y delante y golpea la planta, a la altura del pecho.
+  front: [[9, 12, 4, 3], [13, 9, 3, 4], [14, 6, 3, 3]],
+  // Circular: la pierna horizontal a media altura, de cadera a empeine, con la rodilla girada.
+  round: [[9, 11, 4, 3], [13, 10, 3, 3], [16, 10, 2, 3]],
+  // Lateral: recta desde la cadera y golpea el canto del pie, de pie a cadera en una línea.
+  side: [[9, 12, 6, 3], [15, 10, 3, 6]],
+};
+
+/**
+ * La pierna que golpea, encima del tronco (sale de la cadera hacia delante) y con su contorno: se lee contra la ropa
+ * del mismo color. La de lejos, más oscura. El pie con su suela, que es lo que toca el pao.
+ */
+function drawKickStrike(ctx: Ctx, c: HumanColors, stage: KickStage, color: string): void {
+  const parts = STRIKE[stage];
+  for (const [x, y, w, h] of parts) px(ctx, PALETTE.outline, x - 1, y - 1, w + 2, h + 2);
+  parts.forEach(([x, y, w, h], i) => {
+    const foot = i === parts.length - 1;
+    px(ctx, foot ? c.shoes : color, x, y, w, h);
+    if (foot) px(ctx, tone(c.shoes, -0.3), x + w - 1, y, 1, h);
+    else px(ctx, tone(color, 0.14), x, y, w, 1);
+  });
+}
+
 /** De perfil se ve el brazo cercano: el derecho mirando a la derecha; el izquierdo, en espejo. */
+/**
+ * De perfil. En una patada (38–45) todo el cuerpo va 2 px atrás, como el contrapeso de verdad: la pierna que golpea
+ * cabe entera en la celda, hasta el borde, sin cambiar la escala de nadie.
+ */
 function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
+  if (!kickOf(pose)) {
+    drawSideBody(ctx, pose, c, near);
+    return;
+  }
+  ctx.save();
+  ctx.translate(-KICK_LEAN, 0);
+  drawSideBody(ctx, pose, c, near);
+  ctx.restore();
+}
+
+function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   const b = drop(pose);
   const far = shade(c.trousers, -0.12);
   // En guardia y al golpear, piernas abiertas como al dar un paso, con el pie de delante hacia el otro.
   const step = pose === 1 || pose === 2 || pose === 8 || pose === 9 || pose === 27;
+  const kick = kickOf(pose);
 
   // Piernas: juntas quieto; al andar, una delante y otra detrás; sentado, el muslo hacia delante.
   // Suela más oscura que el empeine en cada zapato: el pie se asienta.
-  if (seated(pose)) {
+  if (kick) {
+    drawKickStand(ctx, c, kick.near ? far : c.trousers);
+  } else if (seated(pose)) {
     leg(ctx, c, c.trousers, 6, 17, 6, 2);
     leg(ctx, c, c.trousers, 10, 19, 2, 3);
     px(ctx, c.shoes, 10, 22, 3, 2);
@@ -956,11 +1042,17 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
   px(ctx, c.cloth, 5, 10 + b, 6, 7 - b);
   px(ctx, tone(c.cloth, 0.12), 5, 10 + b, 2, 6 - b);
   px(ctx, c.clothDark, 5, 16, 6, 1);
+  if (c.belt) {
+    // De perfil, la banda y las puntas del nudo por delante.
+    px(ctx, c.belt, 5, 16, 6, 1);
+    px(ctx, c.belt, 10, 17, 1, 2);
+  }
   px(ctx, shade(c.cloth, 0.16), 5, 10 + b, 4, 1);
   px(ctx, shade(c.cloth, -0.1), 10, 11 + b, 1, 5 - Math.min(b, 4));
   if (b < 3) px(ctx, shade(c.trousers, -0.32), 5, 17, 6, 1);
-  if (!seated(pose)) px(ctx, shade(c.shoes, 0.3), step || running(pose) ? 12 : 10, 22, 1, 1);
+  if (!seated(pose)) px(ctx, shade(c.shoes, 0.3), kick ? 7 : step || running(pose) ? 12 : 10, 22, 1, 1);
   if (c.bump) belly(ctx, c, c.bump, 11 + b);
+  if (kick) drawKickStrike(ctx, c, kick.stage, kick.near ? c.trousers : far);
 
   // Cabeza de perfil: nuca, oreja, ojo y nariz hacia delante.
   px(ctx, shade(c.skin, -0.1), 7, 9 + b, 2, 1);
@@ -1085,8 +1177,8 @@ function drawSide(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): void {
     // Brazo en alto, puño cerrado: jaleando.
     px(ctx, sleeve, 7, 4, 2, 7);
     px(ctx, c.skin, 7, 2, 2, 2);
-  } else if (pose === 8) {
-    // Guardia: el antebrazo sube y el puño queda delante de la barbilla.
+  } else if (pose === 8 || kickOf(pose)) {
+    // Guardia (también al patear): el antebrazo sube y el puño queda delante de la barbilla.
     px(ctx, sleeve, 8, 11 + b, 3, 2);
     px(ctx, sleeve, 11, 9 + b, 2, 3);
     px(ctx, c.skin, 11, 7 + b, 2, 2);

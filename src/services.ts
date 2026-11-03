@@ -24,6 +24,9 @@ export interface Services {
   dialogue: DialogueSystem;
   save: SaveSystem;
   hint: TargetHint;
+  /** El panel de la clase de patadas (ui/KickDrill): órdenes, compás, distancia y los botones de las dos piernas. */
+  kickDrill: import('./ui/KickDrill').KickDrill;
+  sparPanel: import('./ui/SparPanel').SparPanel;
   /** Null si METRO_CONFIG.debug está apagado. */
   metroDebug: MetroDebug | null;
   announcer: Announcer;

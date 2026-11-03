@@ -1,0 +1,121 @@
+{
+  "result": {
+    "pass": true,
+    "classes": [
+      {
+        "style": "taekwondo",
+        "admission": true,
+        "exercise": true,
+        "result": true,
+        "exit": true,
+        "resumeFee": 0
+      },
+      {
+        "style": "boxing",
+        "admission": true,
+        "exercise": true,
+        "result": true,
+        "exit": true,
+        "resumeFee": 0
+      }
+    ],
+    "fights": [
+      {
+        "style": "boxing",
+        "round": 1,
+        "score": [
+          194,
+          9
+        ],
+        "stage": "final",
+        "money": 90
+      },
+      {
+        "style": "boxing",
+        "round": 2,
+        "score": [
+          198,
+          11
+        ],
+        "stage": "champion",
+        "money": 130
+      },
+      {
+        "style": "taekwondo",
+        "round": 1,
+        "score": [
+          220,
+          27
+        ],
+        "stage": "final",
+        "money": 90
+      },
+      {
+        "style": "taekwondo",
+        "round": 2,
+        "score": [
+          202,
+          42
+        ],
+        "stage": "champion",
+        "money": 130
+      }
+    ],
+    "beltGrades": 6,
+    "phoneConnected": true,
+    "resourceSnapshot": {
+      "money": 94,
+      "inventory": {}
+    },
+    "renderer": "WebGL",
+    "entities": 146
+  },
+  "touch": [
+    {
+      "key": "kickLeft",
+      "side": "L",
+      "rect": {
+        "x": 26,
+        "y": 698,
+        "w": 166,
+        "h": 64
+      }
+    },
+    {
+      "key": "kickRight",
+      "side": "R",
+      "rect": {
+        "x": 198,
+        "y": 698,
+        "w": 166,
+        "h": 64
+      }
+    }
+  ],
+  "paused": {
+    "paused": true,
+    "t": 19100
+  },
+  "still": {
+    "paused": true,
+    "t": 19100
+  },
+  "reloaded": {
+    "money": 94,
+    "paid": 8280,
+    "fee": 0,
+    "wait": 0,
+    "blocked": null,
+    "spar": false
+  },
+  "boxingReloaded": {
+    "money": 94,
+    "paid": 9720,
+    "fee": 0,
+    "wait": 0,
+    "blocked": null,
+    "workout": false
+  },
+  "errors": [],
+  "environment": "Chrome headless, SwiftShader; escritorio y móvil emulado. No teléfono físico."
+}

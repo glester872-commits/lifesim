@@ -1,0 +1,23 @@
+{
+  "check": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "commands": 108
+  },
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0
+  },
+  "runtime": {
+    "command": "node scripts/qa/run-qa08.mjs",
+    "pass": true,
+    "artifacts": "runtime.json"
+  },
+  "git": {
+    "branch": "alpha-09-fachada",
+    "base": "736cf0a",
+    "diffCheck": 0,
+    "commitCreated": false,
+    "pushed": false
+  }
+}

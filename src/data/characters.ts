@@ -126,6 +126,20 @@ export const CHARACTERS: readonly CharacterDef[] = [
         ],
       },
       {
+        // Compañera de clase (data/academies.ts): los miércoles, MMA en Forja en vez de cinta (el boxeo se fue a Cuatro
+        // Ríos, Doble Guardia, y a otro barrio no se va andando).
+        id: 'forja-mma-sara',
+        days: on('wednesday'),
+        weight: 2,
+        stops: [
+          { at: '09:40', point: 'CAFE_TABLE_05', alt: ['CAFE_WINDOW_SEAT'], lines: ['Hoy MMA. Rubén dice que tengo buena cadera. Lo tomo como un cumplido.'], going: ['Voy a por un café, que hoy hay MMA.'] },
+          inside('11:00', SARA_HOME, 'Clase online y luego, a Forja.'),
+          { at: '18:00', point: 'MMA_BAG_03', alt: ['MMA_BAG_01'], lines: ['Saco, sí. Cardio de verdad y un vídeo para luego.', 'No me mires que se me baja la guardia.'], going: ['Me voy a MMA a Forja, que hoy toca saco.'] },
+          { at: '21:00', point: 'PLAZA_BENCH_03', optional: true, lines: ['Después del saco, sentarse en la plaza sabe a gloria.'], going: ['Bajo a la plaza a que me dé el aire.'] },
+          inside('22:15', SARA_HOME, 'Me voy a dormir. Mañana no muevo los brazos.'),
+        ],
+      },
+      {
         // Días de facultad: sale en metro por la mañana y vuelve a comer tarde.
         id: 'facultad',
         days: on('tuesday', 'thursday'),
@@ -411,6 +425,19 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('19:15', ADA_HOME, 'A dejar la compra.'),
           { at: '20:30', point: 'CAFE_TERRACE_02', optional: true, lines: ['Una caña y a casa, que mañana madrugo.'], going: ['Bajo a la terraza un rato.'] },
           inside('21:40', ADA_HOME, 'Me voy, que mañana hay academia.'),
+        ],
+      },
+      {
+        // Compañera de clase (data/academyRooms.ts): MMA en Forja dos tardes; quien coincide con ella ahí la va conociendo.
+        id: 'forja-mma',
+        days: on('monday', 'wednesday'),
+        weight: 2,
+        stops: [
+          inside('08:40', 'STUDY_CENTER_ENTRANCE', 'Llego tarde a la academia. La otra academia, la de los apuntes.'),
+          { at: '13:30', point: 'CAFE_TABLE_01', alt: ['CAFE_WINDOW_SEAT'], lines: ['Esta tarde, MMA. Hoy me desahogo con el saco.'], going: ['Pausa para comer algo.'] },
+          inside('14:40', 'STUDY_CENTER_ENTRANCE', 'Vuelta a los apuntes.'),
+          { at: '19:00', point: 'MMA_BAG_02', alt: ['MMA_GROUND_02'], lines: ['Mano, mano, rodilla. Llevo un mes y ya no me caigo. Casi.', 'Aquí se piensa menos que en la academia. Se agradece.'], going: ['Me voy a MMA, a Forja. Hoy toca saco.'] },
+          inside('21:00', ADA_HOME, 'Ducha y a repasar. Me duele todo, pero bien.'),
         ],
       },
       {

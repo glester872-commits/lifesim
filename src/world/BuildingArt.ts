@@ -21,7 +21,7 @@ const STOREY = TILE * STOREY_ROWS;
 
 type Shop = 'windows' | 'display' | 'glass' | 'shutter' | 'arched' | 'metro';
 type Upper = 'windows' | 'balcony' | 'glass' | 'band';
-type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone' | 'gem' | 'star' | 'frame' | 'lotus' | 'shield' | 'flame';
+type Sign = 'house' | 'dumbbell' | 'cup' | 'hanger' | 'basket' | 'fork' | 'cross' | 'scissors' | 'euro' | 'apple' | 'key' | 'drop' | 'book' | 'flag' | 'plate' | 'note' | 'wine' | 'dress' | 'cap' | 'tag' | 'heart' | 'disc' | 'sneaker' | 'pole' | 'beer' | 'joystick' | 'ball' | 'bread' | 'phone' | 'gem' | 'star' | 'frame' | 'lotus' | 'shield' | 'flame' | 'belt' | 'glove';
 type Door = 'glass' | 'wood' | 'metal' | 'stairs' | 'home';
 
 interface Look {
@@ -74,6 +74,12 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   fire: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#a8382f', shop: 'shutter', upper: 'windows', lit: PALETTE.amber, door: 'metal', awning: ['#c8302a', PALETTE.white], sign: 'flame' },
   'res-plaster': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.wallLit, 0.05), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood', mat: 'stucco' },
   metro: { roof: PALETTE.night, roofLit: shade(PALETTE.night, 0.06), wall: PALETTE.night, shop: 'metro', upper: 'windows', lit: PALETTE.amber, door: 'stairs' },
+  // Escuela de taekwondo (ficticia): enlucido claro, cristal con el tatami detrás, toldo rojo y azul del taegeuk y el
+  // cinturón negro anudado de rótulo. No se confunde con un gimnasio: no lleva pesa.
+  // Escuela de boxeo (ficticia): ladrillo oscuro, toldo rojo y azul de las esquinas del ring y el guante de rótulo.
+  // Local de barrio, no gimnasio: no lleva pesa.
+  'boxing-club': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: shade(PALETTE.brick, -0.18), shop: 'glass', upper: 'windows', lit: PALETTE.amber, door: 'metal', awning: ['#c35043', '#476b90'], sign: 'glove', mat: 'brick' },
+  dojang: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: shade(PALETTE.white, -0.06), shop: 'glass', upper: 'windows', lit: PALETTE.glassLit, door: 'glass', awning: ['#b8323a', '#2f5f9e'], sign: 'belt', mat: 'stucco' },
   gym: { roof: PALETTE.roofBLit, roofLit: shade(PALETTE.roofBLit, 0.05), wall: PALETTE.metal, shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass', sign: 'dumbbell' },
   cafe: { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: PALETTE.wood, shop: 'windows', upper: 'windows', lit: PALETTE.amber, door: 'glass', awning: [PALETTE.amberDim, PALETTE.white], sign: 'cup' },
   fashion: { roof: PALETTE.roofALit, roofLit: shade(PALETTE.roofALit, 0.05), wall: shade(PALETTE.white, -0.12), shop: 'display', upper: 'windows', lit: PALETTE.white, door: 'glass', awning: [PALETTE.ink, shade(PALETTE.ink, 0.12)], sign: 'hanger' },
@@ -1615,7 +1621,7 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     drop: PALETTE.glassLit, book: PALETTE.white, flag: PALETTE.amber, plate: PALETTE.white, note: NEON_PINK, wine: PALETTE.rugLit,
     dress: '#e6dcc0', cap: NEON_CYAN, tag: PALETTE.leafLit, heart: NEON_PINK, disc: PALETTE.amber,
     sneaker: '#ffb14a', pole: RUST, beer: PALETTE.amber, joystick: NEON_PINK, ball: '#d9772e', bread: PALETTE.amber, phone: NEON_CYAN,
-    gem: BRASS, star: BRASS, frame: BRASS, lotus: BRASS, shield: '#d8e04a', flame: '#f2c230',
+    gem: BRASS, star: BRASS, frame: BRASS, lotus: BRASS, shield: '#d8e04a', flame: '#f2c230', belt: '#c8302a', glove: '#c35043',
   };
   const c = edge[sign];
   px(ctx, PALETTE.ink, 2, 2, 12, 12);
@@ -1640,6 +1646,10 @@ function drawSign(ctx: Ctx, sign: Sign): void {
     case 'basket': p(4, 7, 8, 1); p(5, 8, 6, 4); p(6, 4, 1, 3); p(9, 4, 1, 3); p(6, 4, 4, 1); break;
     case 'fork': p(5, 4, 1, 8); p(4, 4, 1, 3); p(6, 4, 1, 3); p(10, 4, 2, 4); p(10, 8, 1, 4); break;
     case 'cross': p(7, 4, 2, 8); p(4, 7, 8, 2); break;
+    // Cinturón negro anudado: la banda, el nudo en el centro y las dos puntas cayendo.
+    // Guante de boxeo: el puño redondo, el pulgar y el puño de la muñeca, en rojo.
+    case 'glove': px(ctx, '#c35043', 4, 4, 7, 6); px(ctx, '#c35043', 3, 6, 2, 3); px(ctx, '#e7745f', 5, 5, 3, 1); px(ctx, '#eee1cc', 5, 10, 5, 2); break;
+    case 'belt': px(ctx, '#f0e9da', 3, 6, 10, 3); px(ctx, '#141414', 3, 7, 10, 1); px(ctx, '#141414', 7, 5, 2, 5); px(ctx, '#141414', 6, 10, 1, 3); px(ctx, '#141414', 9, 10, 1, 3); px(ctx, '#c8302a', 7, 6, 2, 1); break;
     // Escudo de la Policía de Distrito (ficticio): blasón azul marino con filo blanco y una estrella amarilla en el centro.
     case 'shield': p(4, 3, 8, 1); p(4, 4, 1, 5); p(11, 4, 1, 5); p(5, 9, 1, 1); p(10, 9, 1, 1); p(6, 10, 1, 1); p(9, 10, 1, 1); p(7, 11, 2, 1);
       px(ctx, '#1f2c4a', 5, 4, 6, 5); px(ctx, '#1f2c4a', 6, 9, 4, 1); px(ctx, '#1f2c4a', 7, 10, 2, 1);
