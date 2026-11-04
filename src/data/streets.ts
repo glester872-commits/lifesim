@@ -756,4 +756,49 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       patrol([9.5, 21], ['PN_DECATHLON_WAIT_', 'PN_PARK_'], 'Una vuelta por el aparcamiento. Los sábados siempre abren algún coche.', { weight: 0.4 }),
     ],
   },
+  // Campo Alto (data/campoAlto.ts): barrio de vecinos con parque y un café. Tranquilo; las tardes y el fin de semana, más gente.
+  {
+    location: 'campo-alto',
+    bands: [[7, 9.5, 'LOW'], [9.5, 16, 'LOW'], [16, 20, 'MEDIUM'], [20, 22, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 1, 1],
+    scale: 0.8,
+    maxWalkers: 10,
+    bursts: [{ point: 'CA_METRO_ENTRANCE', every: [[7, 22, 14]], size: [1, 2] }],
+    trips: [
+      { role: 'commuter', label: 'Vecino camino del metro', line: 'Dos transbordos hasta el centro. Pero tengo parque.', weight: 3, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
+      { role: 'returning', label: 'Vecina de vuelta a casa', line: 'Aquí se oye a los pájaros. Y a los del fútbol del sábado.', weight: 3, hours: [16.5, 21], from: TRANSIT, to: HOMES },
+      { role: 'coffee', label: 'Alguien que baja al café', line: 'Un cortado, y luego, el parque.', weight: 3, hours: [7.5, 20], from: HOMES, to: { tags: ['food'] } },
+      { role: 'park-elders', label: 'Vecino en la plaza del parque', line: 'Aquí me siento todas las tardes. Hasta que me echen.', weight: 2, hours: [10, 20], from: HOMES, to: { points: ['CA_PARK_'] }, stay: [10, 30], stayState: 'PHONE', then: HOMES_OR_CITY, max: 3 },
+      { role: 'passer-by', label: 'Alguien atajando por el barrio', line: 'Por aquí se llega antes. Si no te pierdes.', weight: 1, hours: [7, 22], from: CITY, to: CITY },
+      // La limpieza viaria (carrito y escoba): la calle y la acera central, de madrugada.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Tiques, latas y envoltorios. Lo de siempre en un barrio.', weight: 6, hours: [7.5, 9.5], from: CITY, to: CITY, via: ['ca-n23', 'ca-m23', 'ca-park', 'ca-s23'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      patrol([9, 21], ['CA_METRO_WAIT_', 'CA_PARK_'], 'Una vuelta por el parque y la boca de metro. Tranquilo, de momento.', { weight: 0.4 }),
+    ],
+  },
+  // Casco Antiguo (data/cascoAntiguo.ts): calle de tiendas con plaza de mercado. Mañanas de compra, tardes de paseo.
+  {
+    location: 'casco-antiguo',
+    bands: [[7, 9, 'MEDIUM'], [9, 11, 'MEDIUM'], [11, 14, 'HIGH'], [14, 17, 'MEDIUM'], [17, 21, 'HIGH'], [21, 23, 'MEDIUM'], [23, 24, 'LOW']],
+    weekday: [0, 0, 0, 0, 1, 2, 1],
+    scale: 2,
+    maxWalkers: 36,
+    bursts: [{ point: 'CAS_METRO_ENTRANCE', every: [[7, 10, 6], [11, 14, 6], [17, 21, 5], [21, 23, 10]], size: [1, 3] }],
+    trips: [
+      { role: 'commuter', label: 'Vecino camino del metro', line: 'Tres paradas hasta Vallesco. Me da para el periódico.', weight: 3, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
+      { role: 'returning', label: 'Vecina de vuelta a casa', line: 'Subo la compra y bajo otra vez a la plaza.', weight: 4, hours: [17, 22], from: TRANSIT, to: HOMES },
+      { role: 'shopper', label: 'Alguien que va al mercado', line: 'A por fruta, que la del súper no sabe a nada.', weight: 6, hours: [8, 20.5], from: HOMES, to: { tags: ['food'] }, then: HOMES_OR_CITY },
+      { role: 'shopper', label: 'Alguien de compras en la frutería', line: 'Medio kilo de naranjas. Que sea un kilo.', weight: 6, hours: [9, 20.5], from: HOMES_OR_CITY, to: { points: ['CAS_FRUIT_ENTRANCE'] }, group: [1, 2], bond: ['friends', 'couple', 'family'] },
+      { role: 'errands', label: 'Alguien de recados', line: 'Fruta, pan y el periódico. Por ese orden.', weight: 3, hours: [9.5, 21], from: HOMES_OR_CITY, to: { points: ['CAS_FRUIT_ENTRANCE'] } },
+      { role: 'friends-meet', label: 'Amigos que han quedado en la plaza', line: 'Falta Marta. Siempre falta Marta.', weight: 4, hours: [11, 22.5], from: HOMES_OR_CITY, to: { points: ['CAS_PLAZA_'] }, stay: [4, 12], stayState: 'TALK', then: HOMES_OR_CITY, group: [2, 4], bond: ['friends'], max: 2 },
+      { role: 'plaza-family', label: 'Una familia en la plaza', line: 'El helado después de comer. Después.', weight: 2, hours: [10, 20], from: HOMES_OR_CITY, to: { points: ['CAS_PLAZA_'] }, stay: [8, 20], stayState: 'TALK', group: [1, 2], bond: ['family'], max: 2 },
+      { role: 'couple-walk', label: 'Una pareja paseando', line: 'Una vuelta por la plaza y cenamos. O al revés.', weight: 3, hours: [17, 22.5], from: HOMES_OR_CITY, to: HOMES_OR_CITY, via: ['cas-m21', 'cas-plaza'], pace: 'stroll', group: [2, 2], bond: ['couple'], pause: 0.4 },
+      { role: 'metro-meet', label: 'Alguien esperando en la boca de metro', line: 'Te dije la boca de metro. Hay una sola.', weight: 2, hours: [8, 22], from: HOMES_OR_CITY, to: { points: ['CAS_METRO_WAIT_'] }, stay: [3, 10], stayState: 'PHONE', max: 1 },
+      { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Tres paradas y ya huele a fruta.', weight: 3, hours: [7, 22.5], from: TRANSIT, to: { tags: ['shop', 'food'], types: ['residence'], edge: true } },
+      { role: 'passer', label: 'Alguien de paso', line: 'Por la plaza se ataja.', weight: 3, from: CITY, to: CITY },
+      { role: 'passer-by', label: 'Alguien atajando por el casco', line: 'Por la plaza se llega antes. Si no te paras en cada escaparate.', weight: 1, hours: [7, 22], from: CITY, to: CITY },
+      // La limpieza viaria (carrito y escoba): el paso de cebra y la bajada por la plaza, a primera hora.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Cajas de fruta, papeles y vasos. Día de mercado, día de escoba.', weight: 6, hours: [7.5, 9.5], from: CITY, to: CITY, via: ['cas-n21', 'cas-m21', 'cas-plaza', 'cas-s21'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      patrol([9, 21], ['CAS_METRO_WAIT_', 'CAS_PLAZA_'], 'Una vuelta por la plaza y la boca de metro. Día de mercado, ojo a los bolsos.', { weight: 0.4 }),
+    ],
+  },
 ];

@@ -47,6 +47,8 @@ export const STOPS: readonly TransitStop[] = [
   // Velaria, la cabecera: a una de Cuatro Ríos y a dos de Vallesco. Los trayectos de antes no cambian.
   // Puerta Central, la nueva cabecera: a una de Velaria. La estación más llena de la línea. Los trayectos de antes no cambian.
   // El Arena, una más allá del intercambiador: en día de partido, media ciudad hace transbordo en Puerta Central.
+  // Campo Alto, una más allá del Arena (data/campoAlto.ts). Los trayectos de antes no cambian.
+  { id: 'campo-alto', name: 'Campo Alto', line: 'L2', order: -5, station: 'campo-alto-station' },
   { id: 'arena', name: 'Arena · Estadio del Halcón', line: 'L2', order: -4, station: 'arena-station' },
   { id: 'puerta-central', name: 'Puerta Central', line: 'L2', order: -3, station: 'puerta-central-station', hub: 1 },
   { id: 'velaria', name: 'Velaria', line: 'L2', order: -2, station: 'velaria-station' },
@@ -54,6 +56,8 @@ export const STOPS: readonly TransitStop[] = [
   { id: 'vallesco', name: 'Vallesco', line: 'L2', order: 0, station: 'vallesco-station' },
   { id: 'ribera', name: 'Ribera Norte', line: 'L2', order: 1, station: 'ribera-station' },
   { id: 'decathlon', name: 'Polígono Norte · Decathlon', line: 'L2', order: 2, station: 'decathlon-station' },
+  // Casco Antiguo, una más allá del Polígono Norte (data/cascoAntiguo.ts). Los trayectos de antes no cambian.
+  { id: 'casco-antiguo', name: 'Casco Antiguo', line: 'L2', order: 3, station: 'casco-antiguo-station' },
   { id: 'puerta-central-l3', name: 'Puerta Central · L3', line: 'L3', order: 0, station: 'puerta-central-l3-station', hub: 1 },
   { id: 'decathlon-l3', name: 'Polígono Norte · Decathlon · L3', line: 'L3', order: 1, station: 'decathlon-l3-station' },
 ];

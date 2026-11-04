@@ -47,6 +47,8 @@ import { withAppearance } from './systems/Appearance';
 import { STREET_EVENTS } from './data/streetEvents';
 import { STORIES } from './data/saraStory';
 import { StreetEvent } from './systems/StreetEvents';
+import { PROTESTS } from './data/protests';
+import { Protest } from './systems/Protest';
 import { eventId, type EventInfo } from './systems/WorldEvents';
 import { EMERGENCIES } from './data/emergencies';
 import { clearForced, emergencyInfo, forceIncident } from './systems/Emergencies';
@@ -367,6 +369,8 @@ function devFight() {
 function devEvents() {
   const fights = new Map(STREET_EVENTS.map((d) => [eventId('fight', d.id), new StreetEvent(d, getLocation(d.location))]));
   const deals = new Map(ALLEY_SPOTS.map((s) => [eventId('alley', s.id), new AlleyDeal(s, getLocation(s.location))]));
+  // Concentraciones (systems/Protest): protest:<id>, con los mismos verbos que las peleas.
+  const protests = new Map(PROTESTS.map((d) => [eventId('protest', d.id), new Protest(d, getLocation(d.location))]));
   const now = (): number => state.day * 1440 + services.clock.minuteOfDay;
   const metro = () => (game.scene.getScene('World') as WorldSceneType).metroSystem;
   /** El carterista de la calle de aquí (systems/Pickpocket), si hay calle con gente. */
@@ -377,7 +381,7 @@ function devEvents() {
     const crime = metro()?.pickpocketLifecycle();
     const robbery = street()?.lifecycle();
     const flags = state.events.eventFlags;
-    return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...[...fires.values()].map((d) => emergencyInfo(d, now(), flags)), ...(crime ? [crime] : []), ...(robbery ? [robbery] : [])];
+    return [...[...fights.values()].map((f) => f.lifecycle(now())), ...[...deals.values()].map((d) => d.lifecycle(now())), ...[...protests.values()].map((p) => p.lifecycle(now())), ...[...fires.values()].map((d) => emergencyInfo(d, now(), flags)), ...(crime ? [crime] : []), ...(robbery ? [robbery] : [])];
   };
   const inspect = (id: string): EventInfo => {
     const e = all().find((x) => x.id === id);
@@ -388,6 +392,8 @@ function devEvents() {
     const t = now();
     const f = fights.get(id);
     if (f) return what === 'force' ? (f.devForce(t), 'forzada') : what === 'resolve' ? f.devResolve(t) : what === 'cancel' ? f.devCancel(t) : (f.devReset(), 'enfriamiento quitado');
+    const pr = protests.get(id);
+    if (pr) return what === 'force' ? (pr.devForce(t), 'forzada') : what === 'resolve' ? pr.devResolve(t) : what === 'cancel' ? pr.devCancel(t) : (pr.devReset(), 'vuelta al calendario (su enfriamiento sale de la semilla)');
     const fire = fires.get(id);
     if (fire) return what === 'force' ? (forceIncident(fire, t), 'forzado') : what === 'cancel' ? (clearForced(fire), 'quitado el forzado') : 'sigue su reloj: no se resuelve ni se enfría a mano';
     const d = deals.get(id);
