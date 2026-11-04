@@ -217,14 +217,18 @@ export class Traffic<T extends MoverType = MoverType> {
       if (v.row < sig.ty || v.row >= sig.ty + sig.h) continue;
       const light = signalAt(sig, minuteOfDay).car;
       if (light === 'green') continue;
-      const line = v.dir > 0 ? sig.tx * TILE - STOP_GAP : (sig.tx + sig.w) * TILE + STOP_GAP;
-      const dist = (line - front) * v.dir;
-      if (dist < -1 || (light === 'amber' && dist < AMBER_COMMIT)) continue;
-      if (dist < BRAKE_PX * 1.4) {
-        // Se arrima despacio: velocidad según lo que le queda, no un frenazo lejos.
-        target = Math.min(target, Math.max(0, (dist - 1) * APPROACH));
-        stopLine = line;
-      }
+      const line = this.stopLineAt(v, front, sig, light === 'amber');
+      if (line === undefined) continue;
+      // Se arrima despacio: velocidad según lo que le queda, no un frenazo lejos.
+      target = Math.min(target, Math.max(0, ((line - front) * v.dir - 1) * APPROACH));
+      stopLine = line;
+    }
+    // Un tramo cortado (close): un rojo fijo, con la misma línea. El que ya la ha pasado sigue (stopLineAt: dist < -1).
+    for (const sig of this.shut) {
+      const line = this.stopLineAt(v, front, sig, false);
+      if (line === undefined) continue;
+      target = Math.min(target, Math.max(0, ((line - front) * v.dir - 1) * APPROACH));
+      stopLine = line;
     }
 
     // Recogida: se arrima a su sitio como a la línea de un semáforo y ahí se queda.
@@ -260,6 +264,31 @@ export class Traffic<T extends MoverType = MoverType> {
       v.x = v.stopAt;
       v.speed = 0;
     }
+  }
+
+  /** La línea de detención de `sig` para `v` si debe frenar ante ella (en su carril, sin pasarla y a distancia de frenar). */
+  private stopLineAt(v: Vehicle<T>, front: number, sig: SignalDef, amber: boolean): number | undefined {
+    if (v.row < sig.ty || v.row >= sig.ty + sig.h) return undefined;
+    const line = v.dir > 0 ? sig.tx * TILE - STOP_GAP : (sig.tx + sig.w) * TILE + STOP_GAP;
+    const dist = (line - front) * v.dir;
+    if (dist < -1 || (amber && dist < AMBER_COMMIT) || dist >= BRAKE_PX * 1.4) return undefined;
+    return line;
+  }
+
+  // ------------------------------------------------------------ cortes
+
+  /** Tramos cortados (una concentración: data/protests.ts closure), tratados como semáforos en rojo fijo. */
+  private readonly shut: SignalDef[] = [];
+
+  /** Corta el tramo `sig`; idempotente por id (se llama cada fotograma). */
+  close(sig: SignalDef): void {
+    if (!this.shut.some((s) => s.id === sig.id)) this.shut.push(sig);
+  }
+
+  /** Lo reabre; sin ese corte, no hace nada. */
+  reopen(id: string): void {
+    const i = this.shut.findIndex((s) => s.id === id);
+    if (i >= 0) this.shut.splice(i, 1);
   }
 
   // ------------------------------------------------------------ recogidas

@@ -6,6 +6,7 @@ import { PC_PROFILES } from './puertaCentralVenues.ts';
 import { RONDA_PROFILES } from './ronda.ts';
 import { AR_PROFILES } from './arenaVenues.ts';
 import { CA_PROFILES } from './campoAltoVenues.ts';
+import { CAS_PROFILES } from './cascoAntiguoVenues.ts';
 import { BOXING_PROFILE } from './boxing.ts';
 import { ACADEMY_PROFILES } from './academyRooms.ts';
 import { DECATHLON_PROFILE } from './decathlon.ts';
@@ -658,6 +659,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   ...RONDA_PROFILES,
   ...AR_PROFILES,
   ...CA_PROFILES,
+  ...CAS_PROFILES,
   DECATHLON_PROFILE,
   {
     place: 'tattoo-studio',

@@ -13,6 +13,8 @@ import { ARENA } from './arena.ts';
 import { AR_INTERIORS } from './arenaVenues.ts';
 import { CAMPO_ALTO } from './campoAlto.ts';
 import { CA_INTERIORS } from './campoAltoVenues.ts';
+import { CASCO_ANTIGUO } from './cascoAntiguo.ts';
+import { CAS_INTERIORS } from './cascoAntiguoVenues.ts';
 import { DECATHLON_STORE } from './decathlon.ts';
 import { POLIGONO_NORTE } from './poligonoNorte.ts';
 import { BOXING } from './boxing.ts';
@@ -609,6 +611,16 @@ const CAMPO_ALTO_STATION = platform(
   [VESTIBULE_GUARD],
 );
 
+// Casco Antiguo (data/cascoAntiguo.ts): la parada de L2 más allá del Polígono Norte; la misma estación, sale a la Calle Mayor.
+const CASCO_ANTIGUO_STATION = platform(
+  'casco-antiguo-station',
+  'Metro · Casco Antiguo',
+  { location: 'casco-antiguo', spawn: 'cas-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
 /** Los dos bares del Distrito Arena: la planta del Bar Ribera con su prefijo, su barra y su puerta (la gente, en data/arenaVenues.ts). */
 const arenaBar = (id: string, name: string, pre: string, ambient: string, wall: string): LocationDef => ({
   ...rebased(BAR, 'BAR_', `${pre}_`),
@@ -681,6 +693,10 @@ export const LOCATIONS: readonly LocationDef[] = [
   CAMPO_ALTO,
   CAMPO_ALTO_STATION,
   ...CA_INTERIORS,
+  // Casco Antiguo (data/cascoAntiguo.ts): la Calle Mayor, la Plaza del Mercado, su estación y la frutería.
+  CASCO_ANTIGUO,
+  CASCO_ANTIGUO_STATION,
+  ...CAS_INTERIORS,
   // Polígono Norte (data/poligonoNorte.ts): la explanada y el aparcamiento de Decathlon, su estación y la nave por dentro.
   POLIGONO_NORTE,
   correspondence(DECATHLON_STATION, DECATHLON_L3, 'L3 exprés → Puerta Central'),

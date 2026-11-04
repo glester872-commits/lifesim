@@ -15,6 +15,8 @@ import { isOpen, placeInfo, type PlaceInfo } from './Places.ts';
 import { activePopUp } from './PopUps.ts';
 import { actOn } from './StreetActs.ts';
 import { StreetEvent } from './StreetEvents.ts';
+import { PROTESTS } from '../data/protests.ts';
+import { Protest } from './Protest.ts';
 import { whereabouts } from './Characters.ts';
 import { routeBetween } from './Transit.ts';
 import { districtDensity, identityOf, zoneAt } from './Zones.ts';
@@ -146,7 +148,7 @@ export interface CityEvent {
   name: string;
   district: string | undefined;
   location: string | null;
-  kind: 'popup' | 'street-act' | 'fight' | 'match';
+  kind: 'popup' | 'street-act' | 'fight' | 'protest' | 'match';
   phase: string;
 }
 
@@ -154,6 +156,7 @@ export interface CityEvent {
 export { matchOn, matchPhase } from './Match.ts';
 
 const fights = new Map<string, StreetEvent>();
+const protests = new Map<string, Protest>();
 
 /** Todo lo que está pasando ahora en la ciudad, con su barrio. Nada se instancia en escena. */
 export function cityEvents(c: WorldClock): CityEvent[] {
@@ -174,6 +177,12 @@ export function cityEvents(c: WorldClock): CityEvent[] {
     if (!ev) fights.set(def.id, (ev = new StreetEvent(def, getLocation(def.location))));
     const phase = ev.phase(t);
     if (phase !== 'none') out.push({ id: def.id, name: def.name, district: districtAt(def.location, def.area.tx, def.area.ty), location: def.location, kind: 'fight', phase });
+  }
+  for (const def of PROTESTS) {
+    let ev = protests.get(def.id);
+    if (!ev) protests.set(def.id, (ev = new Protest(def, getLocation(def.location))));
+    const phase = ev.phase(t);
+    if (phase !== 'none') out.push({ id: def.id, name: def.name, district: districtAt(def.location, def.center.tx, def.center.ty), location: def.location, kind: 'protest', phase });
   }
   const match = matchPhase(c);
   if (match) out.push({ id: 'arena-match', name: ARENA_MATCHES.name, district: ARENA_MATCHES.district, location: 'arena', kind: 'match', phase: match });

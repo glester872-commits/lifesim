@@ -162,6 +162,8 @@ import { alleySpotsOf } from '../systems/AlleyDeals';
 import { STREET_EVENTS } from '../data/streetEvents';
 import { EmergencyView } from '../world/EmergencyView';
 import { EMERGENCIES } from '../data/emergencies';
+import { ProtestView } from '../world/ProtestView';
+import { PROTESTS } from '../data/protests';
 import { callEmergency } from '../systems/Emergencies';
 import { Occlusion } from '../world/Occlusion';
 import { ZoneDebugView } from '../world/ZoneDebugView';
@@ -429,6 +431,7 @@ export class WorldScene extends Phaser.Scene {
   private skatePark: SkateParkView | null = null;
   private atmosphere: Atmosphere | null = null;
   private streetEvents: StreetEventView[] = [];
+  private protests: ProtestView[] = [];
   private alleyDeals: AlleyDealView[] = [];
   private ringBodies: Phaser.GameObjects.Zone[] = [];
   /** Emergencias del sitio (data/emergencies.ts) y el cuerpo sólido de la autobomba aparcada de cada una. */
@@ -731,6 +734,9 @@ export class WorldScene extends Phaser.Scene {
     // Lo que pasa en sitios escondidos algunas noches (data/streetEvents.ts): su corro es gente como la de la calle.
     this.streetEvents = STREET_EVENTS.filter((e) => e.location === def.id).map((e) => new StreetEventView(this, def, e, weather));
     this.crowdViews.push(...this.streetEvents.map((e) => e.crowd));
+    // Concentraciones vecinales en una plaza (data/protests.ts): su gente también es una CrowdView más.
+    this.protests = PROTESTS.filter((p) => p.location === def.id).map((p) => new ProtestView(this, def, p, weather));
+    this.crowdViews.push(...this.protests.map((p) => p.crowd));
     // Algún rato de trapicheo en un callejón escondido (data/alleyDeals.ts): gente de la calle, una CrowdView más.
     this.alleyDeals = alleySpotsOf(def.id).map((s) => new AlleyDealView(this, def, s, weather));
     this.crowdViews.push(...this.alleyDeals.map((a) => a.crowd));
@@ -935,6 +941,8 @@ export class WorldScene extends Phaser.Scene {
       this.standNow = null;
       this.litterView?.destroy();
       this.litterView = null;
+      for (const p of this.protests) p.destroy();
+      this.protests = [];
       this.zoneDebug?.destroy();
       this.zoneDebug = null;
       this.inspector?.destroy();
@@ -1129,6 +1137,18 @@ export class WorldScene extends Phaser.Scene {
       e.update(eventMinute, time);
       (this.ringBodies[i].body as Phaser.Physics.Arcade.StaticBody).enable = e.ringActive;
     });
+    this.protests.forEach((p) => {
+      p.update(eventMinute, time);
+      // El corte de calle (def.closure): de montaje a dispersión, coches y bicis paran ante él como ante un rojo fijo.
+      // Se aplica cada fotograma y es idempotente: al recargar a mitad vuelve solo, sin guardarse, y en la limpieza se
+      // reabre. Los peatones no cambian: StreetLife ya evita la calzada salvo el paso de cebra, y el tramo no lo pisa.
+      if (!p.closure) return;
+      for (const flow of [this.traffic, this.bikes]) {
+        if (!flow) continue;
+        if (p.closing) flow.close(p.closure);
+        else flow.reopen(p.closure.id);
+      }
+    });
     // Trapicheo en callejones (systems/AlleyDeals): con el mismo reloj; se cortan si el jugador se queda mirando.
     this.alleyDeals.forEach((a) => {
       a.update(eventMinute, this.playerTile());
@@ -1149,8 +1169,8 @@ export class WorldScene extends Phaser.Scene {
       }
     });
     // Quien está en el corro, en el callejón o mirando un incendio no anda a la vez por la calle (la misma persona en dos sitios).
-    if (this.street && (this.streetEvents.length || this.alleyDeals.length || this.emergencies.length)) {
-      this.street.claimLooks(new Set([...this.streetEvents.flatMap((e) => e.looks), ...this.alleyDeals.flatMap((a) => a.agents.map((g) => g.look)), ...this.emergencies.flatMap((e) => e.looks)]));
+    if (this.street && (this.streetEvents.length || this.protests.length || this.alleyDeals.length || this.emergencies.length)) {
+      this.street.claimLooks(new Set([...this.streetEvents.flatMap((e) => e.looks), ...this.protests.flatMap((p) => p.looks),...this.alleyDeals.flatMap((a) => a.agents.map((g) => g.look)), ...this.emergencies.flatMap((e) => e.looks)]));
     }
     // Mirando: en cuanto el jugador se mueve, la cámara vuelve a él.
     if (this.watching && (this.player.body as Phaser.Physics.Arcade.Body).speed > 1) this.stopWatching();

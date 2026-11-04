@@ -252,5 +252,11 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-ca-3', name: 'Calle del Campo 12', type: 'residence', tags: ['home'], building: 'ca-res-3', capacity: 16 },
   { id: 'ca-cafe', name: 'Café Campo Alto', type: 'business', tags: ['food', 'social', WORK], building: 'ca-cafe', capacity: 10, hours: [7.5, 21], why: 'Café y tostada en la barra, a dos pasos del parque.' },
   { id: 'metro-campo-alto', name: 'Metro · Campo Alto', type: 'transit', tags: ['transit'], building: 'ca-metro', capacity: 40 },
+  // Casco Antiguo (data/cascoAntiguo.ts): tres portales de vecinos, la frutería del mercado y la boca de metro.
+  { id: 'res-cas-1', name: 'Calle Mayor 2', type: 'residence', tags: ['home'], building: 'cas-res-1', capacity: 12 },
+  { id: 'res-cas-2', name: 'Calle Mayor 8', type: 'residence', tags: ['home'], building: 'cas-res-2', capacity: 10 },
+  { id: 'res-cas-3', name: 'Calle Mayor 16', type: 'residence', tags: ['home'], building: 'cas-res-3', capacity: 14 },
+  { id: 'cas-fruteria', name: 'Mercado · Frutas del Casco', type: 'business', tags: ['shop', 'food', WORK], building: 'cas-fruteria', capacity: 5, hours: [8, 21], hoursByDay: { sunday: [9, 14] }, why: 'Fruta y verdura del mercado, a precio de plaza.' },
+  { id: 'metro-casco-antiguo', name: 'Metro · Casco Antiguo', type: 'transit', tags: ['transit'], building: 'cas-metro', capacity: 40 },
   { id: 'plaza-puerta-central', name: 'Plaza de la Puerta', type: 'public', tags: ['social', 'outdoor'], anchors: ['PC_BENCH_01', 'PC_BENCH_02', 'PC_BENCH_03', 'PC_BENCH_04'], capacity: 40 },
 ];

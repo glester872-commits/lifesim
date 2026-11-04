@@ -56,6 +56,8 @@ export const STOPS: readonly TransitStop[] = [
   { id: 'vallesco', name: 'Vallesco', line: 'L2', order: 0, station: 'vallesco-station' },
   { id: 'ribera', name: 'Ribera Norte', line: 'L2', order: 1, station: 'ribera-station' },
   { id: 'decathlon', name: 'Polígono Norte · Decathlon', line: 'L2', order: 2, station: 'decathlon-station' },
+  // Casco Antiguo, una más allá del Polígono Norte (data/cascoAntiguo.ts). Los trayectos de antes no cambian.
+  { id: 'casco-antiguo', name: 'Casco Antiguo', line: 'L2', order: 3, station: 'casco-antiguo-station' },
   { id: 'puerta-central-l3', name: 'Puerta Central · L3', line: 'L3', order: 0, station: 'puerta-central-l3-station', hub: 1 },
   { id: 'decathlon-l3', name: 'Polígono Norte · Decathlon · L3', line: 'L3', order: 1, station: 'decathlon-l3-station' },
 ];

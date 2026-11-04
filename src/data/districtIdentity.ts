@@ -153,6 +153,15 @@ export const DISTRICT_IDENTITIES: Readonly<Record<string, DistrictIdentity>> = {
     scooters: 0.5,
     security: 0.7, events: 0.4, ambience: 1,
   },
+  // Casco Antiguo (data/cascoAntiguo.ts): denso y comercial; mañana de mercado, mediodía y tarde con más gente.
+  'casco-antiguo': {
+    name: 'Casco Antiguo', tagline: 'calle de tiendas y plaza de mercado: mañanas de compra, tardes de paseo',
+    density: { bands: [[8, 11, 1.3], [11, 14, 1.2], [14, 17, 0.8], [17, 21, 1.3], [21, 24, 0.5]], rest: 0.3, weekend: 1.2 },
+    groups: { food: 1.5, retail: 1.4, social: 1.2, commute: 1, family: 1, nightlife: 0.5 },
+    traffic: { vehicles: 0.8, bikes: 1, deliveries: 1.3 },
+    scooters: 0.8,
+    security: 1, events: 0.8, ambience: 1.2,
+  },
   luna: {
     name: 'Luna', tagline: 'el barrio de la noche',
     density: { bands: [[8, 17, 0.35], [17, 21, 0.9], [21, 24, 1.8], [0, 6, 1.9]], rest: 0.5, weekend: 1.5 },
@@ -180,6 +189,8 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'arena-station': 'arena',
   'campo-alto': 'campo-alto',
   'campo-alto-station': 'campo-alto',
+  'casco-antiguo': 'casco-antiguo',
+  'casco-antiguo-station': 'casco-antiguo',
   // El Polígono Norte (Alpha-09), la parada de después de Ribera Norte: su propio barrio, la nave y el aparcamiento.
   'poligono-norte': 'poligono-norte',
   'decathlon-station': 'poligono-norte',
