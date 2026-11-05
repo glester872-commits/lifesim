@@ -6,7 +6,8 @@ import { QUALITY, setQuality, type QualityLevel } from './config/quality';
 import { formatDateShort } from './systems/Calendar';
 import { euros } from './systems/Commerce';
 import { getLocation } from './systems/LocationSystem';
-import { inspectRaw, restore, SAVE_MAX_BYTES, SaveSystem, type SaveInfo } from './systems/SaveSystem';
+import { inspectRaw, restore, SAVE_MAX_BYTES, type SaveInfo } from './systems/SaveSystem';
+import { activeSlot, gameStorage, placeName, setActiveSlot, SLOT_IDS, slotSave, viewSlot, type SlotId, type SlotView } from './systems/SaveSlots';
 import { SAVE_VERSION } from './config/constants';
 import type { GameStateData } from './types/game';
 import { BASE_DRAFT, newGameState, type CreatorDraft } from './systems/CharacterCreator';
@@ -34,9 +35,31 @@ for (const el of behind) if (el) el.inert = true;
 document.documentElement.style.setProperty('--amber', PALETTE.amber);
 document.documentElement.style.setProperty('--accent', PALETTE.glassLit);
 
-const save = new SaveSystem();
+// Ranuras (systems/SaveSlots): la de trabajo es la última jugada; «Partidas» y «Nueva partida» cambian de ranura.
+const { base, persistent } = gameStorage();
+let slot: SlotId = activeSlot(base);
+let save = slotSave(base, slot);
 let info: SaveInfo = save.inspect();
 let message = '';
+/** Candado contra el doble toque: una acción que escribe no se ejecuta dos veces por la misma pulsación. */
+let busy = false;
+
+function useSlot(id: SlotId): void {
+  slot = id;
+  save = slotSave(base, id);
+  info = save.inspect();
+}
+
+const SLOT_STATUS: Readonly<Record<SlotView['status'], string>> = { vacia: 'Vacía', guardada: 'Guardada', danada: 'Dañada: no se puede cargar', 'sin-verificar': 'Guardada (sin verificar)' };
+
+/** Una ranura en la lista: lo que hay, sin restaurar la partida entera (resumen guardado aparte). */
+function slotLine(v: SlotView): string {
+  const s = v.summary;
+  const head = `<strong>Ranura ${v.id}${v.id === slot ? ' · en uso' : ''}</strong> · ${SLOT_STATUS[v.status]}`;
+  if (!s) return head;
+  const saved = s.savedAt ? `Guardada el ${new Date(s.savedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}` : '';
+  return `${head}<br>${esc(s.name || DEFAULT_NAME)} · Día ${s.day} · ${formatDateShort(s.day)} · ${pad(s.hour)}:${pad(s.minute)}<br>${esc(placeName(s.locationId))} · ${euros(s.money)}${saved ? `<br><span class="title__muted">${saved}</span>` : ''}`;
+}
 
 const QUALITY_LABEL: Readonly<Record<QualityLevel, string>> = { low: 'baja', medium: 'media', high: 'alta' };
 const QUALITY_LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
@@ -160,11 +183,13 @@ function render(): void {
   let body = '';
   if (view === 'main') {
     const state =
-      info.status === 'ok'
+      (persistent ? '' : '<p class="title__warn" role="alert">Este navegador no deja guardar (modo privado o almacenamiento bloqueado). Puedes jugar, pero al cerrar o recargar la página se pierde la partida.</p>')
+      + `<p class="title__save title__muted">Ranura ${slot}</p>`
+      + (info.status === 'ok'
         ? `<p class="title__save">${summary(info)}</p>`
         : info.status === 'unreadable'
           ? `<p class="title__warn" role="alert">La partida guardada no se puede cargar: ${info.reason === 'newer' ? `es de una versión más nueva del juego (esta guarda la ${SAVE_VERSION})` : info.reason === 'foreign' ? 'no es una partida de LIFE//SIM' : 'está dañada o incompleta'}. No se ha borrado: puedes descargarla antes de decidir.</p>`
-          : `<p class="title__save title__muted">No hay ninguna partida guardada en este navegador.</p>`;
+          : `<p class="title__save title__muted">No hay ninguna partida en esta ranura.${SLOT_IDS.some((id) => id !== slot && viewSlot(base, id).status !== 'vacia') ? ' Las otras, en «Partidas».' : ''}</p>`);
     // Sin partida que se pueda jugar y con una copia buena: se ofrece volver a ella, con lo que tiene.
     const backup = info.status !== 'ok' ? save.inspectBackup() : null;
     body = `${state}
@@ -210,15 +235,22 @@ function render(): void {
       </div>
       <nav class="title__menu">${back}</nav>`;
   } else if (view === 'saves') {
-    body = `<div class="title__text">
-        <p>Las partidas viven en este navegador. Exportar baja un archivo JSON que se puede guardar donde quieras e importar
-        aquí o en otro navegador; importar valida el archivo antes de tocar nada y guarda una copia de lo que sustituye.</p>
-      </div>
-      <nav class="title__menu">
-        ${info.status === 'ok' ? button('export', 'Exportar partida') : ''}
-        ${button('import', 'Importar partida')}
-        ${back}
-      </nav>`;
+    // Tres ranuras independientes: cada una con su partida, su copia de seguridad y su archivo exportado.
+    const slots = SLOT_IDS.map((id) => {
+      const v = viewSlot(base, id);
+      return `<li class="title__slot">
+          <p class="title__save">${slotLine(v)}</p>
+          <div class="title__row">
+            ${id !== slot ? button(`use:${id}`, 'Usar esta', `aria-label="Usar la ranura ${id}"`) : ''}
+            ${v.status === 'guardada' || v.status === 'sin-verificar' || v.status === 'danada' ? button(`export:${id}`, v.status === 'danada' ? 'Descargar' : 'Exportar', `aria-label="${v.status === 'danada' ? 'Descargar' : 'Exportar'} la ranura ${id}"`) : ''}
+            ${button(`import:${id}`, 'Importar aquí', `aria-label="Importar una partida en la ranura ${id}"`)}
+          </div>
+        </li>`;
+    }).join('');
+    body = `<ul class="title__slots" aria-label="Ranuras de partida">${slots}</ul>
+      <p class="title__text title__muted">Cada ranura guarda su partida y su copia en este navegador. Exportar baja un archivo JSON; importar
+      lo valida antes de tocar nada y guarda una copia de lo que sustituye en esa ranura.</p>
+      <nav class="title__menu">${back}</nav>`;
   } else if (view === 'import' && pending) {
     const replaces = info.status === 'none' ? '' : `<p>Sustituye ${info.status === 'ok' ? `tu partida (${summary(info)})` : 'la partida guardada que no se puede leer'}; se guardará una copia en este navegador.</p>`;
     body = `<div class="title__text" role="alertdialog" aria-labelledby="import-text">
@@ -231,7 +263,12 @@ function render(): void {
         ${button('saves', 'Cancelar')}
       </nav>`;
   } else if (view === 'confirm') {
-    const who = `<p>Empezar como <strong>${esc(draft.name)}</strong> en el portal de casa, con lo de una partida nueva.</p>`;
+    // En qué ranura: las ocupadas dicen qué tienen; elegir una ocupada lleva al aviso de sustitución de abajo.
+    const chooser = `<p class="title__label" id="new-slot">Ranura</p><div class="title__row" role="group" aria-labelledby="new-slot">${SLOT_IDS.map((id) => {
+      const v = viewSlot(base, id);
+      return button(`newslot:${id}`, `${id} · ${v.status === 'vacia' ? 'vacía' : v.summary?.name ? esc(v.summary.name) : 'ocupada'}`, `aria-pressed="${id === slot}"`);
+    }).join('')}</div>`;
+    const who = `${chooser}<p>Empezar como <strong>${esc(draft.name)}</strong> en el portal de casa, con lo de una partida nueva, en la ranura ${slot}.</p>`;
     if (info.status === 'none') {
       body = `<div class="title__text" role="alertdialog" aria-labelledby="confirm-text"><div id="confirm-text">${who}</div></div>
         <nav class="title__menu">
@@ -264,7 +301,12 @@ function render(): void {
   panel.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
 }
 
+let booting = false;
 async function boot(): Promise<void> {
+  if (booting) return;
+  booting = true;
+  // main.ts abre la ranura activa: la de esta pantalla.
+  setActiveSlot(base, slot);
   view = 'loading';
   message = '';
   render();
@@ -284,6 +326,7 @@ async function boot(): Promise<void> {
     });
   } catch (error) {
     console.error(error);
+    booting = false;
     view = 'main';
     info = save.inspect();
     message = `No se ha podido arrancar el juego (${esc(error instanceof Error ? error.message : String(error))}). Lo guardado no se ha tocado; recarga la página para reintentar.`;
@@ -294,13 +337,49 @@ async function boot(): Promise<void> {
 panel.addEventListener('click', (e) => {
   const action = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]')?.dataset.action;
   if (!action) return;
+  // Lo que escribe no corre dos veces por un doble toque (se suelta al terminar: todo aquí es síncrono salvo boot).
+  const writes = action === 'confirm-new' || action === 'import-yes' || action === 'recover';
+  if (writes && busy) return;
+  busy = writes;
+  try {
+    handle(action);
+  } finally {
+    busy = false;
+  }
+});
+
+function handle(action: string): void {
   message = '';
   notice = '';
+  const [verb, n] = action.split(':');
+  const id = (SLOT_IDS as readonly number[]).includes(Number(n)) ? (Number(n) as SlotId) : null;
   if (action === 'continue' && info.status === 'ok') return void boot();
-  if (action === 'new') {
-    // Primero el personaje; lo guardado no se toca hasta confirmar al final.
+  if (verb === 'use' && id) {
+    useSlot(id);
+    setActiveSlot(base, id);
+    notice = `Ranura ${id} en uso.`;
+    view = 'main';
+  } else if (verb === 'export' && id) {
+    const found = slotSave(base, id).inspect();
+    if (found.status !== 'none') download(found.raw, found.status === 'ok' ? found.state : null);
+    return;
+  } else if (verb === 'import' && id) {
+    // Importar en una ranura concreta: lo que tenga se copia antes a su copia de seguridad (adopt).
+    useSlot(id);
+    chooseFile();
+    return;
+  } else if (verb === 'newslot' && id) {
+    useSlot(id);
+    withoutBackup = false;
+    view = 'confirm';
+  } else if (action === 'new') {
+    // Primero el personaje; lo guardado no se toca hasta confirmar al final. Se propone la primera ranura vacía.
     withoutBackup = false;
     draft = { ...BASE_DRAFT };
+    if (info.status !== 'none') {
+      const empty = SLOT_IDS.find((s) => viewSlot(base, s).status === 'vacia');
+      if (empty) useSlot(empty);
+    }
     view = 'creator';
   } else if (action === 'confirm-new') {
     // Con algo guardado (aunque no se lea): copia y quita antes. Si no hay sitio para la copia, se pregunta otra vez.
@@ -356,7 +435,7 @@ panel.addEventListener('click', (e) => {
     view = action;
   }
   render();
-});
+}
 
 // Teclado: flechas para moverse entre botones (además de Tab) y Esc para volver al menú.
 panel.addEventListener('keydown', (e) => {

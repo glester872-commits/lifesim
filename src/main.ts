@@ -4,7 +4,8 @@ import { PALETTE } from './config/constants';
 import { GameState } from './state/GameState';
 import { TimeSystem } from './systems/TimeSystem';
 import { DialogueSystem } from './systems/DialogueSystem';
-import { restore, SaveSystem } from './systems/SaveSystem';
+import { restore } from './systems/SaveSystem';
+import { activeSlot, gameStorage, slotSave } from './systems/SaveSlots';
 import { findPoint, pointsOfKind, route, worldRoute } from './systems/Navigation';
 import { zoneActivity, zoneAt } from './systems/Zones';
 import { DEBUG } from './config/debug';
@@ -72,6 +73,7 @@ import { OnlinePanel } from './ui/OnlinePanel';
 import { serverUrl } from './net/OnlineClient';
 import { appearanceToLook } from './world/RemotePlayers';
 import { MobileControls } from './ui/MobileControls';
+import { mountPinchZoom } from './ui/PinchZoom';
 import { PauseMenu } from './ui/PauseMenu';
 import { PlayerInput } from './systems/PlayerInput';
 import { KickDrill } from './ui/KickDrill';
@@ -88,7 +90,9 @@ function requireEl(selector: string): HTMLElement {
   return el;
 }
 
-const save = new SaveSystem();
+// La ranura que eligió la pantalla de inicio (systems/SaveSlots): sólo se lee y se guarda en ésa.
+const storage = gameStorage().base;
+const save = slotSave(storage, activeSlot(storage));
 const loaded = save.load();
 // Si el mapa cambió desde que se guardó (un sitio renombrado, una posición que ahora cae dentro de algo),
 // systems/SaveSystem.restore recoloca al jugador y conserva el resto de la partida.
@@ -149,6 +153,7 @@ css.setProperty('--accent', PALETTE.glassLit);
 new DialogueBox(requireEl('#dialogue'), services.dialogue);
 // Joystick y botón de acción en pantallas táctiles; en un PC con ratón no aparecen.
 new MobileControls(requireEl('#touch'), services.input);
+mountPinchZoom(requireEl('#game'));
 // La bolsa (I) también con el dedo: el botón pulsa lo mismo que la tecla, así manda la misma escena (no abre encima de nada).
 const bagButton = requireEl('#bag-button') as HTMLButtonElement;
 bagButton.addEventListener('click', () => {

@@ -92,6 +92,15 @@ body {
   color: rgba(232, 227, 218, 0.78);
 }
 
+/* La tecla entre paréntesis de un aviso no se muestra en táctil (ui/HUD.setNext). */
+body.has-touch .hud__key {
+  display: none;
+}
+
+#game {
+  touch-action: none;
+}
+
 .hud__energy {
   color: var(--accent);
   font-variant-emoji: text;
@@ -170,6 +179,16 @@ body {
 
 .hud__saved.is-visible {
   opacity: 0.75;
+}
+
+/* Desplegable de detalles y su botón: sólo existen en móvil. En escritorio la tarjeta y lo próximo siguen en la placa. */
+.hud__more {
+  display: contents;
+}
+
+.hud__more-btn,
+.hud-btn__icon {
+  display: none;
 }
 
 /* -------------------------------------------------------------- diálogo */
@@ -532,35 +551,179 @@ body {
   transition: transform 520ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms;
 }
 
-/* Móvil, en vertical o apaisado: la placa del HUD no puede comerse media calle. */
+/*
+ * Móvil, en vertical o apaisado: el HUD es una barra de una línea (hora y día, dinero, energía y el botón de
+ * detalles), del alto de un dedo. Sin rótulo; la tarjeta y lo próximo, en un desplegable cerrado (ui/HUD).
+ */
 @media (max-width: 520px), (max-height: 480px) {
   #hud {
     top: max(10px, env(safe-area-inset-top));
     left: max(10px, env(safe-area-inset-left));
-    padding: 5px 8px 6px;
+    max-width: calc(100vw - max(10px, env(safe-area-inset-left)) - max(10px, env(safe-area-inset-right)));
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    white-space: nowrap;
   }
 
   .hud__mark {
-    font-size: 9px;
+    display: none;
+  }
+
+  .hud__clock,
+  .hud__vitals {
+    margin-top: 0 !important;
   }
 
   .hud__clock {
-    margin-top: 3px !important;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 13px;
   }
 
+  /* Dinero y energía nunca se recortan: lo que sobra lo pierde la hora. */
   .hud__vitals {
+    flex: none;
     gap: 10px;
-    font-size: 11px;
+    font-size: 12px;
+  }
+
+  @media (max-width: 360px) {
+    #hud {
+      gap: 6px;
+      padding: 0 8px;
+    }
+
+    .hud__vitals {
+      gap: 6px;
+    }
+  }
+
+  /* El estado del reloj, en la barra sólo con su glifo; el texto alternativo lo nombra. */
+  .hud__clock[data-mode="paused"]::after,
+  .hud__clock[data-mode="phone"]::after {
+    margin-left: 6px;
+    font-size: 12px;
+    vertical-align: 0;
+  }
+
+  .hud__clock[data-mode="paused"]::after {
+    content: "‖";
+    content: "‖" / "parado";
+    color: var(--white);
+  }
+
+  .hud__clock[data-mode="phone"]::after {
+    content: "▸";
+    content: "▸" / "sigue";
+  }
+
+  /* El extremo derecho de la barra: 44 × 44, montado sobre el borde de la placa. */
+  .hud__more-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    margin: -2px -12px -2px 0;
+    padding: 0;
+    border: 2px solid rgba(232, 227, 218, 0.14);
+    background: transparent;
+    color: var(--amber);
+    font: 700 14px var(--ui-mono);
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .hud__more-btn[hidden],
+  #hud[data-watch] .hud__more-btn {
+    display: none;
+  }
+
+  .hud__more-btn[aria-expanded="true"] span {
+    display: inline-block;
+    transform: rotate(180deg);
+  }
+
+  .hud__more-btn:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  /* Urgencia de lo próximo con el desplegable cerrado: un punto en la esquina, ámbar o rojo. */
+  .hud__more-btn[data-urgency="tight"]::after,
+  .hud__more-btn[data-urgency="late"]::after {
+    content: "";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 8px;
+    height: 8px;
+    background: var(--amber);
+  }
+
+  .hud__more-btn[data-urgency="late"]::after {
+    background: #ee8a7a;
+  }
+
+  .hud__more {
+    /* Bajo la fila de iconos, no sobre ella (--top-inset lo pone ui/HUD). */
+    position: fixed;
+    top: calc(var(--top-inset, 64px) + 6px);
+    left: max(10px, env(safe-area-inset-left));
+    z-index: 11;
+    display: none;
+    width: max-content;
+    max-width: min(320px, calc(100vw - 20px));
+    padding: 6px 10px 8px;
+    border: 2px solid rgba(232, 227, 218, 0.14);
+    background: rgba(14, 15, 22, 0.92);
+    white-space: normal;
+  }
+
+  .hud__more.is-open {
+    display: block;
+  }
+
+  #hud[data-watch] .hud__more.is-open {
+    display: none;
+  }
+
+  .hud__card {
+    margin-top: 0 !important;
+    font-size: 12px;
+    color: rgba(232, 227, 218, 0.86);
   }
 
   .hud__next {
-    max-width: 190px;
-    font-size: 11px;
+    max-width: none;
+    margin-top: 0 !important;
+    padding-top: 0;
+    border-top: 0;
+    font-size: 12px;
   }
 
+  .hud__card:not([hidden]) + .hud__next {
+    margin-top: 5px !important;
+    padding-top: 5px;
+    border-top: 1px solid rgba(232, 227, 218, 0.14);
+  }
+
+  .hud__saved {
+    left: 0;
+    top: calc(100% + 6px);
+  }
+
+  /* Los avisos, bajo la barra y la fila de iconos (ui/HUD pone --top-inset): fuera de la franja central. */
   #place {
-    top: calc(var(--hud-bottom, 70px) + 10px);
+    top: calc(var(--top-inset, 64px) + 8px);
     left: max(10px, env(safe-area-inset-left));
     font-size: 12px;
   }
@@ -1129,6 +1292,12 @@ body.has-touch #announce {
   bottom: calc(max(25px, calc(env(safe-area-inset-bottom) + 10px)) + clamp(64px, 18vmin, 84px) + 84px);
 }
 
+/* El verbo que ya dice el botón de acción no se repite en el aviso (ui/TargetHint); queda sólo el sitio, precio o estado. */
+body.has-touch .hint__verb,
+body.has-touch #hint[data-verb-only] {
+  display: none;
+}
+
 body.has-touch .menu__hint,
 body.has-touch .dialogue__hint {
   display: none;
@@ -1624,34 +1793,81 @@ body.has-touch .dialogue__choices li {
   transform: translate(-50%, 0);
 }
 
+/*
+ * Móvil: los cinco botones, una fila de iconos de 44 × 44 arriba a la derecha (mapa, móvil, sonido, bolsa, menú).
+ * Apaisado, a la altura de la barra del HUD; de pie no caben los dos en 355 px y la fila va justo debajo de la barra.
+ * Sin carteles de tecla; el nombre está en el aria-label de cada botón.
+ */
 @media (max-width: 520px), (max-height: 480px) {
-  #phone-button {
-    top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+  /* #overlay delante: gana a las reglas por id de escritorio (#map-button, #phone-button…). */
+  #overlay .hud-btn {
+    --row-top: max(10px, env(safe-area-inset-top));
+    top: var(--row-top);
     right: max(10px, env(safe-area-inset-right));
+    width: 44px;
+    height: 44px;
     min-width: 44px;
     min-height: 44px;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
   }
 
-  #sound-button {
-    top: calc(max(10px, env(safe-area-inset-top)) + 104px);
-    right: max(10px, env(safe-area-inset-right));
-    min-width: 44px;
-    min-height: 44px;
+  .hud-btn .map-button__key,
+  .hud-btn__label {
+    display: none;
   }
 
-  #bag-button {
-    top: calc(max(10px, env(safe-area-inset-top)) + 156px);
-    right: max(10px, env(safe-area-inset-right));
-    min-width: 44px;
-    min-height: 44px;
+  .hud-btn__icon {
+    display: block;
+    width: 22px;
+    height: 22px;
+    stroke-linecap: square;
   }
 
-  #pause-button {
-    top: calc(max(10px, env(safe-area-inset-top)) + 208px);
-    right: max(10px, env(safe-area-inset-right));
-    min-width: 44px;
-    min-height: 44px;
+  #map-button .hud-btn__icon {
+    color: var(--amber);
   }
+
+  #phone-button .hud-btn__icon {
+    color: var(--accent);
+  }
+
+  /* Lo sin leer, en la esquina del icono. */
+  .hud-btn .phone-button__badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+  }
+
+  #overlay #map-button {
+    right: calc(max(10px, env(safe-area-inset-right)) + 192px);
+  }
+
+  #overlay #phone-button {
+    right: calc(max(10px, env(safe-area-inset-right)) + 144px);
+  }
+
+  #overlay #sound-button {
+    right: calc(max(10px, env(safe-area-inset-right)) + 96px);
+  }
+
+  #overlay #bag-button {
+    right: calc(max(10px, env(safe-area-inset-right)) + 48px);
+  }
+}
+
+@media (max-width: 520px) {
+  #overlay .hud-btn {
+    --row-top: calc(max(10px, env(safe-area-inset-top)) + 48px);
+  }
+
+  .online-button {
+    --online-row: 48px;
+  }
+}
+
+@media (max-width: 520px), (max-height: 480px) {
 
   /* En una pantalla pequeña, el del juego ocupa casi todo: dedos, no cursor. */
   #phone {
@@ -1672,9 +1888,16 @@ body.has-touch .dialogue__choices li {
     min-height: 44px;
   }
 
-  /* Debajo del HUD (que crece con lo próximo, ui/HUD pone --hud-bottom): no tapa la hora ni los botones. */
+  /* Debajo de la barra y de la fila de iconos (ui/HUD pone --top-inset): no tapa la hora ni el menú. */
   #phone-toast {
-    top: calc(var(--hud-bottom, 70px) + 8px);
+    top: calc(var(--top-inset, 64px) + 8px);
+  }
+
+  /* La megafonía, también arriba, bajo el rótulo del sitio: el centro y la zona de los pulgares quedan libres. */
+  #announce,
+  body.has-touch #announce {
+    top: calc(var(--top-inset, 64px) + 48px);
+    bottom: auto;
   }
 }
 
@@ -1853,6 +2076,22 @@ body.has-touch .dialogue__choices li {
 
 .title__row .title__button {
   flex: 1 1 70px;
+}
+
+/* LV-02: la lista de ranuras de «Partidas». Sin tarjetas: una línea fina entre ranuras. */
+.title__slots {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+
+.title__slot + .title__slot {
+  border-top: 1px solid rgba(232, 227, 218, 0.14);
+  padding-top: 10px;
+}
+
+.title__slot .title__row {
+  margin-bottom: 10px;
 }
 
 .title__button {
@@ -2598,11 +2837,13 @@ body.has-touch .kick__help {
 /* En el móvil: «Online» en la columna de botones, tras «Menú»; el panel debajo, a lo ancho, sin tapar la columna ni
    el joystick. */
 @media (max-width: 520px), (max-height: 480px) {
+  /* En la fila de iconos, a la izquierda del mapa (ui/OnlinePanel escribe su texto); de pie, bajo la barra como ellos. */
   .online-button {
-    top: calc(max(10px, env(safe-area-inset-top)) + 260px);
-    right: max(10px, env(safe-area-inset-right));
+    top: calc(max(10px, env(safe-area-inset-top)) + var(--online-row, 0px));
+    right: calc(max(10px, env(safe-area-inset-right)) + 240px);
     min-width: 44px;
     min-height: 44px;
+    padding: 0 10px;
   }
 
   /* Bajo la columna de botones (acaba en «Online», +314px) y por encima del joystick (≈170px abajo). */

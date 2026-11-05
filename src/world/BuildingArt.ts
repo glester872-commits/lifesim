@@ -1902,6 +1902,9 @@ const DECO_BY_STYLE: Partial<Record<BuildingStyle, readonly Deco[]>> = {
   stadium: [],
 };
 
+/** Edificios sin vida doméstica: ni su azotea ni su espalda llevan tendedero con ropa (QA-07). */
+const NO_LAUNDRY: ReadonlySet<BuildingStyle> = new Set<BuildingStyle>(['police']);
+
 /** Ventana de la espalda (drawBack): la luz de casa, de noche. */
 const BACK_PANE = [5, 8, 6, 8] as const;
 
@@ -2184,7 +2187,8 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
           }
           if (back) {
             const q = hash(`${b.id}:b:${i}`) % 5;
-            const bv = q === 0 ? 0 : q < 3 ? 1 : q === 3 ? 2 : 3;
+            // El tendedero (2) es de casa: en una espalda sin vida doméstica, el aparato de aire (3).
+            const bv = q === 0 ? 0 : q < 3 ? 1 : q === 3 && !NO_LAUNDRY.has(b.style) ? 2 : 3;
             draw(`bs-${b.style}-back-${bv}${k}`, x, backTop);
             if (bv !== 0) pane(b, false, BACK_PANE, x, backTop);
           }
@@ -2220,7 +2224,7 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
         // Toda azotea con el acabado de la calle residencial: baldosa o rasilla, casetón, depósitos, tendedero. Las de
         // cubierta propia (gimnasio, oficinas, súper…) sólo con la base: sus placas y lucernarios van encima, como siempre.
         const key = `bs-roof-hd04-${b.id}-${seg.x0}`;
-        make(rt.scene, key, rw, rh, (ctx) => drawResidentialRoof(ctx, rw, rh, seg.roof.roof, seg.seed, { clay: !own && seg.seed % 3 === 0, laundry: !own && seg.seed % 4 === 1, bare: !!own }));
+        make(rt.scene, key, rw, rh, (ctx) => drawResidentialRoof(ctx, rw, rh, seg.roof.roof, seg.seed, { clay: !own && seg.seed % 3 === 0, laundry: !own && !NO_LAUNDRY.has(b.style) && seg.seed % 4 === 1, bare: !!own }));
         draw(key, seg.x0, roofTop);
         if (!own) continue;
       } else {

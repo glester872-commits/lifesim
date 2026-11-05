@@ -35,7 +35,8 @@ import { Lighting } from '../world/Lighting';
 import { MetroSystem } from '../systems/MetroSystem';
 import { METRO_CONFIG } from '../config/metro';
 import { buildLocation } from '../world/LocationBuilder';
-import { pixelZoom } from '../world/PixelScale';
+import { clampZoomStep, playerZoom } from '../world/PixelScale';
+import { zoomPreference } from '../state/zoomPreference';
 import { Player } from '../entities/Player';
 import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { STATIONS, getStation, type StationId } from '../data/stations';
@@ -826,6 +827,7 @@ export class WorldScene extends Phaser.Scene {
 
     const onResize = (): void => this.fitCamera();
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
+    this.bindZoomInput();
 
     this.prompt = this.add.image(0, 0, 'ui-prompt').setDepth(LAYER.prompt).setVisible(false);
 
@@ -1268,12 +1270,51 @@ export class WorldScene extends Phaser.Scene {
    * viewport, se ensanchan los límites de cámara para que quede centrado en
    * lugar de pegado a una esquina.
    */
+  /** Zoom del jugador (pasos enteros, recortados al rango de la pantalla): rueda, + / − y pellizco (ui/PinchZoom). */
+  private bindZoomInput(): void {
+    const zoomBy = (delta: 1 | -1): void => {
+      const { dialogue, menu, map, phone } = this.services;
+      if (dialogue.isOpen || menu.isOpen || map.isOpen || phone.isOpen) return;
+      const { width, height } = this.scale.gameSize;
+      zoomPreference.set(clampZoomStep(width, height, zoomPreference.get() + delta));
+    };
+    let wheel = 0;
+    let lastWheel = 0;
+    const onWheel = (_p: unknown, _o: unknown, _dx: number, dy: number): void => {
+      // Lo que llega durante la espera o en sentido contrario no se guarda para el gesto siguiente.
+      if (this.time.now - lastWheel < 150) return;
+      if (Math.sign(dy) !== Math.sign(wheel)) wheel = 0;
+      wheel += dy;
+      if (Math.abs(wheel) < 100) return;
+      lastWheel = this.time.now;
+      zoomBy(wheel < 0 ? 1 : -1);
+      wheel = 0;
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      const t = e.target;
+      if (e.ctrlKey || e.metaKey || e.altKey || (t instanceof Element && t.matches('input, textarea, select, [contenteditable]'))) return;
+      if (e.key === '+' || e.key === '=' || e.key === 'Add') zoomBy(1);
+      else if (e.key === '-' || e.key === 'Subtract') zoomBy(-1);
+    };
+    const onPinch = (e: Event): void => zoomBy((e as CustomEvent<1 | -1>).detail);
+    this.input.on('wheel', onWheel);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('lifesim:zoom', onPinch);
+    const offPref = zoomPreference.onChange(() => this.fitCamera());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.off('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('lifesim:zoom', onPinch);
+      offPref();
+    });
+  }
+
   private fitCamera(): void {
     const camera = this.cameras.main;
     const { width, height } = this.scale.gameSize;
     // En vertical el encuadre gira (pixelZoom): si no, un móvil de pie ve el triple de mundo y la gente sale diminuta.
     // Escala de píxel entera (world/PixelScale): un píxel del mundo, siempre los mismos píxeles físicos.
-    const zoom = pixelZoom(width, height);
+    const zoom = playerZoom(width, height, zoomPreference.get());
     camera.setZoom(zoom);
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);

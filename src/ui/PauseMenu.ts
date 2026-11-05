@@ -88,6 +88,8 @@ export class PauseMenu {
   private act(action: string): void {
     if (action === 'resume') return this.hide();
     if (action === 'save') {
+      // Con la pausa abierta la partida no cambia: guardada una vez, otro toque (o un doble toque) no escribe otra.
+      if (this.status === 'Partida guardada.') return;
       this.status = this.hooks.save() ? 'Partida guardada.' : 'No se ha podido guardar: el almacenamiento del navegador está lleno o bloqueado. La partida sigue abierta.';
     } else if (action === 'quit') {
       if (this.quitUnsaved || this.hooks.save()) {
