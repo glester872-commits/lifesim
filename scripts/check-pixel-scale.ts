@@ -1,8 +1,8 @@
 // Escala de píxel entera (world/PixelScale, HD-03): en cualquier pantalla un píxel del mundo mide un número entero de
 // píxeles físicos, el más cercano al encuadre de diseño (VIEW_WIDTH × VIEW_HEIGHT), y la resolución del arte no cambia. `node scripts/check-pixel-scale.ts`.
 import assert from 'node:assert/strict';
-import { CAMERA_ZOOM, MAX_CAMERA_ZOOM, VIEW_HEIGHT, VIEW_WIDTH, WIDEST_VIEW } from '../src/config/constants.ts';
-import { pixelZoom } from '../src/world/PixelScale.ts';
+import { CAMERA_ZOOM, MAX_CAMERA_ZOOM, VIEW_HEIGHT, VIEW_WIDTH, WIDEST_VIEW, ZOOM_FINE, ZOOM_STEPS_IN } from '../src/config/constants.ts';
+import { clampZoomStep, playerZoom, pixelZoom, zoomRange } from '../src/world/PixelScale.ts';
 
 // Pantallas en píxeles físicos (CSS × devicePixelRatio).
 const screens: Record<string, [number, number, number]> = {
@@ -50,4 +50,32 @@ for (const r of [16 / 9, 2, 2.167, 20 / 9]) for (let css = 360; css <= 440; css+
   view(w, h);
   view(h, w);
 }
+// Zoom del jugador (playerZoom/zoomRange): paso 0 = pixelZoom, max = base + ZOOM_STEPS_IN, min respeta WIDEST_VIEW; entero salvo el paso fino.
+for (const [name, [w, h]] of Object.entries(screens)) {
+  const { min, max, base } = zoomRange(w, h);
+  assert.equal(playerZoom(w, h, 0), pixelZoom(w, h), `${name}: paso 0 distinto de pixelZoom`);
+  assert.equal(max, Math.min(MAX_CAMERA_ZOOM, base + ZOOM_STEPS_IN), `${name}: max`);
+  assert.ok(Number.isInteger(min) && min >= CAMERA_ZOOM && min <= base, `${name}: min ${min}`);
+  assert.ok(min === CAMERA_ZOOM || w / (min - 1) > WIDEST_VIEW.width || h / (min - 1) > WIDEST_VIEW.height, `${name}: min no es el menor`);
+  assert.ok(w / min <= WIDEST_VIEW.width || min === base, `${name}: alejar al min enseña más que WIDEST_VIEW`);
+  assert.ok(h / min <= WIDEST_VIEW.height || min === base, `${name}: alejar al min enseña más de alto que WIDEST_VIEW`);
+  // Todo entero salvo el primer paso al acercar, que es base × ZOOM_FINE; y siempre creciente.
+  let prev = 0;
+  for (let s = -6; s <= 6; s++) {
+    const z = playerZoom(w, h, s);
+    const fine = clampZoomStep(w, h, s) === 1 && base < max;
+    assert.ok(z >= min && z <= max && z >= prev, `${name}: paso ${s} da ${z}`);
+    assert.ok(fine ? Math.abs(z - base * ZOOM_FINE) < 1e-9 : Number.isInteger(z), `${name}: paso ${s} da ${z} (¿fino?)`);
+    prev = z;
+  }
+  if (base < max) assert.ok(base * ZOOM_FINE > base * 1.08 - 1e-9 && base * ZOOM_FINE < base * 1.12 + 1e-9, `${name}: el paso fino no es +8–12 %`);
+  // Control positivo: sin el clamp, un paso enorme daría base + 99 y esto fallaría.
+  assert.equal(playerZoom(w, h, 99), max, `${name}: el paso 99 no se recorta`);
+  assert.equal(playerZoom(w, h, -99), min, `${name}: el paso -99 no se recorta`);
+}
+// 390 × 844 a 3×: alejar a 2 enseñaría 1266 de alto > 1125, así que el mínimo es 3.
+assert.equal(zoomRange(1170, 2532).min, 3);
+assert.equal(playerZoom(1170, 2532, -1), 3);
+assert.ok(Math.abs(playerZoom(1170, 2532, 1) - 3.3) < 1e-9);
+assert.equal(playerZoom(1170, 2532, 2), 4);
 console.log('check-pixel-scale: OK — vista más grande', widest.map(Math.ceil).join(' × '), '·', Object.entries(screens).map(([n, [w, h]]) => `${n} ×${pixelZoom(w, h)}`).join(' · '));

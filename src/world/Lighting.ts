@@ -17,6 +17,7 @@ import { LAMP_LIGHT } from './LampShadows';
 import { LAYER } from './Layers';
 import { finished } from './UrbanFinish';
 import { LightDepth } from './LightDepth';
+import { outskirtsTiles } from './LocationBuilder';
 
 /** Canal a canal: `a` por `b` (0xffffff no cambia nada). */
 function multiply(a: number, b: number): number {
@@ -346,6 +347,9 @@ export class Lighting {
   private lastKey = '';
   private readonly roofs: { x: number; y: number; w: number; h: number }[] = [];
   private roofBrush!: Phaser.GameObjects.Rectangle;
+  /** Margen del mapa de luz sobre el mapa (px del mapa de luz): las afueras de bakeOutskirts (QA-06). */
+  private offX = 0;
+  private offY = 0;
   /** Zonas con identidad (data/districts.ts), en px de mundo: su guion de color tiñe la luz del cielo. */
   private readonly zones: { x: number; y: number; w: number; h: number; profile: DistrictProfile }[];
   /** Color y fuerza de farola y escaparate donde cae (px de mundo): la temperatura de cada zona. */
@@ -506,8 +510,12 @@ export class Lighting {
       }
       makeLightMask(scene);
       this.shade.setVisible(false);
+      // Cubre también las afueras de bakeOutskirts (QA-06).
+      const out = outskirtsTiles(def);
+      this.offX = Math.ceil((out.ox * TILE) / this.lm);
+      this.offY = Math.ceil((out.oy * TILE) / this.lm);
       this.lightmap = scene.add
-        .renderTexture(0, 0, Math.ceil(widthPx / this.lm), Math.ceil(heightPx / this.lm))
+        .renderTexture(-this.offX * this.lm, -this.offY * this.lm, Math.ceil(widthPx / this.lm) + 2 * this.offX, Math.ceil(heightPx / this.lm) + 2 * this.offY)
         .setOrigin(0, 0)
         .setScale(this.lm)
         .setDepth(DEPTH)
@@ -516,7 +524,7 @@ export class Lighting {
       this.lightmap.texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
       this.roofBrush = new Phaser.GameObjects.Rectangle(scene, 0, 0, 1, 1, 0xffffff).setOrigin(0, 0);
       // Las sombras se dibujan en coordenadas del mundo y se reducen al mapa de luz al pintarlas.
-      this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / this.lm);
+      this.shadows = new Phaser.GameObjects.Graphics(scene).setScale(1 / this.lm).setPosition(this.offX, this.offY);
       this.reflections = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
       this.fx = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
     }
@@ -803,7 +811,7 @@ export class Lighting {
       map.beginDraw();
       for (const l of [...this.fixedSources, ...this.dynamicSources]) {
         // A tamaño exacto y en píxel entero del mapa: el tramado no se deforma ni se emborrona.
-        map.stamp(steppedMask(this.scene, l.w / this.lm, l.h / this.lm), undefined, Math.round(l.x / this.lm), Math.round(l.y / this.lm), {
+        map.stamp(steppedMask(this.scene, l.w / this.lm, l.h / this.lm), undefined, Math.round(l.x / this.lm) + this.offX, Math.round(l.y / this.lm) + this.offY, {
           tint: l.color,
           alpha: Math.min(1, night * l.strength),
           blendMode: Phaser.BlendModes.NORMAL,
@@ -814,7 +822,7 @@ export class Lighting {
     }
     // Con un rectángulo propio (fusión normal): fill() heredaría la suma de la última luz.
     const roof = this.roofBrush.setFillStyle(sky);
-    for (const r of this.roofs) map.draw(roof.setPosition(r.x / this.lm, r.y / this.lm).setSize(r.w / this.lm, r.h / this.lm));
+    for (const r of this.roofs) map.draw(roof.setPosition(r.x / this.lm + this.offX, r.y / this.lm + this.offY).setSize(r.w / this.lm, r.h / this.lm));
   }
 
   /**
@@ -829,7 +837,7 @@ export class Lighting {
       brush.setFillStyle(multiply(ground, gradeAt(z.profile, hour)));
       [1 / 3, 1 / 2, 1].forEach((alpha, i) => {
         const inset = i * TILE;
-        brush.setAlpha(alpha).setPosition((z.x + inset) / this.lm, (z.y + inset) / this.lm).setSize((z.w - inset * 2) / this.lm, (z.h - inset * 2) / this.lm);
+        brush.setAlpha(alpha).setPosition((z.x + inset) / this.lm + this.offX, (z.y + inset) / this.lm + this.offY).setSize((z.w - inset * 2) / this.lm, (z.h - inset * 2) / this.lm);
         map.draw(brush);
       });
     }

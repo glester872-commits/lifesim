@@ -80,6 +80,29 @@ siempre. Todo pasa por la misma capa de entrada que el teclado
 `WorldScene`): no hay un segundo sistema de movimiento. En un PC con ratón los
 controles táctiles no aparecen.
 
+**Zoom del jugador**: pellizca con dos dedos sobre el mundo para acercar o alejar;
+en escritorio, la rueda o las teclas `+` / `−`. El primer paso al acercar es fino,
+`ZOOM_FINE` (×1,1): es la única excepción a HD-03, aceptada a sabiendas (en ese paso
+el arte tiembla algo al andar). El resto son pasos enteros de píxel físico por píxel
+de mundo: hasta 2 de acercamiento sobre el zoom de la pantalla, y alejar sólo
+mientras no se vea más que `WIDEST_VIEW`. Por defecto, el zoom de siempre. Se
+recuerda (`lifesim.zoom`); no hay botones. Lógica en `world/PixelScale.ts`
+(`zoomRange`, `zoomLevels`, `playerZoom`), `state/zoomPreference.ts` y `ui/PinchZoom.ts`.
+
+**HUD en pantalla pequeña** (ancho ≤ 520 px o alto ≤ 480 px; el escritorio no
+cambia): una barra de una línea arriba a la izquierda, del alto de un dedo y
+respetando la zona segura, con fecha y hora (un glifo `‖`/`▸` si el reloj está
+parado o sigue con el móvil abierto), dinero, energía y un botón `▾` que
+despliega la tarjeta de transporte y lo próximo de la agenda; se cierra al
+volver a tocarlo, al tocar fuera o con `Esc`, y si hay que salir ya (o ya no se
+llega) el botón lleva un punto ámbar (o rojo) con el aviso en su nombre
+accesible. Mapa, móvil, sonido, bolsa y menú son una fila de iconos de 44 × 44
+arriba a la derecha (apaisado, en la misma línea que la barra; de pie, justo
+debajo), sin carteles de tecla. El rótulo del sitio, los avisos del móvil y la
+megafonía salen bajo la barra y los iconos y se van solos; en táctil, el aviso
+de abajo no repite el verbo que ya dice el botón de acción. El zoom no cambia
+(`world/PixelScale`): el espacio se gana achicando la interfaz.
+
 ## Arquitectura
 
 Capas separadas a propósito:

@@ -173,7 +173,10 @@ export class CityAudio {
 
   private paint(): void {
     if (!this.button) return;
-    this.button.innerHTML = `<span class="map-button__key">N</span> Sonido: ${AUDIO_LABEL[this.level]}`;
+    // Icono del móvil (style.css): tantas ondas como nivel; apagado, tachado. En escritorio sólo se ve la tecla y el texto.
+    const waves = ['M15 10a2.5 2.5 0 0 1 0 4', 'M17 7.5a5 5 0 0 1 0 9', 'M19 5a8 8 0 0 1 0 14'].slice(0, AUDIO_LEVELS.indexOf(this.level));
+    const mark = this.level === 'off' ? 'M16 9l6 6M22 9l-6 6' : waves.join('');
+    this.button.innerHTML = `<span class="map-button__key">N</span><svg class="hud-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z${mark}"/></svg><span class="hud-btn__label">Sonido: ${AUDIO_LABEL[this.level]}</span>`;
     this.button.setAttribute('aria-label', `Volumen del ambiente: ${AUDIO_LABEL[this.level]}. Cambiar (N)`);
     this.button.classList.toggle('is-muted', this.level === 'off');
   }

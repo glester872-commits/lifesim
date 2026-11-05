@@ -3,6 +3,7 @@ export const TILE = 16;
 /**
  * Zoom en píxeles físicos (el lienzo va a la resolución del dispositivo, ver
  * main.ts): 2 es el mínimo para que un píxel del juego se lea como píxel.
+ * Punto único de ajuste del zoom; siempre entero (criterio en world/PixelScale).
  */
 export const CAMERA_ZOOM = 2;
 /**
@@ -15,6 +16,13 @@ export const CAMERA_ZOOM = 2;
 export const VIEW_WIDTH = 480;
 export const VIEW_HEIGHT = 405;
 export const MAX_CAMERA_ZOOM = 12;
+/** Cuántos pasos enteros puede acercar el jugador sobre el zoom de la pantalla (world/PixelScale.zoomRange). */
+export const ZOOM_STEPS_IN = 2;
+/**
+ * Primer paso del jugador al acercar: el zoom de la pantalla × esto (ALPHA-09, +10 %). Fraccionario a sabiendas: en
+ * ese paso un píxel de arte mide 2 o 3 (3 o 4) px físicos alternos y tiembla un poco al andar. 1 lo quita.
+ */
+export const ZOOM_FINE = 1.1;
 /**
  * Lo más que llega a verse de mundo, en px (scripts/check-pixel-scale lo barre): de ancho, un 32:9 a zoom 2 justo
  * antes de redondear a 3; de alto, un móvil de pie. Lo que se pinta alrededor de un sitio pequeño llega hasta aquí.

@@ -204,11 +204,18 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
  * pintado como el del mapa (world/Surfaces), hasta la vista más grande (WIDEST_VIEW). Cuatro franjas, sólo las que
  * hacen falta; sin colisión: el mundo acaba en el mapa.
  */
+export function outskirtsTiles(def: LocationDef): { ox: number; oy: number } {
+  if (def.kind !== 'exterior') return { ox: 0, oy: 0 };
+  return {
+    ox: Math.max(0, Math.ceil((WIDEST_VIEW.width / TILE - def.ground[0].length) / 2)),
+    oy: Math.max(0, Math.ceil((WIDEST_VIEW.height / TILE - def.ground.length) / 2)),
+  };
+}
+
 function bakeOutskirts(scene: Phaser.Scene, def: LocationDef): void {
   const cols = def.ground[0].length;
   const rows = def.ground.length;
-  const ox = Math.max(0, Math.ceil((WIDEST_VIEW.width / TILE - cols) / 2));
-  const oy = Math.max(0, Math.ceil((WIDEST_VIEW.height / TILE - rows) / 2));
+  const { ox, oy } = outskirtsTiles(def);
   const at = (tx: number, ty: number): string => def.ground[Math.min(rows - 1, Math.max(0, ty))][Math.min(cols - 1, Math.max(0, tx))];
   const strips: [number, number, number, number][] = [[-ox, -oy, cols + 2 * ox, oy], [-ox, rows, cols + 2 * ox, oy], [-ox, 0, ox, rows], [cols, 0, ox, rows]];
   for (const [x0, y0, w, h] of strips) {
