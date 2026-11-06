@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import './style.css';
-import { PALETTE } from './config/constants';
+import { PALETTE, TILE } from './config/constants';
 import { GameState } from './state/GameState';
 import { TimeSystem } from './systems/TimeSystem';
 import { DialogueSystem } from './systems/DialogueSystem';
@@ -58,7 +58,7 @@ import { auditableLocations, auditVenues, lastTransitionError } from './systems/
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
 import { HUD } from './ui/HUD';
-import { commitmentLine, commitments, margin, marginLabel, review, travelHint } from './systems/Agenda';
+import { commitmentLine, commitments, departureText, dueText, estimateTrip, margin, marginLabel, review, travelHint, type TravelHint } from './systems/Agenda';
 import { opportunities, opportunityInput } from './systems/Opportunities';
 import { LINES } from './data/transit';
 import { DialogueBox } from './ui/DialogueBox';
@@ -196,8 +196,9 @@ let reviewedAt = -1;
 let shownFor = '';
 const reviewAgenda = (): void => {
   const now = (state.day - 1) * 1440 + state.hour * 60 + state.minute;
-  // Cada minuto, la revisión; el HUD también al cambiar de sitio con el reloj parado (llegar a Decathlon).
-  const key = `${now}|${state.locationId}|${state.offMap}`;
+  // Cada minuto, la revisión; el HUD también al cambiar de sitio o de casilla con el reloj parado (LV-04: la salida
+  // recomendada depende de la casilla). Como mucho una vez por casilla y minuto: nunca por frame.
+  const key = `${now}|${state.locationId}|${state.offMap}|${Math.floor(state.position.x / TILE)},${Math.floor(state.position.y / TILE)}`;
   if (key === shownFor) return;
   shownFor = key;
   const fresh = now !== reviewedAt;
@@ -210,7 +211,7 @@ const reviewAgenda = (): void => {
 
   const lines = [
     ...r.due.map((c) => {
-      const hint = travelHint(position, c.where);
+      const hint = travelHint(position, c.where, { now, balance: s.cards.transport });
       const label = marginLabel(c, now, hint);
       return `${label ? `${label[0].toUpperCase()}${label.slice(1)}` : 'Próximo'}: ${commitmentLine(c, now, hint)}.`;
     }),
@@ -231,11 +232,18 @@ const reviewAgenda = (): void => {
   const idea = next ? undefined : opportunities(opportunityInput(s, now))[0];
   if (!next) services.hud.setNext(idea ? `Libre · Puedes: ${idea.title}. Más en el móvil (P) → Hoy.` : 'Libre. Ideas y guía: móvil (P) → Hoy.', 'ok');
   else {
-    const hint = travelHint(position, next.where);
+    // Con hora y sitio, el HUD dice la salida y la categoría (corto); el texto del viaje se lee en Hoy.
+    const timed = !!next.where && !next.deadline;
+    const est = estimateTrip(position, next.where, { start: next.start, now, balance: s.cards.transport });
+    const hint: TravelHint = { minutes: est.totalMin, text: est.text, marginMin: est.marginMin };
+    const depart = timed ? departureText(next, est, now) : '';
     // En metro sin saldo para ir y volver, se dice: sin tarjeta cargada no se sube.
     const card = s.cards.transport;
     const recharge = hint.text.startsWith('metro') && (card === undefined || card + 1e-9 < 2 * LINES[0].fare) ? (card === undefined ? ' · sin tarjeta' : ` · tarjeta ${euros(card)}: recárgala`) : '';
-    services.hud.setNext(`Próximo · ${commitmentLine(next, now, hint)}${recharge}`, recharge ? 'tight' : margin(next, now, hint));
+    const line = depart
+      ? [next.title, `${dueText(next, now)}${next.where ? ` · ${next.where.name}` : ''}`, depart].join(' · ')
+      : commitmentLine(next, now, hint);
+    services.hud.setNext(`Próximo · ${line}${recharge}`, recharge ? 'tight' : margin(next, now, hint));
   }
 };
 state.on('change', reviewAgenda);

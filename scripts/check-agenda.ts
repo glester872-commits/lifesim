@@ -8,15 +8,17 @@ import { getActivity } from '../src/data/activities.ts';
 import { PLAN_KINDS } from '../src/systems/Phone.ts';
 import { GAME_MINUTES_PER_REAL_SECOND, SAVE_KEY, TILE } from '../src/config/constants.ts';
 import { findPoint } from '../src/systems/Navigation.ts';
-import { getLocation } from '../src/systems/LocationSystem.ts';
+import { allLocations, getLocation } from '../src/systems/LocationSystem.ts';
+import { LINES } from '../src/data/transit.ts';
 import { createInitialState, SaveSystem } from '../src/systems/SaveSystem.ts';
 import { hire, work } from '../src/systems/Jobs.ts';
 import { enroll } from '../src/systems/Study.ts';
 import { START_FITNESS, buildOf, bodyLine } from '../src/systems/Fitness.ts';
 import { TOUR } from '../src/data/tour.ts';
+import { AGENDA } from '../src/config/agenda.ts';
 import {
-  commitments, leadOf, margin, marginLabel, parseAgenda, progressSignals, review, startAgenda, travelHint,
-  type AgendaInput, type AgendaState, type Position, type ProgressInput,
+  commitments, departureText, estimateTrip, leadOf, margin, marginLabel, parseAgenda, progressSignals, review, startAgenda, travelHint,
+  type AgendaInput, type AgendaState, type Commitment, type Position, type ProgressInput, type Where,
 } from '../src/systems/Agenda.ts';
 
 const t = (day: number, h: number, m = 0): number => (day - 1) * 1440 + h * 60 + m;
@@ -85,7 +87,8 @@ for (const s of TOUR) assert.ok(s.text.length > 30 && !s.text.includes('undefine
   const fromHome = travelHint(HOME, job1.where);
   const fromStreet = travelHint(STREET, job1.where);
   assert.ok(fromHome.minutes! > fromStreet.minutes! && fromStreet.minutes! >= 30, `metro: casa ${fromHome.minutes}, calle ${fromStreet.minutes}`);
-  assert.match(fromHome.text, /^metro L2 · ~\d+ min$/);
+  // El texto lleva «±M» de margen (LV-04): el total sigue en «~N min».
+  assert.match(fromHome.text, /^metro L2 · ~\d+ min ±\d+$/);
   assert.equal(travelHint({ location: 'no-existe', x: 0, y: 0 }, job1.where).minutes, null, 'sin sitio: sin estimación');
   assert.equal(travelHint(HOME, null).text, 'desde el móvil');
   const gym = travelHint(HOME, { name: 'Gimnasio', location: 'gym', tile: { tx: 18, ty: 14 } });
@@ -101,8 +104,104 @@ for (const s of TOUR) assert.ok(s.text.length > 30 && !s.text.includes('undefine
   assert.equal(margin(job1, t(1, 6), fromHome), 'ok');
   // Saliendo a las 9:50 se llega pasadas las 10:00, todavía a tiempo de fichar con retraso.
   assert.equal(marginLabel(job1, t(1, 9, 50), fromHome), 'llegarás tarde');
-  assert.equal(marginLabel(job1, t(1, 8, 50), fromHome), 'sal ya');
+  // LV-04: el viaje medido casa → Decathlon son 73-74 min (la espera del tren es medio intervalo). «Sal ya» es salir
+  // dentro del margen: llegar antes de las 10:00 pero con menos holgura que la incertidumbre del viaje.
+  const total = fromHome.minutes!;
+  assert.ok(total >= 68 && total <= 80, `casa → Decathlon: ${total} min (medido 73-74)`);
+  assert.equal(marginLabel(job1, job1.start - total - 1, fromHome), 'sal ya');
+  assert.equal(marginLabel(job1, job1.start - total + 1, fromHome), 'llegarás tarde');
   assert.equal(marginLabel(job1, t(1, 11, 50), fromHome), 'ya no llegas');
+}
+
+// ------------------------------------------------------------------ estimación por tramos (LV-04 Fase 3)
+
+{
+  const CENTRO: Where = { name: 'Centro de estudios', location: 'district', tile: { tx: 41, ty: 18 } };
+  const ATALAYA: Where = { name: 'Atalaya', location: 'district', tile: { tx: 65, ty: 27 } };
+  // A pie, por el camino real (tilePath): Olmo 7 → centro son 65 casillas (≈27 min medidos); a Atalaya, 48 (≈20).
+  // El código viejo (Manhattan × 1,3) daba 19 y 27: estas aserciones fallan con él.
+  const toCentro = estimateTrip(STREET, CENTRO);
+  assert.ok(toCentro.totalMin !== null && toCentro.totalMin >= 24 && toCentro.totalMin <= 29, `a pie al centro: ${toCentro.totalMin}`);
+  assert.match(toCentro.text, /^~\d+ min a pie ±\d+$/);
+  const toAtalaya = estimateTrip(STREET, ATALAYA);
+  assert.ok(toAtalaya.totalMin !== null && toAtalaya.totalMin >= 18 && toAtalaya.totalMin <= 23, `a pie a Atalaya: ${toAtalaya.totalMin}`);
+  // Tramos y totales: el total es la suma de los minutos, y el margen la de las incertidumbres.
+  assert.equal(toCentro.totalMin, toCentro.tramos.reduce((s, x) => s + x.minutes, 0));
+  assert.equal(toCentro.marginMin, toCentro.tramos.reduce((s, x) => s + x.uncertainty, 0));
+
+  // Desde el andén de Vallesco a la parada Ribera: espera + 15 min, sin paseo de calle ni entrada a la estación.
+  const platform: Position = { location: 'vallesco-station', x: 8 * TILE, y: 8 * TILE };
+  const ribera: Where = { name: 'Ribera Norte', stop: 'ribera' };
+  const fromPlatform = estimateTrip(platform, ribera, { now: t(1, 13) });
+  assert.equal(fromPlatform.totalMin, AGENDA.METRO_WAIT + 15, 'andén → parada: espera + 15');
+  assert.equal(fromPlatform.marginMin, AGENDA.WAIT_MARGIN_OFF_PEAK, 'espera de valle: ±8');
+  assert.equal(fromPlatform.text, `metro L2 · ~${AGENDA.METRO_WAIT + 15} min ±${AGENDA.WAIT_MARGIN_OFF_PEAK}`);
+  assert.equal(estimateTrip(platform, ribera, { now: t(1, 9) }).marginMin, AGENDA.WAIT_MARGIN_PEAK, 'espera de punta: ±10');
+
+  // Sin estimación: no existe el sitio, o falta saldo para el billete (no cuenta como 0 min).
+  const nowhere = estimateTrip(STREET, { name: 'Nada', location: 'no-existe', tile: { tx: 1, ty: 1 } });
+  assert.equal(nowhere.totalMin, null);
+  assert.equal(nowhere.text, 'sin estimación: no hay ruta conocida');
+  assert.equal(nowhere.category, null);
+  assert.equal(nowhere.departAt, null);
+  const job1 = commitments(input(t(1, 7)))[0];
+  const broke = estimateTrip(HOME, job1.where, { balance: 1 });
+  assert.equal(broke.totalMin, null);
+  assert.equal(broke.text, 'sin estimación: falta saldo para el billete de €2');
+  assert.ok(estimateTrip(HOME, job1.where, { balance: 2 }).totalMin !== null, 'saldo justo para el billete: hay estimación');
+
+  // Categorías y hora de salida (start fijo): con margen, justo y tarde; departAt = start − total − margen.
+  const T = toCentro.totalMin!;
+  const M = toCentro.marginMin!;
+  const now0 = t(1, 10);
+  const con = estimateTrip(STREET, CENTRO, { now: now0, start: now0 + T + M + 10 });
+  assert.equal(con.category, 'con margen');
+  assert.equal(con.departAt, now0 + 10, 'salida = start − total − margen');
+  const justo = estimateTrip(STREET, CENTRO, { now: now0, start: now0 + T + 1 });
+  assert.equal(justo.category, 'justo');
+  assert.equal(justo.departAt, now0 + T + 1 - T - M);
+  const tarde = estimateTrip(STREET, CENTRO, { now: now0, start: now0 + T - 1 });
+  assert.equal(tarde.category, 'tarde');
+  assert.equal(estimateTrip(STREET, CENTRO, { now: now0 }).category, null, 'sin hora de presentarse, sin categoría');
+
+  // margin() sin estimación: antes contaba 0 min y daba 'ok' a dos horas de la hora; ahora es 'tight', nunca 'ok'.
+  const nullHint = { minutes: null, text: 'sin estimación' };
+  assert.equal(margin(job1, job1.start - 120, nullHint), 'tight', 'falso ok: sin estimación, antes daba ok');
+  assert.equal(margin(job1, job1.start + 1, nullHint), 'late');
+  assert.equal(marginLabel(job1, job1.start - 120, nullHint), '');
+}
+
+// ------------------------------------------------------------------ texto de la salida (app Hoy y HUD)
+
+{
+  const CENTRO: Where = { name: 'Centro de estudios', location: 'district', tile: { tx: 41, ty: 18 } };
+  const T = estimateTrip(STREET, CENTRO).totalMin!;
+  const M = estimateTrip(STREET, CENTRO).marginMin!;
+  const now0 = t(1, 10);
+  const cita = (start: number, close = start + 30): Commitment => ({ key: 'visit:test', kind: 'visit', title: 'Cita', start, close, where: CENTRO });
+  // Control positivo: el formato exacto. Si cambia, este caso falla.
+  const con = estimateTrip(STREET, CENTRO, { now: now0, start: now0 + T + M + 10 });
+  assert.equal(departureText(cita(now0 + T + M + 10), con, now0), 'sal 10:10 · con margen');
+  // Justo: aún se llega, pero sin holgura. Por construcción, su salida recomendada ya ha pasado: «sal ya».
+  const justo = estimateTrip(STREET, CENTRO, { now: now0, start: now0 + T + 1 });
+  assert.equal(justo.category, 'justo');
+  assert.equal(departureText(cita(now0 + T + 1), justo, now0), 'sal ya · justo');
+  const ya = estimateTrip(STREET, CENTRO, { now: now0 + 11, start: now0 + T + M + 10 });
+  assert.equal(departureText(cita(now0 + T + M + 10), ya, now0 + 11), 'sal ya · justo', 'pasada la salida: «sal ya»');
+  // Tarde pero aún a tiempo (cierre después del total): «sal ya · tarde».
+  const tarde = estimateTrip(STREET, CENTRO, { now: now0, start: now0 + T - 1 });
+  assert.equal(departureText(cita(now0 + T - 1), tarde, now0), 'sal ya · tarde');
+  // Ya no se llega: pasado el cierre.
+  const tardeYa = estimateTrip(STREET, CENTRO, { now: now0 + 1, start: now0 + 1 });
+  assert.equal(departureText(cita(now0 + 1, now0 + 1), tardeYa, now0 + 1), 'ya no llegas');
+  // Sin hora de presentarse no hay salida que decir; sin estimación, tampoco.
+  assert.equal(departureText(cita(now0 + 100), estimateTrip(STREET, CENTRO, { now: now0 }), now0), '');
+  const nowhere = estimateTrip(STREET, { name: 'Nada', location: 'no-existe', tile: { tx: 1, ty: 1 } }, { now: now0, start: now0 + 100 });
+  assert.equal(departureText(cita(now0 + 100), nowhere, now0), '');
+  // Ninguna línea de Hoy ni del HUD deja «undefined», «NaN» o llaves a la vista.
+  for (const s of [departureText(cita(now0 + T + M + 10), con, now0), departureText(cita(now0 + T + 1), justo, now0), nowhere.text, con.text, `${con.text} · sal 10:10 · con margen`]) {
+    assert.doesNotMatch(s, /undefined|NaN|\{/, `texto con basura: ${s}`);
+  }
 }
 
 // ------------------------------------------------------------------ avisos: una vez, antes, y al día tras un salto
@@ -265,5 +364,42 @@ for (const d of days) {
   assert.ok(r.energy > 0, `${d.name}: sin energía`);
   // Una jornada razonable (con actividad propia y vuelta a casa) cabe antes de medianoche.
   assert.ok(r.end < d.start - (d.start % 1440) + 1440, `${d.name}: acaba ${hh(r.end)}`);
+}
+// LV-04 · «sin estimación»: cada motivo, en castellano y nunca vacío.
+{
+  const REASONS = [
+    'sin estimación: no hay ruta conocida', 'sin estimación: no se encuentra la puerta de la estación',
+    'sin estimación: a pie entre barrios', 'sin metro a esa hora',
+  ];
+  // Sin metro a esa hora: hoy L2 y L3 abren 0-24, así que se simula un cierre y se restaura.
+  const home = at('METRO_ENTRANCE');
+  const ribera: Where = { name: 'Ribera', location: 'ribera', tile: { tx: 3, ty: 9 } };
+  const saved = LINES.map((l) => l.hours);
+  for (const l of LINES) (l as { hours: readonly [number, number] }).hours = [6, 23];
+  try {
+    const closed = estimateTrip(home, ribera, { now: t(1, 3), balance: 10 });
+    assert.equal(closed.totalMin, null, 'metro cerrado: sin total');
+    assert.equal(closed.text, 'sin metro a esa hora');
+    const open = estimateTrip(home, ribera, { now: t(1, 12), balance: 10 });
+    assert.ok(open.totalMin !== null, 'con metro abierto sí hay estimación');
+  } finally {
+    LINES.forEach((l, i) => ((l as { hours: readonly [number, number] }).hours = saved[i]));
+  }
+  // Barrido: de cada sitio con calle a cada otro, la estimación da minutos o uno de los motivos. Nunca texto roto.
+  const streets = allLocations().filter((l) => l.kind !== 'interior');
+  const seen = new Set<string>();
+  for (const a of streets) {
+    const sp = Object.values(a.spawns)[0];
+    if (!sp) continue;
+    for (const b of allLocations()) {
+      const bs = Object.values(b.spawns)[0];
+      if (!bs || a.id === b.id) continue;
+      const e = estimateTrip({ location: a.id, x: sp.tx * TILE + 8, y: sp.ty * TILE + 8 }, { name: b.id, location: b.id, tile: { tx: bs.tx, ty: bs.ty } }, { now: t(1, 12), balance: 10 });
+      assert.ok(!/undefined|NaN|\{/.test(e.text), `${a.id} → ${b.id}: ${e.text}`);
+      if (e.totalMin === null) { assert.ok(REASONS.includes(e.text), `${a.id} → ${b.id}: motivo «${e.text}»`); seen.add(e.text); }
+      else assert.ok(e.totalMin > 0 && e.totalMin < 400 && /min/.test(e.text), `${a.id} → ${b.id}: ${e.text}`);
+    }
+  }
+  console.log(`check-agenda: sin estimación en el barrido: ${[...seen].join(' | ') || 'ninguno'}`);
 }
 console.log('check-agenda: ok');

@@ -1,19 +1,20 @@
 // Sin Phaser: lo usan main.ts (aviso y HUD), ui/Phone (la app Hoy) y scripts/check-agenda.ts.
-import { GAME_MINUTES_PER_REAL_SECOND, PLAYER_SPEED, TILE } from '../config/constants.ts';
-import { METRO_CONFIG } from '../config/metro.ts';
+import { TILE } from '../config/constants.ts';
+import { AGENDA } from '../config/agenda.ts';
+import { HOUR_BANDS } from '../config/metro.ts';
 import { getJob } from '../data/jobs.ts';
 import { BILLS } from '../data/household.ts';
 import { COURSES, getGig, getSkill } from '../data/study.ts';
 import { STORIES } from '../data/saraStory.ts';
-import { STOPS } from '../data/transit.ts';
+import { LINES, STOPS } from '../data/transit.ts';
 import { getNpc } from '../data/npcs.ts';
 import { GATHERINGS, attendedTo, nextOccurrence, occurrenceOn, type ParishState } from './Parish.ts';
 import type { TilePoint } from '../types/game.ts';
 import { allLocations, getLocation, hasLocation } from './LocationSystem.ts';
-import { findPoint } from './Navigation.ts';
+import { findPoint, tilePath } from './Navigation.ts';
 import { placeInfo } from './Places.ts';
 import { travel } from './World.ts';
-import { destinationsFrom } from './Transit.ts';
+import { destinationsFrom, routeBetween, serviceOpen, stopAtStation } from './Transit.ts';
 import { WEEKDAY_LABEL, weekdayOf, weekIndex } from './Calendar.ts';
 import { levelOf, nextShift, settle, type JobProgress } from './Jobs.ts';
 import { lessonStatus, nextSession, gigStatus, knowledge, levelName, type StudyState } from './Study.ts';
@@ -234,13 +235,6 @@ export function commitments(input: AgendaInput): Commitment[] {
 // VIAJE
 // ================================================================
 
-/** Minutos de reloj por tile andando en línea recta (PLAYER_SPEED px/s), con un 30 % de rodeo por las aceras. */
-const WALK_PER_TILE = (TILE / PLAYER_SPEED) * GAME_MINUTES_PER_REAL_SECOND * 1.3;
-/** Lo que se espera el tren al bajar al andén (METRO_CONFIG.firstArrivalDelay), en minutos de reloj. */
-const METRO_WAIT = Math.ceil((METRO_CONFIG.firstArrivalDelay / 1000) * GAME_MINUTES_PER_REAL_SECOND);
-/** De la puerta de la estación al andén (el vestíbulo es corto) y las puertas del tren. */
-const STATION_WALK = 5;
-
 export interface Position {
   location: string;
   x: number;
@@ -270,66 +264,243 @@ function stationDoor(stopId: string): { location: string; tile: TilePoint } | nu
   return station ? streetTile(station) : null;
 }
 
-const walk = (a: TilePoint, b: TilePoint): number => Math.ceil((Math.abs(a.tx - b.tx) + Math.abs(a.ty - b.ty)) * WALK_PER_TILE);
+/** Un tramo del viaje: minutos de reloj estimados y su incertidumbre (± minutos), por separado. */
+export type TramoKind = 'interior' | 'walk' | 'station' | 'wait' | 'metro' | 'transfer';
+export interface Tramo {
+  kind: TramoKind;
+  minutes: number;
+  uncertainty: number;
+  line?: string;
+}
+
+export interface TripOptions {
+  /** Hora de presentarse (minuto absoluto). Con ella y `now`, hay categoría y hora de salida. */
+  start?: number;
+  /** Ahora (minuto absoluto): para la categoría y para el horario del metro. */
+  now?: number;
+  /** Punta o valle; si no se da, se mira la franja de HOUR_BANDS de `now` (o de `start`). */
+  peak?: boolean;
+  /** Saldo de la tarjeta de transporte. Sin él no se comprueba el billete. */
+  balance?: number | undefined;
+}
+
+export interface TripEstimate {
+  tramos: Tramo[];
+  /** Suma de los minutos de los tramos, o null si no hay estimación. */
+  totalMin: number | null;
+  /** Suma de las incertidumbres de los tramos, o null sin estimación. */
+  marginMin: number | null;
+  category: 'con margen' | 'justo' | 'tarde' | null;
+  uncertainty: { plusMin: number; level: 'baja' | 'media' | 'alta' } | null;
+  /** start − total − margen: hora de salida recomendada. */
+  departAt: number | null;
+  /** Lo que enseña la UI: «~6 min a pie», «metro L2 · ~45 min», con «±M» si hay margen. */
+  text: string;
+}
 
 export interface TravelHint {
   /** Minutos de reloj estimados, o null si no hay forma de estimarlo. */
   minutes: number | null;
-  /** «~6 min a pie», «metro L2 · ~45 min», «desde el móvil», «sin ruta estimable». */
+  /** «~6 min a pie ±1», «metro L2 · ~45 min ±12», «desde el móvil», «sin estimación: no hay ruta conocida». */
   text: string;
+  /** Margen de la estimación (±min); null sin estimación. */
+  marginMin?: number | null;
 }
 
-const NO_ROUTE: TravelHint = { minutes: null, text: 'sin ruta estimable' };
+const NO_ROUTE_TEXT = 'sin estimación: no hay ruta conocida';
+const NO_DOOR_TEXT = 'sin estimación: no se encuentra la puerta de la estación';
+const NO_BORDER_TEXT = 'sin estimación: a pie entre barrios';
+const NO_SERVICE_TEXT = 'sin metro a esa hora';
+const noFundsText = (fare: number): string => `sin estimación: falta saldo para el billete de €${fare}`;
+
+const minuteOfDay = (abs: number): number => ((abs % DAY) + DAY) % DAY;
+const hourOf = (abs: number): number => Math.floor(minuteOfDay(abs) / 60);
+
+/** La franja de HOUR_BANDS en esa hora es la punta (tag 'rush': 8-10 y 18-20:30). */
+function isPeak(abs: number): boolean {
+  const m = minuteOfDay(abs);
+  let tag: string = HOUR_BANDS[0].tag;
+  for (const band of HOUR_BANDS) if (m >= band.from) tag = band.tag;
+  return tag === 'rush';
+}
+
+// ponytail: caché (sitio, casilla origen, casilla destino) → longitud del camino, con tope PATH_CACHE_MAX y vaciado
+// entero al llenarse. tilePath es una anchura primero con Array.shift (O(n²) en mapas grandes) y el móvil llama a
+// travelHint en cada render; si un mapa pasa de unos miles de casillas, subir el tope o cambiar a cola de prioridad.
+const PATH_LENGTHS = new Map<string, number | null>();
+
+/** Longitud real del camino en casillas (√2 por diagonal), o null si no hay camino. */
+function pathLength(location: string, a: TilePoint, b: TilePoint): number | null {
+  const key = `${location}|${a.tx},${a.ty}|${b.tx},${b.ty}`;
+  const known = PATH_LENGTHS.get(key);
+  if (known !== undefined) return known;
+  const path = tilePath(getLocation(location), a, b);
+  let len: number | null = null;
+  if (path) {
+    len = 0;
+    for (let i = 1; i < path.length; i++) len += Math.hypot(path[i].tx - path[i - 1].tx, path[i].ty - path[i - 1].ty);
+  }
+  if (PATH_LENGTHS.size >= AGENDA.PATH_CACHE_MAX) PATH_LENGTHS.clear();
+  PATH_LENGTHS.set(key, len);
+  return len;
+}
+
+/** Un tramo a pie dentro de una localización: por el camino real; sin camino, Manhattan con rodeo y más margen. */
+function walkTramo(location: string, a: TilePoint, b: TilePoint): Tramo {
+  const len = pathLength(location, a, b);
+  if (len !== null) {
+    const minutes = Math.ceil(len * AGENDA.WALK_PER_TILE);
+    return { kind: 'walk', minutes, uncertainty: Math.max(AGENDA.WALK_MARGIN_MIN, Math.ceil(AGENDA.WALK_MARGIN_PCT * minutes)) };
+  }
+  const manhattan = Math.abs(a.tx - b.tx) + Math.abs(a.ty - b.ty);
+  const minutes = Math.ceil(manhattan * AGENDA.WALK_PER_TILE * AGENDA.WALK_MANHATTAN_DETOUR);
+  return { kind: 'walk', minutes, uncertainty: Math.max(AGENDA.WALK_MANHATTAN_MARGIN_MIN, Math.ceil(AGENDA.WALK_MANHATTAN_MARGIN_PCT * minutes)) };
+}
+
+const waitTramo = (peak: boolean): Tramo => ({ kind: 'wait', minutes: AGENDA.METRO_WAIT, uncertainty: peak ? AGENDA.WAIT_MARGIN_PEAK : AGENDA.WAIT_MARGIN_OFF_PEAK });
+const STATION_TRAMO: Tramo = { kind: 'station', minutes: AGENDA.STATION_WALK, uncertainty: 0 };
 
 /**
- * Cuánto se tarda en llegar, a ojo y dicho como tal: andando por tiles (sin contar colas ni semáforos) y en metro
- * por las paradas de data/transit más la espera del primer tren. No es una ruta calculada; si no se puede
- * estimar (un sitio que no se encuentra, un barrio sin mapa), lo dice.
+ * Lo que impide subir al metro: sin servicio a esa hora (serviceOpen, con `now`) o sin saldo para el billete. `paid`:
+ * desde la estación no se sabe si el billete ya se pagó al entrar (Position no lleva la fase), así que no se cobra.
  */
-export function travelHint(from: Position, where: Where): TravelHint {
-  if (!where) return { minutes: 0, text: 'desde el móvil' };
-  if (from.offMap) return fromOffMap(from.offMap, where);
-  const street = hasLocation(from.location) && getLocation(from.location).kind !== 'interior';
-  const here = street ? { location: from.location, tile: { tx: Math.floor(from.x / TILE), ty: Math.floor(from.y / TILE) } } : streetTile(from.location);
-  if (!here) return NO_ROUTE;
-  // Dentro de un interior se cuenta un minuto para salir a la calle.
-  const out = street ? 0 : 1;
-  // La estación del barrio en el que se está, por su puerta de calle.
-  const ownStop = STOPS.find((s) => s.station && stationDoor(s.id)?.location === here.location);
+function railBlock(lineIds: readonly string[], paid: boolean, opts: TripOptions): string | null {
+  const now = opts.now;
+  const lines = LINES.filter((l) => lineIds.includes(l.id));
+  if (now !== undefined && lines.some((l) => !serviceOpen(l, hourOf(now)))) return NO_SERVICE_TEXT;
+  const fare = LINES[0].fare;
+  if (!paid && opts.balance !== undefined && opts.balance + 1e-9 < fare) return noFundsText(fare);
+  return null;
+}
 
-  if ('stop' in where) {
-    if (!ownStop) return NO_ROUTE;
-    const leg = destinationsFrom(ownStop).find((d) => d.stop.id === where.stop);
-    if (!leg) return NO_ROUTE;
-    const minutes = out + walk(here.tile, stationDoor(ownStop.id)!.tile) + STATION_WALK + METRO_WAIT + leg.minutes;
-    return { minutes, text: `metro ${leg.line.id} · ~${minutes} min` };
-  }
+interface Plan {
+  tramos: Tramo[];
+  /** Texto propio (sólo «ya estás aquí»); si no, se dice por los tramos. */
+  text?: string;
+}
 
-  // Si el destino es un interior, se cuenta hasta su puerta de calle.
-  const target = getLocation(where.location).kind === 'interior' ? streetTile(where.location) : { location: where.location, tile: where.tile };
-  if (!target) return NO_ROUTE;
-  if (target.location === here.location) {
-    const minutes = out + walk(here.tile, target.tile);
-    return { minutes, text: `~${Math.max(1, minutes)} min a pie` };
-  }
-  const t = travel(here.location, target.location);
-  if (t.mode !== 'metro') return t.mode === 'none' ? NO_ROUTE : { minutes: null, text: 'a pie · sin estimación' };
-  const a = stationDoor(t.from);
-  const b = stationDoor(t.to);
-  if (!a || !b || a.location !== here.location || b.location !== target.location) return { minutes: null, text: 'metro · sin estimación' };
-  const minutes = out + walk(here.tile, a.tile) + STATION_WALK * 2 + METRO_WAIT + t.minutes + walk(b.tile, target.tile);
-  return { minutes, text: `metro L2 · ~${minutes} min` };
+/** Barrio vecino a pie: sólo si hay una puerta de calle directa entre los dos sitios; si no, se dice. */
+function walkAcross(location: string, tile: TilePoint, target: { location: string; tile: TilePoint }, origin: Tramo[]): Plan | string {
+  const portal = getLocation(location).portals.find((p) => p.id !== 'transfer' && !p.train && !p.offMap && p.to.location === target.location);
+  const spawn = portal ? getLocation(target.location).spawns[portal.to.spawn] : undefined;
+  if (!portal || !spawn) return NO_BORDER_TEXT;
+  return { tramos: [...origin, walkTramo(location, tile, { tx: portal.tx, ty: portal.ty }), walkTramo(target.location, spawn, target.tile)] };
 }
 
 /** Desde un sitio sin mapa: ya se está (su parada) o se vuelve en metro hasta la estación del destino y se anda. */
-function fromOffMap(stopId: string, where: NonNullable<Where>): TravelHint {
-  if ('stop' in where) return where.stop === stopId ? { minutes: 0, text: 'ya estás aquí' } : NO_ROUTE;
+function planOffMap(stopId: string, where: NonNullable<Where>, opts: TripOptions, peak: boolean): Plan | string {
+  if ('stop' in where) return where.stop === stopId ? { tramos: [], text: 'ya estás aquí' } : NO_ROUTE_TEXT;
+  if (!hasLocation(where.location)) return NO_ROUTE_TEXT;
   const target = getLocation(where.location).kind === 'interior' ? streetTile(where.location) : { location: where.location, tile: where.tile };
   const stop = STOPS.find((s) => s.id === stopId);
   const leg = target && stop && destinationsFrom(stop).find((d) => stationDoor(d.stop.id)?.location === target.location);
-  if (!target || !leg) return NO_ROUTE;
-  const minutes = METRO_WAIT + leg.minutes + STATION_WALK + walk(stationDoor(leg.stop.id)!.tile, target.tile);
-  return { minutes, text: `metro ${leg.line.id} · ~${minutes} min` };
+  const door = leg ? stationDoor(leg.stop.id) : null;
+  if (!target || !leg || !door) return NO_ROUTE_TEXT;
+  const block = railBlock([leg.line.id], false, opts);
+  if (block) return block;
+  return { tramos: [waitTramo(peak), { kind: 'metro', minutes: leg.minutes, uncertainty: 0, line: leg.line.id }, STATION_TRAMO, walkTramo(target.location, door.tile, target.tile)] };
+}
+
+/** El viaje desde `from` hasta `where`, por tramos; o el texto de por qué no se puede estimar. */
+function planTrip(from: Position, where: NonNullable<Where>, opts: TripOptions, peak: boolean): Plan | string {
+  if (from.offMap) return planOffMap(from.offMap, where, opts, peak);
+  const street = hasLocation(from.location) && getLocation(from.location).kind !== 'interior';
+  const here = street
+    ? { location: from.location, tile: { tx: Math.floor(from.x / TILE), ty: Math.floor(from.y / TILE) } }
+    : streetTile(from.location);
+  if (!here) return NO_ROUTE_TEXT;
+  // Dentro de un interior se cuenta un minuto para salir a la calle. Desde la estación (andén o vestíbulo) el tramo
+  // de origen vale 0: se parte de su puerta de calle, sin paseo ni entrada.
+  const station = stopAtStation(from.location);
+  const origin: Tramo[] = street || station ? [] : [{ kind: 'interior', minutes: 1, uncertainty: 0 }];
+
+  if ('stop' in where) {
+    const own = station ?? STOPS.find((s) => s.station && stationDoor(s.id)?.location === here.location);
+    const leg = own && destinationsFrom(own).find((d) => d.stop.id === where.stop);
+    if (!own || !leg) return NO_ROUTE_TEXT;
+    const block = railBlock([leg.line.id], !!station, opts);
+    if (block) return block;
+    const enter: Tramo[] = [];
+    if (!station) {
+      const door = stationDoor(own.id);
+      if (!door) return NO_ROUTE_TEXT;
+      enter.push(walkTramo(here.location, here.tile, door.tile), STATION_TRAMO);
+    }
+    return { tramos: [...origin, ...enter, waitTramo(peak), { kind: 'metro', minutes: leg.minutes, uncertainty: 0, line: leg.line.id }] };
+  }
+
+  // Si el destino es un interior, se cuenta hasta su puerta de calle.
+  if (!hasLocation(where.location)) return NO_ROUTE_TEXT;
+  const target = getLocation(where.location).kind === 'interior' ? streetTile(where.location) : { location: where.location, tile: where.tile };
+  if (!target) return NO_ROUTE_TEXT;
+  if (target.location === here.location) return { tramos: [...origin, walkTramo(here.location, here.tile, target.tile)] };
+
+  const t = travel(here.location, target.location);
+  if (t.mode === 'walk') return walkAcross(here.location, here.tile, target, origin);
+  if (t.mode !== 'metro') return NO_ROUTE_TEXT;
+  // Desde la estación en la que se está (no la de la parada del barrio), si no, la del barrio.
+  const fromStop = station?.id ?? t.from;
+  const a = stationDoor(fromStop);
+  const b = stationDoor(t.to);
+  const route = routeBetween(fromStop, t.to);
+  if (!route) return NO_ROUTE_TEXT;
+  if (!a || !b || a.location !== here.location || b.location !== target.location) return NO_DOOR_TEXT;
+  const block = railBlock(route.legs.flatMap((l) => (l.mode === 'train' && l.line ? [l.line] : [])), !!station, opts);
+  if (block) return block;
+  const enter: Tramo[] = station ? [] : [walkTramo(here.location, here.tile, a.tile), STATION_TRAMO];
+  const legs = route.legs.map((l): Tramo => (l.mode === 'train'
+    ? { kind: 'metro', minutes: l.minutes, uncertainty: 0, line: l.line }
+    : { kind: 'transfer', minutes: l.minutes, uncertainty: AGENDA.TRANSFER_MARGIN }));
+  return { tramos: [...origin, ...enter, waitTramo(peak), ...legs, STATION_TRAMO, walkTramo(target.location, b.tile, target.tile)] };
+}
+
+const uncertaintyLevel = (m: number): 'baja' | 'media' | 'alta' => (m <= AGENDA.LOW_MAX ? 'baja' : m <= AGENDA.MEDIUM_MAX ? 'media' : 'alta');
+
+/** «~N min a pie» o «metro L2/L3 · ~N min», con «±M» si hay margen. */
+function describeTrip(tramos: readonly Tramo[], totalMin: number, marginMin: number): string {
+  const lines = [...new Set(tramos.flatMap((t) => (t.kind === 'metro' && t.line ? [t.line] : [])))];
+  const base = lines.length ? `metro ${lines.join('/')} · ~${totalMin} min` : `~${Math.max(1, totalMin)} min a pie`;
+  return marginMin > 0 ? `${base} ±${marginMin}` : base;
+}
+
+function build(tramos: Tramo[], opts: TripOptions, text?: string): TripEstimate {
+  const totalMin = tramos.reduce((s, t) => s + t.minutes, 0);
+  const marginMin = tramos.reduce((s, t) => s + t.uncertainty, 0);
+  const { start, now } = opts;
+  let category: TripEstimate['category'] = null;
+  if (start !== undefined && now !== undefined) {
+    category = now + totalMin > start ? 'tarde' : start < now + totalMin + marginMin ? 'justo' : 'con margen';
+  }
+  return {
+    tramos,
+    totalMin,
+    marginMin,
+    category,
+    uncertainty: { plusMin: marginMin, level: uncertaintyLevel(marginMin) },
+    departAt: start !== undefined ? start - totalMin - marginMin : null,
+    text: text ?? describeTrip(tramos, totalMin, marginMin),
+  };
+}
+
+const none = (text: string): TripEstimate => ({ tramos: [], totalMin: null, marginMin: null, category: null, uncertainty: null, departAt: null, text });
+
+/**
+ * Estimación por tramos del viaje (LV-04). Pura: no cobra, no mueve al jugador y no guarda nada. Una estimación
+ * nula (totalMin null) lleva el texto por qué no se puede estimar; nunca cuenta como 0 minutos.
+ */
+export function estimateTrip(from: Position, where: Where, opts: TripOptions = {}): TripEstimate {
+  if (!where) return build([], opts, 'desde el móvil');
+  const clock = opts.now ?? opts.start;
+  const peak = opts.peak ?? (clock !== undefined && isPeak(clock));
+  const plan = planTrip(from, where, opts, peak);
+  if (typeof plan === 'string') return none(plan);
+  return build(plan.tramos, opts, plan.text);
+}
+
+/** La estimación de siempre para la UI (HUD, móvil): total, texto y margen. Ver estimateTrip. */
+export function travelHint(from: Position, where: Where, opts: TripOptions = {}): TravelHint {
+  const e = estimateTrip(from, where, opts);
+  return { minutes: e.totalMin, text: e.text, marginMin: e.marginMin };
 }
 
 /** «hoy 10:00», «mañana 18:00», «el jueves 18:00». */
@@ -342,21 +513,24 @@ export function whenText(abs: number, now: number): string {
 
 /**
  * Margen para llegar: 'late' si ya no da tiempo (llegando ahora se pasa de `close`), 'tight' si hay que salir ya,
- * 'ok' si sobra. Sin estimación, se juzga sólo por la hora.
+ * 'ok' si sobra. Sin estimación no se cuenta como 0 min: sólo se mira la hora ('late' si ya es la hora, si no
+ * 'tight', porque no se puede asegurar que llegue; nunca 'ok').
  */
 export function margin(c: Commitment, now: number, hint: TravelHint): 'ok' | 'tight' | 'late' {
-  const trip = hint.minutes ?? 0;
+  if (hint.minutes === null) return now > c.start ? 'late' : 'tight';
+  const trip = hint.minutes;
   if (now + trip > c.close) return 'late';
   if (c.deadline) return c.start - now < 6 * 60 ? 'tight' : 'ok';
-  return now + trip + 20 >= c.start ? 'tight' : 'ok';
+  return now + trip + (hint.marginMin ?? AGENDA.TIGHT_WINDOW) >= c.start ? 'tight' : 'ok';
 }
 
 /** Qué decir del margen: nada si sobra, «sal ya», «llegarás tarde» (aún vale, pero pasada la hora) o «ya no llegas». */
 export function marginLabel(c: Commitment, now: number, hint: TravelHint): string {
   const m = margin(c, now, hint);
+  if (hint.minutes === null) return m === 'late' ? (now > c.close ? 'ya no llegas' : 'llegarás tarde') : '';
   if (m === 'late') return 'ya no llegas';
   if (m === 'ok') return '';
-  return !c.deadline && now + (hint.minutes ?? 0) > c.start ? 'llegarás tarde' : 'sal ya';
+  return !c.deadline && now + hint.minutes > c.start ? 'llegarás tarde' : 'sal ya';
 }
 
 /** Cuándo, dicho para un plazo o para una hora: «antes del domingo 23:59», «hoy 10:00». */
@@ -368,6 +542,18 @@ export function commitmentLine(c: Commitment, now: number, hint: TravelHint): st
   const when = dueText(c, now);
   const where = c.where ? ` · ${c.where.name}` : '';
   return `${c.title} · ${when}${where} · ${hint.text}`;
+}
+
+/**
+ * La salida recomendada y la categoría, dichas corto: «sal 10:10 · con margen», «sal ya · justo», «ya no llegas».
+ * Sin estimación no hay salida que decir: ''. Lo usan la app Hoy y el HUD (main.ts, ui/Phone).
+ */
+export function departureText(c: Commitment, est: TripEstimate, now: number): string {
+  if (est.totalMin === null) return '';
+  if (marginLabel(c, now, { minutes: est.totalMin, text: est.text, marginMin: est.marginMin }) === 'ya no llegas') return 'ya no llegas';
+  if (est.departAt === null) return est.category ?? '';
+  const depart = est.departAt <= now ? 'sal ya' : `sal ${hhmm(est.departAt)}`;
+  return est.category ? `${depart} · ${est.category}` : depart;
 }
 
 /**
