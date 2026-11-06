@@ -17,7 +17,7 @@ import { BILLS, GOALS } from '../data/household';
 import { euros } from '../systems/Commerce';
 import { COURSES, getGig, getSkill } from '../data/study';
 import { gigDeadline, gigStatus, hasCamera, knowledge, lessonStatus, levelName, nextSession, sessionLabel } from '../systems/Study';
-import { commitments, dueText, margin, marginLabel, progressSignals, travelHint, type Commitment } from '../systems/Agenda';
+import { commitments, departureText, dueText, estimateTrip, margin, marginLabel, progressSignals, travelHint, type Commitment, type TravelHint } from '../systems/Agenda';
 import { TOUR } from '../data/tour';
 import { opportunities, opportunityInput } from '../systems/Opportunities';
 
@@ -502,15 +502,20 @@ export class PhoneScreen {
     const pos = this.position();
     const list = this.agenda(now).filter((c) => c.start - now < 7 * 1440).slice(0, 8);
     const head = el('p', 'phone__greeting', list.length
-      ? 'Con el móvil abierto el reloj sigue corriendo; el mapa y las compras lo paran. El viaje es una estimación desde donde estás.'
+      ? 'Con el móvil abierto el reloj sigue corriendo; el mapa y las compras lo paran. El viaje es una estimación desde donde estás: el ± es su margen, y no cuenta colas, semáforos ni gente.'
       : 'Nada con hora en los próximos días. Un contrato, un curso o un plan con alguien aparecerán aquí.');
     const ul = el('ul', 'phone__list');
+    const balance = this.state.wallet.cards.transport;
     for (const c of list) {
-      const hint = travelHint(pos, c.where);
+      // Con hora y sitio: la estimación por tramos, con la salida recomendada. Los plazos y «desde el móvil», como antes.
+      const timed = !!c.where && !c.deadline;
+      const est = timed ? estimateTrip(pos, c.where, { start: c.start, now, balance }) : null;
+      const hint: TravelHint = est ? { minutes: est.totalMin, text: est.text, marginMin: est.marginMin } : travelHint(pos, c.where);
       const label = marginLabel(c, now, hint);
       const li = el('li', `phone__row${label ? ' is-unread' : ''}`);
       const when = dueText(c, now);
-      li.append(rowText(c.title, `${when}${c.where ? ` · ${c.where.name}` : ''} · ${hint.text}${c.kind === 'gathering' ? ' · Opcional; admisión hasta ' + stampTime(c.close) : ''}`), el('span', 'phone__row-meta', label));
+      const trip = est ? [est.text, departureText(c, est, now)].filter(Boolean).join(' · ') : hint.text;
+      li.append(rowText(c.title, `${when}${c.where ? ` · ${c.where.name}` : ''} · ${trip}${c.kind === 'gathering' ? ' · Opcional; admisión hasta ' + stampTime(c.close) : ''}`), el('span', 'phone__row-meta', label));
       const to = OPENS[c.kind];
       this.item(li, to ? () => this.go(to) : () => undefined);
       ul.append(li);
