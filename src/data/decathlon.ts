@@ -324,7 +324,8 @@ export const SECTORS: readonly Sector[] = [
 
 /** La fila de cajas y la taquilla del personal, junto a la puerta. */
 const FRONT: readonly PropPlacement[] = [
-  ...all('counter', [[64, 37], [65, 37], [68, 37], [69, 37]]), at('register', 65, 37), at('register', 69, 37),
+  ...all('counter', [[64, 37], [65, 37], [68, 37], [69, 37], [72, 37], [73, 37]]),
+  ...all('register', [[65, 37], [69, 37], [73, 37]]),
   at('lockers', 72, 40),
   // El punto de información, a la derecha de la puerta: se le habla por encima del mostrador.
   ...all('counter', [[66, 40], [67, 40]]),
@@ -366,6 +367,10 @@ function ground(): string[] {
 }
 
 const BROWSE = SECTORS.flatMap((s) => s.browse);
+// Crowd resuelve los puestos por prefijo: 010 no debe atraer al vendedor al punto 100.
+const browseId = (i: number): string => `${P}_BROWSE_${String(i + 1).padStart(3, '0')}`;
+const sectionPoints = (ids: readonly string[]): string[] =>
+  SECTORS.filter((s) => ids.includes(s.id)).flatMap((s) => s.browse.map((point) => browseId(BROWSE.indexOf(point))));
 const FITTINGS = [21, 22, 23, 24, 25].map((x) => p(x, 4, 'interact', 'up'));
 const EXIT = { tx: DOOR_X, ty: DECATHLON_H - 3 };
 
@@ -403,28 +408,37 @@ export const DECATHLON_STORE: LocationDef = {
     // Quien cobra, detrás del mostrador (65, 37); quien paga, delante, y se le habla por encima (systems/Interaction, `across`).
     [`${P}_STAFF`]: p(65, 36, 'work', 'down'),
     [`${P}_TILL`]: p(65, 38, 'interact', 'up'),
+    [`${P}2_STAFF`]: p(69, 36, 'work', 'down'),
+    [`${P}2_TILL`]: p(69, 38, 'interact', 'up'),
+    [`${P}3_STAFF`]: p(73, 36, 'work', 'down'),
+    [`${P}3_TILL`]: p(73, 38, 'interact', 'up'),
     [`${P}_QUEUE_01`]: p(64, 38, 'wait', 'right'),
     [`${P}_QUEUE_02`]: p(63, 38, 'wait', 'right'),
     ...Object.fromEntries(FITTINGS.map((pt, i): [string, PointDef] => [`${P}_FITTING_${TWO(i)}`, pt])),
-    ...Object.fromEntries(BROWSE.map(([x, y, f], i): [string, PointDef] => [`${P}_BROWSE_${TWO(i)}`, p(x, y, 'interact', f)])),
+    ...Object.fromEntries(BROWSE.map(([x, y, f], i): [string, PointDef] => [browseId(i), p(x, y, 'interact', f)])),
   },
 };
 
 /** Cada uno con su chaleco y su aspecto: nadie es igual al de al lado. */
-const floor = (look: string, label: string, line: string): StaffRole => ({ service: 'shop-worker', label, line, look, points: [`${P}_BROWSE_`] });
+const floor = (look: string, label: string, line: string, sections: readonly string[], offers: StaffRole['offers'], days?: StaffRole['days']): StaffRole =>
+  ({ service: 'shop-worker', label, line, look, points: sectionPoints(sections), offers, days });
+const WEEKEND = [5, 6] as const;
 
 export const DECATHLON_PROFILE: PopulationProfile = {
   place: 'decathlon-tienda',
   bands: [[9, 11, 'LOW'], [11, 14, 'MEDIUM'], [14, 17, 'LOW'], [17, 21, 'HIGH']],
-  weekday: [0, 0, 0, 0, 1, 2, -9],
+  weekday: [0, 0, 0, 0, 1, 2, 2],
   // Una nave de este tamaño se ve vacía con ocho: catorce, repartidos por los BROWSE de todas las secciones.
   maxVisitors: 14,
   staff: [
-    cashier(P, 'Caja', '¿Tienes la tarjeta de socio? Si no, te la hago en un minuto.', 'decathlon_employee'),
-    floor('decathlon_employee_2', 'Sección de montaña', 'Esa mochila de 40 litros es la que más vuelve: la gente se pasa de grande.'),
-    floor('decathlon_employee_3', 'Sección de running', 'Si quieres, te miro la pisada en la cinta. Son dos minutos.'),
-    floor('decathlon_employee_4', 'Sección de ciclismo', 'Las cámaras están al fondo. La talla la pone en el neumático.'),
-    floor('decathlon_employee_5', 'Reposición', 'Perdona, que paso con el carro.'),
+    cashier(P, 'Caja 1', 'Aquí puedes comprar ropa y calzado.', 'decathlon_employee', 'shop-decathlon'),
+    cashier(`${P}2`, 'Caja 2', 'Puedes pasar por aquí.', 'decathlon_employee_6', 'shop-decathlon'),
+    { ...cashier(`${P}3`, 'Caja 3', 'Atendemos también por esta caja el fin de semana.', 'decathlon_employee_7', 'shop-decathlon'), days: WEEKEND },
+    floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana'),
+    floor('decathlon_employee_3', 'Sección de running', 'Pruébate el calzado con los calcetines que usas al correr.', ['running', 'calzado-mujer', 'calzado-hombre'], 'decathlon-running'),
+    floor('decathlon_employee_4', 'Sección de ciclismo', 'La medida de la cámara la pone en el neumático.', ['ciclismo', 'segunda-vida'], 'decathlon-ciclismo'),
+    { service: 'shop-worker', label: 'Reposición', line: 'Perdona, que paso con el carro.', look: 'decathlon_employee_5', points: [`${P}_BROWSE_`] },
+    floor('decathlon_employee_8', 'Sección de fitness', 'Una esterilla ocupa poco y se recoge en un minuto.', ['fitness-mat', 'fitness-mujer', 'fitness-hombre'], 'decathlon-fitness', WEEKEND),
   ],
   visitors: [
     customer(P, 'Venía a por calcetines y me llevo una tienda de campaña.', 2, { party: [1, 3] }),

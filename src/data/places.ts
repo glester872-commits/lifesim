@@ -237,7 +237,7 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'metro-poligono-norte-l3', name: 'Andén L3 · Polígono Norte', type: 'transit', tags: ['transit'], interior: 'decathlon-l3-station', capacity: 40 },
   { id: 'metro-poligono-norte', name: 'Metro · Polígono Norte · L2 / L3', type: 'transit', tags: ['transit'], building: 'pn-metro', capacity: 40 },
   // Decathlon (data/decathlon.ts): la nave del Polígono Norte (data/poligonoNorte.ts); se entra por su puerta de la explanada.
-  { id: 'decathlon-tienda', name: 'Decathlon · Polígono Norte', type: 'business', tags: ['shop', 'sport', WORK], building: 'pn-decathlon', capacity: 30, hours: [9, 21], days: [0, 1, 2, 3, 4, 5], why: 'Una nave de deporte: montaña, running, ciclismo. Y el trabajo de sección, si firmas.' },
+  { id: 'decathlon-tienda', name: 'Decathlon · Polígono Norte', type: 'business', tags: ['shop', 'sport', WORK], building: 'pn-decathlon', capacity: 30, hours: [9, 21], why: 'Una nave de deporte: montaña, running, ciclismo. Y el trabajo de sección, si firmas.' },
   { id: 'ar-oficial', name: 'Tienda Oficial Halcones', type: 'business', tags: ['shop', 'sport', 'stadium', WORK], building: 'ar-oficial', capacity: 8, hours: [10, 21.5], why: 'Las camisetas y la sudadera del club: te las llevas puestas.' },
   { id: 'ar-burger', name: 'Burger Fondo Sur', type: 'business', tags: ['food', 'social', WORK], building: 'ar-burger', capacity: 20, hours: [12, 24], why: 'Hamburguesa en mesa o para llevar, a dos pasos del estadio.' },
   { id: 'ar-pizza', name: 'Pizzería La Prórroga', type: 'business', tags: ['food', 'social', WORK], building: 'ar-pizza', capacity: 20, hours: [12.5, 24], why: 'Pizza en mesa o para llevar; después del partido, la cena de media grada.' },

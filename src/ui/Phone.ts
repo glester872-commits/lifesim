@@ -623,11 +623,12 @@ export class PhoneScreen {
     const skill = `${getSkill(c.skill).name}: ${k} de 100 (${levelName(c.skill, k)}).`;
     const p = s.course;
     if (!p) {
-      this.screenEl.replaceChildren(el('p', 'phone__empty', `${skill} Sin curso. En el Centro de estudios (Calle Mayor) se da ${c.name}: ${euros(c.fee)}, ${c.lessons.length} clases a las ${c.start}:00. La matrícula, en la ventanilla de la puerta.`));
+      const list = COURSES.map((x) => `${x.name} (${euros(x.fee)}, ${x.lessons.length} clases a las ${x.start}:00)`).join('; ');
+      this.screenEl.replaceChildren(el('p', 'phone__empty', `${skill} Sin curso. En el Centro de estudios (Calle Mayor): ${list}. La matrícula, en la ventanilla de la puerta.`));
       return;
     }
     const next = nextSession(c, p, now);
-    const head = el('p', 'phone__greeting', `${skill}${next && p.attended.length < c.lessons.length ? ` Próxima: ${sessionLabel(c, next)}.` : ''}${hasCamera(s) ? ` ${c.camera}` : ''}`);
+    const head = el('p', 'phone__greeting', `${skill}${next && p.attended.length < c.lessons.length ? ` Próxima: ${sessionLabel(c, next)}.` : ''}${hasCamera(s) && c.camera ? ` ${c.camera}` : ''}`);
     const ul = el('ul', 'phone__list');
     const row = (title: string, sub: string, meta = ''): void => {
       const li = el('li', 'phone__row');
@@ -641,14 +642,15 @@ export class PhoneScreen {
     });
     const left = c.lessons.length - p.attended.length;
     row('Prueba final', p.passed ? 'Aprobada' : left ? `Tras las clases (faltan ${left})` : `En el centro, de ${c.demo.hours[0]}:00 a ${c.demo.hours[1]}:00, una al día`);
-    const gig = getGig(c.gig);
-    const status = gigStatus(gig, s, now);
-    if (status !== 'locked') {
+    const gig = c.gig ? getGig(c.gig) : null;
+    const status = gig ? gigStatus(gig, s, now) : 'locked';
+    if (gig && status !== 'locked') {
       const sub = status === 'offered' ? `${euros(gig.pay)} · acéptalo en el centro` : status === 'active' ? `${gig.place}, hasta el ${gigDeadline(gig, s.gig!)} · ${euros(gig.pay)}`
         : status === 'expired' ? 'Plazo pasado: pide otro en el centro' : 'Entregado';
       row(`Encargo · ${gig.client.split(',')[0]}`, sub);
     }
-    if (s.unlocks.includes(gig.unlock)) row('Decathlon', 'Fotos de producto al fichar: +€15 por turno');
+    // Lo que han abierto los estudios en un empleo (data/jobs.ts `perks`), de cualquier curso aprobado.
+    for (const j of JOBS) for (const perk of j.perks ?? []) if (s.unlocks.includes(perk.unlock)) row(j.employer, `Al fichar: ${perk.label}`);
     this.screenEl.replaceChildren(head, ul);
   }
 

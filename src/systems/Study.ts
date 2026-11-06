@@ -67,10 +67,30 @@ export function levelName(skill: string, k: number): string {
   return getSkill(skill).levels.filter(([min]) => k >= min).at(-1)![1];
 }
 
-/** Con la cámara del centro: desde la matrícula hasta entregar el encargo. */
-export const hasCamera = (s: StudyState): boolean => !!s.course && !s.gig?.done;
+/** Con la cámara del centro: desde la matrícula en un curso que la presta hasta entregar el encargo. */
+export const hasCamera = (s: StudyState): boolean => !!s.course && !!COURSES.find((c) => c.id === s.course!.id)?.camera && !s.gig?.done;
 
-export const courseAt = (desk: string): CourseDef | undefined => COURSES.find((c) => c.desk === desk);
+/** Los cursos de una ventanilla (LV-03: el centro de Vallesco da dos). */
+export const coursesAt = (desk: string): CourseDef[] => COURSES.filter((c) => c.desk === desk);
+
+/** Lo que queda abierto del curso de ahora (prueba o encargo), o null si está acabado o no hay. Uno a la vez. */
+export function courseOpen(s: StudyState): string | null {
+  const p = s.course;
+  const c = p && COURSES.find((x) => x.id === p.id);
+  if (!p || !c) return null;
+  if (!p.passed) return `Ya estás en ${c.name.split(' · ')[0]}: acábalo (clases y prueba) antes de otro curso.`;
+  if (c.gig && !s.gig?.done) return `Antes de otro curso, entrega el encargo de ${c.name.split(' · ')[0]}: la cámara del centro sigue contigo.`;
+  return null;
+}
+
+/**
+ * Aprobado alguna vez: `curso:<id>` (lo apunta la prueba, o `enroll` al cambiar de curso) o el curso de ahora con la
+ * prueba hecha (partidas de antes de LV-03, sin esa marca: no hace falta migrarlas).
+ */
+export const passedCourse = (s: StudyState, id: string): boolean => s.unlocks.includes(`curso:${id}`) || (s.course?.id === id && !!s.course.passed);
+
+/** La matrícula: con el folleto que lo anuncia (una marca de evento), más barata. */
+export const feeFor = (c: CourseDef, flags: Readonly<Record<string, number>>): number => (c.flyer && c.flyer.flag in flags ? c.fee - c.flyer.discount : c.fee);
 export const practiceAt = (id: string): PracticeSite | undefined => PRACTICE_SITES.find((p) => p.id === id);
 export const gigAt = (site: string): GigDef | undefined => GIGS.find((g) => g.site === site);
 
@@ -84,21 +104,28 @@ export function schedule(c: CourseDef, day: number): number[] {
 }
 
 /** Lo que se sabe antes de pagar: precio, calendario, duración, qué da y qué se presta. */
-export function courseOffer(c: CourseDef, day: number): string {
+export function courseOffer(c: CourseDef, day: number, fee = c.fee): string {
   const days = schedule(c, day);
-  return `${c.name}. ${euros(c.fee)} todo incluido. ${c.lessons.length} clases de ${c.hours} h a las ${hh(c.start)}: ${days.map((d) => formatDate(d, false)).join(', ')}. ` +
-    `Si pierdes una, se recupera en la tutoría del fin de semana a las ${hh(c.recovery.start)}. Al acabar, una prueba: aprobarla da acceso a un encargo pagado de la bolsa del centro. ${c.camera}`;
+  const price = fee < c.fee ? `${euros(fee)} con el folleto (${euros(c.fee)} sin él)` : euros(fee);
+  return `${c.name}. ${price}, todo incluido. ${c.lessons.length} clases de ${c.hours} h a las ${hh(c.start)}: ${days.map((d) => formatDate(d, false)).join(', ')}. ` +
+    `Si pierdes una, se recupera en la tutoría del fin de semana a las ${hh(c.recovery.start)}. Al acabar, una prueba: ${c.benefit}${c.camera ? ` ${c.camera}` : ''}`;
 }
 
-export function enrollBlocker(c: CourseDef, s: StudyState, money: number): string | null {
+/** Una matrícula por curso y vida: no se repite uno aprobado (su beneficio no se suma dos veces), ni se pisan dos. */
+export function enrollBlocker(c: CourseDef, s: StudyState, money: number, fee = c.fee): string | null {
+  if (passedCourse(s, c.id)) return 'Ya aprobaste este curso.';
   if (s.course?.id === c.id) return 'Ya estás matriculado.';
-  if (s.course) return 'Ya estás en otro curso.';
-  if (money < c.fee) return `Te faltan ${euros(c.fee - money)} para la matrícula (${euros(c.fee)}). Un turno en el Decathlon lo cubre; la plaza sigue aquí.`;
+  const open = courseOpen(s);
+  if (open) return open;
+  if (money < fee) return `Te faltan ${euros(fee - money)} para la matrícula (${euros(fee)}). Un turno de trabajo lo cubre; la plaza sigue aquí.`;
   return null;
 }
 
 export function enroll(c: CourseDef, s: StudyState, day: number): StudyState {
-  return { ...structuredClone(s), course: { id: c.id, enrolled: day, lessons: schedule(c, day), attended: [] } };
+  const out = structuredClone(s);
+  // El curso que se deja (acabado: enrollBlocker) queda apuntado como aprobado antes de sustituirlo.
+  if (out.course?.passed) out.unlocks = [...new Set([...out.unlocks, `curso:${out.course.id}`])];
+  return { ...out, course: { id: c.id, enrolled: day, lessons: schedule(c, day), attended: [] } };
 }
 
 // ---------------------------------------------------------------- clases
@@ -264,10 +291,14 @@ export function demo(c: CourseDef, s: StudyState, picks: readonly number[], now:
   lines.push(`Nota: ${score} (conocimiento ${k} + decisiones ${points}). Se aprueba con ${c.demo.pass}.`);
   if (passed) {
     out.course!.passed = dayOf(now);
-    out.unlocks = [...new Set([...out.unlocks, `gig:${c.gig}`])];
-    const gig = getGig(c.gig);
-    if (!out.gig) out.gig = { id: gig.id };
-    lines.push(`Aprobado. ${c.teacher.split(',')[0]} te pasa un encargo de la bolsa del centro: ${gig.client}, ${euros(gig.pay)}. Lo aceptas en la ventanilla.`);
+    // `curso:<id>`: aprobado para siempre (no se vuelve a matricular, aunque luego se haga otro curso).
+    out.unlocks = [...new Set([...out.unlocks, `curso:${c.id}`, ...(c.gig ? [`gig:${c.gig}`] : []), ...(c.unlock ? [c.unlock.id] : [])])];
+    if (c.gig) {
+      const gig = getGig(c.gig);
+      if (!out.gig) out.gig = { id: gig.id };
+      lines.push(`Aprobado. ${c.teacher.split(',')[0]} te pasa un encargo de la bolsa del centro: ${gig.client}, ${euros(gig.pay)}. Lo aceptas en la ventanilla.`);
+    }
+    if (c.unlock) lines.push(`Aprobado. ${c.unlock.line}`);
   } else {
     const tips = [`Te faltan ${c.demo.pass - score} puntos.`];
     if (weak.length) tips.push(`Repasa ${weak.length > 1 ? `${weak.slice(0, -1).join(', ')} y ${weak.at(-1)}` : weak[0]}.`);

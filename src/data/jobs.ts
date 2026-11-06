@@ -20,6 +20,8 @@ export interface JobLevel {
   wage: number;
   /** Lo que cansa un turno entero. */
   energy: number;
+  /** Desbloqueo (systems/Study `unlocks`) que hace falta para que te propongan este nivel. */
+  requires?: { unlock: string; label: string };
 }
 
 export interface JobChoice {
@@ -51,8 +53,16 @@ export interface JobDef {
   uniform?: string;
   /** Cómo se descubre la oferta en el sitio. */
   posting: string;
-  /** El turno suelto del sitio (data/activities.ts): sigue abierto sin contrato y se cierra con él. */
-  casual: string;
+  /** El turno suelto del sitio (data/activities.ts): sigue abierto sin contrato y se cierra con él. Sin él, sólo con contrato. */
+  casual?: string;
+  /** La opción para leer la oferta en el fichaje. */
+  offerLabel?: string;
+  /** Lo que se ve en el fichaje con contrato (antes de la hora). */
+  desk?: string;
+  /** Dónde se espera si se ficha antes de la hora; sin él, «en la sala de descanso». */
+  waitAt?: string;
+  /** Lo que dice quien contrata al firmar (la primera línea; el primer turno lo añade Menus). */
+  welcome?: string;
   levels: readonly JobLevel[];
   /** Turnos buenos (puntual y sin fallar) para que te propongan el siguiente nivel. */
   promoteAfter: number;
@@ -131,6 +141,75 @@ export const JOBS: readonly JobDef[] = [
           { label: 'Cuadrarlo a ojo', score: -1, line: 'El número cuadra en el papel. Ya veremos el lunes.' },
         ],
       },
+    ],
+  },
+  {
+    // LV-03: la segunda profesión, en el barrio y a pie (data/interiors.ts `office`, recepción). Distinta de Decathlon:
+    // horario flexible (30 min de margen puntual), sin turno suelto (sólo con contrato) y menos cansancio físico.
+    id: 'atalaya',
+    place: 'office',
+    employer: 'Atalaya Gestión',
+    manager: 'Lucía, la jefa de administración',
+    posting: 'En el mostrador de recepción, una hoja grapada: «ATALAYA GESTIÓN busca auxiliar administrativo. Media jornada, de lunes a viernes. Se valora ofimática. Preguntar por Lucía».',
+    offerLabel: 'Leer la hoja de «Auxiliar administrativo»',
+    desk: 'Tu tarjeta en el lector de recepción y tu mesa junto a la ventana.',
+    waitAt: 'en tu mesa',
+    welcome: '«Aquí cada uno organiza su mañana; lo que no puede pasar es que un cliente se quede sin respuesta.»',
+    levels: [
+      { id: 'auxiliar', title: 'Auxiliar administrativo', days: [0, 1, 2, 3, 4], start: 9, hours: 4, wage: 36, energy: -16 },
+      {
+        id: 'administrativo', title: 'Administrativo', days: [0, 1, 2, 3, 4], start: 9, hours: 5, wage: 52, energy: -18,
+        requires: { unlock: 'ofimatica', label: 'el curso de Ofimática y gestión (centro de estudios de Vallesco)' },
+      },
+    ],
+    promoteAfter: 6,
+    maxStrikes: 3,
+    minEnergy: 20,
+    // Horario flexible: se ficha desde media hora antes y hasta media hora después cuenta como puntual.
+    early: 30,
+    grace: 30,
+    late: 90,
+    situations: [
+      {
+        id: 'correo',
+        text: 'Un cliente escribe enfadado: su factura lleva dos semanas sin llegar y amenaza con irse a otra gestoría.',
+        choices: [
+          { label: 'Llamarle y localizar la factura con él', score: 1, energy: -4, line: 'Estaba en la carpeta de otro cliente con el mismo apellido. Se despide más tranquilo que tú.' },
+          { label: 'Contestar con la respuesta tipo', score: 0, line: 'Correcto y frío. Volverá a escribir.' },
+          { label: 'Dejarlo para mañana', score: -1, energy: 3, line: 'Lucía lo ve en la bandeja compartida a media mañana.' },
+        ],
+      },
+      {
+        id: 'factura',
+        text: 'Al cuadrar el trimestre de un autónomo, te sale una diferencia de €120 en el IVA.',
+        choices: [
+          { label: 'Revisar factura a factura', score: 1, energy: -5, line: 'Una factura duplicada. Lo corriges antes de presentarlo.' },
+          { label: 'Avisar a Lucía de la diferencia', score: 0, line: 'Lucía lo apunta: «Luego lo miramos juntos».' },
+          { label: 'Presentarlo así', score: -1, line: 'Sale el modelo. El lunes llegará la carta de Hacienda.' },
+        ],
+      },
+      {
+        id: 'reunion',
+        text: 'La reunión de las diez se alarga y tienes tres trámites que vencen hoy.',
+        choices: [
+          { label: 'Pedir salir y sacar los trámites', score: 1, line: 'Nadie te lo reprocha; a las doce está todo presentado.' },
+          { label: 'Quedarte y tomar notas', score: 0, energy: -3, line: 'Las notas son buenas. Los trámites salen con prisa al final.' },
+          { label: 'Quedarte mirando el móvil', score: -1, energy: 2, line: 'Lucía te hace una pregunta y no sabes por dónde va la reunión.' },
+        ],
+      },
+      {
+        id: 'archivo',
+        text: 'Toca escanear y archivar las cajas de expedientes del año pasado.',
+        choices: [
+          { label: 'Escanear y nombrar cada archivo', score: 1, energy: -4, bonus: 6, line: 'Dejas el archivo ordenado; Lucía te paga la media hora extra que te ha llevado.' },
+          { label: 'Escanear en bloque', score: 0, line: 'Escaneado. Buscar algo ahí dentro será otra historia.' },
+          { label: 'Dejar las cajas para otro día', score: -1, line: 'Las cajas siguen junto a tu mesa.' },
+        ],
+      },
+    ],
+    // Abierto por el curso de Ofimática y gestión (data/study.ts `ofimatica`): el turno cansa menos y paga un plus.
+    perks: [
+      { unlock: 'ofimatica', label: 'Llevar el cuadre con la hoja de cálculo (+€8, cansa menos)', score: 1, energy: 6, bonus: 8, line: 'Montas una hoja con fórmulas para el trimestre. Lo que antes era la mañana entera te lleva una hora; Lucía te pide que la compartas.' },
     ],
   },
 ];

@@ -3,7 +3,9 @@
 import assert from 'node:assert/strict';
 import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
 import { placeInfo } from '../src/systems/Places.ts';
-import { Crowd, levelAt, profileFor, targetAt, type Clock } from '../src/systems/Crowd.ts';
+import { Crowd, levelAt, profileFor, staffOnShift, targetAt, type Clock } from '../src/systems/Crowd.ts';
+import { openingDay } from '../src/systems/Places.ts';
+import { weekIndex } from '../src/systems/Calendar.ts';
 import { POPULATION } from '../src/config/population.ts';
 import { POPULATION_PROFILES } from '../src/data/population.ts';
 import { hashSeed, seededRng, weekday } from '../src/systems/MetroDaily.ts';
@@ -63,7 +65,9 @@ function run(placeId: string, start: Clock, minutes: number, seed = 1) {
   }
   assert.equal(crowd.pathFailures, 0, `${placeId}: rutas no encontradas`);
   const s = crowd.summary;
-  const required = profile.staff.filter((r) => !r.minLevel).length;
+  // Lo fijo del día: sin refuerzos por afluencia (minLevel) y sin quien no trabaja ese día (days, p. ej. fin de semana).
+  const staffDay = weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
+  const required = profile.staff.filter((r) => !r.minLevel && staffOnShift(r, s.level, staffDay)).length;
   if (s.open) assert.ok(s.staff >= required, `${placeId}: falta personal a las ${hhmm(clock)}`);
   return { place, initial, final: s, clock, entered, left, maxDelta, states: crowd.agents.map((a) => a.state) };
 }

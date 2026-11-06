@@ -6,6 +6,8 @@
 import assert from 'node:assert/strict';
 import { AISLES, DECATHLON_H, DECATHLON_PROFILE, DECATHLON_STORE, DECATHLON_W, SECTORS, inAisle, type Rect } from '../src/data/decathlon.ts';
 import { getStore } from '../src/data/retail.ts';
+import { getOffer } from '../src/data/services.ts';
+import { Crowd } from '../src/systems/Crowd.ts';
 import { PROPS } from '../src/world/tiles.ts';
 import { getLocation, isStandable, isWalkable, safePosition, spawnToWorld, validate } from '../src/systems/LocationSystem.ts';
 import { route, tilePath } from '../src/systems/Navigation.ts';
@@ -136,9 +138,35 @@ for (const s of SECTORS) {
 for (const [id, pt] of Object.entries(loc.points ?? {}).filter(([id]) => id.startsWith('DECAT_FITTING_'))) {
   assert.ok(loc.props.some((pr) => pr.kind === 'fitting-room' && pr.tx === pt.tx && pr.ty === pt.ty - 1), `${id}: sin probador delante`);
 }
-const staff = loc.points!.DECAT_STAFF;
-const till = loc.points!.DECAT_TILL;
-assert.ok(staff.tx === till.tx && till.ty - staff.ty === 2 && loc.props.some((pr) => pr.kind === 'counter' && pr.tx === till.tx && pr.ty === till.ty - 1), 'la caja no queda entre cajero y cliente');
+for (const pre of ['DECAT', 'DECAT2', 'DECAT3']) {
+  const staff = loc.points![`${pre}_STAFF`];
+  const till = loc.points![`${pre}_TILL`];
+  assert.ok(staff.tx === till.tx && till.ty - staff.ty === 2 && loc.props.some((pr) => pr.kind === 'counter' && pr.tx === till.tx && pr.ty === till.ty - 1), `${pre}: la caja no queda entre cajero y cliente`);
+  assert.ok(loc.props.some((pr) => pr.kind === 'register' && pr.tx === till.tx && pr.ty === till.ty - 1), `${pre}: falta la registradora`);
+}
+const shop = placeInfo(loc.id)!;
+for (const [day, hour, expectedStaff, expectedTills] of [[1, 12, 6, 2], [6, 12, 8, 3], [7, 12, 8, 3], [7, 22, 0, 0]]) {
+  const crowd = new Crowd(loc, shop, DECATHLON_PROFILE);
+  crowd.populate({ day, hour, minute: 0 }, entry);
+  const staff = crowd.agents.flatMap((a) => a.staffRole ? [a.staffRole] : []);
+  assert.equal(staff.length, expectedStaff, `personal del día ${day} a las ${hour}:00`);
+  const cashiers = staff.filter((s) => s.service === 'cashier');
+  assert.equal(cashiers.length, expectedTills);
+  for (const cashier of cashiers) {
+    assert.ok(cashier.offers, 'caja sin oferta');
+    const offer = getOffer(cashier.offers);
+    assert.ok(offer.kind === 'retail' && offer.store === 'decathlon', 'caja sin catálogo de la tienda');
+  }
+}
+for (const role of DECATHLON_PROFILE.staff.filter((s) => s.label?.startsWith('Sección'))) {
+  for (const point of role.points) {
+    assert.deepEqual(Object.keys(loc.points!).filter((id) => id.startsWith(point)), [point], `${role.label}: puesto ambiguo`);
+  }
+  assert.ok(role.offers);
+  const offer = getOffer(role.offers);
+  assert.ok(offer.kind === 'advice' && offer.questions.length >= 2);
+  assert.ok(offer.questions.every(({ question, answer }) => question.trim() && answer.trim()));
+}
 for (const r of loc.racks ?? []) assert.ok(getStore(r.store).stock.length > 0, `${r.name}: perchero sin género`);
 
 // 8 · Las rutas de la gente (systems/Navigation): de la puerta a cada punto de la tienda y de vuelta.

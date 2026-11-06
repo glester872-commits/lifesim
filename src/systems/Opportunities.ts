@@ -14,18 +14,19 @@ import { euros } from './Commerce.ts';
 import { fits, startHousing, type HousingState } from './Housing.ts';
 import { owed, startHousehold, type HouseholdState } from './Household.ts';
 import { activePlan, createPhone, type PhoneState } from './Phone.ts';
-import { emptyStudy } from './Study.ts';
+import { emptyStudy, passedCourse } from './Study.ts';
 import type { GameStateData } from '../types/game.ts';
 import { placeOfPoint } from './Places.ts';
 import { routineOn, type StoryState } from './Story.ts';
-import type { JobProgress } from './Jobs.ts';
+import { promotionReady, type JobProgress } from './Jobs.ts';
 import type { SocialState } from './Social.ts';
 import type { StudyState } from './Study.ts';
 
 /**
  * Qué se puede hacer ahora que todavía no se ha hecho (data/opportunities.ts), leído del estado de siempre: nada de
  * esto se guarda. Cada oportunidad sale mientras su condición se cumple y se va al aprovecharla; las que se
- * rechazan siguen ahí. Lo que dice de una persona (dónde está ahora) sale de su rutina de verdad, la misma que la
+ * rechazan siguen ahí, salvo el ascenso: rechazarlo pone a cero los buenos turnos (decline, systems/Jobs.ts) y vuelve
+ * cuando se acumulan otra vez. Lo que dice de una persona (dónde está ahora) sale de su rutina de verdad, la misma que la
  * dibuja en el mundo (con el día que le fije su historia).
  */
 
@@ -40,6 +41,8 @@ export interface OpportunityInput {
   social: SocialState;
   phone: PhoneState;
   stories: StoryState;
+  /** Marcas de eventos (EventMemory.eventFlags): el folleto del metro. */
+  flags?: Readonly<Record<string, number>>;
 }
 
 export interface Opportunity {
@@ -68,6 +71,7 @@ const free = (input: OpportunityInput): number => Math.round((input.money - owed
 
 function holds(c: OpportunityCond, input: OpportunityInput): boolean {
   if ('job' in c) return c.job === 'active' ? input.job?.status === 'active' : input.job?.status !== 'active';
+  if ('promotion' in c) return !!input.job && input.job.status === 'active' && !!promotionReady(input.job, input.study.unlocks);
   if ('card' in c) {
     const card = input.cards.transport;
     return c.card === false ? card === undefined : card !== undefined && card + 1e-9 < 2 * LINES[0].fare;
@@ -76,7 +80,11 @@ function holds(c: OpportunityCond, input: OpportunityInput): boolean {
     const p = input.study.course;
     const course = p && COURSES.find((x) => x.id === p.id);
     const done = !!p?.passed || (!!course && p!.attended.length >= course.lessons.length);
-    return c.course === 'none' ? !p : c.course === 'active' ? !!p && !done : done;
+    return c.course === 'none' ? !p : c.course === 'active' ? !!p && !done && (!c.id || p.id === c.id) : done;
+  }
+  if ('flyer' in c) {
+    const def = COURSES.find((x) => x.id === c.flyer);
+    return !!def?.flyer && def.flyer.flag in (input.flags ?? {}) && input.study.course?.id !== def.id && !passedCourse(input.study, def.id);
   }
   if ('goal' in c) return !input.household.goal;
   if ('person' in c) return stageOf(c.person, input) === c.stage;
@@ -99,9 +107,14 @@ export function nowAt(npc: string, input: OpportunityInput): string {
 }
 
 function fill(text: string, input: OpportunityInput, def: OpportunityDef): string {
-  const job = JOBS[0];
+  const promoted = def.when.some((c) => 'promotion' in c);
+  const jobId = def.when.find((c): c is Extract<OpportunityCond, { job: string }> => 'job' in c)?.id ?? (promoted ? input.job?.job : undefined);
+  const job = JOBS.find((j) => j.id === jobId) ?? JOBS[0];
   const lvl = job.levels[0];
-  const course = COURSES[0];
+  const next = promoted ? job.levels[(input.job?.level ?? 0) + 1] : undefined;
+  const courseId = def.when.map((c) => ('flyer' in c ? c.flyer : 'course' in c ? c.id : undefined)).find(Boolean);
+  const course = COURSES.find((c) => c.id === courseId) ?? COURSES[0];
+  const fee = course.flyer && course.flyer.flag in (input.flags ?? {}) ? course.fee - course.flyer.discount : course.fee;
   const u = cheapestUpgrade(input.housing);
   const person = def.when.find((c): c is Extract<OpportunityCond, { person: string }> => 'person' in c)?.person;
   const card = CATALOGS.find((c) => c.id === 'transport-machine')?.products.find((p) => p.effect && 'issue' in p.effect && p.effect.issue);
@@ -111,7 +124,7 @@ function fill(text: string, input: OpportunityInput, def: OpportunityDef): strin
     parada: () => STOPS.find((s) => s.id === job.place)?.name.split(' · ')[0] ?? 'el polígono',
     turno: () => `${lvl.days.map((d) => WEEKDAY_SHORT[WEEK[d]]).join(', ')} de ${hh(lvl.start)} a ${hh(lvl.start + lvl.hours)} por ${euros(lvl.wage)}`,
     curso: () => course.name,
-    matricula: () => euros(course.fee),
+    matricula: () => euros(fee),
     clases: () => `${course.lessons.length} clases de ${course.hours} h a las ${hh(course.start)} (${course.days.map((d) => WEEKDAY_SHORT[WEEK[d]]).join(' y ')})`,
     persona: () => (person ? getNpc(person).name : ''),
     ahora: () => (person ? nowAt(person, input) : ''),
@@ -120,6 +133,9 @@ function fill(text: string, input: OpportunityInput, def: OpportunityDef): strin
     libre: () => euros(Math.max(0, free(input) - (def.id === 'mejora' && u ? u.price : 0))),
     tarjeta: () => (card ? euros(card.price) : ''),
     saldo: () => euros(input.cards.transport ?? 0),
+    jefe: () => job.manager.split(',')[0],
+    nivel: () => next?.title ?? '',
+    sueldo: () => (next ? euros(next.wage) : ''),
   };
   return text.replace(/\{(\w+)\}/g, (m, k: string) => values[k]?.() ?? m);
 }
@@ -129,6 +145,7 @@ export function opportunityInput(s: GameStateData, now: number): OpportunityInpu
   return {
     now, money: s.money, job: s.job ?? null, study: s.study ?? emptyStudy(), household: s.household ?? startHousehold(s.day),
     housing: s.housing ?? startHousing(), cards: s.cards, social: s.social ?? {}, phone: s.phone ?? createPhone(), stories: s.stories ?? {},
+    flags: s.events?.eventFlags ?? {},
   };
 }
 

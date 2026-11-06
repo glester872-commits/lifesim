@@ -96,9 +96,32 @@ export function hire(job: JobDef, today: number): JobProgress {
 /** Por qué no se puede firmar ahora la oferta de ese empleo, o null. */
 export function hireBlocker(job: JobDef, p: JobProgress | null, today: number): string | null {
   if (p?.job === job.id && p.status === 'active') return 'Ya trabajas aquí.';
-  if (p?.status === 'active') return 'Ya tienes otro contrato.';
+  // Un contrato a la vez (LV-03): para firmar otro hay que dejar antes el que se tiene, en su fichaje.
+  if (p?.status === 'active') return `Ya tienes contrato en ${getJob(p.job).employer}: déjalo antes en su fichaje.`;
   const back = (p?.ended ?? 0) + REHIRE_DAYS;
   if (p?.job === job.id && p.status === 'fired' && today < back) return `Después del despido, no te vuelven a contratar hasta el ${WEEKDAY_LABEL[weekdayOf(back)]}.`;
+  return null;
+}
+
+/** Margen de descanso entre algo que se hace y un turno del contrato (LV-03). */
+export const SHIFT_REST_MIN = 30;
+
+/**
+ * Si hacer algo de `minutes` desde `now` pisa un turno del contrato (con SHIFT_REST_MIN de margen a cada lado), por
+ * qué no; si no, null. Así un turno suelto en otro sitio no se come uno del contrato (que contaría como falta).
+ */
+export function shiftClash(p: JobProgress | null, now: number, minutes: number): string | null {
+  if (!p || p.status !== 'active') return null;
+  const def = getJob(p.job);
+  const lvl = levelOf(p);
+  const end = now + minutes;
+  for (let d = Math.max(dayOf(now), p.from); d <= dayOf(end); d++) {
+    if (!scheduled(p, d) || p.shifts[d]) continue;
+    const w = window(def, lvl, d);
+    if (now < w.end + SHIFT_REST_MIN && end > w.start - SHIFT_REST_MIN) {
+      return `Pisa tu turno en ${def.employer} (${WEEKDAY_LABEL[weekdayOf(d)]} a las ${String(lvl.start).padStart(2, '0')}:00).`;
+    }
+  }
   return null;
 }
 
@@ -147,7 +170,7 @@ export function clockInBlocker(p: JobProgress, now: number, energy: number): str
   if (s === 'none') return `Hoy no tienes turno.${nextText}`;
   if (s === 'done' || s === 'late') return `El turno de hoy ya está hecho.${nextText}`;
   if (s === 'missed') return `Ya no llegas: el turno de hoy cuenta como falta.${nextText}`;
-  if (s === 'upcoming') return `Entras a las ${hh(levelOf(p).start)}; se ficha desde las ${clockIn(def, levelOf(p))} y se espera en la sala de descanso.`;
+  if (s === 'upcoming') return `Entras a las ${hh(levelOf(p).start)}; se ficha desde las ${clockIn(def, levelOf(p))} y se espera ${waitAt(def)}.`;
   if (energy < def.minEnergy) return 'Estás demasiado cansado para aguantar el turno: come algo o descansa antes.';
   return null;
 }
@@ -197,19 +220,31 @@ export function work(p: JobProgress, now: number, choice: JobChoice): ShiftOutco
   }
   prune(out);
 
+  // Quien manda y dónde se espera salen del empleo (LV-03: en la oficina, Lucía y tu mesa).
+  const boss = def.manager.split(',')[0];
   const lines = [choice.line];
-  if (late) lines.push(`Llegas ${lateBy} min tarde. Marta lo apunta y te paga lo trabajado: ${euros(pay)}.`);
-  else lines.push(`${now < w.start ? `Esperas en la sala de descanso hasta las ${hh(lvl.start)}. ` : ''}Turno cerrado: te pagan ${euros(pay)}.`);
-  if (!good && !late) lines.push('Marta no dice nada, pero no lo cuenta como un buen turno.');
-  if (out.strikes < p.strikes) lines.push('Marta te da una palmada: «Así sí. Lo del otro día, olvidado».');
+  if (late) lines.push(`Llegas ${lateBy} min tarde. ${boss} lo apunta y te paga lo trabajado: ${euros(pay)}.`);
+  else lines.push(`${now < w.start ? `Esperas ${waitAt(def)} hasta las ${hh(lvl.start)}. ` : ''}Turno cerrado: te pagan ${euros(pay)}.`);
+  if (!good && !late) lines.push(`${boss} no dice nada, pero no lo cuenta como un buen turno.`);
+  if (out.strikes < p.strikes) lines.push(`${boss} te da una palmada: «Así sí. Lo del otro día, olvidado».`);
   return { progress: out, minutes: w.end - now, money: pay, energy: Math.round(lvl.energy * share) + (choice.energy ?? 0), lines, late };
 }
 
-/** ¿Toca proponerle el siguiente nivel? */
-export function promotionReady(p: JobProgress): JobLevel | null {
+/** ¿Toca proponerle el siguiente nivel? Con `requires`, también hace falta ese desbloqueo (`unlocks`). */
+export function promotionReady(p: JobProgress, unlocks: readonly string[]): JobLevel | null {
   const def = getJob(p.job);
   if (p.status !== 'active' || p.strikes > 0 || p.good < def.promoteAfter) return null;
-  return def.levels[p.level + 1] ?? null;
+  const next = def.levels[p.level + 1];
+  if (!next || (next.requires && !unlocks.includes(next.requires.unlock))) return null;
+  return next;
+}
+
+/** Lo que falta para el ascenso, si sólo falta el desbloqueo del siguiente nivel; si no, null. */
+export function promotionBlocker(p: JobProgress, unlocks: readonly string[]): string | null {
+  if (promotionReady(p, unlocks)) return null;
+  const req = getJob(p.job).levels[p.level + 1]?.requires;
+  if (!req || !promotionReady(p, [...unlocks, req.unlock])) return null;
+  return `Te propone el ascenso cuando tengas ${req.label}.`;
 }
 
 /** Aceptar el ascenso: nivel nuevo con sus días desde mañana. */
@@ -234,9 +269,12 @@ const clockIn = (job: JobDef, lvl: JobLevel): string => {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 };
 
+/** Dónde se espera si se ficha antes de la hora (data/jobs.ts `waitAt`). */
+const waitAt = (job: JobDef): string => job.waitAt ?? 'en la sala de descanso';
+
 /** La oferta entera, para leerla antes de firmar. */
 export function offerText(job: JobDef): string {
-  return `${levelSummary(job.levels[0])} El contrato empieza mañana. Requisitos: fichar desde las ${clockIn(job, job.levels[0])} (se espera a la hora en la sala de descanso) y no más de ${job.late} min tarde, con energía de al menos ${job.minEnergy}. Más de ${job.grace} min tarde se paga lo trabajado; no venir es una falta (con ${job.maxStrikes} sin recuperar, a la calle). Con ${job.promoteAfter} buenos turnos, ${job.manager.split(',')[0]} habla de ascensos.`;
+  return `${levelSummary(job.levels[0])} El contrato empieza mañana. Requisitos: fichar desde las ${clockIn(job, job.levels[0])} (se espera a la hora ${waitAt(job)}) y no más de ${job.late} min tarde, con energía de al menos ${job.minEnergy}. Más de ${job.grace} min tarde se paga lo trabajado; no venir es una falta (con ${job.maxStrikes} sin recuperar, a la calle). Con ${job.promoteAfter} buenos turnos, ${job.manager.split(',')[0]} habla de ascensos.`;
 }
 
 function prune(p: JobProgress): void {

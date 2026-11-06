@@ -62,12 +62,18 @@ export interface CourseDef {
   energy: number;
   minEnergy: number;
   lessons: readonly Lesson[];
-  /** La cámara prestada: qué es y sus límites. Se devuelve al entregar el encargo. */
-  camera: string;
+  /** La cámara prestada: qué es y sus límites. Se devuelve al entregar el encargo. Sin ella, el curso no presta nada. */
+  camera?: string;
   /** Prueba final: en el centro, en su horario, una al día. */
   demo: { hours: readonly [number, number]; minutes: number; energy: number; pass: number; steps: readonly DemoStep[] };
-  /** El encargo que abre aprobar. */
-  gig: string;
+  /** Lo que da aprobar, dicho en la oferta. */
+  benefit: string;
+  /** El encargo que abre aprobar (GIGS)… */
+  gig?: string;
+  /** …o un desbloqueo directo (systems/Study `unlocks`; p. ej. una decisión más en un turno, data/jobs.ts `perks`). */
+  unlock?: { id: string; line: string };
+  /** El folleto que lo anuncia (marca de un evento, `eventFlags`): con él, la matrícula sale `discount` más barata. */
+  flyer?: { flag: string; discount: number };
 }
 
 export interface PracticeSite {
@@ -108,6 +114,7 @@ export interface GigDef {
 
 export const SKILLS: readonly SkillDef[] = [
   { id: 'foto', name: 'Fotografía', levels: [[0, 'Sin nociones'], [25, 'Aficionado'], [50, 'Buen ojo'], [80, 'Con oficio']] },
+  { id: 'ofimatica', name: 'Ofimática', levels: [[0, 'Sin nociones'], [30, 'Se defiende'], [60, 'Con soltura'], [85, 'Experto']] },
 ];
 
 export const COURSES: readonly CourseDef[] = [
@@ -134,6 +141,7 @@ export const COURSES: readonly CourseDef[] = [
       { title: 'Exposición y foco', lines: ['Mides en lo importante y enfocas ahí. Lo demás puede quedar oscuro o borroso.', 'Practicáis en el pasillo con una maceta. La maceta sale muy bien.'] },
       { title: 'Elegir y entregar', lines: ['«Un cliente quiere diez fotos buenas, no ochenta regulares.» Seleccionar también es trabajo.', 'Mismo tono, mismo recorte: que parezcan de la misma persona.'] },
     ],
+    benefit: 'aprobarla da acceso a un encargo pagado de la bolsa del centro.',
     camera: 'Te prestan una réflex vieja del centro con un 50 mm. Sólo para el curso: prácticas, la prueba y el encargo de la bolsa. No se vende ni se presta, y se devuelve al entregar el encargo.',
     demo: {
       hours: [10, 20],
@@ -171,6 +179,71 @@ export const COURSES: readonly CourseDef[] = [
       ],
     },
     gig: 'horno-escaparate',
+  },
+  {
+    // LV-03: el curso del folleto del metro (data/metroEvents.ts `int-folleto`). Sin prácticas en la calle: se aprende
+    // en clase (4 × 15 = 60) y la prueba pide 75, así que hay que acertar en ella. Aprobar abre una decisión más en
+    // el turno de la oficina (data/jobs.ts `atalaya`, perk `ofimatica`): menos cansancio y un plus.
+    id: 'ofimatica',
+    skill: 'ofimatica',
+    name: 'Ofimática y gestión · curso de tarde',
+    place: 'study-center',
+    desk: 'centro-vallesco',
+    teacher: 'Tomás, el profesor',
+    fee: 30,
+    days: [0, 2],
+    start: 18,
+    hours: 2,
+    early: 30,
+    grace: 15,
+    recovery: { days: [5, 6], start: 11, hours: 2 },
+    gain: 15,
+    energy: -8,
+    minEnergy: 15,
+    lessons: [
+      { title: 'Hoja de cálculo', lines: ['Tomás proyecta una tabla de gastos: «Una fórmula bien hecha no se equivoca a las siete de la tarde».', 'Sumas, referencias fijas y un filtro. Lo demás, se busca cuando hace falta.'] },
+      { title: 'Correo y agenda', lines: ['Un correo, un asunto; la respuesta, arriba y corta.', 'La agenda compartida no es un adorno: si no está ahí, no existe.'] },
+      { title: 'Facturas e IVA', lines: ['Base, tipo y cuota. Una factura sin número correlativo es un problema en el trimestre.', 'Cuadrar es comparar dos listas que deberían coincidir y buscar por qué no.'] },
+      { title: 'Archivo y protección de datos', lines: ['Nombres de archivo con la fecha delante: se ordenan solos.', 'Los datos de un cliente no se mandan por un chat ni se dejan en la mesa.'] },
+    ],
+    demo: {
+      hours: [10, 20],
+      minutes: 60,
+      energy: -8,
+      pass: 75,
+      steps: [
+        {
+          text: 'Prueba final, 1 de 3. Te dan cuarenta tiques para sumar por meses. ¿Cómo?',
+          hint: 'la hoja de cálculo (clase 1)',
+          choices: [
+            { label: 'Una columna por mes y una fórmula de suma', points: 10, line: 'Cambias un tique y el total se corrige solo.' },
+            { label: 'Con la calculadora, apuntando el total', points: 5, line: 'Sale bien. Si cambia un tique, vuelta a empezar.' },
+            { label: 'A ojo, redondeando', points: 0, line: 'Tomás te enseña los tres euros que faltan.' },
+          ],
+        },
+        {
+          text: '2 de 3. Un cliente pide por correo cómo van tres trámites a la vez.',
+          hint: 'correo y agenda (clase 2)',
+          choices: [
+            { label: 'Un correo: los tres en lista, lo pendiente arriba', points: 10, line: 'Se lee en diez segundos.' },
+            { label: 'Tres correos, uno por trámite', points: 5, line: 'Están todos. El cliente tiene que juntarlos.' },
+            { label: 'Un párrafo largo con todo', points: 0, line: 'La fecha importante queda en la línea doce.' },
+          ],
+        },
+        {
+          text: '3 de 3. Una factura del trimestre no cuadra con el banco.',
+          hint: 'facturas e IVA (clase 3)',
+          choices: [
+            { label: 'Comparar factura a factura con los cargos', points: 10, line: 'Una cobrada dos veces. Encontrada.' },
+            { label: 'Ajustar la diferencia en una línea aparte', points: 0, line: '«Eso es esconderla, no cuadrarla.»' },
+            { label: 'Preguntar al cliente', points: 5, line: 'Te contestará mañana. Quizá.' },
+          ],
+        },
+      ],
+    },
+    benefit: 'aprobarla abre, en Atalaya Gestión, una decisión más en cada turno: llevar el cuadre con la hoja de cálculo (menos cansancio y €8 de plus).',
+    unlock: { id: 'ofimatica', line: 'En Atalaya Gestión, desde el próximo turno, podrás llevar el cuadre con la hoja de cálculo.' },
+    flyer: { flag: 'folleto:cursos', discount: 10 },
   },
 ];
 

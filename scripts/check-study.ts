@@ -5,17 +5,18 @@ import { COURSES, GIGS, PRACTICE_SITES, getCourse, getGig } from '../src/data/st
 import { getJob, JOBS } from '../src/data/jobs.ts';
 import { getLocation } from '../src/systems/LocationSystem.ts';
 import {
-  acceptGig, attend, classBlocker, deliver, deliverBlocker, demo, demoBlocker, emptyStudy, enroll, enrollBlocker, gigStatus, hasCamera,
+  acceptGig, attend, classBlocker, coursesAt, feeFor, passedCourse, deliver, deliverBlocker, demo, demoBlocker, emptyStudy, enroll, enrollBlocker, gigStatus, hasCamera,
   knowledge, lessonStatus, nextSession, parseStudy, practice, practiceBlocker, practiceGain, schedule, sessionNow, type StudyState,
 } from '../src/systems/Study.ts';
-import { hire, situationFor, work } from '../src/systems/Jobs.ts';
+import { hire, promotionReady, situationFor, work } from '../src/systems/Jobs.ts';
 import { absMinute } from '../src/systems/Handoff.ts';
 import { weekIndex } from '../src/systems/Calendar.ts';
-import { SaveSystem } from '../src/systems/SaveSystem.ts';
+import { createInitialState, SaveSystem } from '../src/systems/SaveSystem.ts';
+import { opportunities, opportunityInput } from '../src/systems/Opportunities.ts';
 import { SAVE_KEY } from '../src/config/constants.ts';
 
 const c = getCourse('foto-basica');
-const gig = getGig(c.gig);
+const gig = getGig(c.gig!);
 const [fuente, carmen] = PRACTICE_SITES;
 const t = (day: number, h: number, m = 0): number => absMinute(day, h, m);
 const reload = (s: StudyState): StudyState => parseStudy(JSON.parse(JSON.stringify(s)));
@@ -171,5 +172,96 @@ assert.equal(plus.progress.shifts[3].pay, plus.money);
 }
 assert.deepEqual(parseStudy({ skills: { foto: 'mucho', cocina: 30 }, course: { id: 'foto-basica', enrolled: 1, lessons: [2] }, gig: { id: 'yate' }, unlocks: [3] }), emptyStudy());
 assert.equal(parseStudy({ skills: { foto: 400 } }).skills.foto, 100);
+
+// ------------------------------------------- LV-03: Ofimática y gestión y el folleto del metro
+// Controles positivos: sin `passedCourse` en enrollBlocker, «matricularse otra vez tras aprobar» falla; sin courseOpen,
+// «dos cursos a la vez» falla; sin `flyer`, «€20 con folleto» falla; sin el perk, «el turno cansa menos» falla.
+{
+  const o = getCourse('ofimatica');
+  const BEST_O = o.demo.steps.map((st) => st.choices.findIndex((ch) => ch.points === Math.max(...st.choices.map((x) => x.points))));
+  assert.deepEqual(coursesAt(o.desk).map((x) => x.id), ['foto-basica', 'ofimatica'], 'la misma ventanilla da los dos cursos');
+  for (const job of JOBS) for (const lvl of job.levels) for (const d of o.days) assert.ok(!lvl.days.includes(d) || lvl.start + lvl.hours <= o.start - o.early / 60, `${job.id}/${lvl.id}: Ofimática pisa el turno`);
+  // El folleto: la marca del metro (int-folleto → folleto:cursos) baja la matrícula; sin ella, precio entero.
+  assert.equal(feeFor(o, {}), 30);
+  assert.equal(feeFor(o, { 'folleto:cursos': 3 }), 20);
+  assert.equal(feeFor(c, { 'folleto:cursos': 3 }), c.fee, 'el folleto es de Ofimática, no de Fotografía');
+  assert.match(enrollBlocker(o, emptyStudy(), 25, 30) ?? '', /Te faltan €5/);
+  assert.equal(enrollBlocker(o, emptyStudy(), 25, 20), null, 'con el folleto, €25 llegan');
+  // Uno a la vez: con Fotografía sin aprobar, o aprobada con el encargo pendiente, no.
+  let x = enroll(c, emptyStudy(), 1);
+  assert.match(enrollBlocker(o, x, 100) ?? '', /Ya estás en Fotografía básica/);
+  x.course!.passed = 12;
+  x = { ...x, gig: { id: gig.id } };
+  assert.match(enrollBlocker(o, x, 100) ?? '', /entrega el encargo/);
+  x = { ...x, gig: { id: gig.id, accepted: 12, deadline: 15, done: 13 } };
+  assert.equal(enrollBlocker(o, x, 100), null, 'Fotografía acabada: se puede empezar Ofimática');
+  assert.ok(passedCourse(x, 'foto-basica'), 'partida de antes, sin `curso:` apuntado: cuenta como aprobado');
+  x = enroll(o, x, 13); // lunes 13 → clases los lunes y miércoles siguientes
+  assert.ok(x.unlocks.includes('curso:foto-basica') && passedCourse(x, 'foto-basica'), 'al cambiar, Fotografía queda aprobada');
+  assert.equal(enrollBlocker(c, x, 100), 'Ya aprobaste este curso.');
+  assert.equal(enrollBlocker(o, x, 100), 'Ya estás matriculado.', 'doble clic: no se matricula dos veces');
+  assert.equal(hasCamera(x), false, 'Ofimática no presta cámara');
+  assert.deepEqual(x.course!.lessons.map(weekIndex), [0, 2, 0, 2]);
+  // Asistencia: 4 clases × 15 = 60 de conocimiento; la prueba pide 75.
+  const k0 = knowledge(x, 'ofimatica');
+  for (const d of x.course!.lessons) x = attend(o, x, t(d, o.start)).study;
+  assert.equal(knowledge(x, 'ofimatica') - k0, 60);
+  const examDay = x.course!.lessons.at(-1)! + 1;
+  const fail = demo(o, x, [2, 2, 1], t(examDay, 11));
+  assert.equal(fail.passed, false);
+  assert.match(fail.lines.at(-1)!, /Repasa .*hoja de cálculo.*correo/);
+  assert.match(demoBlocker(o, fail.study, t(examDay, 12), 100) ?? '', /mañana/, 'una prueba al día');
+  const pass = demo(o, fail.study, BEST_O, t(examDay + 1, 11));
+  assert.ok(pass.passed && pass.study.unlocks.includes('ofimatica') && pass.study.unlocks.includes('curso:ofimatica'));
+  assert.equal(pass.money, 0, 'aprobar no paga: el beneficio está en el turno');
+  x = reload(pass.study);
+  // Idempotente: aprobado no se repite ni se vuelve a matricular, y el desbloqueo no se duplica.
+  assert.equal(demoBlocker(o, x, t(examDay + 2, 11), 100), 'Prueba aprobada.');
+  assert.equal(enrollBlocker(o, x, 100), 'Ya aprobaste este curso.');
+  assert.equal(x.unlocks.filter((u) => u === 'ofimatica').length, 1);
+  assert.deepEqual(reload(x), x, 'recargar no cambia nada');
+  // El beneficio: una decisión más en el turno de Atalaya (cansa menos y paga más); en Decathlon no sale.
+  const office = getJob('atalaya');
+  const perk = office.perks!.find((p) => x.unlocks.includes(p.unlock))!;
+  assert.ok(perk, 'Ofimática abre una decisión en la oficina');
+  assert.ok(!(getJob('decathlon').perks ?? []).some((p) => p.unlock === 'ofimatica'));
+  // …y el requisito del ascenso a administrativo: con el contrato listo, sólo tras aprobar.
+  const ready = { ...hire(office, 1), good: office.promoteAfter };
+  assert.equal(promotionReady(ready, fail.study.unlocks), null, 'sin aprobar Ofimática no hay ascenso');
+  assert.equal(promotionReady(ready, x.unlocks)?.id, 'administrativo', 'aprobada, sí');
+  const day = 2;
+  const p = hire(office, 1);
+  const plain = work(p, t(day, 9), situationFor(p, day).choices[0]);
+  const withPerk = work(p, t(day, 9), perk);
+  assert.ok(withPerk.energy > plain.energy, `cansa menos: ${withPerk.energy} > ${plain.energy}`);
+  assert.equal(withPerk.money, office.levels[0].wage + 8);
+  // La agenda (app Hoy): el folleto sale con la marca, y se va al matricularse o al aprobar.
+  const base = createInitialState();
+  const opp = (st: StudyState, flags: Record<string, number>) => opportunities({ ...opportunityInput({ ...base, study: st }, t(1, 9)), flags }).map((q) => q.id);
+  assert.ok(!opp(emptyStudy(), {}).includes('folleto'));
+  const folleto = opportunities({ ...opportunityInput({ ...base, study: emptyStudy() }, t(1, 9)), flags: { 'folleto:cursos': 1 } }).find((q) => q.id === 'folleto')!;
+  assert.match(folleto.title + folleto.text, /Ofimática y gestión.*€20/);
+  assert.ok(!opp(enroll(o, emptyStudy(), 1), { 'folleto:cursos': 1 }).includes('folleto'));
+  assert.ok(!opp(x, { 'folleto:cursos': 1 }).includes('folleto'));
+  assert.ok(!opp(enroll(o, emptyStudy(), 1), {}).includes('practica'), 'practicar fotografía no sale con Ofimática');
+  assert.ok(opp(emptyStudy(), {}).includes('empleo-oficina'));
+
+  // Migración: una partida v3 de antes de LV-03 (Decathlon activo, Fotografía a medias, folleto cogido) carga igual,
+  // dos veces seguidas igual (idempotente), y las reglas nuevas la respetan sin campos nuevos.
+  const store = new Map<string, string>();
+  const save = new SaveSystem({ read: (key) => store.get(key) ?? null, write: (key, v) => void store.set(key, v), remove: (key) => void store.delete(key) });
+  const half = { ...enroll(c, emptyStudy(), 1), skills: { foto: 24 } };
+  half.course!.attended = [0, 1];
+  const old = { ...createInitialState(), day: 9, job: hire(getJob('decathlon'), 1), study: half, events: { ...createInitialState().events, eventFlags: { 'folleto:cursos': 4 } } };
+  store.set(SAVE_KEY, JSON.stringify({ version: 3, savedAt: 0, state: old }));
+  const first = save.load()!;
+  assert.equal(first.job?.job, 'decathlon');
+  assert.equal(first.job?.status, 'active', 'Decathlon sigue activo');
+  assert.deepEqual(first.study, half, 'el curso a medias vuelve igual');
+  save.save(first);
+  assert.deepEqual(save.load(), first, 'cargar y guardar otra vez no cambia nada');
+  assert.match(enrollBlocker(o, first.study, 100, feeFor(o, first.events.eventFlags)) ?? '', /Ya estás en Fotografía/);
+  assert.equal(feeFor(o, first.events.eventFlags), 20, 'el folleto cogido antes de LV-03 vale');
+}
 
 console.log(`estudios: ${c.name} €${c.fee} · ${c.lessons.length} clases · ${PRACTICE_SITES.length} sitios de práctica · encargo ${gig.client.split(',')[0]} €${gig.pay} · ok`);

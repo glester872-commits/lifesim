@@ -68,6 +68,8 @@ export interface StaffRole {
   serves?: readonly string[];
   /** Sólo si la afluencia llega a este nivel: un camarero de refuerzo, no uno fijo. */
   minLevel?: Level;
+  /** Días de apertura en que trabaja este puesto (0 lunes, 6 domingo). */
+  days?: readonly number[];
   /** Lo que ofrece si el jugador le habla, si no es lo de su oficio (la barra de la vinoteca sirve vino). */
   offers?: OfferId;
 }
