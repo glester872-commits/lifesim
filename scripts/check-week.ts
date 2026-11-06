@@ -8,7 +8,7 @@ import { STORIES } from '../src/data/saraStory.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
 import { NAMED_PEOPLE } from '../src/data/namedPeople.ts';
 import { createInitialState, SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
-import { hire, quit } from '../src/systems/Jobs.ts';
+import { decline, hire, quit } from '../src/systems/Jobs.ts';
 import { enroll } from '../src/systems/Study.ts';
 import { createStory, minuteOf, planDayFrom, planForInvite, watchPlan } from '../src/systems/Story.ts';
 import { canMeet, createPhone, phoneOptions } from '../src/systems/Phone.ts';
@@ -43,6 +43,34 @@ assert.ok(!ids({ ...base, cards: { transport: 10 } }).includes('tarjeta'));
 // Con menos de una ida y vuelta en la tarjeta, recargar.
 assert.ok(ids({ ...base, cards: { transport: 2 } }).includes('recarga') && !ids({ ...base, cards: { transport: 4 } }).includes('recarga'));
 assert.ok(!ids({ ...base, household: { ...base.household!, goal: 'abrigo' } }).includes('meta'));
+
+// ------------------------------------------------------------------ LV-03 fase 4: el ascenso, oportunidad del empleo activo
+{
+  const atalaya = JOBS[1];
+  const oficina = opportunities(opportunityInput(base, t(1, 9))).find((o) => o.id === 'empleo-oficina')!;
+  assert.ok(oficina.text.includes('Edificio Atalaya') && oficina.text.includes('09:00 a 13:00') && oficina.text.includes('€36'), oficina.text);
+  const atalayaJob = { ...base, job: hire(atalaya, 1) };
+  assert.ok(!ids(atalayaJob).includes('empleo-oficina') && !ids(atalayaJob).includes('empleo'), 'con Atalaya activo no se ofrece otro empleo');
+  // Control positivo: nivel 0, buenos turnos, sin faltas y con el curso (desbloqueo) que pide el nivel.
+  const ready = { ...base, job: { ...hire(atalaya, 1), good: atalaya.promoteAfter }, study: { ...base.study!, unlocks: ['ofimatica'] } };
+  const asc = opportunities(opportunityInput(ready, t(1, 9))).find((o) => o.id === 'ascenso')!;
+  assert.ok(asc, `ascenso no aparece: ${ids(ready)}`);
+  assert.ok(asc.title.includes('Atalaya Gestión') && asc.text.includes('Lucía') && asc.text.includes('Administrativo') && asc.text.includes('€52'), `${asc.title} · ${asc.text}`);
+  // Controles negativos: sin el curso, con una falta, o tras dejarlo.
+  assert.ok(!ids({ ...ready, study: base.study }).includes('ascenso'), 'sin ofimática no hay ascenso');
+  assert.ok(!ids({ ...ready, job: { ...ready.job!, strikes: 1 } }).includes('ascenso'), 'con una falta sin recuperar no hay ascenso');
+  const quitted = { ...ready, job: quit(ready.job!, 3) };
+  assert.ok(!ids(quitted).includes('ascenso') && ids(quitted).includes('empleo-oficina'), 'tras dejarlo, vuelve el empleo y no el ascenso');
+  // Rechazar el ascenso pone a cero los buenos turnos: no aparece hasta acumularlos otra vez.
+  assert.ok(!ids({ ...ready, job: decline(ready.job!) }).includes('ascenso'), 'rechazar el ascenso lo quita');
+  // Decathlon: su propio jefe y su propio nivel siguiente.
+  const deca = { ...base, job: { ...hire(job, 1), good: job.promoteAfter } };
+  const decaAsc = opportunities(opportunityInput(deca, t(1, 9))).find((o) => o.id === 'ascenso')!;
+  assert.ok(decaAsc && decaAsc.title.includes('Decathlon Polígono Norte') && decaAsc.text.includes('Marta') && decaAsc.text.includes('Responsable de montaña'), `${decaAsc?.title} · ${decaAsc?.text}`);
+  assert.ok(!decaAsc.text.includes('Lucía') && !decaAsc.title.includes('Atalaya'));
+  // Ningún título ni texto con huecos sin rellenar, en ninguno de estos estados.
+  for (const s of [base, atalayaJob, ready, quitted, deca]) for (const o of opportunities(opportunityInput(s, t(1, 9)))) assert.ok(!/[{}]|undefined/.test(o.title + o.text), `${o.id}: ${o.title} ${o.text}`);
+}
 
 // Personas: conocer, el número, quedar; y dónde están ahora sale de su rutina.
 const met = { ...base, social: { sara: { ...createSocialProfile(), encounters: 2 } } };

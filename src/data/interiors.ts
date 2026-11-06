@@ -378,6 +378,9 @@ export const OFFICE: LocationDef = {
   ],
   ...exitTo('office-door', 4, 14),
   npcs: [],
+  // LV-03: Atalaya Gestión ficha en el mostrador de recepción (data/jobs.ts 'atalaya'; scenes/Menus.openJob).
+  workplace: 'atalaya',
+  spots: [{ tx: 7, ty: 10, name: 'Recepción · Atalaya Gestión', activities: [], job: 'atalaya' }],
   points: {
     OFFICE_EXIT: p(4, 11, 'exit', 'up'),
     OFFICE_RECEPTION: p(7, 11, 'interact', 'up'),

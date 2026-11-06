@@ -6,8 +6,8 @@ import { getActivity } from '../src/data/activities.ts';
 import { STOPS } from '../src/data/transit.ts';
 import { LOCATIONS } from '../src/data/locations.ts';
 import {
-  clockInBlocker, decline, hire, hireBlocker, nextShift, parseJob, promote, promotionReady, quit, REHIRE_DAYS, settle,
-  situationFor, statusOf, work, type JobProgress,
+  clockInBlocker, decline, hire, hireBlocker, nextShift, offerText, parseJob, promote, promotionBlocker, promotionReady, quit, REHIRE_DAYS, settle,
+  shiftClash, situationFor, statusOf, work, type JobProgress,
 } from '../src/systems/Jobs.ts';
 import { absMinute } from '../src/systems/Handoff.ts';
 import { weekIndex } from '../src/systems/Calendar.ts';
@@ -22,10 +22,11 @@ const worst = (p: JobProgress, day: number) => situationFor(p, day).choices[2];
 // ------------------------------------------------------------------ datos
 
 for (const j of JOBS) {
-  // Su parada tiene estación (Alpha-09: el Polígono Norte) y su interior, el fichaje.
-  assert.ok(STOPS.some((s) => s.id === j.place && s.station), `${j.id}: su parada sin estación`);
+  // Su sitio existe: una parada con estación (Decathlon, Polígono Norte) o un lugar del mapa (LV-03: la oficina de
+  // Vallesco, a pie); y su lugar de trabajo tiene el fichaje.
+  assert.ok(STOPS.some((s) => s.id === j.place && s.station) || LOCATIONS.some((l) => l.id === j.place), `${j.id}: su sitio no existe`);
   assert.ok(LOCATIONS.some((l) => l.workplace === j.id && l.spots?.some((s) => s.job === j.id)), `${j.id}: sin fichaje en su lugar de trabajo`);
-  getActivity(j.casual);
+  if (j.casual) getActivity(j.casual);
   assert.ok(j.levels.length >= 2, `${j.id}: dos niveles`);
   assert.ok(j.situations.length >= 3, `${j.id}: al menos tres situaciones`);
   for (const l of j.levels) assert.ok(l.days.length < 7 && l.start * 60 - j.early >= 0 && l.start + l.hours <= 24, `${j.id}/${l.id}: días libres y turno dentro del día`);
@@ -82,7 +83,7 @@ for (const d of [10, 12]) {
   p = work(p, t(d, 10), best(p, d)).progress;
 }
 assert.equal(p.strikes, 0, 'falta perdonada');
-assert.equal(promotionReady(p), null, 'aún faltan buenos turnos');
+assert.equal(promotionReady(p, []), null, 'aún faltan buenos turnos');
 // Una mala decisión, aunque puntual, no cuenta como buen turno.
 const meh = work(p, t(15, 10), worst(p, 15));
 assert.equal(meh.progress.good, p.good);
@@ -91,17 +92,17 @@ assert.equal(p.good, 4);
 
 // --------------------------------------------------------------- ascenso
 
-const next = promotionReady(p);
+const next = promotionReady(p, []);
 assert.equal(next?.id, 'responsable');
 // Rechazar: se vuelve a proponer tras otros cuatro buenos turnos.
-assert.equal(promotionReady(decline(p)), null);
+assert.equal(promotionReady(decline(p), []), null);
 // Aceptar: nivel nuevo, sus días desde mañana (martes, jueves, sábado a las 9).
 const up = promote(p, 15);
 assert.equal(up.level, 1);
 assert.equal(statusOf(up, 16, t(16, 8, 30)), 'open');
 assert.equal(statusOf(up, 17, t(17, 9)), 'none', 'miércoles ya no toca');
 assert.equal(work(up, t(16, 9), best(up, 16)).money, 84);
-assert.equal(promotionReady(up), null, 'último nivel');
+assert.equal(promotionReady(up, []), null, 'último nivel');
 
 // ------------------------------------------------- saltar días y despido
 
@@ -147,4 +148,63 @@ assert.ok(new Set([3, 5, 8, 10].map((d) => situationFor(hire(job, 1), d).id)).si
   assert.deepEqual(parseJob({ ...paid.progress, shifts: { 3: { result: 'cobrado', score: 1, pay: 1e6 } } })?.shifts, {});
 }
 
-console.log(`empleo: ${job.employer} · ${job.levels.map((l) => `${l.title} ${l.wage}€`).join(' → ')} · ${job.situations.length} situaciones · ok`);
+// ---------------------------------------------- LV-03: la oficina (Atalaya Gestión)
+// Control positivo: con `grace: 10` en la oficina, «llegar 25 min tarde es puntual» falla; sin el bloqueo de un contrato
+// a la vez, «firmar con Decathlon activo» falla; sin shiftClash, «el suelto pisa el turno» falla.
+{
+  const office = getJob('atalaya');
+  assert.equal(office.casual, undefined, 'la oficina no tiene turno suelto: sólo con contrato');
+  // Un contrato a la vez: con Decathlon activo, la oficina dice dónde está el otro y qué hacer.
+  const atDecathlon = hire(job, 1);
+  assert.equal(hireBlocker(office, atDecathlon, 1), 'Ya tienes contrato en Decathlon Polígono Norte: déjalo antes en su fichaje.');
+  assert.equal(hireBlocker(office, quit(atDecathlon, 3), 3), null, 'tras dejar Decathlon se puede firmar en la oficina');
+  // Firmar el lunes (día 1): el primer turno es el martes (día 2) a las 9:00.
+  const o = hire(office, 1);
+  assert.equal(statusOf(o, 2, t(2, 8, 20)), 'upcoming', 'no se ficha más de media hora antes');
+  assert.equal(statusOf(o, 2, t(2, 8, 30)), 'open');
+  // Horario flexible: 25 min tarde es puntual en la oficina (en Decathlon, 25 min tarde ya es tarde).
+  const flex = work(o, t(2, 9, 25), situationFor(o, 2).choices[0]);
+  assert.equal(flex.progress.shifts[2].result, 'done', 'llegar 25 min tarde es puntual en la oficina');
+  const strict = hire(job, 1);
+  const decDay = 3; // miércoles: turno de Decathlon a las 10:00
+  assert.equal(work(strict, t(decDay, 10, 25), situationFor(strict, decDay).choices[0]).progress.shifts[decDay].result, 'late');
+  // Nómina única: el mismo turno no se cobra dos veces (doble llamada, recarga, reentrada).
+  assert.ok(flex.money > 0 && flex.money <= office.levels[0].wage + 6);
+  assert.ok(clockInBlocker(flex.progress, t(2, 9, 40), 100), 'se puede volver a fichar el mismo turno');
+  const reloaded = parseJob(JSON.parse(JSON.stringify(flex.progress)))!;
+  assert.ok(clockInBlocker(reloaded, t(2, 9, 40), 100), 'tras recargar se puede volver a cobrar el turno');
+  // Los textos del turno son de la oficina: Lucía y tu mesa, no Marta ni la sala de descanso de Decathlon.
+  const officeText = [...work(o, t(2, 8, 45), situationFor(o, 2).choices[2]).lines, ...work(o, t(2, 10, 0), situationFor(o, 2).choices[0]).lines, offerText(office), clockInBlocker(o, t(2, 8, 0), 100) ?? ''].join(' ');
+  assert.ok(!/Marta|sala de descanso/.test(officeText), `textos de Decathlon en la oficina: ${officeText}`);
+  assert.match(officeText, /Lucía lo apunta/);
+  assert.match(officeText, /en tu mesa/);
+  // Menos cansancio que Decathlon.
+  assert.ok(office.levels[0].energy > job.levels[0].energy);
+  // Conflicto de horarios: con la oficina, el turno suelto de Decathlon (6 h) no puede pisar un turno (±30 min).
+  const casual = getActivity(job.casual!);
+  assert.ok(shiftClash(o, t(2, 8, 0), casual.minutes), 'el suelto de las 8:00 pisa el turno de las 9:00');
+  assert.ok(shiftClash(o, t(2, 2, 40), casual.minutes), 'acabar 8:40 deja menos de 30 min de margen');
+  assert.equal(shiftClash(o, t(2, 2, 0), casual.minutes), null, 'acabar a las 8:00 deja el margen');
+  assert.equal(shiftClash(o, t(2, 13, 30), casual.minutes), null, 'empezar media hora después del turno (13:00) vale');
+  assert.ok(shiftClash(o, t(2, 13, 10), casual.minutes), 'empezar 10 min después del turno no deja descanso');
+  assert.equal(shiftClash(flex.progress, t(2, 8, 0), casual.minutes), null, 'un turno ya hecho no bloquea');
+  assert.equal(shiftClash(null, t(2, 8, 0), casual.minutes), null);
+}
+
+// ------------------------------------------- LV-03: ascenso a administrativo exige Ofimática
+// Control positivo: sin el `requires` del nivel, «sin curso → null» falla; con good=5 o con falta, «con curso» falla.
+{
+  const office = getJob('atalaya');
+  const ready = { ...hire(office, 1), good: office.promoteAfter };
+  assert.equal(promotionReady(ready, []), null, 'sin el curso no hay ascenso');
+  assert.match(promotionBlocker(ready, []) ?? '', /Ofimática y gestión/, 'el bloqueo nombra el curso');
+  assert.equal(promotionBlocker(ready, ['ofimatica'] as string[]), null, 'con el curso no hay bloqueo');
+  const up2 = promotionReady(ready, ['ofimatica']);
+  assert.deepEqual([up2?.id, up2?.wage], ['administrativo', 52]);
+  assert.equal(promotionReady({ ...ready, good: office.promoteAfter - 1 }, ['ofimatica']), null, 'faltan buenos turnos');
+  assert.equal(promotionReady({ ...ready, strikes: 1 }, ['ofimatica']), null, 'con una falta, no');
+  assert.equal(promotionBlocker({ ...ready, strikes: 1 }, []), null, 'con una falta, el motivo no es el curso');
+  assert.equal(promotionBlocker({ ...ready, good: 0 }, []), null, 'sin buenos turnos, no hay motivo');
+}
+
+console.log(`empleo: ${job.employer} · ${job.levels.map((l) => `${l.title} ${l.wage}€`).join(' → ')} · ${job.situations.length} situaciones · oficina ${getJob('atalaya').employer} · ok`);

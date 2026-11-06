@@ -407,6 +407,9 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'decathlon_employee_3', cloth: '#0a42aa', clothDark: '#023087', hair: '#141012', skin: '#5c3a26', sleeves: '#121319', trousers: '#161a20', badge: '#f4f4ef' },
   { id: 'decathlon_employee_4', cloth: '#0a42aa', clothDark: '#023087', hair: '#c9a04e', skin: '#e0ac85', sleeves: '#e5e6ee', trousers: '#93a9b8', badge: '#f4f4ef', longHair: true },
   { id: 'decathlon_employee_5', cloth: '#0a42aa', clothDark: '#023087', hair: '#4a3b2f', skin: '#8d5a3b', sleeves: '#121319', trousers: '#4a5b71', badge: '#f4f4ef' },
+  { id: 'decathlon_employee_6', cloth: '#0a42aa', clothDark: '#023087', hair: '#3c2524', skin: '#d4a282', sleeves: '#e5e6ee', trousers: '#33394a', badge: '#f4f4ef' },
+  { id: 'decathlon_employee_7', cloth: '#0a42aa', clothDark: '#023087', hair: '#242120', skin: '#704c38', sleeves: '#e5e6ee', trousers: '#25364a', badge: '#f4f4ef', longHair: true },
+  { id: 'decathlon_employee_8', cloth: '#0a42aa', clothDark: '#023087', hair: '#574439', skin: '#ebbc96', sleeves: '#121319', trousers: '#425366', badge: '#f4f4ef' },
   { id: 'uniforme-seguridad', cloth: '#ff8a2a', clothDark: '#d86a18', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20', reflective: '#e9ecd2' },
 ];
 

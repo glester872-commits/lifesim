@@ -183,7 +183,7 @@ export const METRO_EVENTS: readonly MetroEventDef[] = [
   {
     id: 'int-folleto',
     name: 'Folleto',
-    description: 'Cursos del centro de estudios. Deja flag para el futuro sistema de estudios.',
+    description: 'Cursos del centro de estudios. La marca abarata la matrícula de Ofimática y gestión (data/study.ts `flyer`) y la pone en la agenda.',
     rarity: 'interactive',
     purpose: ['CAREER', 'OPPORTUNITY'],
     probability: 0.05,
@@ -194,7 +194,10 @@ export const METRO_EVENTS: readonly MetroEventDef[] = [
       {
         id: 'coger',
         label: 'Coger uno',
-        result: ['Lo doblas y lo guardas. Quizá no signifique nada.'],
+        result: [
+          '«OFIMÁTICA Y GESTIÓN · curso de tarde. Hoja de cálculo, correo, facturas y archivo. Lunes y miércoles a las 18:00, cuatro clases. Con este folleto, €10 menos en la matrícula.»',
+          'Ventanilla del Centro de estudios, Calle Mayor (Vallesco). Lo doblas y lo guardas.',
+        ],
         effects: { flags: ['folleto:cursos'] },
       },
       {

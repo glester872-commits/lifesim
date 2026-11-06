@@ -10,7 +10,7 @@ import { blocker, perform, type ActivityContext } from '../systems/Activities';
 import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
 import { getJob, jobAt, type JobDef } from '../data/jobs';
-import { clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, nextShift, offerText, promote, promotionReady, quit, settle as settleJob, situationFor, work, type JobProgress } from '../systems/Jobs';
+import { clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, settle as settleJob, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
 import { formatDate, WEEKDAY_LABEL, weekdayOf } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
@@ -37,7 +37,7 @@ import { TOURNAMENTS, status as tournamentStatus, when } from '../systems/Tourna
 import { DRILL_LABEL, type Drill, type Style } from '../systems/Sparring';
 import { getGig, getSkill, type CourseDef, type GigDef, type PracticeSite } from '../data/study';
 import {
-  acceptGig, attend, classBlocker, courseAt, courseOffer, deliver, deliverBlocker, demo, demoBlocker, enroll, enrollBlocker, gigAt, gigDeadline, gigStatus, gigTerms,
+  acceptGig, attend, classBlocker, coursesAt, courseOffer, feeFor, passedCourse, deliver, deliverBlocker, demo, demoBlocker, enroll, enrollBlocker, gigAt, gigDeadline, gigStatus, gigTerms,
   hasCamera, knowledge, lessonStatus, levelName, nextSession, practice, practiceAt, practiceBlocker, practiceGain, sessionLabel, sessionNow, type Outcome as StudyOutcome, type StudyState,
 } from '../systems/Study';
 import { closedLines, isOpen, placeForInterior, placeInfo } from '../systems/Places';
@@ -327,7 +327,7 @@ export class Menus {
     }
     if (job) entries.push(...this.jobEntries(job, contract, again));
     for (const a of place.activities.map(getActivity)) {
-      const casualShut = contract && a.id === job?.casual ? 'Con contrato, aquí se trabaja en tus turnos.' : null;
+      const casualShut = contract && a.id === job?.casual ? 'Con contrato, aquí se trabaja en tus turnos.' : a.id === job?.casual ? shiftClash(state.job ?? null, this.now(), a.minutes) : null;
       entries.push({
         option: { label: a.name, detail: a.effects.money ? `+${euros(a.effects.money)}` : '', disabled: casualShut ?? blocker(a, ctx) ?? undefined },
         run: () => this.run(place.name, a, () => again()),
@@ -371,13 +371,14 @@ export class Menus {
     // El turno suelto, sin contrato (data/jobs.ts `casual`): antes en el menú de la parada, ahora aquí, en el fichaje.
     if (job.casual) {
       const casual = getActivity(job.casual);
-      const shut = contract ? 'Con contrato, aquí se trabaja en tus turnos.' : null;
+      // Con contrato aquí, se trabaja en los turnos; con contrato en otro sitio, no si pisa uno de sus turnos (LV-03).
+      const shut = contract ? 'Con contrato, aquí se trabaja en tus turnos.' : shiftClash(state.job ?? null, this.now(), casual.minutes);
       entries.push({
         option: { label: casual.name, detail: casual.effects.money ? `+${euros(casual.effects.money)}` : '', disabled: shut ?? blocker(casual, this.activityContext()) ?? undefined },
         run: () => this.run(name, casual, () => again()),
       });
     }
-    const text = contract ? `Tu taquilla, el chaleco colgado y el reloj de fichar. ${formatClock(state.day, state.hour, state.minute)}.` : job.posting;
+    const text = contract ? `${job.desk ?? 'Tu taquilla, el chaleco colgado y el reloj de fichar.'} ${formatClock(state.day, state.hour, state.minute)}.` : job.posting;
     menu.open(name, text, entries.map((e) => e.option), (i) => entries[i].run(), () => menu.close(), [news, note].filter(Boolean).join(' '));
   }
 
@@ -395,8 +396,9 @@ export class Menus {
     }
     if (!missed.length) return '';
     const days = missed.map((d) => WEEKDAY_LABEL[weekdayOf(d)]).join(', ');
-    if (fired) return `Marta te espera en la puerta: con tantas faltas (${days}), el contrato se acaba aquí.`;
-    return `Faltaste al turno del ${days}. Marta lo tiene apuntado: ${progress.strikes} de ${getJob(progress.job).maxStrikes}. Dos buenos turnos seguidos lo arreglan.`;
+    const boss = getJob(progress.job).manager.split(',')[0];
+    if (fired) return `${boss} te espera en la puerta: con tantas faltas (${days}), el contrato se acaba aquí.`;
+    return `Faltaste al turno del ${days}. ${boss} lo tiene apuntado: ${progress.strikes} de ${getJob(progress.job).maxStrikes}. Dos buenos turnos seguidos lo arreglan.`;
   }
 
   private now(): number {
@@ -409,14 +411,19 @@ export class Menus {
     const { state } = this.services;
     const boss = job.manager.split(',')[0];
     if (!contract) {
-      return [{ option: { label: 'Leer el cartel de «Se busca personal»', detail: 'oferta' }, run: () => this.jobOffer(job, back) }];
+      return [{ option: { label: job.offerLabel ?? 'Leer el cartel de «Se busca personal»', detail: 'oferta' }, run: () => this.jobOffer(job, back) }];
     }
     const lvl = levelOf(contract);
     const out: { option: MenuOption; run: () => void }[] = [{
       option: { label: `Fichar · ${lvl.title}`, detail: euros(lvl.wage), disabled: clockInBlocker(contract, this.now(), state.energy) ?? undefined },
       run: () => this.shiftDecision(job, back),
     }];
-    if (promotionReady(contract)) out.push({ option: { label: `Hablar con ${boss}: te propone un ascenso` }, run: () => this.jobPromotion(job, back) });
+    const unlocks = state.study.unlocks;
+    if (promotionReady(contract, unlocks)) out.push({ option: { label: `Hablar con ${boss}: te propone un ascenso` }, run: () => this.jobPromotion(job, back) });
+    else {
+      const why = promotionBlocker(contract, unlocks);
+      if (why) out.push({ option: { label: `Hablar con ${boss}: el ascenso`, detail: 'falta un curso', disabled: why }, run: () => {} });
+    }
     out.push({ option: { label: 'Dejar el puesto' }, run: () => this.jobQuit(job, back) });
     return out;
   }
@@ -435,7 +442,7 @@ export class Menus {
       menu.close();
       const next = nextShift(p, this.now());
       dialogue.start(job.manager, [
-        '«Bienvenido. Aquí lo que cuenta es venir y no dejar tirada a la gente.»',
+        job.welcome ?? '«Bienvenido. Aquí lo que cuenta es venir y no dejar tirada a la gente.»',
         `Firmas como ${levelOf(p).title.toLowerCase()}.${next ? ` Tu primer turno: el ${formatDate(next.day, false)} a las ${String(levelOf(p).start).padStart(2, '0')}:00.` : ''}`,
         'El horario y cómo vas lo tienes en el móvil, en Trabajo.',
       ]);
@@ -468,7 +475,7 @@ export class Menus {
       state.energy += out.energy;
       clock.advanceMinutes(out.minutes);
       this.host.persist();
-      const ready = promotionReady(out.progress) ? `${job.manager.split(',')[0]} quiere hablar contigo antes de que te vayas.` : '';
+      const ready = promotionReady(out.progress, unlocks) ? `${job.manager.split(',')[0]} quiere hablar contigo antes de que te vayas.` : '';
       dialogue.start(job.employer, [...out.lines, ready, `${formatClock(state.day, state.hour, state.minute)}.`].filter(Boolean));
       dialogue.once('close', () => back());
     }, () => back());
@@ -477,7 +484,7 @@ export class Menus {
   private jobPromotion(job: JobDef, back: (n?: string) => void): void {
     const { state, menu, dialogue } = this.services;
     const contract = state.job!;
-    const next = promotionReady(contract)!;
+    const next = promotionReady(contract, state.study.unlocks)!;
     menu.open(job.manager, `«Llevas ${contract.good} turnos buenos y necesito a alguien al frente.» Ahora: ${levelSummary(levelOf(contract))} Te propone: ${levelSummary(next)} Una hora más por turno y la sección a tu cargo, desde mañana.`, [
       { label: 'Aceptar el ascenso' },
       { label: 'Seguir como estoy' },
@@ -513,8 +520,9 @@ export class Menus {
    * Las reglas son de systems/Study; aquí se enseñan, se aplica el resultado y se adelanta el reloj.
    */
   openStudy(id: string, name: string, lines: readonly string[], note = ''): void {
-    const course = courseAt(id);
-    if (course) return this.courseDesk(course, name, lines, note);
+    const courses = coursesAt(id);
+    if (courses.length === 1) return this.courseDesk(courses[0], name, lines, note);
+    if (courses.length) return this.courseChooser(courses, name, lines, note);
     const site = practiceAt(id);
     if (site) return this.practiceSite(site, name, note);
     const gig = gigAt(id);
@@ -538,7 +546,26 @@ export class Menus {
     if (back) dialogue.once('close', back);
   }
 
-  private courseDesk(c: CourseDef, name: string, lines: readonly string[], note = ''): void {
+  /** Una ventanilla con más de un curso (LV-03): se elige cuál; el de ahora, primero. */
+  private courseChooser(courses: readonly CourseDef[], name: string, lines: readonly string[], note = ''): void {
+    const { state, menu, dialogue } = this.services;
+    const place = placeInfo(courses[0].place);
+    if (place && !isOpen(place, state.day, state.hour, state.minute)) {
+      dialogue.start(name, [...lines, ...closedLines(place, state.day, state.hour, state.minute).slice(1)]);
+      return;
+    }
+    const s = state.study;
+    const flags = state.events.eventFlags;
+    const sorted = [...courses].sort((a, b) => Number(b.id === s.course?.id) - Number(a.id === s.course?.id));
+    const back = (n = ''): void => this.courseChooser(courses, name, lines, n);
+    const detail = (c: CourseDef): string => (passedCourse(s, c.id) ? 'aprobado' : s.course?.id === c.id ? 'matriculado' : euros(feeFor(c, flags)));
+    menu.open(name, lines.join(' '), [...sorted.map((c) => ({ label: c.name, detail: detail(c) })), { label: 'Nada' }], (i) => {
+      if (i === sorted.length) return menu.close();
+      this.courseDesk(sorted[i], name, lines, '', back);
+    }, () => menu.close(), note);
+  }
+
+  private courseDesk(c: CourseDef, name: string, lines: readonly string[], note = '', up?: () => void): void {
     const { state, menu, dialogue } = this.services;
     const place = placeInfo(c.place);
     if (place && !isOpen(place, state.day, state.hour, state.minute)) {
@@ -547,11 +574,13 @@ export class Menus {
     }
     const s = state.study;
     const now = this.now();
-    const again = (n = ''): void => this.courseDesk(c, name, lines, n);
+    const again = (n = ''): void => this.courseDesk(c, name, lines, n, up);
     const p = s.course?.id === c.id ? s.course : null;
+    const fee = feeFor(c, state.events.eventFlags);
     const entries: { option: MenuOption; run: () => void }[] = [];
     if (!p) {
-      entries.push({ option: { label: `Matricularse · ${c.name}`, detail: euros(c.fee), disabled: enrollBlocker(c, s, state.money) ?? undefined }, run: () => this.enrollConfirm(c, again) });
+      const label = fee < c.fee ? `Vengo por el folleto · ${c.name}` : `Matricularse · ${c.name}`;
+      entries.push({ option: { label, detail: euros(fee), disabled: enrollBlocker(c, s, state.money, fee) ?? undefined }, run: () => this.enrollConfirm(c, again) });
     } else {
       const session = sessionNow(c, p, now);
       if (p.attended.length < c.lessons.length) {
@@ -567,14 +596,14 @@ export class Menus {
       if (!p.passed) {
         entries.push({ option: { label: 'Hacer la prueba final', detail: `${c.demo.minutes} min`, disabled: demoBlocker(c, s, now, state.energy) ?? undefined }, run: () => this.demoStep(c, [], again) });
       }
-      const gig = getGig(c.gig);
-      const status = gigStatus(gig, s, now);
-      if (status === 'offered' || status === 'expired') {
+      const gig = c.gig ? getGig(c.gig) : null;
+      const status = gig ? gigStatus(gig, s, now) : 'locked';
+      if (gig && (status === 'offered' || status === 'expired')) {
         entries.push({ option: { label: status === 'offered' ? `Ver el encargo · ${gig.client}` : 'Pedir otro plazo para el encargo', detail: euros(gig.pay) }, run: () => this.gigOffer(gig, again) });
       }
     }
-    entries.push({ option: { label: 'Nada' }, run: () => menu.close() });
-    menu.open(name, this.courseSummary(c, s, now), entries.map((e) => e.option), (i) => entries[i].run(), undefined, note);
+    entries.push(up ? { option: { label: 'Volver' }, run: () => up() } : { option: { label: 'Nada' }, run: () => menu.close() });
+    menu.open(name, this.courseSummary(c, s, now), entries.map((e) => e.option), (i) => entries[i].run(), up ? () => up() : undefined, note);
   }
 
   /** Lo que se ve en la ventanilla: nivel, clases, la próxima sesión y el encargo. */
@@ -582,15 +611,15 @@ export class Menus {
     const k = knowledge(s, c.skill);
     const skill = `${getSkill(c.skill).name}: ${k} (${levelName(c.skill, k)}).`;
     const p = s.course?.id === c.id ? s.course : null;
-    if (!p) return `${skill} ${courseOffer(c, this.services.state.day)}`;
+    if (!p) return `${skill} ${passedCourse(s, c.id) ? 'Curso aprobado.' : courseOffer(c, this.services.state.day, feeFor(c, this.services.state.events.eventFlags))}`;
     const next = nextSession(c, p, now);
     const lost = p.lessons.filter((_, i) => lessonStatus(c, p, i, now) === 'missed').length;
-    const gig = getGig(c.gig);
     const parts = [skill, `Clases: ${p.attended.length} de ${c.lessons.length}${lost ? ` (${lost} perdida${lost > 1 ? 's' : ''}: se recupera en tutoría)` : ''}.`];
     if (next && p.attended.length < c.lessons.length) parts.push(`Próxima: ${sessionLabel(c, next)}.`);
     if (p.passed) parts.push('Prueba aprobada.');
-    const status = gigStatus(gig, s, now);
-    if (status === 'active') parts.push(`Encargo: ${gig.client}, hasta el ${gigDeadline(gig, s.gig!)}.`);
+    const gig = c.gig ? getGig(c.gig) : null;
+    const status = gig ? gigStatus(gig, s, now) : 'locked';
+    if (gig && status === 'active') parts.push(`Encargo: ${gig.client}, hasta el ${gigDeadline(gig, s.gig!)}.`);
     if (status === 'expired') parts.push('El plazo del encargo se pasó: puedes pedir otro.');
     if (status === 'done') parts.push('Encargo entregado.');
     if (hasCamera(s)) parts.push('Llevas la cámara del centro.');
@@ -599,17 +628,19 @@ export class Menus {
 
   private enrollConfirm(c: CourseDef, back: (n?: string) => void): void {
     const { state, menu } = this.services;
-    menu.open(c.name, courseOffer(c, state.day), [{ label: `Pagar la matrícula (${euros(c.fee)})` }, { label: 'Ahora no' }], (i) => {
+    const fee = feeFor(c, state.events.eventFlags);
+    menu.open(c.name, courseOffer(c, state.day, fee), [{ label: `Pagar la matrícula (${euros(fee)})` }, { label: 'Ahora no' }], (i) => {
       if (i === 1) return back();
-      const blocked = enrollBlocker(c, state.study, state.money);
+      // Se vuelve a mirar al pagar: un doble clic o volver a la ventanilla no matricula ni cobra dos veces.
+      const blocked = enrollBlocker(c, state.study, state.money, fee);
       if (blocked) return back(blocked);
       state.as(`Matrícula · ${c.name.split(' · ')[0]}`, () => {
-        state.money -= c.fee;
+        state.money -= fee;
       });
       state.setStudy(enroll(c, state.study, state.day));
       this.host.persist();
       const first = state.study.course!.lessons[0];
-      back(`Matriculado. Primera clase: ${formatDate(first, false)} a las ${String(c.start).padStart(2, '0')}:00. Te dan la cámara; el horario, en el móvil (Estudios).`);
+      back(`Matriculado. Primera clase: ${formatDate(first, false)} a las ${String(c.start).padStart(2, '0')}:00.${c.camera ? ' Te dan la cámara;' : ''} El horario, en el móvil (Estudios).`);
     }, () => back());
   }
 
@@ -893,6 +924,18 @@ export class Menus {
     }
     if (offer.kind === 'retail') {
       this.openStore(offer.store, who, offer.minutes, note, selected);
+      return;
+    }
+    if (offer.kind === 'advice') {
+      const { menu } = this.services;
+      menu.open(who, offer.greeting, [
+        ...offer.questions.map(({ question }) => ({ label: question })),
+        { label: 'Gracias, eso es todo' },
+      ], (i) => {
+        const topic = offer.questions[i];
+        if (topic) this.openOffer(id, who, topic.answer, i);
+        else menu.close();
+      }, () => menu.close(), note, selected);
       return;
     }
     if (offer.kind === 'police') {

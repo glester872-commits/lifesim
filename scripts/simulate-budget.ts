@@ -101,7 +101,7 @@ console.log(
       const out = work(contract, absMinute(day, levelOf(contract).start, 50 - 60), situationFor(contract, day).choices[0]);
       contract = out.progress;
       cash += out.money - 2 * fare;
-      if (!promotedOn && promotionReady(contract)) {
+      if (!promotedOn && promotionReady(contract, [])) {
         contract = promote(contract, day);
         promotedOn = day;
       }

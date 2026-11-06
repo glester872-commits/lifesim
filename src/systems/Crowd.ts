@@ -48,8 +48,11 @@ export function levelAt(place: PlaceInfo, profile: PopulationProfile, clock: Clo
   return LEVELS[Math.max(0, Math.min(LEVELS.length - 1, shifted))];
 }
 
-const onShift = (role: StaffRole, level: Level | null): boolean =>
-  level !== null && (!role.minLevel || LEVELS.indexOf(level) >= LEVELS.indexOf(role.minLevel));
+export const staffOnShift = (role: StaffRole, level: Level | null, weekday: number): boolean =>
+  level !== null && (!role.days || role.days.includes(weekday))
+  && (!role.minLevel || LEVELS.indexOf(level) >= LEVELS.indexOf(role.minLevel));
+
+const staffDay = (place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
 
 /**
  * Visitantes que debería haber. Dentro del rango del nivel, el número sale de
@@ -62,7 +65,7 @@ export function targetAt(place: PlaceInfo, profile: PopulationProfile, clock: Cl
   const [lo, hi] = POPULATION.levels[level];
   const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
   const rng = seededRng(hashSeed('crowd', place.id, clock.day, slot));
-  const staff = profile.staff.filter((r) => onShift(r, level)).length;
+  const staff = profile.staff.filter((r) => staffOnShift(r, level, staffDay(place, clock))).length;
   // Con mal tiempo, los sitios a cubierto (bares, tiendas, la discoteca) se llenan un poco más.
   const sheltered = place.tags.some((t) => t === 'food' || t === 'nightlife' || t === 'shop' || t === 'social');
   const shelter = sheltered ? 1 + Math.max(0, 1 - outdoorAppeal(weatherAt(clock.day, clock.hour + clock.minute / 60))) * 0.35 : 1;
@@ -313,7 +316,7 @@ export class Crowd {
     const far = (id: string): boolean => this.distance(this.pointAt(id), player) >= POPULATION.spawnClearance && this.seatOk(id);
 
     for (const role of this.profile.staff) {
-      if (!onShift(role, level)) continue;
+      if (!staffOnShift(role, level, staffDay(this.place, clock))) continue;
       const point = this.freePoint(role.points, far);
       if (point) this.addStaff(role, point);
     }
@@ -441,8 +444,9 @@ export class Crowd {
     // Personal: el que toca entra por la puerta; el que ya no toca, se va.
     for (const role of this.profile.staff) {
       const here = this.agents.filter((a) => a.staffRole === role && !a.leaving);
-      if (onShift(role, level) && here.length === 0 && doorClear) this.enterStaff(role);
-      if (!onShift(role, level)) for (const a of here) a.leaveSoon = true;
+      const scheduled = staffOnShift(role, level, staffDay(this.place, clock));
+      if (scheduled && here.length === 0 && doorClear) this.enterStaff(role);
+      if (!scheduled) for (const a of here) a.leaveSoon = true;
     }
 
     const gathering = new Set(gatheringReservedLooks(this.now));
