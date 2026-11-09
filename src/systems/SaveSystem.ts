@@ -61,6 +61,7 @@ export function createInitialState(): GameStateData {
     cards: {},
     appearance: {},
     wardrobe: [],
+    paid: {},
     fitness: { ...START_FITNESS },
     // Una partida nueva todavía no conoce a nadie (systems/Social, Prompt 57).
     social: {},
@@ -367,6 +368,8 @@ function parseState(value: unknown): GameStateData | null {
     // La ropa puesta del jugador sale de su armario (una prueba en el probador no se queda al cargar).
     appearance: ownOutfit(parseAppearance(s.appearance), wardrobe),
     wardrobe,
+    // Una partida anterior a la reventa carga sin precios (y sin la clave: vuelve igual que se guardó): su ropa no se puede revender.
+    ...(s.paid === undefined ? {} : { paid: parsePaid(s.paid, wardrobe) }),
     fitness: parseFitness(s.fitness),
     // Prompt 57: una partida anterior al sistema social carga sin nadie conocido (parseSocialState(undefined) = {}).
     social: parseSocialState(s.social),
@@ -590,6 +593,17 @@ function parseCounts(
     if (!known(id) || !isNumber(n) || n < 0) continue;
     const v = normalize(n);
     if (v > 0 || (keepZero && v === 0)) out[id] = v;
+  }
+  return out;
+}
+
+/** Lo pagado, sólo de prendas del armario y con importes posibles; lo demás se descarta. */
+function parsePaid(value: unknown, wardrobe: readonly string[]): Record<string, number> {
+  if (!isRecord(value)) return {};
+  const out: Record<string, number> = {};
+  for (const id of wardrobe) {
+    const n = value[id];
+    if (isNumber(n) && n <= 100000 && cents(n) > 0) out[id] = cents(n);
   }
   return out;
 }

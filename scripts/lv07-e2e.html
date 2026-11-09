@@ -1,6 +1,6 @@
 <!doctype html><html lang="es"><meta charset="utf-8"><title>LV-07 · QA de navegador</title>
 <style>body{font:16px system-ui;background:#171a24;color:#f0e8d8;margin:16px}button{font:inherit;padding:12px;margin:4px}pre{white-space:pre-wrap}iframe{border:1px solid #777;width:1100px;height:760px;max-width:98vw}#results{max-height:260px;overflow:auto}</style>
-<h1>LV-07 · integración de navegador</h1><p>Puerto 5197, partida desechable. Entradas de teclado y puntero sintéticas; móvil emulado en iframe de 390 × 844, sin teléfono real. El recorrido utiliza los controles, los menús y las transiciones reales del juego.</p>
+<h1>LV-07 · integración de navegador</h1><p>Puerto 5197, partida desechable. Entradas de teclado y puntero sintéticas; móvil emulado en iframe de 390 × 844, sin teléfono real. El recorrido utiliza los controles, los menús y las transiciones reales del juego. La pestaña debe estar al frente: en segundo plano Chrome reduce requestAnimationFrame a 1 por segundo y los tiempos de «caminar» se agotan.</p>
 <button id="desktop">Ejecutar teclado + ratón</button><button id="mobile">Ejecutar móvil emulado</button><pre id="results">Preparado</pre><iframe id="game" title="LIFE//SIM de QA"></iframe>
 <script type="module">
 import {createInitialState,SaveSystem} from '/src/systems/SaveSystem.ts';
@@ -16,7 +16,7 @@ function event(type,key,code,n){w.dispatchEvent(new w.KeyboardEvent(type,{key,co
 async function key(key,code,n,ms=80){event('keydown',key,code,n);await delay(ms);event('keyup',key,code,n);await delay(80)}
 function touch(el,type,id=7,x=0,y=0){el.dispatchEvent(new w.PointerEvent(type,{pointerType:'touch',pointerId:id,clientX:x,clientY:y,bubbles:true,cancelable:true,isPrimary:true,buttons:type==='pointerup'?0:1}))}
 async function action(){if(mode==='mobile'){const b=w.document.querySelector('.touch__action');touch(b,'pointerdown');await delay(70);touch(b,'pointerup');await delay(100)}else await key('e','KeyE',69)}
-async function axis(axis,target){const p=scene().player;const dir=Math.sign(target-p[axis]);if(Math.abs(target-p[axis])<3)return;let release;
+async function axis(axis,target){const p=scene().player;const dir=Math.sign(target-p[axis]);if(Math.abs(target-p[axis])<=2)return;let release;
  if(mode==='mobile'){
   const stick=w.document.querySelector('.touch__stick'),r=w.document.querySelector('.touch__base').getBoundingClientRect(),x=r.x+r.width/2,y=r.y+r.height/2;
   touch(stick,'pointerdown',9,x+(axis==='x'?dir*60:0),y+(axis==='y'?dir*60:0));release=()=>touch(stick,'pointerup',9,x,y);
@@ -42,7 +42,10 @@ async function transfer(expected){await axis('x',184);await axis('y',192);await 
 async function exit(expected){await axis('x',184);await axis('y',208);await action();await change(expected);check(life.services.state.metroJourney===null,'salir termina la validación');}
 async function enter(expected){await action();await change(expected)}
 async function run(which){mode=which;results.textContent='RUN '+mode;document.querySelectorAll('button').forEach(b=>b.disabled=true);try{
- if(location.port!=='5197')throw Error('Sólo puerto QA 5197');frame.style.width=mode==='mobile'?'390px':'1100px';frame.style.height=mode==='mobile'?'844px':'760px';const s=createInitialState();s.locationId='arena';s.position=spawnToWorld(getLocation('arena').spawns['ar-metro']);s.facing='up';s.hour=23;s.minute=50;s.cards={transport:10};s.events.lastEventRide=10000;s.agenda.tour='skipped';s.identity={name:'QA LV07'};new SaveSystem().save(s);frame.src='/';await loaded();
+ if(location.port!=='5197')throw Error('Sólo puerto QA 5197');frame.style.width=mode==='mobile'?'390px':'1100px';frame.style.height=mode==='mobile'?'844px':'760px';const s=createInitialState();s.locationId='arena';s.position=spawnToWorld(getLocation('arena').spawns['ar-metro']);s.facing='up';s.hour=23;s.minute=50;s.cards={transport:10};s.events.lastEventRide=10000;s.agenda.tour='skipped';s.identity={name:'QA LV07'};
+ // Descargar el juego anterior antes de guardar: al descargarse guarda y pisaría la partida limpia.
+ await new Promise(r=>{const t=setTimeout(r,5000);frame.addEventListener('load',()=>{clearTimeout(t);r()},{once:true});frame.src='about:blank'});await delay(200);
+ new SaveSystem().save(s);frame.src='/';await loaded();
  await enter('arena-station');await checkpoint('entrada sin validar');await ride('puerta-central-station','Puerta Central');check(life.services.state.wallet.cards.transport===8,'primera validación: €2');await checkpoint('primer tramo confirmado');await transfer('puerta-central-l3-station');await checkpoint('correspondencia L3');await ride('decathlon-l3-station','Polígono Norte');check(life.services.state.wallet.cards.transport===8,'L3 incluida en el billete');
  // Vía y NPC: los pies activos permanecen fuera de las tres filas de vía.
  const metro=scene().metroSystem;check(metro.walkers.filter(p=>p.visible).every(p=>p.y>=80),'ningún NPC visible en las vías');const perf=life.perf();check(perf.over.length===0,'presupuesto de simulación sin excesos');if(mode==='mobile')check(w.document.documentElement.scrollWidth<=w.innerWidth,'móvil 390 px sin desbordamiento horizontal');log('Presupuesto: '+JSON.stringify(perf));

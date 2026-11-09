@@ -18,7 +18,7 @@ assert.equal(routeBetween('arena', 'decathlon-l3')!.minutes, 32, '15 L2 + 2 pasi
 assert.equal(routeBetween('decathlon-l3', 'arena')!.minutes, 32, 'recorrido inverso');
 assert.equal(routeBetween('arena', 'decathlon-l3')!.fare, 2);
 assert.equal(routeBetween('missing', 'arena'), null);
-assert.equal(travel('luna', 'vallesco').mode, 'none', 'sin mapa no hay trayecto');
+assert.equal(travel('luna', 'vallesco').mode, 'metro', 'de Luna a Vallesco se va en metro');
 assert.equal(travel('puerta-central', 'poligono-norte').mode, 'metro');
 
 let state: GameStateData = { ...createInitialState(), locationId: 'arena-station', cards: { transport: 4 }, hour: 23, minute: 50 };

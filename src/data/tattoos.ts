@@ -3,7 +3,8 @@ import type { Sleeve } from './retail.ts';
 /**
  * Tatuajes: dónde (zona), qué (diseño, con su estilo) y cuándo se ven. Un
  * tatuaje hecho es una marca en el aspecto de quien lo lleva
- * (data/appearance.ts, `tattoos`): zona + diseño. No se borra ni se cambia.
+ * (data/appearance.ts, `tattoos`): zona + diseño. Encima sólo se trabaja en el
+ * estudio: retocar, cubrir o eliminar (systems/Appearance.tattooWorks), pagando.
  *
  * Que se vea depende de la ropa: el antebrazo, con manga larga, no; el cuello y
  * la mano, siempre; pecho, espalda y gemelo, nunca con la ropa que existe hoy
@@ -56,6 +57,14 @@ export const TATTOO_DESIGNS: readonly TattooDesign[] = [
   { id: 'banda', name: 'Banda negra', style: 'blackwork', ink: '#121016', price: 80, minutes: 75, not: ['neck', 'hand-r'] },
   { id: 'fecha', name: 'Una fecha', style: 'lettering', ink: '#1c1a20', price: 60, minutes: 45, not: ['hand-r'] },
 ];
+
+/** Retoque: otro diseño del mismo estilo; fracción del precio y los minutos del diseño nuevo. */
+export const TATTOO_RETOUCH = 0.5;
+/** Cobertura: un diseño de tinta más oscura; recargo sobre su precio (dura lo que él). */
+export const TATTOO_COVER_PRICE = 1.2;
+/** Eliminación: recargo y minutos sobre el diseño que se quita, en una sesión. */
+export const TATTOO_REMOVE_PRICE = 1.5;
+export const TATTOO_REMOVE_MINUTES = 2;
 
 export const STYLE_NAMES: Readonly<Record<TattooStyle, string>> = {
   tradicional: 'tradicional', fineline: 'línea fina', blackwork: 'blackwork', lettering: 'letras',

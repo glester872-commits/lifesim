@@ -105,22 +105,40 @@ export interface HairDef {
   price?: number;
   /** Lo que dice quien corta al acabar. */
   line: string;
+  /** Largo relativo: pasar a uno mayor no es un corte (systems/Appearance.haircutQuote). */
+  length: number;
+  curly?: true;
 }
 
 export const HAIRSTYLES: readonly HairDef[] = [
-  { id: 'short', name: 'Corte clásico', price: 14, line: 'Corto por los lados, un poco de volumen arriba. De siempre.' },
-  { id: 'buzz', name: 'Rapado', price: 10, line: 'Máquina al dos. Cómodo, fresco y sin peine.' },
-  { id: 'bob', name: 'Media melena', price: 18, line: 'A la altura de la mandíbula, recto. Queda limpio.' },
-  { id: 'curly', name: 'Rizos marcados', price: 22, line: 'Cortado en seco, rizo a rizo. Ahora se ven.' },
-  { id: 'bun', name: 'Recogido', price: 16, line: 'Recogido alto, con dos horquillas. Aguanta la noche.' },
-  { id: 'long', name: 'Melena larga', line: 'Esto no se corta: se deja crecer.' },
+  { id: 'short', name: 'Corte clásico', price: 14, line: 'Corto por los lados, un poco de volumen arriba. De siempre.', length: 2 },
+  { id: 'buzz', name: 'Rapado', price: 10, line: 'Máquina al dos. Cómodo, fresco y sin peine.', length: 1 },
+  { id: 'bob', name: 'Media melena', price: 18, line: 'A la altura de la mandíbula, recto. Queda limpio.', length: 4 },
+  { id: 'curly', name: 'Rizos marcados', price: 22, line: 'Cortado en seco, rizo a rizo. Ahora se ven.', length: 2, curly: true },
+  { id: 'bun', name: 'Recogido', price: 16, line: 'Recogido alto, con dos horquillas. Aguanta la noche.', length: 5 },
+  { id: 'long', name: 'Melena larga', line: 'Esto no se corta: se deja crecer.', length: 6 },
   // Sin precio: no se hacen en la barbería, pero se pueden elegir al crear el personaje (world/HumanArt ya los dibuja).
-  { id: 'afro', name: 'Afro', line: 'Esto no se corta: se cuida.' },
-  { id: 'braids', name: 'Trenzas', line: 'Esto no se hace aquí: lleva una tarde entera.' },
-  { id: 'locs', name: 'Rastas', line: 'Esto no se hace aquí: lleva meses.' },
-  { id: 'ponytail', name: 'Coleta', line: 'Esto no se corta: se recoge.' },
-  { id: 'bald', name: 'Sin pelo', line: 'Aquí no hay nada que cortar.' },
+  { id: 'afro', name: 'Afro', line: 'Esto no se corta: se cuida.', length: 3, curly: true },
+  { id: 'braids', name: 'Trenzas', line: 'Esto no se hace aquí: lleva una tarde entera.', length: 6 },
+  { id: 'locs', name: 'Rastas', line: 'Esto no se hace aquí: lleva meses.', length: 6 },
+  { id: 'ponytail', name: 'Coleta', line: 'Esto no se corta: se recoge.', length: 5 },
+  { id: 'bald', name: 'Sin pelo', line: 'Aquí no hay nada que cortar.', length: 0 },
 ];
+
+/** Lo que hace la barbería al pasar de un peinado a otro. Lo que no es cortar lleva recargo. */
+export type HairService = 'Corte' | 'Extensiones' | 'Permanente';
+/** Veces el precio del peinado y veces los minutos del servicio. */
+export const HAIR_EXTRA_PRICE = 2;
+export const HAIR_EXTRA_MINUTES = 2;
+/** Lo que dice quien lo hace, si no es un corte (el corte dice la línea de su peinado). */
+export const HAIR_SERVICE_LINE: Readonly<Partial<Record<HairService, string>>> = {
+  Extensiones: 'Mechón a mechón, y no se nota dónde empieza lo tuyo.',
+  Permanente: 'Bigudíes, líquido y paciencia. El rizo aguanta.',
+};
+/** El tinte: igual en todas las barberías. */
+export const HAIR_DYE = { price: 24, minutes: 60 } as const;
+/** El color de quien no se lo ha cambiado (ver HAIR_COLORS). */
+export const FACTORY_HAIR_COLOR = 'negro';
 
 export const HAIR_IDS: ReadonlySet<string> = new Set(HAIRSTYLES.map((h) => h.id));
 

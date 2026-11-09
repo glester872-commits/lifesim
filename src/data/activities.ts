@@ -208,6 +208,14 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
     lines: ['Con hielo y limón, sin preguntar. Tere asiente, que a ella también le toca madrugar.'],
   },
   {
+    id: 'lu-copa',
+    name: 'Una copa con música (20 min)',
+    minutes: 20,
+    cost: 6,
+    effects: { energy: 4 },
+    lines: ['La canción la conoces y el hielo aguanta justo hasta el último estribillo.'],
+  },
+  {
     id: 'wine-glass',
     name: 'Una copa de tinto de la casa (30 min)',
     minutes: 30,

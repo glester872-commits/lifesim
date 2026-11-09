@@ -31,11 +31,14 @@ export class Menu {
   private readonly textEl: HTMLElement;
   private readonly listEl: HTMLElement;
   private readonly noteEl: HTMLElement;
+  private readonly figureEl: HTMLElement;
   private current: Open | null = null;
   private selected = 0;
   /** Identidad de la pantalla a la vista y cuándo apareció: una nueva no acepta elecciones durante PICK_LOCK_MS. */
   private shownScreen = '';
   private shownAt = -Infinity;
+  /** Avisa al cerrarse, por donde sea (Esc, Cerrar, cambio de escena): una prueba de ropa no sobrevive al menú. */
+  onClosed?: () => void;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -43,6 +46,7 @@ export class Menu {
       <div class="menu__panel">
         <p class="menu__title"></p>
         <p class="menu__text"></p>
+        <div class="menu__figure" hidden></div>
         <ol class="menu__list"></ol>
         <p class="menu__note"></p>
         <p class="menu__hint">W/S elegir · E aceptar · Esc salir</p>
@@ -57,6 +61,7 @@ export class Menu {
     this.textEl = pick('.menu__text');
     this.listEl = pick('.menu__list');
     this.noteEl = pick('.menu__note');
+    this.figureEl = pick('.menu__figure');
   }
 
   get isOpen(): boolean {
@@ -75,6 +80,7 @@ export class Menu {
     this.shownScreen = screenId;
     this.current = { options, onPick, onCancel, live };
     this.selected = Math.min(Math.max(0, selected), options.length - 1);
+    this.clearFigure();
     this.titleEl.textContent = title;
     this.textEl.textContent = text;
     this.noteEl.textContent = note;
@@ -84,7 +90,22 @@ export class Menu {
 
   close(): void {
     this.current = null;
+    this.clearFigure();
     this.root.classList.remove('is-open', 'is-peek');
+    this.onClosed?.();
+  }
+
+  /** Una imagen entre el texto y las opciones (el antes y después de un cambio de aspecto). Se quita con la pantalla. */
+  figure(el: HTMLElement): void {
+    this.figureEl.replaceChildren(el);
+    this.figureEl.hidden = false;
+    this.root.classList.add('has-figure');
+  }
+
+  private clearFigure(): void {
+    this.figureEl.replaceChildren();
+    this.figureEl.hidden = true;
+    this.root.classList.remove('has-figure');
   }
 
   /** Baja el menú al borde de la pantalla para ver lo que hay detrás (el probador). Se quita al cerrar. */

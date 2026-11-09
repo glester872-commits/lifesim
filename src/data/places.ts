@@ -89,7 +89,7 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'vintage-store', name: 'Retales · vintage', type: 'business', tags: ['shop', 'fashion', 'carmen', WORK], building: 'carmen-retales', capacity: 8, hours: [11, 21], days: [0, 1, 2, 3, 4, 5], why: 'Ropa vintage escogida, pieza a pieza: lo que compras te lo llevas puesto.' },
   { id: 'streetwear-store', name: 'Archivo · streetwear', type: 'business', tags: ['shop', 'fashion', 'carmen', WORK], building: 'carmen-archivo', capacity: 10, hours: [12, 21], days: [1, 2, 3, 4, 5, 6], why: 'Streetwear y piezas de archivo: lo que no vuelve a salir.' },
   { id: 'thrift-store', name: 'Segunda Vuelta', type: 'business', tags: ['shop', 'fashion', 'carmen', WORK], building: 'carmen-vuelta', capacity: 10, hours: [10, 20], days: [0, 1, 2, 3, 4, 5], why: 'Ropa de segunda mano a precio de saldo: vestirse distinto por pocos euros.' },
-  { id: 'tattoo-studio', name: 'Tinta Carmen · tatuajes', type: 'business', tags: ['service', 'carmen', WORK], building: 'carmen-tinta', capacity: 6, hours: [12, 21], days: [1, 2, 3, 4, 5], why: 'Tatuarse: una marca que se queda para siempre y se ve según lo que lleves.' },
+  { id: 'tattoo-studio', name: 'Tinta Carmen · tatuajes', type: 'business', tags: ['service', 'carmen', WORK], building: 'carmen-tinta', capacity: 6, hours: [12, 21], days: [1, 2, 3, 4, 5], why: 'Tatuarse, retocar, cubrir o eliminar: una marca que se ve según lo que lleves.' },
   { id: 'coffee-molinillo', name: 'Café Molinillo', type: 'business', tags: ['food', 'social', 'carmen', WORK], building: 'carmen-molinillo', anchors: ['MOLINILLO_TERRACE_01', 'MOLINILLO_TERRACE_02'], capacity: 8, hours: [8, 20], why: 'Un café y algo dulce en la calle más tranquila del barrio.' },
   { id: 'records-store', name: 'Discos Surco', type: 'business', tags: ['shop', 'carmen', WORK], building: 'carmen-surco', capacity: 5, hours: [17, 21], days: [1, 2, 3, 4, 5] },
   { id: 'barber-piercing', name: 'Navaja & Aro · barbería y piercing', type: 'business', tags: ['service', 'carmen', WORK], building: 'carmen-navaja', capacity: 5, hours: [11, 20.5], days: [1, 2, 3, 4, 5, 6] },
@@ -258,5 +258,12 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-cas-3', name: 'Calle Mayor 16', type: 'residence', tags: ['home'], building: 'cas-res-3', capacity: 14 },
   { id: 'cas-fruteria', name: 'Mercado · Frutas del Casco', type: 'business', tags: ['shop', 'food', WORK], building: 'cas-fruteria', capacity: 5, hours: [8, 21], hoursByDay: { sunday: [9, 14] }, why: 'Fruta y verdura del mercado, a precio de plaza.' },
   { id: 'metro-casco-antiguo', name: 'Metro · Casco Antiguo', type: 'transit', tags: ['transit'], building: 'cas-metro', capacity: 40 },
+  // Luna (data/luna.ts): tres portales de vecinos, el bar, la tienda de noche y la boca de metro.
+  { id: 'res-lu-1', name: 'Calle de la Luna 2', type: 'residence', tags: ['home'], building: 'lu-res-1', capacity: 12 },
+  { id: 'res-lu-2', name: 'Calle de la Luna 9', type: 'residence', tags: ['home'], building: 'lu-res-2', capacity: 10 },
+  { id: 'res-lu-3', name: 'Calle de la Luna 17', type: 'residence', tags: ['home'], building: 'lu-res-3', capacity: 14 },
+  { id: 'lu-bar', name: 'Bar Luna Llena', type: 'business', tags: ['food', 'social', 'nightlife', WORK], building: 'lu-bar', capacity: 16, hours: [18, 3], why: 'Una copa con música en la barra, hasta las tres.' },
+  { id: 'lu-abierto', name: 'Abierto Toda la Noche', type: 'business', tags: ['shop', 'food', WORK], building: 'lu-abierto', capacity: 6, hours: [17, 4], why: 'Lo que falta a última hora, hasta las cuatro.' },
+  { id: 'metro-luna', name: 'Metro · Luna', type: 'transit', tags: ['transit'], building: 'lu-metro', capacity: 40 },
   { id: 'plaza-puerta-central', name: 'Plaza de la Puerta', type: 'public', tags: ['social', 'outdoor'], anchors: ['PC_BENCH_01', 'PC_BENCH_02', 'PC_BENCH_03', 'PC_BENCH_04'], capacity: 40 },
 ];

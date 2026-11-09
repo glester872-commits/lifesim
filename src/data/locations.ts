@@ -15,6 +15,8 @@ import { CAMPO_ALTO } from './campoAlto.ts';
 import { CA_INTERIORS } from './campoAltoVenues.ts';
 import { CASCO_ANTIGUO } from './cascoAntiguo.ts';
 import { CAS_INTERIORS } from './cascoAntiguoVenues.ts';
+import { LUNA } from './luna.ts';
+import { LU_INTERIORS } from './lunaVenues.ts';
 import { DECATHLON_STORE } from './decathlon.ts';
 import { POLIGONO_NORTE } from './poligonoNorte.ts';
 import { BOXING } from './boxing.ts';
@@ -621,6 +623,16 @@ const CASCO_ANTIGUO_STATION = platform(
   [VESTIBULE_GUARD],
 );
 
+// Luna (data/luna.ts): la parada de L2 más allá del Casco Antiguo; la misma estación, sale a la Calle de la Luna.
+const LUNA_STATION = platform(
+  'luna-station',
+  'Metro · Luna',
+  { location: 'luna', spawn: 'lu-metro' },
+  { label: 'Línea 2 · subir al tren', location: 'vallesco-station' },
+  [],
+  [VESTIBULE_GUARD],
+);
+
 /** Los dos bares del Distrito Arena: la planta del Bar Ribera con su prefijo, su barra y su puerta (la gente, en data/arenaVenues.ts). */
 const arenaBar = (id: string, name: string, pre: string, ambient: string, wall: string): LocationDef => ({
   ...rebased(BAR, 'BAR_', `${pre}_`),
@@ -635,6 +647,17 @@ const ARENA_BARS: readonly LocationDef[] = [
   arenaBar('ar-larguero', 'Bar El Larguero', 'ARLARG', '#ffdcb4', 'Bufandas turquesa y naranja clavadas en la pared, una por cada ascenso. Hay tres. Y un hueco con un cartel: «el próximo».'),
   arenaBar('ar-grada', 'Taberna La Grada', 'ARGRADA', '#ffd8c0', 'Fotos de la grada en blanco y negro, de cuando el estadio era de cemento y la tribuna, de madera. Debajo, la tele grande.'),
 ];
+
+/** El bar de Luna: la planta del Bar Ribera con su prefijo, su barra y su puerta (la gente, en data/lunaVenues.ts). */
+const LUNA_BAR: LocationDef = {
+  ...rebased(BAR, 'BAR_', 'LUBAR_'),
+  id: 'lu-bar',
+  name: 'Bar Luna Llena',
+  ambient: '#f0d8e8',
+  portals: [{ id: 'exit', tx: 8, ty: 10, label: 'Salir a la calle', to: { location: 'luna', spawn: 'lu-bar' } }],
+  spots: [{ tx: 9, ty: 5, name: 'Barra · Bar Luna Llena', activities: ['lu-copa', 'club-water'] }],
+  inspects: [{ tx: 14, ty: 1, name: 'Pared', lines: ['Un calendario lunar de hace seis años, con las lunas llenas rodeadas a boli. Nadie se atreve a descolgarlo.'] }],
+};
 
 export const LOCATIONS: readonly LocationDef[] = [
   VALLESCO,
@@ -697,6 +720,11 @@ export const LOCATIONS: readonly LocationDef[] = [
   CASCO_ANTIGUO,
   CASCO_ANTIGUO_STATION,
   ...CAS_INTERIORS,
+  // Luna (data/luna.ts): la Calle de la Luna, su estación, la tienda y el bar.
+  LUNA,
+  LUNA_STATION,
+  ...LU_INTERIORS,
+  LUNA_BAR,
   // Polígono Norte (data/poligonoNorte.ts): la explanada y el aparcamiento de Decathlon, su estación y la nave por dentro.
   POLIGONO_NORTE,
   correspondence(DECATHLON_STATION, DECATHLON_L3, 'L3 exprés → Puerta Central'),
