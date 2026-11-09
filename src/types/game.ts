@@ -749,6 +749,9 @@ export interface GameStateData {
   /** Prendas compradas por el jugador. */
   wardrobe: string[];
 
+  /** Precio realmente pagado por id de prenda. Sin registro (de inicio, regalada, partida antigua), no se revende. */
+  paid?: Record<string, number>;
+
   /** Forma física del jugador. */
   fitness?: import('../systems/Fitness.ts').Fitness;
 

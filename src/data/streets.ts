@@ -801,4 +801,24 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       patrol([9, 21], ['CAS_METRO_WAIT_', 'CAS_PLAZA_'], 'Una vuelta por la plaza y la boca de metro. Día de mercado, ojo a los bolsos.', { weight: 0.4 }),
     ],
   },
+  // Luna (data/luna.ts): una calle cerrada que vive de noche. De día, casi nadie; la madrugada, con el bar abierto hasta las tres.
+  {
+    location: 'luna',
+    bands: [[17, 20, 'LOW'], [20, 23, 'MEDIUM'], [23, 24, 'HIGH'], [0, 3, 'MEDIUM'], [3, 6, 'LOW']],
+    weekday: [0, 0, 0, 0, 1, 2, 1],
+    scale: 1.5,
+    maxWalkers: 24,
+    bursts: [{ point: 'LU_METRO_ENTRANCE', every: [[18, 24, 6]], size: [1, 3] }],
+    trips: [
+      { role: 'commuter', label: 'Vecino camino del metro', line: 'Cuatro paradas hasta Vallesco. Hoy duermo de pie.', weight: 2, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
+      { role: 'bar-night', label: 'Alguien que va al bar', line: 'Una y a casa. Lo digo cada vez.', weight: 6, hours: [19, 2.5], from: HOMES_OR_CITY, to: { points: ['LU_BAR_ENTRANCE'] }, group: [1, 3], bond: ['friends', 'couple'] },
+      { role: 'bar-smoke', label: 'Alguien tomando el aire', line: 'Salgo un momento, que dentro ya no se oye ni lo que piensas.', weight: 4, hours: [20, 2.5], from: { points: ['LU_BAR_ENTRANCE'] }, to: { points: ['LU_CORRILLO_'] }, stay: [5, 12], then: { points: ['LU_BAR_ENTRANCE'] } },
+      { role: 'friends-meet', label: 'Amigos que han quedado en la calle', line: 'Hemos dicho a las once. Son las doce. Vamos bien.', weight: 4, hours: [18, 2], from: HOMES_OR_CITY, to: { points: ['LU_CORRILLO_'] }, stay: [5, 15], stayState: 'TALK', then: HOMES_OR_CITY, group: [2, 4], bond: ['friends'], max: 3 },
+      { role: 'metro-arrival', label: 'Alguien que sale del metro', line: 'Última parada. Más allá sólo hay cocheras.', weight: 4, hours: [17, 3], from: TRANSIT, to: { tags: ['nightlife', 'shop'], types: ['residence'], edge: true } },
+      { role: 'returning', label: 'Alguien de vuelta al metro', line: 'El metro no cierra. Yo debería.', weight: 4, hours: [22, 5], from: NIGHT_OUT, to: TRANSIT },
+      { role: 'metro-meet', label: 'Alguien esperando en la boca de metro', line: 'Ya sales, ¿no? Eso dijiste hace tres trenes.', weight: 2, hours: [18, 2], from: HOMES_OR_CITY, to: { points: ['LU_METRO_WAIT_'] }, stay: [3, 10], stayState: 'PHONE', max: 1 },
+      { role: 'passer', label: 'Alguien de paso', line: 'Me he pasado de parada. Otra vez.', weight: 1, from: CITY, to: CITY },
+      patrol([20, 3], ['LU_METRO_WAIT_', 'LU_CORRILLO_'], 'Una vuelta por la calle y la boca de metro. Si están tranquilos, nosotros también.', { weight: 0.4 }),
+    ],
+  },
 ];

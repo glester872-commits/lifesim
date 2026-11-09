@@ -20,10 +20,13 @@ import { attend as attendGathering, getGathering, hhmm, joinBlocker, lastAttenda
 import { getNpc } from '../data/npcs';
 import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
 import { absMinute } from '../systems/Handoff';
-import { HAIRSTYLES, type Appearance } from '../data/appearance';
+import { FACTORY_HAIR_COLOR, HAIR_COLORS, HAIR_DYE, HAIRSTYLES, type Appearance } from '../data/appearance';
 import type { RackDef } from '../types/game';
-import { haircut, sleeveOf, tattoo, visibleTattoos, withAppearance } from '../systems/Appearance';
-import { buyGarment, stockOf, takeOff, wear } from '../systems/Retail';
+import { dyeHair, haircut, haircutQuote, reworkTattoo, sleeveOf, tattoo, tattooAt, tattooWorks, visibleTattoos, withAppearance, type Restyle } from '../systems/Appearance';
+import { buildOf } from '../systems/Fitness';
+import { avatarPreview } from '../world/AvatarPreview';
+import type { HumanColors } from '../world/HumanArt';
+import { buyGarment, resaleValue, sellGarment, stockOf, takeOff, wear } from '../systems/Retail';
 import { CATEGORIES, getGarment, getStore } from '../data/retail';
 import { getDesign, getZone, STYLE_NAMES, TATTOO_DESIGNS, TATTOO_ZONES, type TattooZone } from '../data/tattoos';
 import { PLAYER_COLORS } from '../world/TextureFactory';
@@ -100,6 +103,8 @@ export class Menus {
   constructor(services: Services, host: MenuHost) {
     this.services = services;
     this.host = host;
+    // PROBAR no cierra el menú (lo rehace y lo baja con peek): cerrarlo de verdad siempre acaba la prueba.
+    services.menu.onClosed = () => this.endFitting();
   }
 
   // ------------------------------------------------------------- comprar
@@ -950,33 +955,64 @@ export class Menus {
       this.openTattoo(offer.title, offer.greeting, who, note, selected);
       return;
     }
-    const { state, menu, clock, dialogue } = this.services;
+    const { state, menu } = this.services;
     const current = state.appearanceOf('player');
-    const wearing = withAppearance(PLAYER_COLORS, current).hairStyle ?? 'short';
+    const wearingNow = () => withAppearance(PLAYER_COLORS, state.appearanceOf('player')).hairStyle ?? 'short';
+    const wearing = wearingNow();
     const cuts = HAIRSTYLES.filter((h) => h.price !== undefined);
     const options: MenuOption[] = cuts.map((h) => {
       const trial = haircut(state.wallet, current, wearing, h.id);
-      return { label: h.name, detail: h.id === wearing ? 'el tuyo' : euros(h.price!), disabled: trial.ok ? undefined : trial.message };
+      const quote = haircutQuote(wearing, h.id, offer.minutes);
+      return { label: h.name, detail: h.id === wearing ? 'el tuyo' : `${quote.service} · ${euros(quote.price)} · ${quote.minutes} min`, disabled: trial.ok ? undefined : trial.message };
     });
+    const canDye = HAIR_COLORS.some((s) => dyeHair(state.wallet, current, s.id).ok);
+    options.push({ label: 'Teñir el pelo', detail: `${euros(HAIR_DYE.price)} · ${HAIR_DYE.minutes} min`, disabled: canDye ? undefined : `No te llega: cuesta ${euros(HAIR_DYE.price)}.` });
     options.push({ label: 'Nada, gracias' });
     menu.open(`${offer.title} · ${who}`, `${offer.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
       if (i === cuts.length) {
+        this.openDye(id, who, offer.title, i);
+        return;
+      }
+      if (i === cuts.length + 1) {
         menu.close();
         return;
       }
-      const result = haircut(state.wallet, current, wearing, cuts[i].id);
+      const cut = cuts[i];
+      const result = haircut(state.wallet, current, wearing, cut.id);
       if (!result.ok) {
         this.openOffer(id, who, result.message, i);
         return;
       }
-      menu.close();
-      state.wallet = result.wallet;
-      // El aspecto es estado: se guarda con la partida y quien pinta al jugador lo repinta ya.
-      state.setAppearance('player', result.appearance);
-      clock.advanceMinutes(offer.minutes);
-      this.host.persist();
-      dialogue.start(who, [result.message, `${formatClock(state.day, state.hour, state.minute)}.`]);
+      const quote = haircutQuote(wearing, cut.id, offer.minutes);
+      const again = (message = ''): void => this.openOffer(id, who, message, i);
+      this.confirmLook(`${quote.service} · ${cut.name}`, `Te quedas con ${cut.name.toLowerCase()}: ${euros(quote.price)} y ${quote.minutes} minutos. Llevas ${euros(state.money)}.`, result.appearance, 'Confirmar', `${euros(quote.price)} · ${quote.minutes} min`, () => {
+        const done = haircut(state.wallet, state.appearanceOf('player'), wearingNow(), cut.id);
+        this.commitRestyle(done, 'Barbería', quote.minutes, who, [done.message], again);
+      }, again);
     }, undefined, note, selected);
+  }
+
+  /** El tinte de la barbería: los colores de pelo de los datos, al mismo precio en todas (HAIR_DYE). `back`: la opción a la que se vuelve. */
+  private openDye(id: OfferId, who: string, title: string, back: number, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    const current = state.appearanceOf('player');
+    const toBarber = (): void => this.openOffer(id, who, '', back);
+    const options: MenuOption[] = HAIR_COLORS.map((s) => {
+      const trial = dyeHair(state.wallet, current, s.id);
+      return { label: s.name, detail: (current.hairColor ?? FACTORY_HAIR_COLOR) === s.id ? 'el tuyo' : euros(HAIR_DYE.price), disabled: trial.ok ? undefined : trial.message };
+    });
+    options.push({ label: 'Volver' });
+    menu.open(`${title} · tinte`, `Tinte completo: ${euros(HAIR_DYE.price)} y ${HAIR_DYE.minutes} minutos. Llevas ${euros(state.money)}.`, options, (i) => {
+      if (i === HAIR_COLORS.length) return toBarber();
+      const swatch = HAIR_COLORS[i];
+      const result = dyeHair(state.wallet, current, swatch.id);
+      if (!result.ok) return this.openDye(id, who, title, back, result.message, i);
+      const again = (message = ''): void => this.openDye(id, who, title, back, message, i);
+      this.confirmLook(`Tinte · ${swatch.name}`, `Todo el pelo de ${swatch.name.toLowerCase()}: ${euros(HAIR_DYE.price)} y ${HAIR_DYE.minutes} minutos. Llevas ${euros(state.money)}.`, result.appearance, 'Confirmar', `${euros(HAIR_DYE.price)} · ${HAIR_DYE.minutes} min`, () => {
+        const done = dyeHair(state.wallet, state.appearanceOf('player'), swatch.id);
+        this.commitRestyle(done, 'Barbería', HAIR_DYE.minutes, who, [done.message], again);
+      }, again);
+    }, toBarber, note, selected);
   }
 
   /**
@@ -1224,6 +1260,7 @@ export class Menus {
    * el armario y sales con ello puesto (systems/Retail.ts).
    */
   private openStore(storeId: string, who: string, minutes: number, note = '', selected = 0): void {
+    this.endFitting();
     const { state, menu, clock } = this.services;
     const store = getStore(storeId);
     const current = state.appearanceOf('player');
@@ -1235,10 +1272,15 @@ export class Menus {
       const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment);
       return { label: l.def.name, detail: `${euros(l.price)}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
     });
+    if (store.buysBack) options.push({ label: 'Vender ropa' });
     options.push({ label: 'Sólo miraba' });
     menu.open(`${store.name} · ${who}`, `${store.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
-      if (i === lines.length) {
+      if (i === options.length - 1) {
         menu.close();
+        return;
+      }
+      if (i === lines.length) {
+        this.openSell(storeId, who, minutes);
         return;
       }
       const line = lines[i];
@@ -1248,18 +1290,73 @@ export class Menus {
         this.openStore(storeId, who, minutes, `Te pones ${line.def.name.toLowerCase()}.`, i);
         return;
       }
-      const result = buyGarment(state.wallet, state.wardrobe, current, storeId, line.garment);
+      const buy = (): void => {
+        const result = buyGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), storeId, line.garment);
+        if (result.ok) {
+          state.as(getGarment(line.garment).name, () => {
+            state.wallet = result.wallet;
+          });
+          state.wardrobe = result.wardrobe;
+          state.paid = { ...state.paid, [line.garment]: result.paid };
+          state.setAppearance('player', result.appearance);
+          clock.advanceMinutes(minutes);
+          this.host.persist();
+        }
+        this.openStore(storeId, who, minutes, result.message, i);
+      };
+      // Los accesorios se ven antes de pagar; en un puesto no hay probador.
+      if (line.def.slot === 'glasses' || line.def.slot === 'cap' || line.def.slot === 'scarf') {
+        this.confirmLook(line.def.name, `${line.def.description} Va ${SLOT_LABEL[line.def.slot]} y sales con ello puesto. Llevas ${euros(state.money)}.`, wear(current, line.garment), 'Comprar', euros(line.price), buy, () => this.openStore(storeId, who, minutes, '', i));
+        return;
+      }
+      buy();
+    }, undefined, note, selected);
+  }
+
+  /** Vender a una tienda que compra usado (RetailStoreDef.buysBack): tu ropa, con lo que te dan por cada prenda. */
+  private openSell(storeId: string, who: string, minutes: number, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    const owned = state.wardrobe.map(getGarment);
+    const paid = state.paid;
+    const options: MenuOption[] = owned.map((g) => {
+      const amount = resaleValue(paid[g.id]);
+      return amount > 0 ? { label: g.name, detail: `te dan ${euros(amount)}`, icon: garmentIcon(g) } : { label: g.name, disabled: 'Sin tique no la quieren.', icon: garmentIcon(g) };
+    });
+    options.push({ label: 'Volver' });
+    const back = (): void => this.openStore(storeId, who, minutes);
+    menu.open(`Vender ropa · ${who}`, `${owned.length ? 'Te la compro si traes el tique.' : 'No tienes ropa que vender.'} Llevas ${euros(state.money)}.`, options, (i) => {
+      if (i === owned.length) back();
+      else this.openSellConfirm(storeId, who, minutes, owned[i].id, i);
+    }, back, note, selected);
+  }
+
+  /** Antes de vender se ve lo que te dan. La regla y sus rechazos son de systems/Retail.sellGarment. */
+  private openSellConfirm(storeId: string, who: string, minutes: number, garment: string, index: number): void {
+    const { state, menu, clock } = this.services;
+    const def = getGarment(garment);
+    const amount = euros(resaleValue(state.paid[garment]));
+    const back = (note = ''): void => this.openSell(storeId, who, minutes, note, index);
+    menu.open(`${def.name} · te dan ${amount}`, 'Si la vendes, sale de tu armario. Para recuperarla habría que volver a comprarla.', [
+      { label: `VENDER · te dan ${amount}` },
+      { label: 'CANCELAR' },
+    ], (i) => {
+      if (i !== 0) {
+        back();
+        return;
+      }
+      const result = sellGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, storeId, garment);
       if (result.ok) {
-        state.as(getGarment(line.garment).name, () => {
+        state.as(`Venta: ${def.name}`, () => {
           state.wallet = result.wallet;
         });
         state.wardrobe = result.wardrobe;
+        state.paid = result.paid;
         state.setAppearance('player', result.appearance);
-        clock.advanceMinutes(minutes);
+        clock.advanceMinutes(5);
         this.host.persist();
       }
-      this.openStore(storeId, who, minutes, result.message, i);
-    }, undefined, note, selected);
+      back(result.message);
+    }, () => back());
   }
 
   /**
@@ -1268,6 +1365,7 @@ export class Menus {
    * El género y los precios son los de la tienda: los mismos que en caja.
    */
   openRack(rack: RackDef, note = '', selected = 0): void {
+    this.endFitting();
     const { state, menu } = this.services;
     menu.peek(false);
     const lines = stockOf(rack.store, state.wardrobe, state.appearanceOf('player'), rack.categories);
@@ -1318,6 +1416,7 @@ export class Menus {
         state.wallet = result.wallet;
       });
       state.wardrobe = result.wardrobe;
+      state.paid = { ...state.paid, [garment]: result.paid };
       // Si se la estaba probando, se queda puesta: ya es suya.
       this.fitting = null;
       clock.advanceMinutes(5);
@@ -1360,6 +1459,7 @@ export class Menus {
    * siempre en cada hueco. Cambiarse no cuesta dinero, sólo un par de minutos.
    */
   openWardrobe(note = '', selected = 0): void {
+    this.endFitting();
     const { state, menu, clock } = this.services;
     const current = state.appearanceOf('player');
     const owned = state.wardrobe.map(getGarment);
@@ -1408,8 +1508,8 @@ export class Menus {
     const current = state.appearanceOf('player');
     const sleeve = sleeveOf(PLAYER_COLORS, current);
     const options: MenuOption[] = TATTOO_ZONES.map((z) => {
-      const taken = current.tattoos?.find((t) => t.zone === z.id);
-      if (taken) return { label: z.name, detail: getDesign(taken.design).name, disabled: 'Ahí ya tienes uno.' };
+      const taken = tattooAt(current, z.id);
+      if (taken) return { label: z.name, detail: `${getDesign(taken).name} · retocar o quitar` };
       const shown = z.hiddenBy !== 'always' && !z.hiddenBy.includes(sleeve);
       return { label: z.name, detail: z.hiddenBy === 'always' ? 'bajo la ropa' : shown ? 'se verá' : 'tapado ahora' };
     });
@@ -1419,12 +1519,66 @@ export class Menus {
         menu.close();
         return;
       }
-      this.openDesigns(title, greeting, who, TATTOO_ZONES[i].id, i);
+      if (tattooAt(current, TATTOO_ZONES[i].id)) this.openTattooWork(title, greeting, who, TATTOO_ZONES[i].id, i);
+      else this.openDesigns(title, greeting, who, TATTOO_ZONES[i].id, i);
     }, undefined, note, selected);
   }
 
-  private openDesigns(title: string, greeting: string, who: string, zone: TattooZone, zoneIndex: number, note = '', selected = 0): void {
+  /** Lo que hay en una zona ocupada: retocar, cubrir o eliminar (systems/Appearance.tattooWorks). */
+  private openTattooWork(title: string, greeting: string, who: string, zone: TattooZone, zoneIndex: number, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    const current = state.appearanceOf('player');
+    const design = tattooAt(current, zone);
+    const toZones = (message = ''): void => this.openTattoo(title, greeting, who, message, zoneIndex);
+    if (!design) return toZones();
+    const works = tattooWorks(current, zone);
+    const options: MenuOption[] = works.map((w) => {
+      const trial = reworkTattoo(state.wallet, current, zone, w.action, w.design);
+      return { label: w.label, detail: `${euros(w.price)} · ${w.minutes} min`, disabled: trial.ok ? undefined : trial.message };
+    });
+    options.push({ label: 'Otra zona' });
+    const old = getDesign(design).name;
+    menu.open(`${title} · ${getZone(zone).name}`, `Aquí llevas ${old}. Encima sólo se retoca dentro de su estilo o se cubre con tinta más oscura. Llevas ${euros(state.money)}.`, options, (i) => {
+      if (i === works.length) return toZones();
+      const work = works[i];
+      const result = reworkTattoo(state.wallet, current, zone, work.action, work.design);
+      if (!result.ok) return this.openTattooWork(title, greeting, who, zone, zoneIndex, result.message, i);
+      const name = work.design ? getDesign(work.design).name : '';
+      const effect = work.action === 'remove' ? `Eliminar ${old} en una sesión. No se puede deshacer.` : work.action === 'retouch' ? `${old} pasa a ser ${name}.` : `${name} tapa ${old}; lo de debajo no vuelve.`;
+      const again = (message = ''): void => this.openTattooWork(title, greeting, who, zone, zoneIndex, message, i);
+      this.confirmLook(`${work.label} · ${getZone(zone).name}`, `${effect} ${euros(work.price)} y ${work.minutes} minutos. Llevas ${euros(state.money)}.`, result.appearance, work.action === 'remove' ? 'Eliminar para siempre' : 'Confirmar', `${euros(work.price)} · ${work.minutes} min`, () => {
+        const done = reworkTattoo(state.wallet, state.appearanceOf('player'), zone, work.action, work.design);
+        this.commitRestyle(done, 'Tatuaje', work.minutes, who, [done.message], again);
+      }, again);
+    }, () => toZones(), note, selected, false, `tattoo-work:${zone}`);
+  }
+
+  /** Precio, duración, efecto y antes/después en una sola pantalla: nada se cobra hasta aceptar. */
+  private confirmLook(title: string, text: string, after: Appearance, accept: string, detail: string, run: () => void, back: () => void): void {
+    const { state, menu } = this.services;
+    const colors = (look: Appearance): HumanColors => ({ ...withAppearance(PLAYER_COLORS, look), build: buildOf(state.fitness) });
+    const preview = avatarPreview(colors(state.appearanceOf('player')), colors(after), window.innerWidth, window.innerHeight);
+    menu.open(title, text, [{ label: accept, detail }, { label: 'Volver' }], (i) => (i === 0 ? run() : back()), back, preview.note, 0, false, `look:${title}`);
+    menu.figure(preview.el);
+  }
+
+  /** Aplica un cambio de aspecto ya aceptado. Se valida otra vez contra el estado: si ya no vale, no se cobra. */
+  private commitRestyle(result: Restyle, ledger: string, minutes: number, who: string, lines: readonly string[], back: (note?: string) => void): void {
     const { state, menu, clock, dialogue } = this.services;
+    if (!result.ok) return back(result.message);
+    menu.close();
+    state.as(ledger, () => {
+      state.wallet = result.wallet;
+    });
+    // El aspecto es estado: se guarda con la partida y quien pinta al jugador lo repinta ya.
+    state.setAppearance('player', result.appearance);
+    clock.advanceMinutes(minutes);
+    this.host.persist();
+    dialogue.start(who, [...lines, `${formatClock(state.day, state.hour, state.minute)}.`]);
+  }
+
+  private openDesigns(title: string, greeting: string, who: string, zone: TattooZone, zoneIndex: number, note = '', selected = 0): void {
+    const { state, menu } = this.services;
     const current = state.appearanceOf('player');
     const back = (): void => this.openTattoo(title, greeting, who, '', zoneIndex);
     const options: MenuOption[] = TATTOO_DESIGNS.map((d) => {
@@ -1437,19 +1591,12 @@ export class Menus {
       const design = TATTOO_DESIGNS[i];
       const result = tattoo(state.wallet, current, zone, design.id);
       if (!result.ok) return this.openDesigns(title, greeting, who, zone, zoneIndex, result.message, i);
-      menu.close();
-      state.as('Tatuaje', () => {
-        state.wallet = result.wallet;
-      });
-      state.setAppearance('player', result.appearance);
-      clock.advanceMinutes(design.minutes);
-      this.host.persist();
       const shown = visibleTattoos(PLAYER_COLORS, result.appearance).length > visibleTattoos(PLAYER_COLORS, current).length;
-      dialogue.start(who, [
-        result.message,
-        shown ? 'Con lo que llevas, se ve.' : 'Con lo que llevas, no se ve. Es tuyo igual.',
-        `${formatClock(state.day, state.hour, state.minute)}.`,
-      ]);
+      const again = (message = ''): void => this.openDesigns(title, greeting, who, zone, zoneIndex, message, i);
+      this.confirmLook(`${design.name} · ${getZone(zone).name}`, `${design.name}, ${STYLE_NAMES[design.style]}: ${euros(design.price)} y ${design.minutes} minutos. Llevas ${euros(state.money)}.`, result.appearance, 'Confirmar', `${euros(design.price)} · ${design.minutes} min`, () => {
+        const done = tattoo(state.wallet, state.appearanceOf('player'), zone, design.id);
+        this.commitRestyle(done, 'Tatuaje', design.minutes, who, [done.message, shown ? 'Con lo que llevas, se ve.' : 'Con lo que llevas, no se ve. Es tuyo igual.'], again);
+      }, again);
     }, back, note, selected);
   }
 

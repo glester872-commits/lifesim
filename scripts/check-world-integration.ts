@@ -30,7 +30,7 @@ for (const id of mapped) {
   assert.ok(d.places.length > 0, `${id} sin lugares`);
   assert.ok(d.stop, `${id} sin parada de metro (propia o compartida)`);
 }
-for (const id of ['luna']) assert.equal(tree.find((n) => n.id === id)!.maps.length, 0, `${id} tiene mapa: actualiza este check`);
+for (const id of ['luna']) assert.ok(tree.find((n) => n.id === id)!.maps.length > 0, `${id} sin mapa`);
 for (const z of ZONES) assert.ok(z.districtId in DISTRICT_IDENTITIES, `zona ${z.id}: barrio ${z.districtId} desconocido`);
 for (const loc of allLocations()) assert.ok(districtAt(loc.id), `${loc.id}: de ningún barrio`);
 for (const loc of allLocations().filter((l) => l.kind !== 'interior')) assert.ok(loc.id in LOCATION_DISTRICT, `calle ${loc.id} fuera de LOCATION_DISTRICT`);
@@ -48,7 +48,7 @@ assert.ok(toRibera.mode === 'metro' && toRibera.minutes > 0 && toRibera.fare > 0
 const fromCarmen = travel('vintage', 'puerta-central');
 assert.ok(fromCarmen.mode === 'metro' && fromCarmen.from === 'vallesco', 'desde el Carmen, el metro de Vallesco');
 assert.equal(travel('vallesco', 'arena').mode, 'metro', 'al Arena se llega en metro');
-assert.equal(travel('vallesco', 'luna').mode, 'none', 'Luna no tiene mapa todavía');
+assert.equal(travel('vallesco', 'luna').mode, 'metro', 'a Luna se llega en metro');
 // También desde un sitio (calle, interior, andén), no sólo desde un barrio: el traspaso entre barrios lo resuelve.
 assert.equal(travel('district', 'arena').mode, 'metro', 'desde la calle de Vallesco al Arena');
 assert.deepEqual(travel('cafe', 'vintage'), { mode: 'walk', map: 'district' }, 'del café al Carmen se anda');
@@ -69,7 +69,7 @@ const lateNight = at(saturday, 1);
 for (const id of mapped) assert.ok(dz(midday, id).open > dz(lateNight, id).open, `${id}: no cierra nada de madrugada`);
 assert.ok(mapped.some((id) => dz(lateNight, id).nightlife), 'de madrugada no hay noche en ningún barrio');
 assert.ok(mapped.every((id) => !dz(morning, id).nightlife), 'noche a las 9 de la mañana');
-assert.ok(dz(at(saturday, 23), 'luna').nightlife && !dz(at(saturday, 12), 'luna').nightlife, 'Luna (sin mapa) sin ritmo de noche');
+assert.ok(dz(at(saturday, 23), 'luna').nightlife && !dz(at(saturday, 12), 'luna').nightlife, 'Luna sin ritmo de noche');
 // Cada barrio a su ritmo: Velaria se vacía de noche, la Ribera se llena al atardecer.
 assert.ok(dz(at(saturday - 3, 23), 'velaria').activity < dz(at(saturday - 3, 9), 'velaria').activity, 'Velaria no se vacía de noche');
 assert.ok(dz(at(saturday - 3, 20), 'ribera').activity > dz(at(saturday - 3, 12), 'ribera').activity, 'la Ribera no se anima al atardecer');

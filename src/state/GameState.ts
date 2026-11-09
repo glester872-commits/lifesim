@@ -89,6 +89,10 @@ export class GameState extends Phaser.Events.EventEmitter {
   private _wardrobe:
     string[];
 
+  /** Lo realmente pagado por cada prenda del armario. Sin registro, no se puede revender (systems/Retail). */
+  private _paid:
+    Record<string, number>;
+
   private _fitness:
     Fitness;
 
@@ -194,6 +198,10 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._wardrobe = [
       ...initial.wardrobe,
     ];
+
+    this._paid = {
+      ...initial.paid,
+    };
 
     this._fitness = {
       ...(
@@ -531,6 +539,16 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._wardrobe = [
       ...ids,
     ];
+    // Lo que sale del armario no deja su tique colgado.
+    this._paid = Object.fromEntries(Object.entries(this._paid).filter(([id]) => ids.includes(id)));
+  }
+
+  get paid(): Record<string, number> {
+    return { ...this._paid };
+  }
+
+  set paid(prices: Record<string, number>) {
+    this._paid = { ...prices };
   }
 
   /**
@@ -768,6 +786,10 @@ export class GameState extends Phaser.Events.EventEmitter {
       wardrobe: [
         ...this._wardrobe,
       ],
+
+      paid: {
+        ...this._paid,
+      },
 
       fitness: {
         ...this._fitness,

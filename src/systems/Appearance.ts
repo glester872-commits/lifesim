@@ -1,8 +1,8 @@
 // Sin Phaser: lo usan world/TextureFactory.ts, scenes/Menus.ts y scripts/check-economy.ts.
-import { EYE_COLORS, getHair, HAIR_COLORS, SKIN_TONES, swatchColor, type Appearance, type HairStyle } from '../data/appearance.ts';
+import { EYE_COLORS, FACTORY_HAIR_COLOR, getHair, HAIR_COLORS, HAIR_DYE, HAIR_EXTRA_MINUTES, HAIR_EXTRA_PRICE, HAIR_SERVICE_LINE, SKIN_TONES, swatchColor, type Appearance, type HairService, type HairStyle } from '../data/appearance.ts';
 import { getGarment, type Sleeve } from '../data/retail.ts';
 import { wearOf } from '../data/outfits.ts';
-import { getDesign, getZone, type TattooZone } from '../data/tattoos.ts';
+import { getDesign, getZone, TATTOO_COVER_PRICE, TATTOO_DESIGNS, TATTOO_REMOVE_MINUTES, TATTOO_REMOVE_PRICE, TATTOO_RETOUCH, type TattooZone } from '../data/tattoos.ts';
 import type { HumanColors } from '../world/HumanArt.ts';
 import type { NpcLook } from '../types/game.ts';
 import { euros, type Wallet } from './Commerce.ts';
@@ -25,6 +25,8 @@ export function visibleTattoos(base: HumanColors, changes: Appearance | undefine
   return (changes?.tattoos ?? []).flatMap((t) => {
     const zone = getZone(t.zone);
     if (!zone.spot || zone.hiddenBy === 'always' || zone.hiddenBy.includes(sleeve)) return [];
+    // La bufanda da dos vueltas al cuello: lo que va ahí queda debajo.
+    if (zone.spot === 'neck' && changes?.scarf) return [];
     return [{ spot: zone.spot, color: getDesign(t.design).ink }];
   });
 }
@@ -118,6 +120,9 @@ export function withUniform(base: HumanColors, uniform: NpcLook | null): HumanCo
     outfit: uniform.belt ? undefined : uniform.outfit,
     belt: uniform.belt,
     ink: [],
+    // De uniforme, sin gorra ni bufanda propias; las gafas se quedan. La apariencia guardada no cambia.
+    cap: undefined,
+    scarf: undefined,
   };
 }
 
@@ -131,23 +136,52 @@ export interface Restyle {
 
 const paid = (w: Wallet, price: number): Wallet => ({ money: Math.round((w.money - price) * 100) / 100, inventory: { ...w.inventory }, cards: { ...w.cards } });
 
+export interface HaircutQuote {
+  service: HairService;
+  price: number;
+  minutes: number;
+}
+
 /**
- * Cortarse el pelo: cobra lo que vale ese corte y deja el peinado nuevo en el
- * aspecto. Pura, como las compras de systems/Commerce.ts: quien llama aplica
- * cartera y aspecto al estado y adelanta el reloj lo que dura.
+ * Qué servicio es pasar de un peinado a otro. El pelo no crece en el juego: alargar o rizar no se prohíbe (sería un
+ * callejón sin salida), es otro servicio y lleva su recargo. Alargar manda sobre rizar: un rapado no admite permanente.
+ */
+export function haircutQuote(wearing: HairStyle, hair: HairStyle, baseMinutes: number): HaircutQuote {
+  const from = getHair(wearing);
+  const to = getHair(hair);
+  const service: HairService = to.length > from.length ? 'Extensiones' : to.curly && !from.curly ? 'Permanente' : 'Corte';
+  const extra = service !== 'Corte';
+  return { service, price: (to.price ?? 0) * (extra ? HAIR_EXTRA_PRICE : 1), minutes: baseMinutes * (extra ? HAIR_EXTRA_MINUTES : 1) };
+}
+
+/**
+ * Cortarse el pelo: cobra lo que vale ese servicio (haircutQuote) y deja el peinado
+ * nuevo en el aspecto. Pura, como las compras de systems/Commerce.ts: quien llama
+ * aplica cartera y aspecto al estado y adelanta el reloj lo que dura.
  */
 export function haircut(w: Wallet, current: Appearance, wearing: HairStyle, hair: HairStyle): Restyle {
   const def = getHair(hair);
   const refuse = (message: string): Restyle => ({ ok: false, wallet: w, appearance: current, message });
   if (def.price === undefined) return refuse(def.line);
   if (hair === wearing) return refuse('Ya lo llevas así.');
-  if (w.money + 1e-9 < def.price) return refuse(`No te llega: cuesta ${euros(def.price)}.`);
-  return { ok: true, wallet: paid(w, def.price), appearance: { ...current, hair }, message: def.line };
+  const { service, price } = haircutQuote(wearing, hair, 0);
+  if (w.money + 1e-9 < price) return refuse(`No te llega: cuesta ${euros(price)}.`);
+  return { ok: true, wallet: paid(w, price), appearance: { ...current, hair }, message: HAIR_SERVICE_LINE[service] ?? def.line };
+}
+
+/** Teñirse: cambia sólo el color del pelo, al precio único de HAIR_DYE. Pura, como haircut. */
+export function dyeHair(w: Wallet, current: Appearance, color: string): Restyle {
+  const swatch = HAIR_COLORS.find((s) => s.id === color);
+  const refuse = (message: string): Restyle => ({ ok: false, wallet: w, appearance: current, message });
+  if (!swatch) return refuse('Ese color no lo tenemos.');
+  if ((current.hairColor ?? FACTORY_HAIR_COLOR) === color) return refuse('Ya lo llevas de ese color.');
+  if (w.money + 1e-9 < HAIR_DYE.price) return refuse(`No te llega: cuesta ${euros(HAIR_DYE.price)}.`);
+  return { ok: true, wallet: paid(w, HAIR_DYE.price), appearance: { ...current, hairColor: color }, message: `${swatch.name}, de raíz a puntas. Una semana sin agua muy caliente.` };
 }
 
 /**
  * Tatuarse: un diseño en una zona libre. Cobra, y el tatuaje queda en el aspecto
- * para siempre; que se vea o no depende de lo que se lleve puesto.
+ * (encima sólo se trabaja con reworkTattoo); que se vea o no depende de lo que se lleve puesto.
  */
 export function tattoo(w: Wallet, current: Appearance, zone: TattooZone, design: string): Restyle {
   const def = getDesign(design);
@@ -161,4 +195,83 @@ export function tattoo(w: Wallet, current: Appearance, zone: TattooZone, design:
     appearance: { ...current, tattoos: [...(current.tattoos ?? []), { zone, design }] },
     message: `${def.name} en ${getZone(zone).name.toLowerCase()}. Film, crema dos veces al día y nada de sol en dos semanas.`,
   };
+}
+
+export type TattooAction = 'retouch' | 'cover' | 'remove';
+
+export interface TattooWork {
+  action: TattooAction;
+  /** El diseño que queda; sin él, la zona se queda limpia. */
+  design?: string;
+  label: string;
+  price: number;
+  minutes: number;
+}
+
+const cents = (n: number): number => Math.round(n * 100) / 100;
+const lightness = (hex: string): number => {
+  const [r, g, b] = rgbOf(hex);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/** El diseño que se ve en la zona. En una partida heredada con duplicados, el último: es el que se pinta encima. */
+export function tattooAt(current: Appearance, zone: TattooZone): string | undefined {
+  return current.tattoos?.filter((t) => t.zone === zone).at(-1)?.design;
+}
+
+/**
+ * Qué se puede hacer sobre lo que hay en una zona, con su precio y su rato, sacados del catálogo. Un diseño del mismo
+ * estilo siempre es retoque aunque su tinta sea más oscura: es lo más barato. Eliminar siempre se puede.
+ */
+export function tattooWorks(current: Appearance, zone: TattooZone): TattooWork[] {
+  const design = tattooAt(current, zone);
+  if (!design) return [];
+  const old = getDesign(design);
+  const fits = TATTOO_DESIGNS.filter((d) => d.id !== old.id && !d.not?.includes(zone));
+  return [
+    ...fits.filter((d) => d.style === old.style).map((d): TattooWork => ({ action: 'retouch', design: d.id, label: `Retocar a ${d.name}`, price: cents(d.price * TATTOO_RETOUCH), minutes: Math.ceil(d.minutes * TATTOO_RETOUCH) })),
+    ...fits.filter((d) => d.style !== old.style && lightness(d.ink) < lightness(old.ink)).map((d): TattooWork => ({ action: 'cover', design: d.id, label: `Cubrir con ${d.name}`, price: cents(d.price * TATTOO_COVER_PRICE), minutes: d.minutes })),
+    { action: 'remove', label: 'Eliminar', price: cents(old.price * TATTOO_REMOVE_PRICE), minutes: old.minutes * TATTOO_REMOVE_MINUTES },
+  ];
+}
+
+/** Retocar, cubrir o eliminar. Pura, como tattoo; sólo vale lo que ofrece tattooWorks. Deja una sola marca en la zona. */
+export function reworkTattoo(w: Wallet, current: Appearance, zone: TattooZone, action: TattooAction, design?: string): Restyle {
+  const refuse = (message: string): Restyle => ({ ok: false, wallet: w, appearance: current, message });
+  const work = tattooWorks(current, zone).find((x) => x.action === action && x.design === design);
+  if (!work) return refuse('Ese trabajo ahí no se puede hacer.');
+  if (w.money + 1e-9 < work.price) return refuse(`No te llega: cuesta ${euros(work.price)}.`);
+  const old = getDesign(tattooAt(current, zone)!).name;
+  const rest = (current.tattoos ?? []).filter((t) => t.zone !== zone);
+  const tattoos = design ? [...rest, { zone, design }] : rest;
+  const { tattoos: _old, ...others } = current;
+  const message = action === 'remove' ? `${old}, fuera. La piel tardará en calmarse: crema y nada de sol.`
+    : action === 'retouch' ? `Retocado: ahora es ${getDesign(design!).name}. Film y crema dos semanas.`
+    : `${getDesign(design!).name} tapa ${old}. Film y crema dos semanas.`;
+  return { ok: true, wallet: paid(w, work.price), appearance: tattoos.length > 0 ? { ...others, tattoos } : others, message };
+}
+
+/** Distancia RGB y píxeles que hacen falta para que un cambio se lea a tamaño de juego (AVATAR-LV06.md, D8). */
+const LEGIBLE_RGB = 48;
+const LEGIBLE_PIXELS = 2;
+
+/**
+ * Compara dos sprites RGBA sobre cada suelo: `none`, no cambia nada visible; `legible`, se lee sobre todos;
+ * `faint`, cambia pero sobre algún suelo no llega al umbral.
+ */
+export function lookChange(before: Uint8ClampedArray, after: Uint8ClampedArray, floors: readonly string[]): 'none' | 'legible' | 'faint' {
+  let changed = false;
+  let legible = true;
+  for (const floor of floors) {
+    const f = rgbOf(floor);
+    const over = (d: Uint8ClampedArray, i: number, c: number): number => d[i + c] * (d[i + 3] / 255) + f[c] * (1 - d[i + 3] / 255);
+    let strong = 0;
+    for (let i = 0; i < before.length; i += 4) {
+      const distance = Math.hypot(over(before, i, 0) - over(after, i, 0), over(before, i, 1) - over(after, i, 1), over(before, i, 2) - over(after, i, 2));
+      if (distance > 0) changed = true;
+      if (distance >= LEGIBLE_RGB) strong++;
+    }
+    if (strong < LEGIBLE_PIXELS) legible = false;
+  }
+  return !changed ? 'none' : legible ? 'legible' : 'faint';
 }

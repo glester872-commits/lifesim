@@ -284,6 +284,32 @@ body.has-touch .hud__key {
   transform: translate(-50%, 0);
 }
 
+/* Con antes y después: cuatro parejas a factor 4 caben a lo ancho (world/AvatarPreview). */
+#menu.has-figure {
+  /* Es alto: por encima de los botones del HUD, que van después en el DOM. */
+  z-index: 1;
+  width: min(580px, calc(100vw - 32px));
+}
+
+.menu__figure {
+  margin-top: 10px;
+}
+
+.menu__figure canvas {
+  display: block;
+  margin: 0 auto;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.menu__caption {
+  margin-top: 4px !important;
+  text-align: center;
+  font-family: var(--ui-mono);
+  font-size: 11px;
+  color: rgba(232, 227, 218, 0.62);
+}
+
 .menu__panel {
   border: 2px solid rgba(232, 227, 218, 0.16);
   background: rgba(14, 15, 22, 0.96);

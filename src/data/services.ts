@@ -104,6 +104,7 @@ export const SERVICE_OFFERS = {
   'bar-ribera': { kind: 'activities', title: 'Barra · Bar Ribera', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'bar-larguero': { kind: 'activities', title: 'Barra · Bar El Larguero', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
   'bar-grada': { kind: 'activities', title: 'Barra · Taberna La Grada', activities: ['bar-cana', 'bar-tinto', 'bar-refresco'] },
+  'bar-luna': { kind: 'activities', title: 'Barra · Bar Luna Llena', activities: ['lu-copa', 'club-water'] },
   'police-desk': { kind: 'police', title: 'Comisaría de Puerta Central · recepción', street: 'puerta-central' },
   // ALPHA-10 · la oficina de barrio de la Ronda (data/ronda.ts): la misma recepción, con el estado de Vallesco.
   'police-desk-vallesco': { kind: 'police', title: 'Policía de barrio · Vallesco · recepción', street: 'district' },

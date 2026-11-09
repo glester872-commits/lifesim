@@ -32,7 +32,7 @@ const MONDAY = 8;
 assert.ok(profile.drinks && profile.drinks.length >= 4, 'el bar no declara qué se bebe');
 assert.deepEqual([...new Set(profile.drinks)].sort(), ['beer', 'soft', 'water', 'wine'], 'las bebidas del bar');
 // Los bares del Distrito Arena son la planta del Bar Ribera con su prefijo: también se ve lo que se bebe.
-const BARS = new Set(['bar-ribera', 'ar-larguero', 'ar-grada']);
+const BARS = new Set(['bar-ribera', 'ar-larguero', 'ar-grada', 'lu-bar']);
 for (const p of POPULATION_PROFILES) if (!BARS.has(p.place)) assert.equal(p.drinks, undefined, `${p.place}: bebidas fuera del bar`);
 const stools = Object.keys(loc.points ?? {}).filter((id) => id.startsWith('BAR_STOOL_'));
 assert.ok(stools.length >= 3 && stools.every((id) => loc.points![id].kind === 'seat'), 'taburetes del bar');

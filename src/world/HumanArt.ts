@@ -1,7 +1,7 @@
-import { PALETTE } from '../config/constants';
+import { PALETTE } from '../config/constants.ts';
 import type { Facing, NpcLook } from '../types/game';
-import { px, shade, type Ctx } from './paint';
-import { shadeForm } from './Shading';
+import { px, shade, type Ctx } from './paint.ts';
+import { shadeForm } from './Shading.ts';
 
 /**
  * Personas de 16x24 con los pies en la base: jugador, personajes con nombre y
@@ -317,7 +317,11 @@ function face(ctx: Ctx, side: boolean, b: number, c: HumanColors): void {
     else if (c.facialHair === 'moustache') px(ctx, hair, 11, 7 + b, 1, 1);
     else if (c.facialHair === 'stubble') px(ctx, skinShade, 8, 7 + b, 4, 2);
     if (c.brows === 'thick') px(ctx, hair, 10, 4 + b, 2, 1);
-    if (c.glasses) px(ctx, c.glasses === 'dark' ? PALETTE.ink : c.glassesFrame ?? '#3a3a44', 9, 5 + b, 4, 1);
+    if (c.glasses === 'dark') {
+      // De perfil: el cristal delante y la patilla, del color de la montura (sin montura propia, todo oscuro).
+      px(ctx, PALETTE.ink, 11, 5 + b, 2, 1);
+      px(ctx, c.glassesFrame ?? PALETTE.ink, 9, 5 + b, 2, 1);
+    } else if (c.glasses) px(ctx, c.glassesFrame ?? '#3a3a44', 9, 5 + b, 4, 1);
     if (c.piercing === 'nose') px(ctx, '#d8d2c4', 12, 6 + b, 1, 1);
     if (c.headphones) px(ctx, c.headphones, 6, 4 + b, 2, 3);
     return;
@@ -800,6 +804,7 @@ function hairFront(ctx: Ctx, back: boolean, b: number, c: HumanColors): void {
       px(ctx, hair, 4, 3 + b, 8, 3);
       px(ctx, tone(hair, -0.14), 4, 5 + b, 8, 1);
     }
+    hat(ctx, back, b, c);
     return;
   }
   if (style === 'bald') {

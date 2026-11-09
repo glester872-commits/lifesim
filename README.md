@@ -749,7 +749,7 @@ Conocidas y comprobables:
 - Hay economía doméstica, compras, descanso, tiempo atmosférico y estaciones.
   No hay préstamos ni inversiones. Algunos objetos de eventos, como el folleto
   de cursos, siguen sin desbloquear una actividad.
-- Un mapa por barrio; las calles terminan en el límite. Luna no tiene mapa. Arena
+- Un mapa por barrio; las calles terminan en el límite. Luna tiene una calle cerrada con metro. Arena
   sí tiene barrio, estadio y partido.
 - Creador de personaje al empezar (Nueva partida): nombre, 8 tonos de piel, 11 peinados, 9 colores de pelo, 6 de ojos y ropa inicial del catálogo de las tiendas (entra en el armario). Sólo estética: ni cuerpo, ni colisión, ni dinero. A 16 × 24 el ojo son dos píxeles: el color va en el de abajo y no hay estilos de ojo; tampoco hay accesorios (gafas, gorro) porque la ropa no los dibuja todavía. Después, el pelo se cambia en la barbería y la ropa en casa o en las tiendas; piel, ojos y color de pelo, de momento, sólo al crear el personaje.
 - Hay pantalla de inicio (Continuar, Nueva partida con copia de seguridad, Controles, Ajustes, Acerca de) y pausa (Esc o «Menú»: guardar y volver al inicio). Una sola ranura de guardado, en el navegador, con copia de la anterior al empezar o importar, recuperación de esa copia si la partida no se lee, y exportar/importar a un archivo JSON validado (Partidas). En móvil el joystick mueve la
@@ -842,7 +842,7 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 
 - **Árbol** — `worldTree()`: cada barrio de `data/districtIdentity.ts` con sus mapas, zonas, lugares y parada. La Calle
   del Carmen es un barrio dentro del mapa de Vallesco (manda la zona); un interior es del barrio de la calle a la que
-  sale. Luna existe como estado lógico, sin mapa.
+  sale. Luna tiene mapa: una calle cerrada, con metro, bar y tienda.
 - **Viajar** — `travel(a, b)`: andando si comparten mapa, metro con minutos y tarifa si no, o «aún sin mapa».
 - **Un solo reloj** — todo es función de día y hora con semilla (horarios, rutinas, pop-ups, artistas, peleas,
   tiempo, densidad por barrio, partido del Arena). `cityAt(reloj)` da la ciudad entera a esa hora sin cargar nada:
