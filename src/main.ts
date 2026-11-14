@@ -211,7 +211,7 @@ const reviewAgenda = (): void => {
 
   const lines = [
     ...r.due.map((c) => {
-      const hint = travelHint(position, c.where, { now, balance: s.cards.transport });
+      const hint = travelHint(position, c.where, { now, balance: s.cards.transport ?? null, metroJourney: s.metroJourney });
       const label = marginLabel(c, now, hint);
       return `${label ? `${label[0].toUpperCase()}${label.slice(1)}` : 'Próximo'}: ${commitmentLine(c, now, hint)}.`;
     }),
@@ -234,7 +234,7 @@ const reviewAgenda = (): void => {
   else {
     // Con hora y sitio, el HUD dice la salida y la categoría (corto); el texto del viaje se lee en Hoy.
     const timed = !!next.where && !next.deadline;
-    const est = estimateTrip(position, next.where, { start: next.start, now, balance: s.cards.transport });
+    const est = estimateTrip(position, next.where, { start: next.start, now, balance: s.cards.transport ?? null, metroJourney: s.metroJourney });
     const hint: TravelHint = { minutes: est.totalMin, text: est.text, marginMin: est.marginMin };
     const depart = timed ? departureText(next, est, now) : '';
     // En metro sin saldo para ir y volver, se dice: sin tarjeta cargada no se sube.

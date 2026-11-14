@@ -193,6 +193,12 @@ for (const [kind, k] of Object.entries(PLAN_KINDS)) assert.ok(placeInfo(k.place)
   const yes = sendMessage(proposed, FRIEND, 'sara', 'accept-invite', abs(3, '12:00'), { state: 'free' });
   assert.equal(yes.phone.plans[0].status, 'accepted');
   assert.ok(yes.profiles.sara.memories.some((m) => m.kind === 'PROMISE'));
+  // Un segundo toque (doble clic, botón viejo) ya no tiene invitación que contestar: no manda nada más.
+  for (const again of ['accept-invite', 'decline-invite'] as const) {
+    const twice = sendMessage(yes.phone, yes.profiles.sara, 'sara', again, abs(3, '12:00'), { state: 'free' });
+    assert.equal(twice.phone, yes.phone, `${again} repetido no debe tocar el hilo`);
+    assert.deepEqual(twice.profiles, {});
+  }
 }
 
 // --------------------------------------------- G) liada o dormida no contesta como si nada

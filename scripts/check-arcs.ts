@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { STORIES } from '../src/data/saraStory.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
+import { NAMED_LINES, NAMED_VOICES } from '../src/data/chatNamed.ts';
 import { routineFor, whereaboutsIn } from '../src/systems/Characters.ts';
 import { createInitialState, SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
 import { createSocialProfile } from '../src/systems/Social.ts';
@@ -43,6 +44,10 @@ function roundtrip(a: Applied, def: StoryDef): Applied {
 // Cada rutina mantiene al personaje en el punto durante toda la ventana de todos los planes.
 for (const def of Object.values(STORIES)) {
   const c = CHARACTERS.find(c => c.npc === def.npc)!;
+  assert.ok(NAMED_VOICES[def.npc], `${def.npc}: sin voz de charla, «Pararse a hablar» no abriría conversación`);
+  for (const l of NAMED_LINES.filter((l) => l.n === def.npc)) {
+    for (const f of [...(l.f ?? []), ...(l.nf ?? [])]) assert.ok(f in def.flags, `${def.npc}: frase con flag sin declarar: ${f}`);
+  }
   for (const [id, p] of Object.entries(def.plans)) {
     const routine = c.routines.find(r => r.id === p.routine)!;
     assert.ok(routine?.story, `${def.npc}/${id}: rutina de historia`);
@@ -60,7 +65,7 @@ for (const def of Object.values(STORIES)) {
   assert.equal(phoneStory(friends(def, false).story, def, friends(def, false).profile, now(2), 2), null, 'sin número no hay mensaje');
 
   // La misma propuesta por móvil y en persona; guardar antes de contestar, rechazar o aceptar.
-  const first = def.npc === 'sara' ? 'lookbook' : 'temario';
+  const first = ({ sara: 'lookbook', ada: 'temario', amaia: 'desconexion' } as Record<string, string>)[def.npc];
   const base = friends(def);
   assert.notEqual(beatAfterTalk(base.story, def, base.profile, now(1), 1)?.id, first, 'no adelanta el primer hito');
   const sent = phoneStory(base.story, def, base.profile, now(2), 2)!;
@@ -174,4 +179,33 @@ for (const decision of [0, 1]) {
   assert.ok(joined.story.flags.ada_court);
   assert.ok(Array.from({ length: 100 }, (_, i) => beatAfterTalk(joined.story, def, joined.profile, now(i + 5), i + 5)).some(b => b?.plan?.id === 'pista'));
 }
-console.log('arcos OK: Sara y Ada, rutinas completas, decisiones y cierres, rechazo, lluvia y aplazamiento, plantón y reparación, móvil/persona sin duplicar, guardado y partidas antiguas');
+// Amaia: las dos entregas cambian el cierre y sólo entregar ya abre la plaza; guardar a mitad, tras decidir y al final.
+for (const choice of [0, 1]) {
+  const def = STORIES.amaia;
+  let a = talk(friends(def), def, 2, 'desconexion');
+  a = attend(a, def);
+  const walkDay = a.story.plan!.day;
+  a = talk(roundtrip(a, def), def, walkDay + 1, 'prueba');
+  a = attend(a, def);
+  const testDay = a.story.plan!.day;
+  a = roundtrip(talk(a, def, testDay, 'entrega', choice), def);
+  assert.equal(phoneStory(a.story, def, a.profile, now(testDay + 1), testDay + 1)?.story.flags.amaia_arc_done, undefined, 'el cierre espera dos días');
+  const closing = phoneStory(a.story, def, a.profile, now(testDay + 2), testDay + 2)!;
+  assert.ok(closing?.story.flags.amaia_arc_done);
+  assert.ok(closing.text.includes(choice === 0 ? 'renovado' : 'nueve horas'));
+  const done = roundtrip(closing, def);
+  assert.equal('amaia_cliente' in done.story.flags, choice === 0);
+  const plaza = Array.from({ length: 100 }, (_, i) => beatAfterTalk(done.story, def, done.profile, now(testDay + 3 + i), testDay + 3 + i)).some(b => b?.plan?.id === 'plaza');
+  assert.equal(plaza, choice === 0, choice === 0 ? 'entregar ya abre la plaza' : 'pedir la semana no abre la plaza');
+}
+// Amaia: rechazar el paseo también cierra el arco, sola y sin plaza.
+{
+  const def = STORIES.amaia;
+  const a = roundtrip(talk(friends(def), def, 2, 'desconexion', 1), def);
+  assert.equal(phoneStory(a.story, def, a.profile, now(8), 8)?.story.flags.amaia_arc_done, undefined);
+  const closed = roundtrip(phoneStory(a.story, def, a.profile, now(9), 9)!, def);
+  assert.ok(closed.story.flags.amaia_arc_done);
+  assert.ok(!('amaia_cliente' in closed.story.flags));
+  for (let day = 9; day < 100; day++) assert.notEqual(beatAfterTalk(closed.story, def, closed.profile, now(day), day)?.plan?.id, 'plaza');
+}
+console.log('arcos OK: Sara, Ada y Amaia, rutinas completas, decisiones y cierres, rechazo, lluvia y aplazamiento, plantón y reparación, móvil/persona sin duplicar, guardado y partidas antiguas');

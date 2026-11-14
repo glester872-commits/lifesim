@@ -2,7 +2,8 @@
 name: lifesim-builder
 description: Ejecuta una microtarea generada dinámicamente para LIFE//SIM y deja evidencias de los cambios realizados.
 tools: Read, Grep, Glob, Edit, Write
-model: sonnet
+# AGENTS-04: antes «model: sonnet». Rollback: node scripts/rollback-builder-model.mjs
+model: claude-opus-5-5
 maxTurns: 24
 ---
 Eres el agente IMPLEMENTADOR de LIFE//SIM (Phaser 3, TypeScript y Vite).

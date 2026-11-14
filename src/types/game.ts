@@ -786,6 +786,8 @@ export interface GameStateData {
   household?: import('../systems/Household.ts').HouseholdState;
   /** Últimos movimientos de la cartera con su motivo. Opcional: una partida anterior carga sin historial. */
   ledger?: import('../systems/Household.ts').Movement[];
+  /** Micropréstamo (systems/Credit): préstamos, cuotas y cooldown. Opcional: sin campo, sin préstamo. */
+  credit?: import('../systems/Credit.ts').CreditState;
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */

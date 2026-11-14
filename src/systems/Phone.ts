@@ -508,6 +508,8 @@ export function sendMessage(source: PhoneState, profile: SocialProfile, npc: str
   const rng = seededRng(hashSeed('phone-send', npc, now, action));
   let next = profile;
   let plan = activePlan(phone, npc, now);
+  // Contestar a una invitación que ya no espera respuesta (doble toque, botón viejo): no se manda nada.
+  if ((action === 'accept-invite' || action === 'decline-invite') && !(plan?.status === 'proposed' && plan.by === 'npc')) return { phone: source, profiles: {}, news: [] };
 
   const invite = INVITES[action];
   if (invite) {

@@ -90,7 +90,7 @@ for(const version of [1,2]) {
   const old=inspectRaw(JSON.stringify({version,state:{...state,metroJourney:{version:1,phase:'platform',station:state.locationId}}}));
   assert.equal(old.status,'ok'); if(old.status==='ok') assert.equal(old.state.metroJourney,null,'migración no inventa un billete pagado');
 }
-assert.equal(SAVE_VERSION,3);
+assert.equal(SAVE_VERSION,4); // LV-10 subió el esquema (ledger con movementId); el metro no lo cambia.
 for(const stop of STOPS) {
   assert.ok(visitable(stop)); const loc=getLocation(stop.station!); validate(loc);
   for(const spawn of Object.values(loc.spawns)) assert.ok(isWalkable(loc,spawn.tx,spawn.ty)&&spawn.ty>=loc.metro!.edgeRow);

@@ -441,7 +441,7 @@ export class Menus {
       { label: 'Ahora no' },
     ], (i) => {
       if (i === 1) return back();
-      const p = hire(job, state.day);
+      const p = hire(job, state.day, state.job);
       state.setJob(p);
       this.host.persist();
       menu.close();
@@ -1133,7 +1133,7 @@ export class Menus {
     const done = m ? ` Llevas ${m.sessions} ejercicios: puños ${m.punches.toFixed(1)}, patadas ${m.kicks.toFixed(1)}, lucha ${m.grappling.toFixed(1)}.` : '';
     const drills: [Drill, string][] = [
       ['punches', 'Jab con la izquierda (J) y directo con la derecha (K), guardia L, distancia A/D'],
-      ['kicks', 'Frontal (2) y circular (3) con cada pierna: J izquierda (rápida), K derecha (fuerte)'],
+      ['kicks', 'Frontal (1) y circular (2) con cada pierna: J izquierda (rápida), K derecha (fuerte)'],
       ['grappling', 'G: clinch → derribo → suelo; L defiende (base o enmarcar); atrás mantenido para soltarte'],
       ['mixed', 'Golpeo, clinch y suelo en el mismo ejercicio, con Rubén mirando'],
     ];

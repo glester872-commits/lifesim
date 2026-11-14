@@ -18,7 +18,7 @@ import { emptyStudy, passedCourse } from './Study.ts';
 import type { GameStateData } from '../types/game.ts';
 import { placeOfPoint } from './Places.ts';
 import { routineOn, type StoryState } from './Story.ts';
-import { promotionReady, type JobProgress } from './Jobs.ts';
+import { promotionReady, settle, type JobProgress } from './Jobs.ts';
 import type { SocialState } from './Social.ts';
 import type { StudyState } from './Study.ts';
 
@@ -151,6 +151,8 @@ export function opportunityInput(s: GameStateData, now: number): OpportunityInpu
 
 /** Las oportunidades de ahora, en el orden de los datos. */
 export function opportunities(input: OpportunityInput): Opportunity[] {
+  // La misma asistencia que al abrir el fichaje o Trabajo, sin consumir aquí sus avisos de faltas y despido.
+  input = { ...input, job: input.job ? settle(input.job, input.now).progress : null };
   return OPPORTUNITIES.filter((d) => d.when.every((c) => holds(c, input) && (!('person' in c) || !!STORIES[c.person])))
     .map((d) => ({ id: d.id, title: fill(d.title, input, d), text: fill(d.text, input, d), via: d.via }));
 }

@@ -497,7 +497,7 @@ ni acceso global al estado.
   sin cambiar): medidas las jornadas, cabe un turno de 10 a 16 en Decathlon, la compra, cenar, entrenar y volver a casa
   antes de las 23:00. `systems/Agenda.ts` no guarda planes: lee lo pendiente de donde vive (turno de `Jobs`, clase o
   tutoría y encargo de `Study`, cuentas de `Household`, planes del móvil, quedadas de `Story`, entradas de partido) y
-  estima el viaje desde donde está el jugador (a pie por tiles, en metro por paradas más la espera del primer tren;
+  estima el viaje desde donde está el jugador (a pie por tiles, en metro por paradas más la espera de cada tren;
   desde Decathlon, la vuelta en metro). Si no se puede estimar, lo dice. El HUD enseña lo próximo bajo la hora, en
   ámbar si hay que salir ya (o se llegará tarde) y en rojo si ya no se llega; junto a la hora dice «parado» (mapa,
   menús, leyendo tras un salto, la guía) o «sigue» (con el móvil abierto). Cada compromiso se avisa una vez con margen
@@ -889,6 +889,7 @@ Sara tiene el arco del lookbook (promesa, fotos en el mural del Carmen, elecció
 presentación en Retales y cierre); Ada, el examen (promesa de repaso, temario en la plaza,
 decisión de convocatoria y resultado). Las decisiones cambian el cierre; rechazar también
 tiene continuación. Apuntarse al partidillo de Ada habilita sus invitaciones a la pista.
+Amaia (`data/amaiaStory.ts`) tiene el arco de la entrega (paseo, prueba de la app, decisión y cierre; entregar ya abre la plaza del sábado), validado por `scripts/check-amaia-arc.ts`.
 
 - Las propuestas de los arcos se pueden recibir y contestar en persona o en el móvil con
   las mismas palabras y el mismo estado. La primera respuesta cierra la propuesta: una

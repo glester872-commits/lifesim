@@ -41,6 +41,8 @@ export interface JobProgress {
   streak: number;
   /** Día en que se cerró el contrato (dejarlo o despido). */
   ended?: number;
+  /** Último despido por empresa: se conserva al firmar otro contrato. Ausente en partidas antiguas. */
+  dismissals?: Record<string, number>;
   /** día → cómo fue el turno. Sólo los últimos días: lo anterior ya está repasado. */
   shifts: Record<string, ShiftRecord>;
 }
@@ -88,9 +90,21 @@ export function nextShift(p: JobProgress, now: number): { day: number; status: S
   return null;
 }
 
-/** Contrato nuevo: los turnos empiezan mañana, para que dé tiempo a llegar. */
-export function hire(job: JobDef, today: number): JobProgress {
-  return { job: job.id, status: 'active', level: 0, from: today + 1, checked: today, good: 0, strikes: 0, streak: 0, shifts: {} };
+/** Historial conservado, incluyendo el último despido de una partida anterior a este campo. */
+function dismissalsOf(p: JobProgress | null): Record<string, number> {
+  const days = { ...p?.dismissals };
+  if (p?.status === 'fired' && p.ended !== undefined) days[p.job] = Math.max(days[p.job] ?? 0, p.ended);
+  return days;
+}
+
+/** Sin despidos el campo no se escribe: un guardado sin historial vuelve idéntico (check-regression). */
+function withDismissals(days: Record<string, number>): { dismissals?: Record<string, number> } {
+  return Object.keys(days).length ? { dismissals: days } : {};
+}
+
+/** Contrato nuevo: los turnos empiezan mañana; los despidos anteriores siguen vigentes. */
+export function hire(job: JobDef, today: number, previous: JobProgress | null = null): JobProgress {
+  return { job: job.id, status: 'active', level: 0, from: today + 1, checked: today, good: 0, strikes: 0, streak: 0, shifts: {}, ...withDismissals(dismissalsOf(previous)) };
 }
 
 /** Por qué no se puede firmar ahora la oferta de ese empleo, o null. */
@@ -98,8 +112,9 @@ export function hireBlocker(job: JobDef, p: JobProgress | null, today: number): 
   if (p?.job === job.id && p.status === 'active') return 'Ya trabajas aquí.';
   // Un contrato a la vez (LV-03): para firmar otro hay que dejar antes el que se tiene, en su fichaje.
   if (p?.status === 'active') return `Ya tienes contrato en ${getJob(p.job).employer}: déjalo antes en su fichaje.`;
-  const back = (p?.ended ?? 0) + REHIRE_DAYS;
-  if (p?.job === job.id && p.status === 'fired' && today < back) return `Después del despido, no te vuelven a contratar hasta el ${WEEKDAY_LABEL[weekdayOf(back)]}.`;
+  const dismissed = dismissalsOf(p)[job.id];
+  const back = (dismissed ?? 0) + REHIRE_DAYS;
+  if (dismissed !== undefined && today < back) return `Después del despido, no te vuelven a contratar hasta el ${WEEKDAY_LABEL[weekdayOf(back)]}.`;
   return null;
 }
 
@@ -144,6 +159,7 @@ export function settle(p: JobProgress, now: number): { progress: JobProgress; mi
     if (out.strikes >= def.maxStrikes) {
       out.status = 'fired';
       out.ended = d;
+      out.dismissals = { ...out.dismissals, [out.job]: d };
       break;
     }
   }
@@ -300,9 +316,16 @@ export function parseJob(v: unknown): JobProgress | null {
       shifts[k] = { result: s.result as ShiftResult, score: s.score, pay: s.pay };
     }
   }
-  return {
+  const dismissals: Record<string, number> = {};
+  if (typeof o.dismissals === 'object' && o.dismissals !== null) {
+    for (const [id, day] of Object.entries(o.dismissals)) {
+      if (JOBS.some((j) => j.id === id) && int(day) && day > 0) dismissals[id] = day;
+    }
+  }
+  const progress: JobProgress = {
     job: def.id, status: o.status, level: o.level, from: o.from, checked: o.checked,
     good: Math.max(0, o.good), strikes: Math.max(0, o.strikes), streak: Math.max(0, o.streak),
     ...(int(o.ended) ? { ended: o.ended } : {}), shifts,
   };
+  return { ...progress, ...withDismissals(dismissalsOf({ ...progress, dismissals })) };
 }

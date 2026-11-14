@@ -99,6 +99,6 @@ assert.ok(trip.tramos.some((t) => t.kind === 'metro'), 'sin tramo de metro');
 
 // Una partida guardada dentro del bar se recupera dentro del bar, y la versión de guardado no cambió.
 assert.equal(restore({ ...createInitialState(), locationId: 'lu-bar', position: spawnToWorld(getLocation('lu-bar').spawns.entry) }).locationId, 'lu-bar');
-assert.equal(SAVE_VERSION, 3);
+assert.equal(SAVE_VERSION, 4); // LV-10 subió el esquema (ledger con movementId); Luna no lo cambia.
 
 console.log('check-luna: ok');

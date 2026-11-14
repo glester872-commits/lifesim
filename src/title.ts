@@ -36,7 +36,7 @@ document.documentElement.style.setProperty('--amber', PALETTE.amber);
 document.documentElement.style.setProperty('--accent', PALETTE.glassLit);
 
 // Ranuras (systems/SaveSlots): la de trabajo es la última jugada; «Partidas» y «Nueva partida» cambian de ranura.
-const { base, persistent } = gameStorage();
+const { base, persistent, writable } = gameStorage();
 let slot: SlotId = activeSlot(base);
 let save = slotSave(base, slot);
 let info: SaveInfo = save.inspect();
@@ -183,7 +183,11 @@ function render(): void {
   let body = '';
   if (view === 'main') {
     const state =
-      (persistent ? '' : '<p class="title__warn" role="alert">Este navegador no deja guardar (modo privado o almacenamiento bloqueado). Puedes jugar, pero al cerrar o recargar la página se pierde la partida.</p>')
+      (!persistent
+        ? '<p class="title__warn" role="alert">Este navegador no deja guardar (modo privado o almacenamiento bloqueado). Puedes jugar, pero al cerrar o recargar la página se pierde la partida.</p>'
+        : !writable
+          ? '<p class="title__warn" role="alert">El almacenamiento del navegador está lleno o no permite escribir. Puedes continuar o exportar tus partidas, pero no se podrán guardar avances hasta que haya espacio y permiso para guardar.</p>'
+          : '')
       + `<p class="title__save title__muted">Ranura ${slot}</p>`
       + (info.status === 'ok'
         ? `<p class="title__save">${summary(info)}</p>`
@@ -305,7 +309,7 @@ let booting = false;
 async function boot(): Promise<void> {
   if (booting) return;
   booting = true;
-  // main.ts abre la ranura activa: la de esta pantalla.
+  // main.ts abre esta elección de sesión aunque no quepa la preferencia para la próxima recarga.
   setActiveSlot(base, slot);
   view = 'loading';
   message = '';

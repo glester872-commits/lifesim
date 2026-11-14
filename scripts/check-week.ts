@@ -8,7 +8,7 @@ import { STORIES } from '../src/data/saraStory.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
 import { NAMED_PEOPLE } from '../src/data/namedPeople.ts';
 import { createInitialState, SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
-import { decline, hire, quit } from '../src/systems/Jobs.ts';
+import { decline, hire, quit, settle, situationFor, work } from '../src/systems/Jobs.ts';
 import { enroll } from '../src/systems/Study.ts';
 import { createStory, minuteOf, planDayFrom, planForInvite, watchPlan } from '../src/systems/Story.ts';
 import { canMeet, createPhone, phoneOptions } from '../src/systems/Phone.ts';
@@ -70,6 +70,31 @@ assert.ok(!ids({ ...base, household: { ...base.household!, goal: 'abrigo' } }).i
   assert.ok(!decaAsc.text.includes('Lucía') && !decaAsc.title.includes('Atalaya'));
   // Ningún título ni texto con huecos sin rellenar, en ninguno de estos estados.
   for (const s of [base, atalayaJob, ready, quitted, deca]) for (const o of opportunities(opportunityInput(s, t(1, 9)))) assert.ok(!/[{}]|undefined/.test(o.title + o.text), `${o.id}: ${o.title} ${o.text}`);
+}
+
+// Hoy usa la misma asistencia que el fichaje, sin cambiar el contrato guardado al consultarlo.
+for (const employer of JOBS) {
+  let contract = hire(employer, 1);
+  let day = 2;
+  while (contract.good < employer.promoteAfter) {
+    if (employer.levels[0].days.includes(weekIndex(day))) {
+      contract = settle(contract, t(day, employer.levels[0].start)).progress;
+      contract = work(contract, t(day, employer.levels[0].start), situationFor(contract, day).choices[0]).progress;
+    }
+    day++;
+  }
+  const ready = { ...base, job: contract, study: { ...base.study!, unlocks: ['ofimatica'] } };
+  const before = structuredClone(ready);
+  assert.ok(ids(ready, t(day - 1, 23)).includes('ascenso'), 'con asistencia al día se anuncia');
+  while (!employer.levels[0].days.includes(weekIndex(day))) day++;
+  const close = t(day, employer.levels[0].start) + employer.late;
+  assert.ok(ids(ready, close - 1).includes('ascenso'), 'antes de cerrar el fichaje todavía se anuncia');
+  assert.ok(!ids(ready, close).includes('ascenso'), 'una falta pendiente de repaso impide anunciar el ascenso');
+  const afterDismissal = t(day + 14, 23);
+  assert.equal(settle(contract, afterDismissal).progress.status, 'fired');
+  assert.ok(!ids(ready, afterDismissal).includes('ascenso'), 'un contrato despedido no anuncia ascenso');
+  assert.ok(ids(ready, afterDismissal).includes('empleo'), 'tras el despido vuelve la orientación para buscar empleo');
+  assert.deepEqual(ready, before, 'consultar Hoy no consume el repaso ni altera la partida');
 }
 
 // Personas: conocer, el número, quedar; y dónde están ahora sale de su rutina.

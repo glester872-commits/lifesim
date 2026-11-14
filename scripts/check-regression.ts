@@ -135,7 +135,7 @@ const full: GameStateData = {
   // Estudios (systems/Study): curso con dos clases hechas, práctica de hoy, encargo aceptado y su desbloqueo.
   study: { skills: { foto: 32 }, course: { id: 'foto-basica', enrolled: 1, lessons: [2, 4, 9, 11], attended: [0, 1], demoDay: 12, passed: 12 }, practice: { day: 12, counts: { 'foto-fuente': 1 } }, gig: { id: 'horno-escaparate', accepted: 12, deadline: 15 }, unlocks: ['gig:horno-escaparate'] },
   household: { since: 1, generated: { rent: 2, home: 1 }, obligations: [{ bill: 'rent', period: 0, due: 7, amount: 45, fee: 0, paid: 6 }, { bill: 'rent', period: 1, due: 14, amount: 45, fee: 0 }, { bill: 'home', period: 0, due: 7, amount: 10, fee: 0 }], goal: 'abrigo' },
-  ledger: [{ day: 6, hour: 18, minute: 5, label: 'Alquiler', amount: -45 }],
+  ledger: [{ movementId: 'm-6-1', day: 6, hour: 18, minute: 5, label: 'Alquiler', amount: -45, type: 'bill', source: 'bill:rent', status: 'posted' }],
   // Agenda (systems/Agenda): guía saltada, un aviso ya dado y las últimas señales: vuelve igual, sin repetir avisos.
   agenda: { tour: 'skipped', seen: { 'job:9': 12_900 }, checked: 12_935, marks: { job: '0:1', body: 'average' } },
   // Parroquia (systems/Parish): un ensayo del coro hasta el final y otro un rato: vuelven igual, sin volver a contar.

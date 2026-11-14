@@ -57,3 +57,10 @@ glassmorphism, sin gradientes de producto IA, sin decoración sin función.
 Al añadir texturas, cuidado con los patrones que se repiten cada dos tiles: a
 zoom de juego se leen como lunares. Varía con ruido determinista, no con
 recuadros alternos.
+
+## Agentes
+
+`/autodev [--mode=ECO|BALANCED|DEEP] [--audit] <objetivo>` (o prefijo `[ECO]`…) es el
+único orquestador: `.claude/skills/autodev/SKILL.md`. Sin modo, BALANCED. Correcciones
+máximas 1/2/3. Especialistas de solo lectura según el tipo de tarea, nunca todos:
+`gameplay-qa`, `visual-qa`, `optimizer` (`.claude/agents/`).

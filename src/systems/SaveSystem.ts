@@ -17,6 +17,7 @@ import { parseStories } from './Story.ts';
 import { createPhone, parsePhone } from './Phone.ts';
 import { parseJob } from './Jobs.ts';
 import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
+import { emptyCredit, parseCredit } from './Credit.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
@@ -71,6 +72,7 @@ export function createInitialState(): GameStateData {
     job: null,
     household: startHousehold(INITIAL_CLOCK.day),
     ledger: [],
+    credit: emptyCredit(),
     study: emptyStudy(),
     housing: startHousing(),
     agenda: startAgenda(),
@@ -386,6 +388,9 @@ function parseState(value: unknown): GameStateData | null {
     // Una partida anterior a los gastos de casa empieza sus periodos el día que se carga: nada de alquiler atrasado.
     household: parseHousehold(s.household, Math.floor(total / 1440) + 1),
     ledger: parseLedger(s.ledger),
+    // Sin préstamo guardado (partida anterior a la Fase 3a, SAVE_VERSION sigue en 4) carga sin la clave, como `paid`:
+    // vuelve igual que se guardó y GameState empieza sin préstamo. Uno dañado se lee como «sin préstamo».
+    ...(s.credit === undefined ? {} : { credit: parseCredit(s.credit, Math.floor(total / 1440) + 1) }),
     // Una partida anterior a los estudios carga sin curso ni habilidades.
     study: parseStudy(s.study),
     // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.
@@ -627,6 +632,7 @@ function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly st
  *
  *   sin versión, 1 → 2 (Alpha-04): aparece `identity` (el nombre; sin él, el de por defecto) y el aspecto del
  *   jugador puede llevar skin/hairColor/eyes. Ningún campo de la 1 cambia de sentido.
+ *   3 → 4 (LV-10): ids, tipo, origen y estado en el ledger.
  *
  * Una versión nueva añade aquí su paso; parseState sigue poniendo los valores seguros de lo que falte.
  */
@@ -634,6 +640,9 @@ function migrate(version: number, state: unknown): unknown {
   let s = state;
   if (version < 2 && isRecord(s) && s.identity === undefined) s = { ...s, identity: startIdentity() };
   if (version < 3 && isRecord(s)) s = { ...s, metroJourney: null };
+  // 3 → 4 (LV-10): cada movimiento del ledger lleva movementId, type, source y status. Los de antes reciben
+  // `legacy-<índice>`, 'other', 'legacy' y 'posted' (parseLedger, el mismo que lee una v4); no se pierde ninguno válido.
+  if (version < 4 && isRecord(s)) s = { ...s, ledger: parseLedger(s.ledger) };
   return s;
 }
 

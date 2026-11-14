@@ -705,6 +705,52 @@ export const CHARACTERS: readonly CharacterDef[] = [
         ],
       },
       {
+        // Día malo (data/amaiaStory.ts): sale lo justo.
+        id: 'amaia-dia-gris',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '12:00', point: 'SUPERMARKET_FRIDGES', lines: ['Hoy no estoy para nadie. Algo de comer y a casa.'], going: ['Al súper y vuelvo.'] },
+          inside('13:20', AMAIA_HOME, 'A casa.'),
+        ],
+      },
+      {
+        // Desconectar en el banco del parque con el jugador (planes 'paseo', 'paseo-arreglo' y 'banco').
+        id: 'plan-paseo',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '09:00', point: 'CAFE_TABLE_03', lines: ['Hoy cierro el portátil a las siete. Lo he prometido.'], going: ['Voy al Pausa a trabajar un rato.'] },
+          inside('11:30', AMAIA_HOME, 'A casa, que a las doce tengo llamada.'),
+          { at: '19:00', point: 'PARK_BENCH_04', lines: ['Aquí, con el termo. Como quedamos.'], going: ['Bajo al parque, que he quedado.'] },
+          inside('21:30', AMAIA_HOME, 'A casa. Hoy sí he desconectado.'),
+        ],
+      },
+      {
+        // Le pruebas la app en el Pausa antes de la entrega (plan 'prueba').
+        id: 'plan-prueba',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '10:00', point: 'CAFE_TABLE_03', lines: ['Aquí, con el portátil abierto. Rómpela sin piedad.'], going: ['Voy al Pausa, que me prueban la app.'] },
+          inside('12:30', AMAIA_HOME, 'A casa, a arreglar lo que has roto.'),
+        ],
+      },
+      {
+        // Un rato de plaza el sábado, tras la entrega (plan 'plaza').
+        id: 'plan-plaza',
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        stops: [
+          { at: '11:00', point: 'PLAZA_BENCH_07', lines: ['Sábado sin pantallas. Esta vez, de verdad.'], going: ['Bajo a la plaza, que he quedado.'] },
+          inside('13:30', AMAIA_HOME, 'A comer. Gracias por el rato.'),
+        ],
+      },
+      {
         // Preparación al parto: los jueves por la mañana, en Forja.
         id: 'preparacion-amaia',
         days: on('thursday'),

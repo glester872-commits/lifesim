@@ -11,7 +11,7 @@ import {
 } from '../src/systems/Jobs.ts';
 import { absMinute } from '../src/systems/Handoff.ts';
 import { weekIndex } from '../src/systems/Calendar.ts';
-import { SaveSystem } from '../src/systems/SaveSystem.ts';
+import { createInitialState, SaveSystem } from '../src/systems/SaveSystem.ts';
 import { SAVE_KEY } from '../src/config/constants.ts';
 
 const job = getJob('decathlon');
@@ -118,6 +118,30 @@ assert.deepEqual(settle(s.progress, t(40, 12)).missed, [], 'despedido, nada más
 const left = quit(hire(job, 1), 2);
 assert.equal(nextShift(left, t(3, 9)), null);
 assert.equal(hireBlocker(job, left, 2), null);
+
+// Cambiar de empresa no borra el plazo de readmisión, tampoco tras guardar y recargar.
+for (const employer of JOBS) {
+  const other = JOBS.find((j) => j.id !== employer.id)!;
+  const fired = settle(hire(employer, 1), t(30, 12)).progress;
+  const day = fired.ended! + 1;
+  assert.equal(hireBlocker(other, fired, day), null, 'el despido sólo bloquea a esa empresa');
+  const elsewhere = hire(other, day, fired);
+  const resigned = quit(elsewhere, day);
+  const store = new Map<string, string>();
+  const save = new SaveSystem({ read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) });
+  save.save({ ...createInitialState(), day, job: resigned });
+  const reloaded = save.load()!.job!;
+  assert.match(hireBlocker(employer, reloaded, day) ?? '', /no te vuelven a contratar/, 'firmar y dejar otra empresa no borra el despido');
+  const expires = fired.ended! + REHIRE_DAYS;
+  assert.ok(hireBlocker(employer, reloaded, expires - 1), 'el último día del plazo aún bloquea');
+  assert.equal(hireBlocker(employer, reloaded, expires), null, 'el plazo termina el día previsto');
+  assert.equal(hireBlocker(other, reloaded, day), null, 'una renuncia no crea un plazo de despido');
+  // Una partida anterior al historial conserva su último despido al cambiar de empresa.
+  const legacy = { ...fired };
+  delete legacy.dismissals;
+  const old = parseJob(legacy)!;
+  assert.ok(hireBlocker(employer, quit(hire(other, day, old), day), day), 'migración del despido antiguo');
+}
 
 // La situación de un turno es fija: cancelar y volver muestra la misma.
 assert.equal(situationFor(p, 22).id, situationFor(structuredClone(p), 22).id);

@@ -818,6 +818,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'returning', label: 'Alguien de vuelta al metro', line: 'El metro no cierra. Yo debería.', weight: 4, hours: [22, 5], from: NIGHT_OUT, to: TRANSIT },
       { role: 'metro-meet', label: 'Alguien esperando en la boca de metro', line: 'Ya sales, ¿no? Eso dijiste hace tres trenes.', weight: 2, hours: [18, 2], from: HOMES_OR_CITY, to: { points: ['LU_METRO_WAIT_'] }, stay: [3, 10], stayState: 'PHONE', max: 1 },
       { role: 'passer', label: 'Alguien de paso', line: 'Me he pasado de parada. Otra vez.', weight: 1, from: CITY, to: CITY },
+      // La limpieza, cuando cierra el bar: lo que deja la noche, antes de que salga el primer tren.
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Vasos, colillas y alguna llave. Lo de cada sábado.', weight: 6, hours: [5, 8], from: CITY, to: CITY, via: ['LU_BAR_ENTRANCE', 'LU_CORRILLO_04', 'LU_METRO_ENTRANCE'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
       patrol([20, 3], ['LU_METRO_WAIT_', 'LU_CORRILLO_'], 'Una vuelta por la calle y la boca de metro. Si están tranquilos, nosotros también.', { weight: 0.4 }),
     ],
   },

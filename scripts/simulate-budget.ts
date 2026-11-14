@@ -15,6 +15,13 @@ import { getCourse } from '../src/data/study.ts';
 import { UPGRADES } from '../src/data/housing.ts';
 import { buy as buyUpgrade, buyBlocker, fits, rentsOf, startHousing } from '../src/systems/Housing.ts';
 import { levelOf, promote, promotionReady, scheduled } from '../src/systems/Jobs.ts';
+import { statusOf as billStatus } from '../src/systems/Household.ts';
+import { getStore } from '../src/data/retail.ts';
+import { CREDIT } from '../src/data/credit.ts';
+import { creditBlocker, emptyCredit, simulateCredit, take } from '../src/systems/Credit.ts';
+
+/** Neto de las semanas 2–4 del escenario «Decathlon tras el ascenso» (Fase 0), para el criterio del préstamo. */
+let promotedNets: number[] = [];
 
 const job = getJob('decathlon');
 const fare = destinationsFrom(getStop('vallesco')).find((d) => d.stop.id === 'decathlon')!.fare;
@@ -129,4 +136,150 @@ console.log(
   assert.ok(promotedOn > 0 && promotedOn <= 21, `el ascenso no llega en tres semanas (día ${promotedOn})`);
   assert.ok(bought.length >= 1 && /día [1-7]\)/.test(bought[0]), `ninguna mejora asequible la primera semana: ${bought.join(', ')}`);
   console.log(`decisiones razonables: curso €${course.fee} · ascenso el día ${promotedOn} (${job.levels[1].title}, €${job.levels[1].wage}/turno) · mejoras: ${bought.join(', ') || 'ninguna'} · saldo €${cash.toFixed(2)} (mínimo €${lowestCash.toFixed(2)})`);
+}
+
+// ------------------------------------------------------------------ LV-10 Fase 0: bucle básico sostenible
+// Cuatro semanas por escenario con todos los gastos (casa, metro, curso, ocio, compras) y un imprevisto la semana 3 igual
+// a un alquiler semanal. Tres indicadores (ver BALANCE-LV10.md). Sólo se asierta lo que se cumple por construcción
+// (saldo ≥ 0, conservación del dinero); un indicador que falla se imprime «NO SOSTENIBLE», no rompe el check.
+{
+  const SCENARIOS = [
+    { name: 'Decathlon nivel 0', jobId: 'decathlon', promoted: false },
+    { name: 'Atalaya nivel 0', jobId: 'atalaya', promoted: false },
+    { name: 'Decathlon tras el ascenso', jobId: 'decathlon', promoted: true },
+  ];
+  const c2 = (n: number): number => Math.round(n * 100) / 100;
+  const eur = (n: number): string => n.toFixed(2);
+  const rentBill = BILLS.find((b) => b.id === 'rent')!;
+  const fixedWeekly = BILLS.reduce((s, b) => s + (b.amount * 7) / b.every, 0);
+  const cheap = [...getStore('vuelta').stock].sort((a, b) => a.price - b.price)[0];
+  const study = getCourse('foto-basica');
+  const SHOCK_DAY = 15; // lunes de la semana 3
+  const SHOCK = rentBill.amount;
+  const zero = (): Record<string, number> => ({ ingresos: 0, vivienda: 0, transporte: 0, estudios: 0, ocio: 0, compras: 0, imprevisto: 0, faltas: 0 });
+
+  const run = (sc: (typeof SCENARIOS)[number]): { text: string; fails: string[]; lines: string[]; nets: number[] } => {
+    const j = getJob(sc.jobId);
+    const commute = destinationsFrom(getStop('vallesco')).find((d) => d.stop.id === j.place)?.fare ?? 0;
+    let cash = START;
+    let house = startHousehold(1);
+    let contract = hire(j, 1);
+    if (sc.promoted) contract = promote(contract, 0);
+    let w = zero();
+    const rows: { w: Record<string, number>; saldo: number }[] = [];
+    let income = 0;
+    let spent = 0;
+    let lowestAfterW1 = Infinity;
+    let lateAfterShock = false;
+    let shockPaid = false;
+    // Gasta si llega; si no, no gasta y lo apunta como «faltas». Nunca deja el saldo negativo.
+    const spend = (k: string, amt: number): boolean => {
+      if (cash + 1e-9 < amt) {
+        w.faltas++;
+        return false;
+      }
+      cash = c2(cash - amt);
+      spent += amt;
+      w[k] += amt;
+      return true;
+    };
+    spend('estudios', study.fee);
+    for (let day = 1; day <= 28; day++) {
+      house = sync(house, day, rentsOf(startHousing())).household;
+      spend('compras', groceries);
+      if (day === 8) spend('compras', cheap.price);
+      if (scheduled(contract, day)) {
+        if (commute === 0 || spend('transporte', 2 * commute)) {
+          const out = work(contract, absMinute(day, levelOf(contract).start, 0), situationFor(contract, day).choices[1]);
+          contract = out.progress;
+          cash = c2(cash + out.money);
+          income += out.money;
+          w.ingresos += out.money;
+        }
+      }
+      if (weekIndex(day) === 5 && spend('ocio', nightOut.cost! + 2 * cana.cost!)) spend('transporte', 2 * fare);
+      for (const o of unpaid(house).filter((x) => x.due <= day)) {
+        const r = pay(house, cash, o.bill, o.period, day);
+        if (!r.ok) continue;
+        w.vivienda += cash - r.money;
+        spent += cash - r.money;
+        house = r.household;
+        cash = r.money;
+      }
+      if (day === SHOCK_DAY) {
+        shockPaid = spend('compras', SHOCK);
+        if (shockPaid) w.imprevisto += SHOCK;
+      }
+      if (day >= SHOCK_DAY && unpaid(house).some((o) => billStatus(o, day) === 'late')) lateAfterShock = true;
+      if (day > 7) lowestAfterW1 = Math.min(lowestAfterW1, cash);
+      assert.ok(cash >= 0, `${sc.name}, día ${day}: saldo negativo`);
+      if (weekIndex(day) === 6) {
+        rows.push({ w, saldo: cash });
+        w = zero();
+      }
+    }
+    assert.ok(Math.abs(START + income - spent - cash) < 1e-6, `${sc.name}: el dinero no cuadra`);
+
+    const nets = rows.map((r) => c2(r.w.ingresos - r.w.vivienda - r.w.transporte - r.w.estudios - r.w.ocio - r.w.compras + r.w.imprevisto));
+    const lines = rows.map((r, i) => {
+      const notes = [`neto rutina ${nets[i] >= 0 ? '+' : ''}${eur(nets[i])}`];
+      if (r.w.imprevisto) notes.push(`imprevisto −${eur(r.w.imprevisto)} (incluido en compras)`);
+      if (r.w.faltas) notes.push(`${r.w.faltas} gasto(s) no cubierto(s)`);
+      if (i === 0) notes.push('semana parcial (se firma el lunes)');
+      return `| ${i + 1} | ${eur(r.w.ingresos)} | ${eur(r.w.vivienda)} | ${eur(r.w.transporte)} | ${eur(r.w.estudios)} | ${eur(r.w.ocio)} | ${eur(r.w.compras)} | ${eur(r.saldo)} | ${notes.join('; ')} |`;
+    });
+    const fails: string[] = [];
+    const bad = nets.slice(1).map((n, i) => ({ n, week: i + 2 })).filter((x) => x.n <= 0);
+    if (bad.length) fails.push(`(a) neto semanal ≤ 0 en semana(s) ${bad.map((x) => `${x.week} (${eur(x.n)})`).join(', ')}`);
+    const saving = c2(cash - START);
+    if (saving <= 0) fails.push(`(b) ahorro ${eur(saving)} ≤ 0`);
+    if (!shockPaid || lateAfterShock) fails.push(`(c) el imprevisto ${shockPaid ? 'deja una obligación en late' : 'no se puede pagar'}`);
+    const cushion = c2(lowestAfterW1 / fixedWeekly);
+    const verdict = (ok: boolean): string => (ok ? 'OK' : 'NO SOSTENIBLE');
+    const text =
+      `### ${sc.name}\n\n| semana | ingresos | vivienda | transporte | estudios | ocio | compras | saldo | notas |\n|---|---|---|---|---|---|---|---|---|\n${lines.join('\n')}\n\n` +
+      `- (a) neto semanal > 0 en semanas 2–4: ${verdict(!bad.length)} (${nets.slice(1).map(eur).join(' / ')})\n` +
+      `- (b) ahorro = saldo final − inicial = ${eur(cash)} − ${eur(START)} = ${eur(saving)}: ${verdict(saving > 0)}\n` +
+      `- (c) colchón: imprevisto de €${eur(SHOCK)} el día ${SHOCK_DAY} ${shockPaid ? 'pagado' : 'NO pagado'}, ${lateAfterShock ? 'con' : 'sin'} obligaciones en late: ${verdict(shockPaid && !lateAfterShock)} · saldo mínimo desde la semana 2 €${eur(lowestAfterW1)} = ${cushion} semanas de gastos fijos (€${eur(fixedWeekly)}/semana) · pendiente de casa al final €${eur(owed(house))}\n`;
+    return { text, fails, lines, nets };
+  };
+
+  for (const sc of SCENARIOS) {
+    const a = run(sc);
+    assert.equal(run(sc).text, a.text, `${sc.name}: la simulación no es determinista`);
+    console.log(a.text);
+    if (a.fails.length) console.log(`NO SOSTENIBLE · ${sc.name}: ${a.fails.join('; ')}\n`);
+    if (sc.promoted) promotedNets = a.nets.slice(1);
+  }
+}
+
+// ------------------------------------------------------------------ LV-10 Fase 3a: micropréstamo tras el ascenso
+// Se pide el préstamo con el contrato ascendido y se simulan 4 semanas con simulateCredit (work, sync, pay, syncCredit,
+// payInstallment). Criterio de frustración (ECONOMIA-LV10.md §2.8): cuota semanal < neto semanal del escenario ascendido
+// y ninguna obligación de casa en 'late' en el intermedio. Si no se cumple, se imprime NO SOSTENIBLE, sin assert.
+{
+  const contract = promote(hire(job, 1), 0);
+  const house = sync(startHousehold(1), 1).household;
+  const input = { job: contract, household: house, credit: emptyCredit(), today: 1 };
+  assert.equal(creditBlocker({ ...input, job: hire(job, 1) }) !== null, true, 'nivel 0: el préstamo no se ofrece');
+  const blocker = creditBlocker(input);
+  assert.equal(blocker, null, `tras el ascenso el préstamo debe ofrecerse: ${blocker}`);
+  const taken = take(input, START);
+  assert.ok(taken.ok && taken.money === START + CREDIT.principal);
+  const sim = { job: contract, household: house, money: START, today: 1, daily: groceries, commute: 2 * fare };
+  const scenarios = simulateCredit(sim);
+  assert.deepEqual(simulateCredit(sim), scenarios, 'la simulación del préstamo no es determinista');
+  for (const s of scenarios) {
+    assert.ok(s.finalMoney >= 0, `${s.name}: saldo negativo`);
+    console.log(`  préstamo · ${s.name}: cuota €${s.installment.toFixed(2)} · coste total €${s.totalCost.toFixed(2)} · saldo final €${s.finalMoney.toFixed(2)} · ` +
+      `pendiente €${s.remaining.toFixed(2)} · casa ${s.houseLate ? "en 'late'" : 'al día'} · préstamo ${s.loanLate ? "en 'late'" : 'sin retraso'}`);
+  }
+  const weeklyNet = promotedNets.length ? Math.min(...promotedNets) : NaN;
+  const middle = scenarios.find((s) => s.name === 'intermedio')!;
+  const fails: string[] = [];
+  if (!(scenarios[0].installment < weeklyNet)) fails.push(`cuota €${scenarios[0].installment.toFixed(2)} ≥ neto semanal mínimo del ascendido €${weeklyNet.toFixed(2)}`);
+  if (middle.houseLate) fails.push("en el intermedio queda una obligación de casa en 'late'");
+  console.log(fails.length
+    ? `NO SOSTENIBLE · préstamo tras el ascenso: ${fails.join('; ')}`
+    : `préstamo tras el ascenso: OK (cuota €${scenarios[0].installment.toFixed(2)} < neto semanal mínimo €${weeklyNet.toFixed(2)}; intermedio sin casa en 'late')`);
 }

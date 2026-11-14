@@ -145,7 +145,8 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     crowd: { everyday: 4, street: 1.6, smart: 1.2, sport: 1 },
     vehicles: { all: { van: 1.6, 'small-truck': 1.5, 'delivery-truck': 1.4, premium: 0.4, courier: 1.6 }, morning: { bus: 1.4 }, evening: { bus: 1.3 } },
     // La escuela de boxeo Doble Guardia (Cuatro Ríos): un local de barrio, como el gimnasio.
-    facades: ['res-*', 'super', 'fruit', 'bakery', 'restaurant', 'hair', 'phone', 'gym', 'boxing-club', 'pharmacy', 'grocer', 'fashion', 'streetwear', 'arcade', 'laundry', 'cafe', 'backdrop'],
+    // Luna mezcla vivienda y comercio con el bar y la sala de noche en los bajos.
+    facades: ['res-*', 'super', 'fruit', 'bakery', 'restaurant', 'hair', 'phone', 'gym', 'boxing-club', 'pharmacy', 'grocer', 'fashion', 'streetwear', 'arcade', 'laundry', 'cafe', 'bar', 'club', 'backdrop'],
     ambience: { leaf: 0.5, paper: 1.6, steam: 1.3 },
   },
   // Velaria: piedra clara y limpia, luz cálida de escaparate y de farola de forja, jardineras y bolardos en vez de cajas y
