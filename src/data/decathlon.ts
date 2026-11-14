@@ -1,5 +1,5 @@
 import type { Facing, InspectDef, LocationDef, PointDef, PropKind, PropPlacement, RackDef } from '../types/game.ts';
-import type { PopulationProfile, StaffRole } from './population.ts';
+import type { PlanStep, PopulationProfile, StaffRole, VisitorRole } from './population.ts';
 import { at, p, TWO } from './interiors.ts';
 import { cashier, customer } from './cuatroRiosVenues.ts';
 import { DECATHLON_LAYOUT, type Rect } from './decathlonLayout.ts';
@@ -432,6 +432,16 @@ export const DECATHLON_STORE: LocationDef = {
 const floor = (look: string, label: string, line: string, sections: readonly string[], offers: StaffRole['offers'], days?: StaffRole['days']): StaffRole =>
   ({ service: 'shop-worker', label, line, look, points: sectionPoints(sections), offers, days });
 const WEEKEND = [5, 6] as const;
+/** Cola y pago en la misma caja, y sólo en una con cajero (`lane` del perfil, systems/Crowd). */
+const PAY: readonly PlanStep[] = [
+  { state: 'QUEUE', points: [`${P}_QUEUE_{n}_`], minutes: [1, 2] },
+  { state: 'CHECKOUT', points: [`${P}_TILL_{n}`], minutes: [1, 2] },
+];
+/** El cliente de siempre (data/cuatroRiosVenues `customer`), pagando por carril. */
+const laneCustomer = (line: string, weight: number, extra: Partial<VisitorRole> = {}): VisitorRole => {
+  const base = customer(P, line, weight, extra);
+  return { ...base, plan: [...base.plan.filter((s) => s.state !== 'QUEUE' && s.state !== 'CHECKOUT'), ...PAY] };
+};
 
 /** Quien cobra en cada caja con cajero: el turno sale de su `open` (data/decathlonLayout.ts) y nadie repite chaleco. */
 const TILL_LOOKS = ['decathlon_employee', 'decathlon_employee_6', 'decathlon_employee_7', 'decathlon_employee_9', 'decathlon_employee_10', 'decathlon_employee_11'];
@@ -449,6 +459,7 @@ export const DECATHLON_PROFILE: PopulationProfile = {
   weekday: [0, 0, 0, 0, 1, 2, 2],
   // Una nave de este tamaño se ve vacía con ocho: catorce, repartidos por los BROWSE de todas las secciones.
   maxVisitors: 14,
+  lane: `${P}_STAFF_{n}`,
   staff: [
     ...TILL_STAFF,
     floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana'),
@@ -458,15 +469,14 @@ export const DECATHLON_PROFILE: PopulationProfile = {
     floor('decathlon_employee_8', 'Sección de fitness', 'Una esterilla ocupa poco y se recoge en un minuto.', ['fitness-mat', 'fitness-mujer', 'fitness-hombre'], 'decathlon-fitness', WEEKEND),
   ],
   visitors: [
-    customer(P, 'Venía a por calcetines y me llevo una tienda de campaña.', 2, { party: [1, 3] }),
-    customer(P, '¿Esto lo tenéis en otro color?', 1),
+    laneCustomer('Venía a por calcetines y me llevo una tienda de campaña.', 2, { party: [1, 3] }),
+    laneCustomer('¿Esto lo tenéis en otro color?', 1),
     {
       role: 'shopper', label: 'Cliente', line: 'Me lo pruebo, que con estas tallas nunca se sabe.', weight: 1,
       plan: [
         { state: 'BROWSE', points: [`${P}_BROWSE_`], minutes: [2, 5], repeat: [1, 3] },
         { state: 'CHECK_ITEM', points: [`${P}_FITTING_`], minutes: [3, 6] },
-        { state: 'QUEUE', points: [`${P}_QUEUE_`], minutes: [1, 2] },
-        { state: 'CHECKOUT', points: [`${P}_TILL`], minutes: [1, 2] },
+        ...PAY,
       ],
     },
   ],

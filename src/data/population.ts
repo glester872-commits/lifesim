@@ -98,6 +98,8 @@ export interface PopulationProfile {
   regulars?: number;
   staff: readonly StaffRole[];
   visitors: readonly VisitorRole[];
+  /** Puesto del cajero con `{n}` (`'DECAT_STAFF_{n}'`): un paso con `{n}` sólo va a cajas con cajero, y cola y caja son la misma n. */
+  lane?: string;
   /**
    * El paso con el que quien lleva la ropa de entrenar vuelve a la de calle si tiene que irse antes de acabar su plan
    * (cierra el local, se va quien lo lleva): nadie sale por la puerta en ropa de deporte.

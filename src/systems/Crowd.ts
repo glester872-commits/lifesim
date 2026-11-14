@@ -52,6 +52,20 @@ export const staffOnShift = (role: StaffRole, level: Level | null, weekday: numb
   level !== null && (!role.days || role.days.includes(weekday))
   && (!role.minLevel || LEVELS.indexOf(level) >= LEVELS.indexOf(role.minLevel));
 
+/** Una plantilla con `{n}` (la caja) como regex: `{n}` captura un tramo sin `_`; `exact`, el id entero. */
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const laneRe = (tpl: string, exact: boolean): RegExp =>
+  new RegExp('^' + tpl.split('{n}').map(escapeRe).join('([^_]+)') + (exact ? '$' : ''));
+
+/** La caja de un punto según los prefijos del paso que lo eligió; sin `{n}` en ellos, ninguna. */
+export const laneOf = (pointId: string, prefixes: readonly string[]): string | undefined => {
+  for (const p of prefixes) {
+    const m = p.includes('{n}') ? laneRe(p, false).exec(pointId) : null;
+    if (m) return m[1];
+  }
+  return undefined;
+};
+
 const staffDay = (place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
 
 /**
@@ -120,6 +134,8 @@ export interface Agent {
   following?: string;
   /** Prefijos del paso en curso: el grupo busca sitio del mismo tipo, al lado. */
   stepPoints?: readonly string[];
+  /** La caja (`{n}` del perfil) en la que hace cola y paga: la misma de principio a fin. */
+  lane?: string;
   /** Acompañantes que todavía no han cruzado la puerta. */
   pendingParty?: number;
   /** Al llegar, se gira hacia aquí: el camarero, hacia el cliente. */
@@ -214,7 +230,8 @@ export class Crowd {
     const prefixes = [...profile.visitors.flatMap((v) => v.plan.map((s) => s.points)), ...profile.staff.flatMap((s) => [s.points, s.serves ?? []])];
     for (const points of prefixes) {
       // `{s}`: el vestuario de cada cual (M o F); los dos tienen que existir.
-      const both = points.flatMap((p) => (p.includes('{s}') ? [p.replace('{s}', 'M'), p.replace('{s}', 'F')] : [p]));
+      // `{n}`: la caja; basta con que exista alguna.
+      const both = points.flatMap((p) => (p.includes('{s}') ? [p.replace('{s}', 'M'), p.replace('{s}', 'F')] : [p.split('{n}')[0]]));
       if (points.length > 0 && both.some((p) => this.pointsMatching([p]).length === 0)) throw new Error(`[${loc.id}] ningún punto para ${points.join(', ')}`);
     }
     // Servicio de mesa (systems/TableService.ts): si el local lo tiene, sus camareros y sus mesas van por él.
@@ -359,6 +376,7 @@ export class Crowd {
       if (!agent) break;
       agent.plan = plan.slice(skip + 1);
       agent.stepPoints = step.points;
+      agent.lane = laneOf(point, step.points);
       this.occupy(agent, point, step.state);
       this.startingDrink(agent, plan.slice(0, skip + 1).some((s) => s.state === 'DRINK'));
       this.dressFor(agent, plan, skip);
@@ -371,11 +389,12 @@ export class Crowd {
         if (mateLook < 0) break;
         const near = this.service?.tableOf(point)
           ? this.service.mateSeat(agent, (s) => this.seats.has(s) || this.claimed.has(s))
-          : this.freePointNear(this.expand(step.points, mateLook), this.pointAt(point), far);
+          : this.freePointNear(this.expand(step.points, mateLook, agent.lane), this.pointAt(point), far);
         if (!near) break;
         const mate = this.newAgent('visitor', role.role, role.label, role.line, this.pointAt(near), mateLook);
         if (!mate) break;
         mate.leader = agent;
+        mate.lane = agent.lane;
         mate.following = point;
         mate.sport = agent.sport;
         mate.pendingOutfit = agent.pendingOutfit;
@@ -583,12 +602,13 @@ export class Crowd {
     this.applyOutfit(a);
     const near = this.service?.tableOf(lead.point)
       ? this.service.mateSeat(lead, (s) => s === a.point || this.seats.has(s) || this.claimed.has(s))
-      : this.freePointNear(this.expand(lead.stepPoints, a.look), this.pointAt(lead.point), (id) => id !== a.point);
+      : this.freePointNear(this.expand(lead.stepPoints, a.look, lead.lane), this.pointAt(lead.point), (id) => id !== a.point);
     if (!near) return;
     if (!this.goTo(a, near, lead.state)) {
       a.following = undefined;
       return;
     }
+    a.lane = lead.lane;
     this.service?.reserve(near, a);
     // Quien viene con alguien toma lo suyo cuando le toca al grupo: su propio vaso, o ninguno si el grupo está pidiendo.
     if (this.profile.drinks) {
@@ -661,7 +681,8 @@ export class Crowd {
       return;
     }
     const step = a.plan[0];
-    const prefixes = this.expand(step.points, a.look);
+    // Con `{n}`, la caja que ya eligió; si cerró, como si no hubiera sitio (espera o se salta el paso).
+    const prefixes = this.expand(step.points, a.look, a.lane);
     // Su taquilla de antes, si sigue libre; si no, otra del mismo vestuario.
     const own = step.outfit === 'street' && a.locker && !this.seats.has(a.locker) && !this.claimed.has(a.locker) ? a.locker : undefined;
     const point = own ?? this.freePoint(prefixes, (id) => id !== a.point && this.seatOk(id, a));
@@ -695,6 +716,7 @@ export class Crowd {
     this.drinkCue(a, step.state);
     this.service?.reserve(point, a);
     a.stepPoints = step.points;
+    a.lane = laneOf(point, step.points) ?? a.lane;
     a.pendingOutfit = step.outfit;
     a.changeLeft = undefined;
     if (step.outfit === 'gym') a.locker = point;
@@ -710,10 +732,27 @@ export class Crowd {
   }
 
   /** Los prefijos de un paso, con `{s}` vuelto M o F según quien lo hace. */
-  private expand(prefixes: readonly string[], look: number): readonly string[] {
-    if (!prefixes.some((p) => p.includes('{s}'))) return prefixes;
-    const side = this.sideOfLook(look);
-    return prefixes.map((p) => p.replace('{s}', side));
+  private expand(prefixes: readonly string[], look: number, lane?: string): readonly string[] {
+    let out = prefixes;
+    if (out.some((p) => p.includes('{s}'))) {
+      const side = this.sideOfLook(look);
+      out = out.map((p) => p.replace('{s}', side));
+    }
+    // `{n}`: la caja ya elegida si sigue con cajero (si no, ninguna); sin elegir, cualquiera con cajero.
+    if (!out.some((p) => p.includes('{n}'))) return out;
+    const open = this.openLanes();
+    const lanes = lane === undefined ? open : open.includes(lane) ? [lane] : [];
+    return out.flatMap((p) => (p.includes('{n}') ? lanes.map((n) => p.replace('{n}', n)) : [p]));
+  }
+
+  /** Las cajas con cajero: el `{n}` de `profile.lane` en el puesto de cada empleado que no se va. */
+  private openLanes(): string[] {
+    const tpl = this.profile.lane;
+    if (!tpl) return [];
+    const re = laneRe(tpl, true);
+    return this.agents.flatMap((a) => (a.staffRole && !a.leaving && !a.leaveSoon
+      ? a.staffRole.points.flatMap((p) => re.exec(p)?.[1] ?? [])
+      : []));
   }
 
   /** Ponerse lo que tocaba en el paso que acaba: la ropa de entrenar, o la de calle. */
@@ -979,6 +1018,7 @@ export class Crowd {
         if (!agent) return;
         agent.plan = plan.slice(k + 1);
         agent.stepPoints = plan[k].points;
+        agent.lane = laneOf(point, plan[k].points);
         this.occupy(agent, point, plan[k].state);
         this.dressFor(agent, plan, k);
         agent.timer = this.duration(plan[k], point) * (0.3 + this.rng() * 0.7);

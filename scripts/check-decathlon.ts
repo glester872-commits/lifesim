@@ -212,6 +212,47 @@ for (const [i, c] of STAFFED.entries()) {
   assert.deepEqual([role.days, role.minLevel], [c.open?.days, c.open?.minLevel], `${c.id}: el turno no es el de la distribución`);
   if (role.minLevel) assert.ok(LEVELS.includes(role.minLevel), `${c.id}: nivel ${role.minLevel} desconocido`);
 }
+// DEC-04 · Cola y pago por carril: quien hace cola en la caja n paga en la n, y sólo en una caja con cajero.
+assert.ok(DECATHLON_PROFILE.lane, 'el perfil no dice dónde está el cajero de cada caja');
+const shopperPlan = DECATHLON_PROFILE.visitors.find((v) => v.role === 'shopper')!.plan.flatMap((s) => s.points);
+assert.ok(shopperPlan.includes('DECAT_QUEUE_{n}_') && shopperPlan.includes('DECAT_TILL_{n}'), 'el plan shopper no paga por carril');
+const AT_TILL = /^DECAT_(?:QUEUE_(\d+)_\d+|TILL_(\d+))$/;
+const runTills = (profile: typeof DECATHLON_PROFILE, day: number, hour: number): { queue: number; till: number; lanes: Set<string> } => {
+  const clock = { day, hour, minute: 0 };
+  const crowd = new Crowd(loc, shop, profile);
+  crowd.populate(clock, entry);
+  const queuedIn = new Map<number, string>();
+  const seen = { queue: 0, till: 0, lanes: new Set<string>() };
+  for (let t = 0; t < 3000; t++) {
+    crowd.update(500, clock, entry);
+    const open = new Set(crowd.agents.flatMap((a) => (a.staffRole && !a.leaving ? a.staffRole.points.flatMap((p) => /^DECAT_STAFF_(\d+)$/.exec(p)?.[1] ?? []) : [])));
+    for (const a of crowd.agents) {
+      const m = !a.staffRole && a.point ? AT_TILL.exec(a.point) : null;
+      if (!m) continue;
+      const n = m[1] ?? m[2];
+      const where = `día ${day} ${hour} h, ${a.id} en ${a.point}`;
+      assert.ok(open.has(n), `${where}: caja sin cajero`);
+      assert.equal(a.lane, n, `${where}: carril ${a.lane}`);
+      if (m[1]) {
+        queuedIn.set(a.id, n);
+        seen.queue++;
+      } else {
+        const q = queuedIn.get(a.id);
+        assert.ok(q === undefined || q === n, `${where}: hizo cola en la caja ${q}`);
+        seen.till++;
+      }
+      seen.lanes.add(n);
+    }
+  }
+  return seen;
+};
+for (const [day, hour] of [[1, 12], [6, 18]]) {
+  const seen = runTills(DECATHLON_PROFILE, day, hour);
+  assert.ok(seen.queue > 0 && seen.till > 0, `día ${day} ${hour} h: nadie hace cola (${seen.queue}) o paga (${seen.till})`);
+  if (day === 6) assert.ok(seen.lanes.size >= 2, `sábado 18 h: sólo se usa ${seen.lanes.size} caja`);
+}
+const noCashiers = runTills({ ...DECATHLON_PROFILE, staff: DECATHLON_PROFILE.staff.filter((s) => s.service !== 'cashier') }, 1, 12);
+assert.equal(noCashiers.queue + noCashiers.till, 0, 'sin cajeros, alguien hace cola o paga');
 
 // 8 · Las rutas de la gente (systems/Navigation): de la puerta a cada punto de la tienda y de vuelta.
 for (const id of Object.keys(loc.points ?? {})) {
@@ -222,7 +263,8 @@ for (const id of Object.keys(loc.points ?? {})) {
 // Cada prefijo del perfil de gente resuelve a algún punto de aquí.
 const ids = Object.keys(loc.points ?? {});
 for (const prefixes of [...DECATHLON_PROFILE.staff.map((s) => s.points), ...DECATHLON_PROFILE.visitors.flatMap((v) => v.plan.map((s) => s.points))]) {
-  for (const prefix of prefixes) assert.ok(ids.some((id) => id.startsWith(prefix)), `ningún punto con ${prefix}`);
+  // `{n}` (la caja): basta con la primera.
+  for (const prefix of prefixes) assert.ok(ids.some((id) => id.startsWith(prefix.replace('{n}', '1'))), `ningún punto con ${prefix}`);
 }
 
 // 9 · Merchandising variado: la nave con muchos tipos de mueble distintos y los carteles de casi todas las familias.
