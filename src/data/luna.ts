@@ -11,8 +11,11 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from
  *   y 16–23 los bajos del sur: viviendas
  *
  * Los locales con puerta son el bar y la tienda (data/lunaVenues.ts y data/locations.ts); la sala, sin `enter`.
+ *
+ * MAP-EXP-01: la calle sigue hacia el este hasta x 60, con la Plazuela de Luna (x 44–47) abierta a los dos lados y,
+ * en los bajos nuevos, el horno, la lavandería y el locutorio: puerta dibujada y sin `enter`.
  */
-const W = 34;
+const W = 64;
 const H = 24;
 
 type Paint = readonly [string, number, number, number, number];
@@ -27,9 +30,11 @@ function paint(fill: string, rects: readonly Paint[]): string[] {
 
 const GROUND = paint('g', [
   // Las dos aceras, la calzada de losa y la franja podotáctil delante de la boca de metro.
-  [',', 3, 9, 28, 2], [',', 3, 14, 28, 2],
-  ['P', 3, 11, 28, 3],
+  [',', 3, 9, 58, 2], [',', 3, 14, 58, 2],
+  ['P', 3, 11, 58, 3],
   ['T', 27, 9, 3, 1],
+  // La Plazuela de Luna: los dos entrantes entre los bajos, al norte y al sur.
+  [',', 44, 3, 4, 6], [',', 44, 16, 4, 6],
 ]);
 
 const b = (
@@ -45,7 +50,10 @@ const b = (
 const BUILDINGS: readonly BuildingDef[] = [
   // Las medianeras que cierran la calle a los dos lados.
   { id: 'lu-cierre-o', name: 'Manzana oeste', style: 'backdrop', tx: 0, ty: 0, w: 3, h: 24 },
-  { id: 'lu-cierre-e', name: 'Manzana este', style: 'backdrop', tx: 31, ty: 0, w: 3, h: 24 },
+  { id: 'lu-cierre-e', name: 'Manzana este', style: 'backdrop', tx: 61, ty: 0, w: 3, h: 24 },
+  // El fondo de los dos entrantes de la plazuela.
+  { id: 'lu-cierre-pn', name: 'Manzana de la plazuela', style: 'backdrop', tx: 44, ty: 0, w: 4, h: 3 },
+  { id: 'lu-cierre-ps', name: 'Manzana de la plazuela', style: 'backdrop', tx: 44, ty: 22, w: 4, h: 2 },
   b('lu-res-1', 'Calle de la Luna 2', 'res-modern', [3, 2, 5, 7], 's', 5, { point: 'LU_RES_1_ENTRANCE' }),
   b('lu-bar', 'Bar Luna Llena', 'bar', [8, 2, 6, 7], 's', 10, { enter: { location: 'lu-bar', spawn: 'entry' }, point: 'LU_BAR_ENTRANCE' }),
   b('lu-abierto', 'Abierto Toda la Noche', 'grocer', [14, 2, 5, 7], 's', 16, { enter: { location: 'lu-abierto', spawn: 'entry' }, point: 'LU_SHOP_ENTRANCE' }),
@@ -57,12 +65,25 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('lu-res-s4', 'Calle de la Luna 13', 'res-plaster', [18, 16, 4, 8], 'n', 19),
   b('lu-res-3', 'Calle de la Luna 17', 'res-brick', [22, 16, 5, 8], 'n', 24, { point: 'LU_RES_3_ENTRANCE' }),
   b('lu-res-s6', 'Calle de la Luna 21', 'res-modern', [27, 16, 4, 8], 'n', 28),
+  // MAP-EXP-01, el tramo este. Los tres locales, sin interior: sólo la puerta.
+  b('lu-res-n7', 'Calle de la Luna 24', 'res-plaster', [31, 2, 5, 7], 's', 33),
+  b('lu-horno', 'Horno de Luna', 'bakery', [36, 2, 4, 7], 's', 37),
+  b('lu-res-n9', 'Calle de la Luna 28', 'res-brick', [40, 2, 4, 7], 's', 41),
+  b('lu-lavanderia', 'Lavandería Luna', 'laundry', [48, 2, 5, 7], 's', 50),
+  b('lu-res-n11', 'Calle de la Luna 32', 'res-modern', [53, 2, 4, 7], 's', 54),
+  b('lu-locutorio', 'Locutorio 24h', 'phone', [57, 2, 4, 7], 's', 58),
+  b('lu-res-s7', 'Calle de la Luna 25', 'res-brick', [31, 16, 5, 8], 'n', 33),
+  b('lu-res-s8', 'Calle de la Luna 27', 'res-plaster', [36, 16, 4, 8], 'n', 37),
+  b('lu-res-s9', 'Calle de la Luna 29', 'res-modern', [40, 16, 4, 8], 'n', 41),
+  b('lu-res-s10', 'Calle de la Luna 31', 'res-plaster', [48, 16, 5, 8], 'n', 50),
+  b('lu-res-s11', 'Calle de la Luna 33', 'res-brick', [53, 16, 4, 8], 'n', 54),
+  b('lu-res-s12', 'Calle de la Luna 35', 'res-modern', [57, 16, 4, 8], 'n', 58),
 ];
 
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
 const many = (kind: PropKind, cells: readonly (readonly [number, number])[]): PropPlacement[] => cells.map(([x, y]) => at(kind, x, y));
 
-// Las filas 10 y 14 y las columnas 10 y 22 de la losa quedan sin props: por ahí va la gente.
+// Las filas 10 y 14 y las columnas 10, 22, 45 y 46 de la losa quedan sin props: por ahí va la gente.
 const PROPS: readonly PropPlacement[] = [
   at('metro-totem', 30, 9),
   at('notice-board', 18, 13),
@@ -70,16 +91,22 @@ const PROPS: readonly PropPlacement[] = [
   ...many('street-lamp', [[7, 9], [13, 9], [20, 9], [25, 9], [8, 15], [13, 15], [21, 15], [26, 15]]),
   ...many('bin', [[18, 9], [17, 15]]),
   // Los remates de la calle, contra las medianeras.
-  ...many('planter-box', [[4, 12], [29, 12]]),
+  ...many('planter-box', [[4, 12], [59, 12]]),
   ...many('cafe-table', [[6, 11], [14, 11]]),
+  // MAP-EXP-01, el tramo este: farolas al tresbolillo, sin tapar ninguna puerta; la plazuela, con sus dos árboles y su banco.
+  ...many('street-lamp', [[35, 9], [42, 9], [52, 9], [36, 15], [43, 15], [55, 15]]),
+  ...many('tree', [[44, 3], [47, 3]]),
+  at('plaza-bench', 45, 5),
+  ...many('bin', [[49, 9], [39, 15]]),
+  ...many('cafe-table', [[38, 11], [52, 11]]),
 ];
 
 const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
 const pad = (x: number): string => String(x).padStart(2, '0');
 
 /** Nodos de la acera norte (fila 10) y de la sur (fila 14). */
-const NORTH = [5, 10, 16, 22, 28] as const;
-const SOUTH = [5, 10, 15, 22, 24, 28] as const;
+const NORTH = [5, 10, 16, 22, 28, 33, 37, 41, 50, 54, 58] as const;
+const SOUTH = [5, 10, 15, 22, 24, 28, 33, 37, 41, 50, 54, 58] as const;
 
 const POINTS: Record<string, PointDef> = {
   // Umbrales de portal por donde sale la gente al resto de la ciudad; la calle está cerrada.
@@ -95,6 +122,11 @@ const POINTS: Record<string, PointDef> = {
   LU_CORRILLO_07: p(24, 12, 'meet', 'right'), LU_CORRILLO_08: p(25, 12, 'meet', 'left'),
   // Quien espera a alguien a la boca de metro.
   LU_METRO_WAIT_01: p(26, 9, 'wait', 'right'),
+  // La Plazuela de Luna: su cruce, los fondos de los dos entrantes, dos corrillos más y quien espera junto al banco.
+  'lu-cm': p(45, 12, 'path'), 'lu-pn': p(45, 6, 'path'), 'lu-ps': p(45, 19, 'path'),
+  LU_CORRILLO_09: p(43, 12, 'meet', 'right'), LU_CORRILLO_10: p(44, 12, 'meet', 'left'),
+  LU_CORRILLO_11: p(47, 12, 'meet', 'right'), LU_CORRILLO_12: p(48, 12, 'meet', 'left'),
+  LU_PLAZUELA_WAIT_01: p(44, 6, 'wait', 'right'), LU_PLAZUELA_WAIT_02: p(47, 6, 'wait', 'left'),
 };
 
 type Link = readonly [string, string];
@@ -110,6 +142,10 @@ const LINKS: readonly Link[] = [
   ['LU_CORRILLO_01', 'lu-cw'], ['LU_CORRILLO_02', 'lu-cw'], ['LU_CORRILLO_03', 'lu-cw'], ['LU_CORRILLO_04', 'lu-cw'],
   ['LU_CORRILLO_05', 'lu-ce'], ['LU_CORRILLO_06', 'lu-ce'], ['LU_CORRILLO_07', 'lu-ce'], ['LU_CORRILLO_08', 'lu-ce'],
   ['LU_METRO_WAIT_01', 'lu-n28'],
+  ['lu-n41', 'lu-cm'], ['lu-n50', 'lu-cm'], ['lu-s41', 'lu-cm'], ['lu-s50', 'lu-cm'],
+  ['lu-pn', 'lu-cm'], ['lu-ps', 'lu-cm'],
+  ['LU_CORRILLO_09', 'lu-cm'], ['LU_CORRILLO_10', 'lu-cm'], ['LU_CORRILLO_11', 'lu-cm'], ['LU_CORRILLO_12', 'lu-cm'],
+  ['LU_PLAZUELA_WAIT_01', 'lu-pn'], ['LU_PLAZUELA_WAIT_02', 'lu-pn'],
 ];
 
 export const LUNA: LocationDef = {
@@ -130,12 +166,13 @@ export const LUNA: LocationDef = {
     { profile: 'transit', tx: 26, ty: 0, w: 5, h: 12 },
   ],
   inspects: [
-    { tx: 30, ty: 9, name: 'Plano del barrio', lines: ['Luna: la Calle de la Luna, el Bar Luna Llena y el Abierto Toda la Noche. Línea 2 hacia Casco Antiguo y Vallesco.'] },
+    { tx: 30, ty: 9, name: 'Plano del barrio', lines: ['Luna: la Calle de la Luna, el Bar Luna Llena y el Abierto Toda la Noche; más allá, la Plazuela de Luna, el Horno, la Lavandería y el Locutorio. Línea 2 hacia Casco Antiguo y Vallesco.'] },
     { tx: 18, ty: 13, name: 'Tablón', lines: ['Un cartel a mano: «Se ha perdido un gato gris por la calle. Responde a Lunes». Debajo, otra letra: «y los demás días no».'] },
     { tx: 4, ty: 12, name: 'Fin de la calle', lines: ['Aquí acaba la Calle de la Luna: medianeras de la manzana. Se sale por el metro.'] },
-    { tx: 29, ty: 12, name: 'Fin de la calle', lines: ['Aquí acaba la Calle de la Luna: medianeras de la manzana. Se sale por el metro.'] },
+    { tx: 59, ty: 12, name: 'Fin de la calle', lines: ['Aquí acaba la Calle de la Luna: medianeras de la manzana. Se sale por el metro.'] },
   ],
   areas: [
     { name: 'Calle de la Luna', tx: 16, ty: 12 },
+    { name: 'Plazuela de Luna', tx: 46, ty: 12 },
   ],
 };
