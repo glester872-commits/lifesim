@@ -1,5 +1,6 @@
 import type { StoryDef } from '../systems/Story.ts';
 import { ADA_STORY } from './adaStory.ts';
+import { AMAIA_STORY } from './amaiaStory.ts';
 import { visitBeats, visitMessages, visitOpeners, visitPlans, type VisitText } from './visits.ts';
 
 /**
@@ -331,4 +332,4 @@ export const SARA_STORY: StoryDef = {
 };
 
 /** Las historias por personaje: uno nuevo con historia es una entrada más. */
-export const STORIES: Readonly<Record<string, StoryDef>> = { sara: SARA_STORY, ada: ADA_STORY };
+export const STORIES: Readonly<Record<string, StoryDef>> = { sara: SARA_STORY, ada: ADA_STORY, amaia: AMAIA_STORY };

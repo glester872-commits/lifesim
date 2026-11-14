@@ -9,7 +9,8 @@ import { createPhone, type PhoneNews, type PhoneState } from '../systems/Phone';
 import type { Ticket } from '../systems/Tickets';
 import { policeMemory, restoreIncidents } from '../systems/Police';
 import type { JobProgress } from '../systems/Jobs';
-import { recordMovement, type HouseholdState, type Movement } from '../systems/Household';
+import { recordMovement, type HouseholdState, type Movement, type MovementType } from '../systems/Household';
+import { emptyCredit, pendingEntry, type CreditResult, type CreditState } from '../systems/Credit';
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { emptyParish, type ParishState } from '../systems/Parish';
 import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
@@ -123,6 +124,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** Movimientos de la cartera, con su motivo. */
   private _ledger: Movement[];
 
+  /** Micropréstamo (systems/Credit). */
+  private _credit: CreditState;
+
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). */
   private _study: StudyState;
 
@@ -143,6 +147,8 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** Motivo del cambio de dinero en curso (as()). */
   private why: string | null = null;
+  /** Tipo, origen e id propio del cambio en curso (as()); sin ellos, 'other', 'wallet' e id generado. */
+  private whyMeta: { type?: MovementType; source?: string; movementId?: string } | undefined = undefined;
 
   constructor(
     initial: GameStateData,
@@ -232,6 +238,8 @@ export class GameState extends Phaser.Events.EventEmitter {
 
     this._ledger = structuredClone(initial.ledger ?? []);
 
+    this._credit = structuredClone(initial.credit ?? emptyCredit());
+
     this._study = structuredClone(initial.study ?? emptyStudy());
 
     this._housing = structuredClone(initial.housing ?? startHousing());
@@ -276,21 +284,47 @@ export class GameState extends Phaser.Events.EventEmitter {
     return structuredClone(this._ledger);
   }
 
-  /** Lo que cambie el dinero dentro de `fn` se apunta con este motivo (sueldo, alquiler, una compra). */
-  as<T>(label: string, fn: () => T): T {
+  get credit(): CreditState {
+    return structuredClone(this._credit);
+  }
+
+  setCredit(c: CreditState): void {
+    this._credit = structuredClone(c);
+    this.emit('credit');
+  }
+
+  /**
+   * Aplica un resultado de systems/Credit (take, payInstallment, cancel): dinero, préstamo y su línea con id fijo.
+   * Si no es ok o su id ya está en el ledger, no hace nada (ni dinero ni línea dos veces). Devuelve si se aplicó.
+   */
+  applyCredit(r: CreditResult): boolean {
+    const e = pendingEntry(r, this._ledger);
+    if (!e) return false;
+    this.as(e.label, () => {
+      this.money = r.money;
+    }, e);
+    this.setCredit(r.credit);
+    return true;
+  }
+
+  /** Lo que cambie el dinero dentro de `fn` se apunta con este motivo (sueldo, alquiler, una compra) y, si se da, su tipo, origen e id propio. */
+  as<T>(label: string, fn: () => T, meta?: { type?: MovementType; source?: string; movementId?: string }): T {
     const before = this.why;
+    const beforeMeta = this.whyMeta;
     this.why = label;
+    this.whyMeta = meta;
     try {
       return fn();
     } finally {
       this.why = before;
+      this.whyMeta = beforeMeta;
     }
   }
 
   /** Apunta un cambio de la cartera. Sin motivo, «Otros». Cómo se suman las líneas: systems/Household.recordMovement. */
   private record(delta: number): void {
     if (Math.abs(delta) < 0.005) return;
-    recordMovement(this._ledger, { day: this._day, hour: this._hour, minute: this._minute, label: this.why ?? 'Otros', amount: delta });
+    recordMovement(this._ledger, { day: this._day, hour: this._hour, minute: this._minute, label: this.why ?? 'Otros', amount: delta, type: this.whyMeta?.type, source: this.whyMeta?.source, movementId: this.whyMeta?.movementId });
   }
 
   // ================================================================
@@ -816,6 +850,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       household: structuredClone(this._household),
 
       ledger: structuredClone(this._ledger),
+
+      credit: structuredClone(this._credit),
 
       study: structuredClone(this._study),
 

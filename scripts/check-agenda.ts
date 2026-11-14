@@ -2,6 +2,7 @@
 // trabajar), lo perdido en un salto de reloj, señales de progreso, el cuerpo que se ve y partidas antiguas. Al final,
 // las tres jornadas de referencia con los datos reales (mapa, metro, horarios, actividades). `npm run check`.
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import { JOBS } from '../src/data/jobs.ts';
 import { COURSES } from '../src/data/study.ts';
 import { getActivity } from '../src/data/activities.ts';
@@ -16,6 +17,7 @@ import { enroll } from '../src/systems/Study.ts';
 import { START_FITNESS, buildOf, bodyLine } from '../src/systems/Fitness.ts';
 import { TOUR } from '../src/data/tour.ts';
 import { AGENDA } from '../src/config/agenda.ts';
+import { getStop, journeyAfterPortal, prepareRide, routeBetween } from '../src/systems/Transit.ts';
 import {
   commitments, departureText, estimateTrip, leadOf, margin, marginLabel, parseAgenda, progressSignals, review, startAgenda, travelHint,
   type AgendaInput, type AgendaState, type Commitment, type Position, type ProgressInput, type Where,
@@ -170,6 +172,62 @@ for (const s of TOUR) assert.ok(s.text.length > 30 && !s.text.includes('undefine
   assert.equal(margin(job1, job1.start + 1, nullHint), 'late');
   assert.equal(marginLabel(job1, job1.start - 120, nullHint), '');
 }
+
+// ------------------------------------------------------------------ regresiones de metro: transbordo, validación y tarjeta
+
+test('la estimación cuenta la espera de cada tren, también tras un transbordo', () => {
+  const from: Position = { location: 'arena-station', x: 8 * TILE, y: 8 * TILE };
+  const where = commitments(input(t(1, 7)))[0].where;
+  const route = routeBetween('arena', 'decathlon');
+  assert.ok(route);
+  assert.deepEqual(route.legs.map((l) => l.mode), ['train', 'transfer', 'train', 'transfer']);
+  for (const peak of [false, true]) {
+    const est = estimateTrip(from, where, { now: t(1, 9), start: t(1, 12), balance: 2, peak });
+    assert.equal(est.tramos.filter((l) => l.kind === 'wait').length, 2, 'hay que esperar en L2 y de nuevo en L3');
+    const walk = est.tramos.find((l) => l.kind === 'walk');
+    assert.ok(walk);
+    assert.equal(est.totalMin, route.minutes + 2 * AGENDA.METRO_WAIT + AGENDA.STATION_WALK + walk.minutes);
+    const waitMargin = peak ? AGENDA.WAIT_MARGIN_PEAK : AGENDA.WAIT_MARGIN_OFF_PEAK;
+    assert.equal(est.marginMin, 2 * waitMargin + 2 * AGENDA.TRANSFER_MARGIN + walk.uncertainty);
+    assert.equal(est.departAt, t(1, 12) - est.totalMin! - est.marginMin!);
+  }
+});
+
+test('entrar al andén no valida el billete; viajar y transbordar sí conservan su validación', () => {
+  const platform: Position = { location: 'vallesco-station', x: 8 * TILE, y: 8 * TILE };
+  const ribera: Where = { name: 'Ribera Norte', stop: 'ribera' };
+  const jobWhere = commitments(input(t(1, 7)))[0].where;
+  // Comprobar tanto el destino por parada como el destino con mapa.
+  for (const where of [ribera, jobWhere]) {
+    const est = estimateTrip(platform, where, { balance: 1 });
+    assert.equal(est.totalMin, null, 'sin validar: el mismo bloqueo que desde la calle');
+    assert.match(est.text, /falta saldo/);
+    assert.equal(est.category, null);
+    assert.equal(est.departAt, null);
+  }
+  const ride = prepareRide({ money: 0, inventory: {}, cards: { transport: 2 } }, null, getStop('vallesco'), getStop('puerta-central'), 9);
+  assert.ok(ride.ok);
+  const metroJourney = journeyAfterPortal(ride.journey, ride.station, 'puerta-central-l3-station');
+  assert.ok(metroJourney);
+  const transfer: Position = { location: metroJourney.station, x: 8 * TILE, y: 8 * TILE };
+  const paidOptions = { now: t(1, 9), balance: ride.wallet.cards.transport, metroJourney };
+  assert.equal(paidOptions.balance, 0);
+  assert.ok(prepareRide(ride.wallet, metroJourney, getStop('puerta-central-l3'), getStop('decathlon-l3'), 9).ok);
+  assert.ok(estimateTrip(transfer, jobWhere, paidOptions).totalMin !== null, 'transbordo validado: no exige otro billete');
+  assert.equal(estimateTrip(platform, ribera, paidOptions).totalMin, null, 'validación de otro andén: no vale');
+  assert.equal(estimateTrip(HOME, jobWhere, paidOptions).totalMin, null, 'desde la calle hace falta un nuevo billete');
+});
+
+test('sin tarjeta no hay estimación de metro ni salida recomendada, pero sí viajes a pie', () => {
+  const where = commitments(input(t(1, 7)))[0].where;
+  const est = estimateTrip(HOME, where, { now: t(1, 9), start: t(1, 10), balance: null });
+  assert.equal(est.totalMin, null);
+  assert.match(est.text, /falta la tarjeta/);
+  assert.equal(est.category, null);
+  assert.equal(est.departAt, null);
+  assert.ok(estimateTrip(HOME, where).totalMin !== null, 'sin opción de saldo: se permite calcular sólo los tiempos');
+  assert.ok(estimateTrip(HOME, { name: 'Gimnasio', location: 'gym', tile: { tx: 18, ty: 14 } }, { balance: null }).totalMin !== null);
+});
 
 // ------------------------------------------------------------------ texto de la salida (app Hoy y HUD)
 

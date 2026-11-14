@@ -34,3 +34,6 @@ dist-ssr
 design/hd02/evidence/
 design/hd02/review/shots/
 design/hd03/shots/
+
+# Instrumentación local de /autodev (scripts/autodev-run.mjs): registros y dashboard privados, nunca al repo
+.autodev/

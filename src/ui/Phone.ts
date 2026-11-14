@@ -20,6 +20,12 @@ import { gigDeadline, gigStatus, hasCamera, knowledge, lessonStatus, levelName, 
 import { commitments, departureText, dueText, estimateTrip, margin, marginLabel, progressSignals, travelHint, type Commitment, type TravelHint } from '../systems/Agenda';
 import { TOUR } from '../data/tour';
 import { opportunities, opportunityInput } from '../systems/Opportunities';
+import { getCatalog } from '../data/catalogs';
+import { destinationsFrom, getStop } from '../systems/Transit';
+import { rentsOf } from '../systems/Housing';
+import { CREDIT } from '../data/credit';
+import { GRACE_DAYS } from '../data/household';
+import { activeLoan, cancel, cancelQuote, creditBlocker, creditView, payInstallment, simulateCredit, syncCredit, take, totalOf, type CreditInput } from '../systems/Credit';
 
 /**
  * El móvil (tecla P o su botón): una capa de DOM encima del juego, como el menú y el mapa. Pinta lo que hay en
@@ -55,7 +61,8 @@ export interface PhoneHost {
 type Screen =
   | { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'job' } | { app: 'thread'; npc: string }
   | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' } | { app: 'today' }
-  | { app: 'notes' } | { app: 'note'; id: string };
+  | { app: 'notes' } | { app: 'note'; id: string }
+  | { app: 'credit' } | { app: 'loan' } | { app: 'loan-close' };
 
 /** Un identificador que no se repite entre recargas (el del mensaje o la nota). */
 const freshId = (): string => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -320,7 +327,8 @@ export class PhoneScreen {
     const s = this.screen;
     if (s.app === 'home') this.close();
     else if (s.app === 'thread') this.go({ app: this.cameFrom });
-    else if (s.app === 'pay' || s.app === 'goals') this.go({ app: 'money' });
+    else if (s.app === 'pay' || s.app === 'goals' || s.app === 'credit' || s.app === 'loan') this.go({ app: 'money' });
+    else if (s.app === 'loan-close') this.go({ app: 'loan' });
     else if (s.app === 'note') this.go({ app: 'notes' });
     else this.go({ app: 'home' });
   }
@@ -440,6 +448,9 @@ export class PhoneScreen {
     else if (s.app === 'pay') this.renderPay(s.bill, s.period);
     else if (s.app === 'goals') this.renderGoals();
     else if (s.app === 'today') this.renderToday();
+    else if (s.app === 'credit') this.renderCredit();
+    else if (s.app === 'loan') this.renderLoan();
+    else if (s.app === 'loan-close') this.renderLoanClose();
     else if (s.app === 'notes') this.renderNotes();
     else if (s.app === 'note') this.renderNote(s.id);
     else this.renderThread(s.npc);
@@ -505,11 +516,11 @@ export class PhoneScreen {
       ? 'Con el móvil abierto el reloj sigue corriendo; el mapa y las compras lo paran. El viaje es una estimación desde donde estás: el ± es su margen, y no cuenta colas, semáforos ni gente.'
       : 'Nada con hora en los próximos días. Un contrato, un curso o un plan con alguien aparecerán aquí.');
     const ul = el('ul', 'phone__list');
-    const balance = this.state.wallet.cards.transport;
+    const balance = this.state.wallet.cards.transport ?? null;
     for (const c of list) {
       // Con hora y sitio: la estimación por tramos, con la salida recomendada. Los plazos y «desde el móvil», como antes.
       const timed = !!c.where && !c.deadline;
-      const est = timed ? estimateTrip(pos, c.where, { start: c.start, now, balance }) : null;
+      const est = timed ? estimateTrip(pos, c.where, { start: c.start, now, balance, metroJourney: this.state.metroJourney }) : null;
       const hint: TravelHint = est ? { minutes: est.totalMin, text: est.text, marginMin: est.marginMin } : travelHint(pos, c.where);
       const label = marginLabel(c, now, hint);
       const li = el('li', `phone__row${label ? ' is-unread' : ''}`);
@@ -693,6 +704,7 @@ export class PhoneScreen {
     } else goal.append(rowText('Meta de ahorro', 'Elige algo para lo que ahorrar'));
     this.item(goal, () => this.go({ app: 'goals' }));
     ul.append(goal);
+    ul.append(this.creditRow(this.host?.now() ?? 0));
     const moves = el('ul', 'phone__list');
     for (const m of this.state.ledger.slice(-8).reverse()) {
       const li = el('li', 'phone__row');
@@ -768,6 +780,167 @@ export class PhoneScreen {
       ul.append(none);
     }
     this.screenEl.replaceChildren(el('p', 'phone__greeting', advice), ul);
+  }
+
+  // ------------------------------------------------------------ micropréstamo (Fase 3b; systems/Credit)
+
+  /** Lo que el préstamo necesita de la partida, con el trabajo repasado a ahora (como Trabajo). */
+  private creditInput(now: number): CreditInput {
+    return { job: this.state.job && settle(this.state.job, now).progress, household: this.state.household, credit: this.state.credit, today: this.state.day };
+  }
+
+  /** La fila de Cuentas: el estado si hay préstamo, la consulta si se puede pedir, o por qué no (sin elegir). */
+  private creditRow(now: number): HTMLElement {
+    const li = el('li', 'phone__row');
+    const input = this.creditInput(now);
+    if (activeLoan(input.credit)) {
+      li.append(rowText('Micropréstamo', 'Préstamo abierto: ver cuánto debes'));
+      this.item(li, () => this.go({ app: 'loan' }));
+      return li;
+    }
+    const why = creditBlocker(input);
+    if (why) {
+      li.classList.add('is-soon');
+      li.append(rowText('Micropréstamo', why));
+      return li;
+    }
+    li.append(rowText('Micropréstamo', `Pedir ${euros(CREDIT.principal)} · coste fijo ${euros(CREDIT.cost)}`));
+    this.item(li, () => this.go({ app: 'credit' }));
+    return li;
+  }
+
+  /** La consulta: condiciones, los tres escenarios con el contrato y la casa de hoy, y pedir o no. */
+  private renderCredit(): void {
+    const input = this.creditInput(this.host?.now() ?? 0);
+    const why = creditBlocker(input);
+    if (why || !input.job) {
+      this.flash = why ?? '';
+      this.go({ app: 'money' });
+      return;
+    }
+    this.titleEl.textContent = 'Micropréstamo';
+    // Los mismos gastos que mide la Fase 0 (scripts/simulate-budget.ts): comida del súper, metro ida y vuelta al trabajo
+    // (€0 si se va a pie) y el alquiler real de tu casa. Sin ellos, los escenarios prometían de más.
+    const place = getJob(input.job.job).place;
+    const trip = destinationsFrom(getStop('vallesco')).find((d) => d.stop.id === place)?.fare ?? 0;
+    const daily = getCatalog('super-rosales').products.find((p) => p.id === 'groceries')?.price ?? 0;
+    const sims = simulateCredit({ job: input.job, household: input.household, money: this.state.money, today: this.state.day, daily, commute: 2 * trip, amounts: rentsOf(this.state.housing) });
+    const head = el('p', 'phone__greeting', `Te prestamos ${euros(CREDIT.principal)} y lo devuelves en ${CREDIT.installments} cuotas semanales de ${euros(sims[0].installment)} en ${CREDIT.term} días: ${euros(CREDIT.principal + CREDIT.cost)} en total, con un coste fijo de ${euros(CREDIT.cost)}. Sin intereses de demora. Si una cuota pasa ${GRACE_DAYS} días sin pagar, un recargo único de ${euros(CREDIT.lateFee)}. Puedes desistir sin coste los ${CREDIT.withdrawalDays} primeros días.`);
+    const ways: Readonly<Record<'favorable' | 'intermedio' | 'desfavorable', string>> = {
+      favorable: 'Vas a todos los turnos', intermedio: 'Pierdes un turno por semana', desfavorable: 'No vas a ningún turno',
+    };
+    const scenarios = el('ul', 'phone__list');
+    for (const s of sims) {
+      const li = el('li', 'phone__row');
+      const left = s.remaining > 0 ? `debes ${euros(s.remaining)} al acabar` : 'devuelto';
+      li.append(rowText(ways[s.name], `Al acabar: ${euros(s.finalMoney)} en cartera, ${left}${s.houseLate ? ' · casa con retraso' : ''}${s.loanLate ? ' · préstamo con retraso' : ''}`));
+      scenarios.append(li);
+    }
+    const ul = el('ul', 'phone__list');
+    const ask = el('li', 'phone__row');
+    ask.append(rowText(`Pedir ${euros(CREDIT.principal)}`, `Entra hoy en la cartera. Devuelves ${euros(CREDIT.principal + CREDIT.cost)}.`));
+    this.item(ask, () => {
+      const r = take(this.creditInput(this.host?.now() ?? 0), this.state.money);
+      if (!r.ok) {
+        this.flash = r.message;
+        this.go({ app: 'money' });
+        return;
+      }
+      this.state.applyCredit(r);
+      this.host?.persist();
+      this.flash = r.message;
+      this.go({ app: 'money' });
+    });
+    const no = el('li', 'phone__row');
+    no.append(rowText('Ahora no', 'Volver a Cuentas'));
+    this.item(no, () => this.go({ app: 'money' }));
+    ul.append(ask, no);
+    this.screenEl.replaceChildren(head, el('p', 'phone__note', 'Tres escenarios con tu contrato y tu casa tal como están hoy:'), scenarios, ul, el('p', 'phone__note', 'Cifras del juego, no son consejo financiero real.'));
+  }
+
+  /** El préstamo abierto: cuánto se debe, pagar la cuota pendiente, o cerrarlo (desistir o liquidar). */
+  private renderLoan(): void {
+    const day = this.state.day;
+    const c = this.state.credit;
+    const loan = activeLoan(syncCredit(c, day).credit);
+    if (!loan) {
+      this.go({ app: 'money' });
+      return;
+    }
+    this.titleEl.textContent = 'Micropréstamo';
+    const flash = this.flash;
+    this.flash = '';
+    const parts: HTMLElement[] = [el('p', 'phone__greeting', `${creditView(c, day)}${flash ? ` ${flash}` : ''}`)];
+    const ul = el('ul', 'phone__list');
+    const next = loan.obligations.find((o) => o.paid === undefined);
+    if (next) {
+      const n = next.n;
+      const amount = totalOf(next);
+      const enough = this.state.money + 1e-9 >= amount;
+      const pay = el('li', `phone__row${enough ? '' : ' is-soon'}`);
+      pay.append(rowText(enough ? `Pagar cuota ${n} (${euros(amount)})` : 'No te llega', enough ? 'Se paga con la cartera' : 'Sigue pendiente; no pasa nada hoy'));
+      this.item(pay, () => {
+        const r = payInstallment(this.state.credit, this.state.money, n, this.state.day);
+        if (!r.ok) {
+          this.flash = r.message;
+          this.go({ app: 'loan' });
+          return;
+        }
+        this.state.applyCredit(r);
+        this.host?.persist();
+        this.flash = r.message;
+        this.go({ app: 'loan' });
+      });
+      ul.append(pay);
+      if (!enough) parts.push(el('p', 'phone__note', payInstallment(c, this.state.money, n, day).message));
+    }
+    const withdrawal = day <= loan.since + CREDIT.withdrawalDays - 1;
+    const close = el('li', 'phone__row');
+    close.append(rowText(`${withdrawal ? 'Desistir' : 'Liquidar ahora'} (${euros(cancelQuote(c, day) ?? 0)})`, withdrawal ? 'Sin coste: sólo lo que queda del principal' : 'Lo pendiente, con el coste de lo ya generado'));
+    // Cerrar el préstamo no se deshace: pasa por una confirmación (como pagar una factura).
+    this.item(close, () => this.go({ app: 'loan-close' }));
+    const back = el('li', 'phone__row');
+    back.append(rowText('Volver', 'A Cuentas'));
+    this.item(back, () => this.go({ app: 'money' }));
+    ul.append(close, back);
+    parts.push(ul);
+    this.screenEl.replaceChildren(...parts);
+  }
+
+  /** Confirmar desistir o liquidar. «Ahora no» va primero: un doble toque no cierra el préstamo. */
+  private renderLoanClose(): void {
+    const day = this.state.day;
+    const loan = activeLoan(syncCredit(this.state.credit, day).credit);
+    const amount = cancelQuote(this.state.credit, day);
+    if (!loan || amount === null) {
+      this.go({ app: 'money' });
+      return;
+    }
+    const withdrawal = day <= loan.since + CREDIT.withdrawalDays - 1;
+    this.titleEl.textContent = withdrawal ? 'Desistir' : 'Liquidar';
+    const money = this.state.money;
+    const enough = money + 1e-9 >= amount;
+    const text = `${withdrawal ? 'Devuelves lo que queda del principal, sin coste' : 'Pagas lo pendiente y el coste de las cuotas ya generadas; el de las que faltan no'}: ${euros(amount)}. Saldo ${euros(money)} → ${enough ? euros(money - amount) : 'no llega'}. El préstamo queda cerrado y podrás pedir otro en ${CREDIT.cooldown} días.`;
+    const ul = el('ul', 'phone__list');
+    const no = el('li', 'phone__row');
+    no.append(rowText('Ahora no', 'Volver al préstamo'));
+    this.item(no, () => this.go({ app: 'loan' }));
+    const yes = el('li', `phone__row${enough ? '' : ' is-soon'}`);
+    yes.append(rowText(enough ? `Confirmar: pagar ${euros(amount)}` : 'No te llega', enough ? 'Se paga con la cartera' : 'Sigue abierto; no pasa nada hoy'));
+    this.item(yes, () => {
+      const r = cancel(this.state.credit, this.state.money, this.state.day);
+      if (!r.ok) {
+        this.flash = r.message;
+        this.go({ app: 'loan' });
+        return;
+      }
+      this.state.applyCredit(r);
+      this.host?.persist();
+      this.flash = r.message;
+      this.go({ app: 'money' });
+    });
+    ul.append(no, yes);
+    this.screenEl.replaceChildren(el('p', 'phone__greeting', text), ul);
   }
 
   private setGoal(id: string | null): void {

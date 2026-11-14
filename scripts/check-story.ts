@@ -30,7 +30,7 @@ const used = [
   ...flagsIn(def.invite.when), ...flagsOf(def.invite.accept.then), ...flagsOf(def.invite.decline.then),
   ...flagsOf(def.kept.then), ...flagsOf(def.missed), ...flagsOf(def.cancelled),
   ...(def.greyFlag ? [def.greyFlag.flag] : []), ...(def.metFlag ? [def.metFlag] : []),
-  ...NAMED_LINES.flatMap((l) => [...(l.f ?? []), ...(l.nf ?? [])]),
+  ...NAMED_LINES.filter((l) => l.n === 'sara').flatMap((l) => [...(l.f ?? []), ...(l.nf ?? [])]),
 ];
 for (const f of used) assert.ok(f in def.flags, `flag sin declarar en data/saraStory.ts: ${f}`);
 for (const f of ['sara_met', 'sara_friend', 'sara_close_friend', 'sara_event_01', 'sara_event_02', 'sara_conflict', 'sara_reconciled']) {

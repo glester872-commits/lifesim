@@ -2626,14 +2626,16 @@ export class WorldScene extends Phaser.Scene {
     const phase = cur ? kickPhase(cur.kick, t - cur.start) : null;
     const dx = Math.round(k.offset * TILE * k.axis.x);
     const dy = Math.round(k.offset * TILE * k.axis.y);
-    // Clase de pasos: sin fotogramas propios, se queda la pose de la estación.
-    if (punches) {
+    // El baile conserva las poses de pasos o brazos de su estación mientras se puntúa la clase.
+    if (steps) {
+      this.player.trainingFrame(time);
+    } else if (punches) {
       // Golpe: el guante de esa mano sale en la extensión y vuelve; de perfil, si es la de cerca, se estira el brazo.
       const near = k.facing === 'right' ? 'R' : k.facing === 'left' ? 'L' : null;
       const out = cur && phase === 'extend' ? cur.leg : null;
       const glove = k.drill.guardSince >= 0 ? 'B' : out ?? 'G';
       this.player.kickFrame(out && out === near ? 9 : 8, dx, dy, `fx-glove-${k.facing}-${glove}`);
-    } else if (!steps) {
+    } else {
       const pose = cur && phase ? kickPose(phase === 'extend' ? (cur.kick as Kick) : 'chamber', (cur.leg === 'R') === (k.facing === 'right')) : 8;
       this.player.kickFrame(pose, dx, dy);
     }

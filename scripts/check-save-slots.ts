@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { SAVE_KEY } from '../src/config/constants.ts';
 import { createInitialState, inspectRaw, restore, SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
-import { activeSlot, checksum, MemoryStorage, setActiveSlot, slotKey, slotSave, storageWorks, viewSlot } from '../src/systems/SaveSlots.ts';
+import { activeSlot, checksum, gameStorage, MemoryStorage, setActiveSlot, slotKey, slotSave, storageWorks, viewSlot } from '../src/systems/SaveSlots.ts';
 
 const named = (name: string, money: number) => {
   const s = createInitialState();
@@ -94,7 +94,7 @@ const named = (name: string, money: number) => {
   const full: SaveStorage = { read: (k) => mem.read(k), write: () => { throw new DOMException('lleno', 'QuotaExceededError'); }, remove: (k) => mem.remove(k) };
   assert.equal(slotSave(full, 2).save(named('Nueva', 1)), false, 'con cuota llena dijo que guardó');
   assert.equal(mem.read(slotKey(2, SAVE_KEY)), good, 'con cuota llena se pisó la partida');
-  // 7. Sin almacenamiento: se detecta (gameStorage pasa a memoria y la pantalla de inicio lo avisa).
+  // 7. Sin espacio para escribir: se detecta sin ocultar las partidas legibles.
   assert.equal(storageWorks(full), false);
   assert.equal(storageWorks(new MemoryStorage()), true);
 }
@@ -106,7 +106,57 @@ const named = (name: string, money: number) => {
   setActiveSlot(mem, 3);
   assert.equal(activeSlot(mem), 3);
   mem.write('lifesim.activeSlot', '7');
-  assert.equal(activeSlot(mem), 1);
+  // Otra instancia representa una recarga: ya no hay selección de esta sesión.
+  assert.equal(activeSlot({ read: (k) => mem.read(k), write: (k, v) => mem.write(k, v), remove: (k) => mem.remove(k) }), 1);
 }
 
-console.log('check-save-slots: OK — ranura 1 = partida de siempre (sin reescribir), 3 ranuras independientes, resumen con suma, copia y recuperación por ranura, import dañado rechazado, cuota llena sin pisar, sin almacenamiento detectado, ranura activa recordada');
+// 9. Elegir una ranura debe llegar al arranque aunque falle recordar la preferencia.
+{
+  const mem = new MemoryStorage();
+  slotSave(mem, 1).save(named('Anterior', 10));
+  slotSave(mem, 3).save(named('Elegida', 30));
+  mem.write('lifesim.activeSlot', '1');
+  const full: SaveStorage = { read: (k) => mem.read(k), write: () => { throw new DOMException('lleno', 'QuotaExceededError'); }, remove: (k) => mem.remove(k) };
+  assert.equal(setActiveSlot(full, 3), false);
+  assert.equal(mem.read('lifesim.activeSlot'), '1', 'la preferencia no debería haberse escrito');
+  assert.equal(slotSave(full, activeSlot(full)).load()?.identity?.name, 'Elegida', 'el arranque abrió otra partida al fallar la preferencia');
+}
+
+// 10. Arrancar con cuota llena conserva lectura, copias y exportación de las tres ranuras.
+{
+  const mem = new MemoryStorage();
+  for (const id of [1, 2, 3] as const) {
+    const save = slotSave(mem, id);
+    save.save(named(`Partida ${id}`, id * 100));
+    assert.ok(save.startNew());
+    save.save(named(`Partida ${id}`, id * 100));
+  }
+  const before = new Map(mem.data);
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: { localStorage: {
+    getItem: (k: string) => mem.read(k),
+    setItem: () => { throw new DOMException('lleno', 'QuotaExceededError'); },
+    removeItem: (k: string) => mem.remove(k),
+  } } });
+  try {
+    const { base, persistent, writable } = gameStorage();
+    assert.equal(persistent, true, 'confundió cuota llena con almacenamiento inaccesible');
+    assert.equal(writable, false, 'no detectó que no se puede escribir');
+    for (const id of [1, 2, 3] as const) {
+      const save = slotSave(base, id);
+      assert.equal(viewSlot(base, id).summary?.name, `Partida ${id}`, 'cuota llena ocultó una partida');
+      assert.equal(save.load()?.money, id * 100, 'cuota llena impidió continuar');
+      const info = save.inspect();
+      assert.equal(info.status, 'ok');
+      if (info.status === 'ok') assert.equal(info.raw, before.get(slotKey(id, SAVE_KEY)), 'la exportación no conserva el archivo');
+      assert.equal(save.inspectBackup().status, 'ok', 'cuota llena ocultó la copia');
+      assert.equal(save.save(named('No cabe', 1)), false, 'confirmó un guardado transitorio');
+    }
+    assert.deepEqual(mem.data, before, 'el arranque o guardado fallido tocó las partidas');
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+  }
+}
+
+console.log('check-save-slots: OK — ranura 1 heredada, 3 ranuras independientes, resumen, copias e importación, cuota llena conserva lectura/exportación y rechaza guardados, elección de sesión independiente de la preferencia');

@@ -206,47 +206,118 @@ export function parseHousehold(v: unknown, today: number): HouseholdState {
 
 // --------------------------------------------------------- movimientos
 
+export type MovementType = 'income' | 'bill' | 'purchase' | 'transport' | 'loan' | 'saving' | 'other';
+export type MovementStatus = 'posted' | 'pending' | 'failed' | 'reversed';
+
+const MOVEMENT_TYPES: readonly MovementType[] = ['income', 'bill', 'purchase', 'transport', 'loan', 'saving', 'other'];
+const MOVEMENT_STATUSES: readonly MovementStatus[] = ['posted', 'pending', 'failed', 'reversed'];
+/** Movimientos financieros: cada uno es su línea, nunca se suman. */
+const NO_MERGE: readonly MovementType[] = ['loan', 'saving'];
+
 /**
  * Un movimiento de la cartera con su motivo (sueldo, alquiler, una compra). Lo apunta GameState al cambiar el
- * dinero, así que el importe es el cambio real: no se recalcula nada. Mismo motivo el mismo día, una línea.
+ * dinero, así que el importe es el cambio real: no se recalcula nada. Mismo motivo, tipo y origen el mismo día, una línea.
+ * `movementId` es estable y determinista (`m-<día>-<n>`; los de partidas v3, `legacy-<índice>`): sólo es único dentro del
+ * ledger vivo (los LEDGER_SIZE últimos). Con el reloj hacia delante no se repite; si se apuntara en un día pasado cuyas
+ * líneas ya se expulsaron todas, `m-<día>-1` podría volver a salir. Lo que tenga que durar más (un préstamo) guarda su estado.
  */
 export interface Movement {
+  movementId: string;
   day: number;
   hour: number;
   minute: number;
   label: string;
   amount: number;
+  type: MovementType;
+  /** Quién lo origina: 'wallet', 'job:decathlon', 'bill:rent', 'loan:<id>', 'legacy'. */
+  source: string;
+  status: MovementStatus;
 }
+
+/** Lo que se apunta: sin id (se genera) salvo que el origen traiga el suyo; tipo, origen y estado por defecto 'other', 'wallet' y 'posted'. */
+export type MovementInput = Omit<Movement, 'movementId' | 'type' | 'source' | 'status'> & Partial<Pick<Movement, 'movementId' | 'type' | 'source' | 'status'>>;
 
 export const LEDGER_SIZE = 40;
 
 const QTY = /^(\d+) × (.+)$/;
 
+/** `m-<día>-<n>`, con n = 1 + el mayor sufijo de ese día que queda en el ledger. */
+function nextMovementId(ledger: readonly Movement[], day: number): string {
+  const prefix = `m-${day}-`;
+  let n = 0;
+  for (const l of ledger) {
+    if (!l.movementId.startsWith(prefix)) continue;
+    const k = Number(l.movementId.slice(prefix.length));
+    if (Number.isInteger(k) && k > n) n = k;
+  }
+  return `${prefix}${n + 1}`;
+}
+
 /**
- * Apunta un movimiento (lo usa GameState al cambiar la cartera). El mismo motivo el mismo día suma en una línea; si el
- * motivo lleva cantidad («2 × Barra de pan»), la línea suma también la cantidad (AUD-005: antes quedaba «1 ×» con el
- * importe de dos). Se conservan los LEDGER_SIZE últimos.
+ * Apunta un movimiento (lo usa GameState al cambiar la cartera) y devuelve el id de la línea donde queda. El mismo motivo
+ * el mismo día, con el mismo tipo, origen y estado, suma en la última línea (que conserva su id); si el motivo lleva
+ * cantidad («2 × Barra de pan»), suma también la cantidad (AUD-005). 'loan' y 'saving' y los que traen id propio no se
+ * suman nunca. Un id propio que ya está en el ledger no apunta nada (idempotente). Se conservan los LEDGER_SIZE últimos.
  */
-export function recordMovement(ledger: Movement[], m: Movement): void {
+export function recordMovement(ledger: Movement[], m: MovementInput): string {
+  const type = m.type ?? 'other';
+  const source = m.source ?? 'wallet';
+  const status = m.status ?? 'posted';
+  if (m.movementId !== undefined && ledger.some((l) => l.movementId === m.movementId)) return m.movementId;
   const last = ledger.at(-1);
   const a = last ? QTY.exec(last.label) : null;
   const b = QTY.exec(m.label);
-  const same = !!last && last.day === m.day && (last.label === m.label || (!!a && !!b && a[2] === b[2]));
+  const same = !!last && m.movementId === undefined && !NO_MERGE.includes(type) && last.type === type && last.source === source && last.status === status
+    && last.day === m.day && (last.label === m.label || (!!a && !!b && a[2] === b[2]));
   if (last && same) {
     last.amount = Math.round((last.amount + m.amount) * 100) / 100;
     last.hour = m.hour;
     last.minute = m.minute;
     if (a && b) last.label = `${Number(a[1]) + Number(b[1])} × ${a[2]}`;
-    return;
+    return last.movementId;
   }
-  ledger.push({ ...m, amount: Math.round(m.amount * 100) / 100 });
+  const movementId = m.movementId ?? nextMovementId(ledger, m.day);
+  ledger.push({ movementId, day: m.day, hour: m.hour, minute: m.minute, label: m.label, amount: Math.round(m.amount * 100) / 100, type, source, status });
   if (ledger.length > LEDGER_SIZE) ledger.shift();
+  return movementId;
 }
 
+/**
+ * El ledger guardado, validado (v3 sin ids y v4). Los ids válidos se conservan; a los que no tienen se les da
+ * `legacy-<índice en el array>` (sin chocar con uno existente), tipo 'other', origen 'legacy' y estado 'posted'. Un id
+ * repetido (se queda el primero), un tipo o estado desconocido o una entrada rota se descartan.
+ */
 export function parseLedger(v: unknown): Movement[] {
   if (!Array.isArray(v)) return [];
   const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
-  return v.filter((m): m is Movement => typeof m === 'object' && m !== null && num(m.day) && num(m.hour) && num(m.minute) && num(m.amount) && typeof m.label === 'string')
-    .map((m) => ({ day: m.day, hour: m.hour, minute: m.minute, label: m.label, amount: m.amount }))
-    .slice(-LEDGER_SIZE);
+  const validId = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 80;
+  type Row = Omit<Movement, 'movementId'> & { movementId: string | null; index: number };
+  const rows: Row[] = [];
+  const seen = new Set<string>();
+  v.forEach((m: unknown, index) => {
+    if (typeof m !== 'object' || m === null) return;
+    const r = m as Record<string, unknown>;
+    if (!num(r.day) || !num(r.hour) || !num(r.minute) || !num(r.amount) || typeof r.label !== 'string') return;
+    const type = r.type === undefined ? 'other' : r.type;
+    const status = r.status === undefined ? 'posted' : r.status;
+    if (!MOVEMENT_TYPES.includes(type as MovementType) || !MOVEMENT_STATUSES.includes(status as MovementStatus)) return;
+    const id = validId(r.movementId) ? r.movementId : null;
+    if (id !== null) {
+      if (seen.has(id)) return;
+      seen.add(id);
+    }
+    rows.push({
+      movementId: id, index, day: r.day, hour: r.hour, minute: r.minute, label: r.label, amount: r.amount,
+      type: type as MovementType, source: typeof r.source === 'string' && r.source ? r.source : 'legacy', status: status as MovementStatus,
+    });
+  });
+  return rows.map(({ index, movementId, ...rest }): Movement => {
+    let id = movementId;
+    if (id === null) {
+      id = `legacy-${index}`;
+      for (let k = 2; seen.has(id); k++) id = `legacy-${index}-${k}`;
+      seen.add(id);
+    }
+    return { movementId: id, ...rest };
+  }).slice(-LEDGER_SIZE);
 }

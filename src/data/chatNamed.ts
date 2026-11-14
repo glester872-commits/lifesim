@@ -20,6 +20,8 @@ export const NAMED_VOICES: Readonly<Record<string, NamedVoice>> = {
   sara: { styles: ['energetic', 'talkative'], interests: ['fashion', 'photography', 'music', 'nightlife'], patience: 5 },
   // Ada: prepara oposiciones y juega al baloncesto los viernes; directa, seca, con humor de gimnasio.
   ada: { styles: ['direct', 'dry'], interests: ['fitness', 'reading', 'football'], patience: 4 },
+  // Amaia: programadora en remoto, 37; reservada, seca y amable. Teletrabaja en el Pausa y desconecta en el banco del parque.
+  amaia: { styles: ['reserved', 'dry'], interests: ['technology', 'reading', 'food'], patience: 3 },
 };
 
 export const NAMED_LINES: readonly Line[] = [
@@ -86,4 +88,38 @@ export const NAMED_LINES: readonly Line[] = [
   ...L('joke-back', { n: 'ada' }, 'Ja. Buena. Voy a usarla en el grupo de estudio.', 'Casi me río. Pero tengo cara de estudiar y me da pereza reírme.'),
   ...L('bye-short', { n: 'ada', end: true }, 'Venga, vuelvo a los libros.', 'Me voy a seguir sufriendo con el temario. Un abrazo.', 'Hasta luego. Si apruebo, te lo cuento.'),
   ...L('bye-long', { n: 'ada', end: true, r: 1 }, 'Gracias por el rato. Me ha venido bien. Cuando acabe de verdad, hacemos algo como Dios manda.', 'Me voy, que si no, no estudio nada. Pero aparece cuando quieras, ¿eh?'),
+
+  // ------------------------------------------------------------------ Amaia
+  ...L('greeting', { n: 'amaia' }, 'Hola. Perdona, estaba con el código.', 'Buenas. Si es rápido, dime.', 'Hola. Hoy el portátil y yo vamos justas de paciencia.', 'Ah, hola. Dime.'),
+  ...L('greeting', { n: 'amaia', r: 1 }, 'Hola otra vez. Siéntate si quieres, el termo da para dos.', 'Ey. Qué bien, necesitaba levantar la vista de la pantalla.'),
+  ...L('greeting', { n: 'amaia', r: 2, nf: ['amaia_conflict'] }, 'Hombre, tú. Justo a tiempo para mi descanso.', 'Qué alegría. Hoy casi no he hablado con nadie.'),
+  ...L('smalltalk', { n: 'amaia' }, 'Tirando. Mucho trabajo, poco ruido. Me gusta así.', 'Bien, con un error que no encuentro desde ayer.', 'Tranquila. Un día de pantalla y café.'),
+  ...L('doing', { n: 'amaia', h: [8, 15] }, 'Teletrabajo. Mi oficina es la mesa del fondo del Pausa.', 'Cerrando una tarea antes de comer. Si no, se me alarga todo el día.'),
+  ...L('doing', { n: 'amaia', h: [15, 21] }, 'Un poco de aire. Con el termo, en el banco del parque, que el código se aclara solo.', 'Repasando lo de la app, pero ya con menos prisa.'),
+  ...L('doing', { n: 'amaia', h: [21, 6] }, 'Cerrando el portátil. A mi edad, la noche es para dormir.', 'Última revisión y a casa. No hago más tarde.'),
+  ...L('doing', { n: 'amaia', p: ['park', 'plaza'] }, 'Descansando la vista. El banco es mi segundo despacho.', 'Aquí, con el termo. No pido más.'),
+  ...L('work', { n: 'amaia' }, 'Programo en remoto, para una empresa que ni sabe en qué barrio vivo. Es cómodo.', 'Trabajo desde donde haya enchufe y wifi. Casi siempre, el Pausa.', 'Ahora estoy con una app mía, aparte del trabajo. Va lenta, pero va.'),
+  ...L('food', { n: 'amaia' }, 'Llevo siempre el termo con té. Si no, no arranco.', 'En el Pausa hacen un café decente. Con eso me apaño.'),
+  ...L('music', { n: 'amaia' }, 'Programo con música sin letra. Con voces no me concentro.', 'Una lista de ruido blanco y teclas. Mi banda sonora.'),
+  ...L('plans', { n: 'amaia', d: 'weekday' }, 'Lo de siempre: tareas, reuniones de pantalla y un paseo por la tarde.', 'Tengo que entregar una cosa esta semana. Ya veremos.'),
+  ...L('plans', { n: 'amaia', d: 'weekend' }, 'Fin de semana de sofá y libro. Si salgo, es al parque.', 'Quizá avance con la app. Quizá no. Depende del día.'),
+  ...L('tired', { n: 'amaia', m: ['tired'] }, 'Llevo demasiadas horas mirando la misma pantalla. Me escuecen los ojos.', 'He dormido poco: un fallo no me dejaba en paz.'),
+  ...L('positive', { n: 'amaia', m: ['good'] }, 'Hoy ha compilado a la primera. Lo celebro con un té.', 'Me ha salido el módulo que se me resistía. Un buen día.'),
+  ...L('joke', { n: 'amaia' }, 'Mi código funciona. No sé por qué. Prefiero no tocarlo.', 'Dicen que programar es resolver problemas. Yo creo que es crearlos con más estilo.'),
+  ...L('friendly', { n: 'amaia', r: 1, nf: ['amaia_conflict'] }, 'No hablo mucho, pero contigo se me hace fácil. Gracias por no llenar los silencios.', 'Se agradece tu compañía. Sin pedirme nada.'),
+  ...L('friendly', { n: 'amaia', r: 2, nf: ['amaia_conflict'] }, 'Eres de las pocas personas con las que me cuesta poco hablar.', 'Si un día quieres ver la app, te la enseño. Aún está en pañales.'),
+  ...L('compliment-back', { n: 'amaia' }, 'Gracias. Me has pillado desprevenida.', 'Vaya. Se agradece, de verdad.'),
+  ...L('joke-back', { n: 'amaia' }, 'Eso merece una sonrisa. Ya está, ahí la tienes.', 'Buena. Me la apunto para la próxima reunión.'),
+  ...L('bye-short', { n: 'amaia', end: true }, 'Vale. Vuelvo al código.', 'Hasta luego. Cuídate.', 'Me voy, que se enfría el té.'),
+  ...L('bye-long', { n: 'amaia', end: true, r: 1, nf: ['amaia_conflict'] }, 'Gracias por el rato. Me ha venido bien salir de la pantalla.', 'Ha estado bien. Pásate por el Pausa o por el banco cuando quieras.'),
+
+  // Lo que sólo dice según lo vivido (data/amaiaStory.ts).
+  ...L('greeting', { n: 'amaia', f: ['amaia_conflict'] }, 'Hola. Ya.', 'Ah. Hola. Estoy con una cosa.'),
+  ...L('smalltalk', { n: 'amaia', f: ['amaia_conflict'] }, 'Bien. Trabajando.', 'Pues eso, con lo mío. Sin novedades.'),
+  ...L('bye-short', { n: 'amaia', end: true, f: ['amaia_conflict'] }, 'Bueno. Adiós.', 'Me vuelvo a lo mío.'),
+  ...L('friendly', { n: 'amaia', f: ['amaia_reconciled'], nf: ['amaia_conflict'] }, 'Me alegra que lo hayamos hablado. Me cuesta, pero merece la pena.', 'Lo de antes está aparcado, ¿vale? Ya no pesa.'),
+  ...L('smalltalk', { n: 'amaia', f: ['amaia_paseo_done'], nf: ['amaia_conflict'] }, 'Sigo pensando en el paseo. Me despejó más que un día entero de pantalla.', 'Desde que paseamos, salgo más al parque. Algo has hecho.'),
+  ...L('work', { n: 'amaia', f: ['amaia_prueba_done'], nf: ['amaia_conflict'] }, 'Probaste la app y me diste en el clavo con lo que no se entendía. Ya lo estoy arreglando.', 'Tus comentarios sobre la app me han ahorrado semanas. En serio.'),
+  ...L('work', { n: 'amaia', f: ['amaia_cliente'] }, 'Hay un cliente interesado en la app. Me da vértigo, y a la vez ilusión.', 'El cliente quiere una fecha. Yo quiero dormir. Veremos quién gana.'),
+  ...L('plans', { n: 'amaia', f: ['amaia_entrega_prorroga'] }, 'Pedí una prórroga con el cliente. Prefiero entregar bien que entregar ya.', 'Con la prórroga respiro. La app saldrá mejor, aunque tarde un poco.'),
 ];

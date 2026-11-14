@@ -17,7 +17,7 @@ import { inspectRaw, LocalStorageAdapter, SaveSystem, type SaveStorage } from '.
  */
 export const SLOT_IDS = [1, 2, 3] as const;
 export type SlotId = (typeof SLOT_IDS)[number];
-/** La última ranura jugada: «Continuar» la abre. */
+/** La última ranura jugada, recordada entre sesiones: «Continuar» la abre. */
 export const ACTIVE_SLOT_KEY = 'lifesim.activeSlot';
 const PROBE_KEY = 'lifesim.probe';
 
@@ -127,12 +127,20 @@ export function viewSlot(base: SaveStorage, id: SlotId): SlotView {
   }
 }
 
+// title.ts y main.ts comparten el mismo almacenamiento. La elección de esta sesión no depende de que
+// quepa la preferencia en el navegador; otra instancia (o una recarga) empieza por la preferencia guardada.
+const sessionSlots = new WeakMap<SaveStorage, SlotId>();
+
 export function activeSlot(base: SaveStorage): SlotId {
+  const selected = sessionSlots.get(base);
+  if (selected !== undefined) return selected;
   const n = Number(base.read(ACTIVE_SLOT_KEY));
   return (SLOT_IDS as readonly number[]).includes(n) ? (n as SlotId) : 1;
 }
 
+/** Elige para esta sesión; devuelve si además pudo recordar la elección para la próxima. */
 export function setActiveSlot(base: SaveStorage, id: SlotId): boolean {
+  sessionSlots.set(base, id);
   try {
     base.write(ACTIVE_SLOT_KEY, String(id));
     return true;
@@ -167,15 +175,23 @@ export function storageWorks(base: SaveStorage): boolean {
   }
 }
 
-let shared: { base: SaveStorage; persistent: boolean } | null = null;
+let shared: { base: SaveStorage; persistent: boolean; writable: boolean } | null = null;
 /**
- * El almacenamiento del juego, uno para la pantalla de inicio y la partida: el del navegador, o, si no deja
- * escribir, uno en memoria (se puede jugar, pero nada sobrevive a recargar; la pantalla de inicio lo dice).
+ * El almacenamiento del juego, compartido por inicio y partida. Si se puede leer, se conserva incluso cuando
+ * está lleno: las partidas y copias siguen disponibles, y SaveSystem informa del fallo de escritura.
+ * Sólo se usa memoria cuando el navegador impide acceder al almacenamiento; inicio avisa de ambos casos.
  */
-export function gameStorage(): { base: SaveStorage; persistent: boolean } {
+export function gameStorage(): { base: SaveStorage; persistent: boolean; writable: boolean } {
   if (!shared) {
-    const local = new LocalStorageAdapter();
-    shared = storageWorks(local) ? { base: local, persistent: true } : { base: new MemoryStorage(), persistent: false };
+    try {
+      // LocalStorageAdapter.read devuelve null si el navegador deniega el acceso: comprobar aquí sin
+      // ocultar la excepción permite distinguir ese caso de una lectura válida sin valor.
+      window.localStorage.getItem(PROBE_KEY);
+      const local = new LocalStorageAdapter();
+      shared = { base: local, persistent: true, writable: storageWorks(local) };
+    } catch {
+      shared = { base: new MemoryStorage(), persistent: false, writable: true };
+    }
   }
   return shared;
 }

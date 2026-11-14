@@ -6,7 +6,7 @@ import { getJob } from '../data/jobs.ts';
 import { BILLS } from '../data/household.ts';
 import { COURSES, getGig, getSkill } from '../data/study.ts';
 import { STORIES } from '../data/saraStory.ts';
-import { LINES, STOPS } from '../data/transit.ts';
+import { LINES, STOPS, type TransitStop } from '../data/transit.ts';
 import { getNpc } from '../data/npcs.ts';
 import { GATHERINGS, attendedTo, nextOccurrence, occurrenceOn, type ParishState } from './Parish.ts';
 import type { TilePoint } from '../types/game.ts';
@@ -14,7 +14,7 @@ import { allLocations, getLocation, hasLocation } from './LocationSystem.ts';
 import { findPoint, tilePath } from './Navigation.ts';
 import { placeInfo } from './Places.ts';
 import { travel } from './World.ts';
-import { destinationsFrom, routeBetween, serviceOpen, stopAtStation } from './Transit.ts';
+import { destinationsFrom, journeyFare, routeBetween, serviceOpen, stopAtStation, type MetroJourney } from './Transit.ts';
 import { WEEKDAY_LABEL, weekdayOf, weekIndex } from './Calendar.ts';
 import { levelOf, nextShift, settle, type JobProgress } from './Jobs.ts';
 import { lessonStatus, nextSession, gigStatus, knowledge, levelName, type StudyState } from './Study.ts';
@@ -280,8 +280,10 @@ export interface TripOptions {
   now?: number;
   /** Punta o valle; si no se da, se mira la franja de HOUR_BANDS de `now` (o de `start`). */
   peak?: boolean;
-  /** Saldo de la tarjeta de transporte. Sin él no se comprueba el billete. */
-  balance?: number | undefined;
+  /** Saldo de transporte; null si no hay tarjeta. Omitido: calcular sin comprobar fondos. */
+  balance?: number | null | undefined;
+  /** Validación real del billete: estar en un andén no implica haber pagado. */
+  metroJourney?: MetroJourney | null | undefined;
 }
 
 export interface TripEstimate {
@@ -311,6 +313,7 @@ const NO_ROUTE_TEXT = 'sin estimación: no hay ruta conocida';
 const NO_DOOR_TEXT = 'sin estimación: no se encuentra la puerta de la estación';
 const NO_BORDER_TEXT = 'sin estimación: a pie entre barrios';
 const NO_SERVICE_TEXT = 'sin metro a esa hora';
+const NO_CARD_TEXT = 'sin estimación: falta la tarjeta de transporte';
 const noFundsText = (fare: number): string => `sin estimación: falta saldo para el billete de €${fare}`;
 
 const minuteOfDay = (abs: number): number => ((abs % DAY) + DAY) % DAY;
@@ -361,15 +364,17 @@ const waitTramo = (peak: boolean): Tramo => ({ kind: 'wait', minutes: AGENDA.MET
 const STATION_TRAMO: Tramo = { kind: 'station', minutes: AGENDA.STATION_WALK, uncertainty: 0 };
 
 /**
- * Lo que impide subir al metro: sin servicio a esa hora (serviceOpen, con `now`) o sin saldo para el billete. `paid`:
- * desde la estación no se sabe si el billete ya se pagó al entrar (Position no lleva la fase), así que no se cobra.
+ * Lo que impide subir al metro: horario, tarjeta o saldo. La validación usa la misma regla que prepareRide:
+ * sólo un viaje validado en el andén de origen evita pagar de nuevo; desde la calle siempre hace falta billete.
  */
-function railBlock(lineIds: readonly string[], paid: boolean, opts: TripOptions): string | null {
+function railBlock(lineIds: readonly string[], station: TransitStop | undefined, opts: TripOptions): string | null {
+  if (!lineIds.length) return null;
   const now = opts.now;
   const lines = LINES.filter((l) => lineIds.includes(l.id));
   if (now !== undefined && lines.some((l) => !serviceOpen(l, hourOf(now)))) return NO_SERVICE_TEXT;
-  const fare = LINES[0].fare;
-  if (!paid && opts.balance !== undefined && opts.balance + 1e-9 < fare) return noFundsText(fare);
+  if (opts.balance === null) return NO_CARD_TEXT;
+  const fare = station ? journeyFare(opts.metroJourney ?? null, station, LINES[0].fare) : LINES[0].fare;
+  if (opts.balance !== undefined && opts.balance + 1e-9 < fare) return noFundsText(fare);
   return null;
 }
 
@@ -396,7 +401,7 @@ function planOffMap(stopId: string, where: NonNullable<Where>, opts: TripOptions
   const leg = target && stop && destinationsFrom(stop).find((d) => stationDoor(d.stop.id)?.location === target.location);
   const door = leg ? stationDoor(leg.stop.id) : null;
   if (!target || !leg || !door) return NO_ROUTE_TEXT;
-  const block = railBlock([leg.line.id], false, opts);
+  const block = railBlock([leg.line.id], undefined, opts);
   if (block) return block;
   return { tramos: [waitTramo(peak), { kind: 'metro', minutes: leg.minutes, uncertainty: 0, line: leg.line.id }, STATION_TRAMO, walkTramo(target.location, door.tile, target.tile)] };
 }
@@ -418,7 +423,7 @@ function planTrip(from: Position, where: NonNullable<Where>, opts: TripOptions, 
     const own = station ?? STOPS.find((s) => s.station && stationDoor(s.id)?.location === here.location);
     const leg = own && destinationsFrom(own).find((d) => d.stop.id === where.stop);
     if (!own || !leg) return NO_ROUTE_TEXT;
-    const block = railBlock([leg.line.id], !!station, opts);
+    const block = railBlock([leg.line.id], station, opts);
     if (block) return block;
     const enter: Tramo[] = [];
     if (!station) {
@@ -445,13 +450,13 @@ function planTrip(from: Position, where: NonNullable<Where>, opts: TripOptions, 
   const route = routeBetween(fromStop, t.to);
   if (!route) return NO_ROUTE_TEXT;
   if (!a || !b || a.location !== here.location || b.location !== target.location) return NO_DOOR_TEXT;
-  const block = railBlock(route.legs.flatMap((l) => (l.mode === 'train' && l.line ? [l.line] : [])), !!station, opts);
+  const block = railBlock(route.legs.flatMap((l) => (l.mode === 'train' && l.line ? [l.line] : [])), station, opts);
   if (block) return block;
   const enter: Tramo[] = station ? [] : [walkTramo(here.location, here.tile, a.tile), STATION_TRAMO];
-  const legs = route.legs.map((l): Tramo => (l.mode === 'train'
-    ? { kind: 'metro', minutes: l.minutes, uncertainty: 0, line: l.line }
-    : { kind: 'transfer', minutes: l.minutes, uncertainty: AGENDA.TRANSFER_MARGIN }));
-  return { tramos: [...origin, ...enter, waitTramo(peak), ...legs, STATION_TRAMO, walkTramo(target.location, b.tile, target.tile)] };
+  const legs = route.legs.flatMap((l): Tramo[] => (l.mode === 'train'
+    ? [waitTramo(peak), { kind: 'metro', minutes: l.minutes, uncertainty: 0, line: l.line }]
+    : [{ kind: 'transfer', minutes: l.minutes, uncertainty: AGENDA.TRANSFER_MARGIN }]));
+  return { tramos: [...origin, ...enter, ...legs, STATION_TRAMO, walkTramo(target.location, b.tile, target.tile)] };
 }
 
 const uncertaintyLevel = (m: number): 'baja' | 'media' | 'alta' => (m <= AGENDA.LOW_MAX ? 'baja' : m <= AGENDA.MEDIUM_MAX ? 'media' : 'alta');
