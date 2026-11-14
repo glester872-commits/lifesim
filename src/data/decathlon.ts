@@ -2,6 +2,7 @@ import type { Facing, InspectDef, LocationDef, PointDef, PropKind, PropPlacement
 import type { PopulationProfile, StaffRole } from './population.ts';
 import { at, p, TWO } from './interiors.ts';
 import { cashier, customer } from './cuatroRiosVenues.ts';
+import { DECATHLON_LAYOUT, type Rect } from './decathlonLayout.ts';
 
 /**
  * Decathlon · Polígono Norte por dentro (Alpha-07, nave reconstruida en Alpha-08). Desde Alpha-09 tiene calle: se baja
@@ -10,13 +11,15 @@ import { cashier, customer } from './cuatroRiosVenues.ts';
  * dentro: los turnos y el turno suelto, en el fichaje; dar una vuelta, en el punto de información.
  *
  * La planta sigue el plano de la tienda de San Sebastián de los Reyes (design/Decathlon/217426dc…png, correspondencia
- * en design/Decathlon/CORRESPONDENCIA.md): una nave rectangular y continua de 76 × 46 tiles. Al fondo (arriba) raqueta
- * con la pista de pádel, running, probadores, montaña, camping, mochilas y fútbol; a la derecha, toda la altura,
- * Segunda Vida y ciclismo; en medio, dos bandas de secciones (calzado, agua, escalada, caza, pesca…) entre el pasillo
- * norte y el sur; abajo fitness, kayak, golf, salud y natación; y las cajas con la puerta abajo a la derecha.
+ * en design/Decathlon/CORRESPONDENCIA.md): una nave rectangular y continua de 76 × 52 tiles. Al fondo (arriba) raqueta
+ * con la pista de pádel, running, probadores, montaña y camping; a la derecha, toda la altura, Segunda Vida y ciclismo;
+ * en medio, dos bandas de secciones (calzado, mochilas, agua, escalada, fútbol, caza, pesca…) entre el pasillo norte y
+ * el sur; abajo fitness, kayak, golf, salud y natación; y, desde DEC-02, la línea de cajas debajo de natación: seis con
+ * cajero y dos de autopago, cada una con su cola delimitada, el pasillo de salida y la puerta abajo a la derecha.
  *
- * Los pasillos (`AISLES`) son datos: se pintan con hormigón pulido, nunca llevan mobiliario y forman bucles cerrados
- * (dos pasillos largos, dos laterales, el de cajas y los cortes transversales). scripts/check-decathlon.ts lo prueba.
+ * La distribución (departamentos, pasillos, cajas y turnos de caja) es data/decathlonLayout.ts; de ahí salen aquí
+ * `AISLES`, los mostradores, los puntos de caja y el personal de caja. Los pasillos se pintan con hormigón pulido, nunca
+ * llevan mobiliario y forman bucles cerrados. scripts/check-decathlon.ts lo prueba.
  *
  * Quien trabaja aquí lleva el chaleco azul (data/npcs.ts, `decathlon_employee*`): cada cual con su pelo, su piel y su
  * camiseta debajo. El jugador con contrato se lo pone en su turno (data/jobs.ts `uniform`, systems/Jobs.onShift) y
@@ -25,27 +28,18 @@ import { cashier, customer } from './cuatroRiosVenues.ts';
 const P = 'DECAT';
 
 export const DECATHLON_W = 76;
-export const DECATHLON_H = 46;
+export const DECATHLON_H = 52;
 /** Columna de la puerta, en la fila H - 2 (abajo a la derecha, como la entrada del plano). */
 const DOOR_X = 67;
+/** Desde esta fila (la de las colas) sólo es nave la franja de cajas y salida, x 41..74; el resto, muro. */
+const CHECKOUT_Y = 44;
+const CHECKOUT_X0 = 41;
 
-/** Rectángulo en tiles, extremos incluidos. */
-export interface Rect { x0: number; y0: number; x1: number; y1: number }
+export type { Rect };
 const R = (x0: number, y0: number, x1: number, y1: number): Rect => ({ x0, y0, x1, y1 });
 
-/** Pasillos de circulación: se pintan de hormigón pulido y no se amueblan nunca. */
-export const AISLES: readonly { id: string; name: string; rect: Rect }[] = [
-  { id: 'norte', name: 'Pasillo norte', rect: R(9, 11, 62, 13) },
-  { id: 'sur', name: 'Pasillo sur', rect: R(9, 29, 62, 31) },
-  { id: 'izquierdo', name: 'Lateral izquierdo', rect: R(9, 11, 10, 40) },
-  { id: 'derecho', name: 'Lateral derecho', rect: R(61, 2, 62, 43) },
-  { id: 'cajas', name: 'Pasillo de cajas', rect: R(1, 41, 74, 43) },
-  { id: 'transversal', name: 'Transversal', rect: R(11, 21, 60, 22) },
-  { id: 'escalada', name: 'Corte de escalada', rect: R(30, 14, 31, 28) },
-  { id: 'camping', name: 'Corte de camping', rect: R(45, 14, 46, 28) },
-  { id: 'kayak', name: 'Paso del kayak', rect: R(26, 32, 27, 40) },
-  { id: 'natacion', name: 'Paso de natación', rect: R(48, 32, 50, 40) },
-];
+/** Pasillos de circulación (data/decathlonLayout.ts): se pintan de hormigón pulido y no se amueblan nunca. */
+export const AISLES: readonly { id: string; name: string; rect: Rect }[] = DECATHLON_LAYOUT.aisles;
 
 /** Índice de familia (color de la leyenda del plano, world/StoreArt SIGN_FAMILIES) del cartel de cada sección. */
 /** Gama de producto de las góndolas por familia (world/StoreArt SHELF_SETS): azul, rojo, verde o mezcla. */
@@ -131,25 +125,12 @@ export const SECTORS: readonly Sector[] = [
     sign: [40, 12],
   },
   {
-    id: 'camping', name: 'Camping', plan: 'Camping (arriba)', family: 'camping', rect: R(45, 2, 54, 10),
+    // DEC-02: se queda también el hueco de mochilas y fútbol (bajaron a la banda central), sin muebles nuevos.
+    id: 'camping', name: 'Camping', plan: 'Camping (arriba)', family: 'camping', rect: R(45, 2, 60, 10),
     props: [...all('camping-tent', [[45, 5], [49, 5], [45, 9], [49, 9]]), ...col('shelf-run', 53, 3, 9)],
     browse: [[48, 7, 'up'], [52, 7, 'right'], [46, 10, 'up']],
     look: { tx: 46, ty: 5, lines: ['Tiendas de campaña montadas, con un cartel: «Prueba la tienda: se monta en dos segundos». Tú tardas veinte.'] },
     sign: [48, 12],
-  },
-  {
-    id: 'mochilas', name: 'Mochilas', plan: 'mochilas', family: 'montana', rect: R(55, 2, 58, 10),
-    props: [...all('backpack-wall', [[55, 1], [57, 1]]), ...all('backpack-wall', [[55, 5], [55, 9]])],
-    browse: [[57, 5, 'left'], [56, 2, 'up']],
-    look: { tx: 55, ty: 5, lines: ['Mochilas colgadas por litros, de 10 a 90. La de 40 es la que más se devuelve: la gente se pasa de grande.'] },
-    sign: [55, 14],
-  },
-  {
-    id: 'futbol', name: 'Fútbol', plan: 'Fútbol', family: 'colectivos', rect: R(59, 2, 60, 10),
-    props: [at('wall-shelf', 59, 1), ...all('ball-cage', [[59, 4], [59, 8]])],
-    browse: [[60, 6, 'left']],
-    look: { tx: 59, ty: 4, lines: ['Una jaula llena de balones. Hay que agacharse para sacar uno, y entonces se caen otros tres.'] },
-    sign: [58, 12],
   },
   // ------------------------------------------------------------------ columna derecha: Segunda Vida y ciclismo
   {
@@ -209,11 +190,19 @@ export const SECTORS: readonly Sector[] = [
     browse: [[50, 17, 'up'], [50, 20, 'up']],
     look: { tx: 51, ty: 16, lines: ['Hornillos, linternas frontales y sacos de dormir comprimidos en bolsas del tamaño de un melón.'] },
   },
+  // DEC-02: mochilas baja del fondo y comparte el bloque de accesorios (antes 54–60 × 14–20, sólo accesorios).
   {
-    id: 'accesorios', name: 'Accesorios', plan: 'accesorios', family: 'colectivos', rect: R(54, 14, 60, 20),
-    props: [...all('display-table', [[55, 16], [55, 19]]), ...all('ball-cage', [[58, 16], [58, 19]]), at('pillar', 60, 14)],
-    browse: [[57, 17, 'left'], [59, 18, 'left']],
-    look: { tx: 55, ty: 16, lines: ['Botellas, cintas para el pelo, espinilleras y una cesta de calcetines «técnicos» a tres pares por cinco euros.'] },
+    id: 'mochilas', name: 'Mochilas', plan: 'mochilas', family: 'montana', rect: R(54, 14, 56, 20),
+    props: [...all('backpack-wall', [[54, 16], [54, 19]])],
+    browse: [[56, 16, 'left'], [56, 19, 'left']],
+    look: { tx: 54, ty: 16, lines: ['Mochilas colgadas por litros, de 10 a 90. La de 40 es la que más se devuelve: la gente se pasa de grande.'] },
+    sign: [55, 14],
+  },
+  {
+    id: 'accesorios', name: 'Accesorios', plan: 'accesorios', family: 'colectivos', rect: R(57, 14, 60, 20),
+    props: [...all('display-table', [[57, 16], [57, 19]]), ...all('ball-cage', [[60, 16], [60, 18]]), at('pillar', 60, 14)],
+    browse: [[59, 16, 'right'], [58, 17, 'up']],
+    look: { tx: 57, ty: 16, lines:['Botellas, cintas para el pelo, espinilleras y una cesta de calcetines «técnicos» a tres pares por cinco euros.'] },
     sign: [56, 22],
   },
   // ------------------------------------------------------------------ banda central de abajo (entre transversal y sur)
@@ -231,11 +220,19 @@ export const SECTORS: readonly Sector[] = [
     look: { tx: 22, ty: 25, lines: ['Patines en línea, monopatines y cascos con pegatinas. Un patinete eléctrico de exposición, atado con cadena.'] },
   },
   {
-    id: 'baloncesto', name: 'Baloncesto', plan: 'Baloncesto', family: 'colectivos', rect: R(25, 23, 29, 28),
-    props: [at('hoop', 27, 24), ...all('ball-cage', [[25, 27], [29, 27]])],
-    browse: [[27, 26, 'up'], [28, 28, 'left']],
+    id: 'baloncesto', name: 'Baloncesto', plan: 'Baloncesto', family: 'colectivos', rect: R(25, 23, 29, 25),
+    props: [at('hoop', 27, 24)],
+    browse: [[27, 25, 'up'], [29, 24, 'left']],
     look: { tx: 27, ty: 24, lines: ['Una canasta de exposición. El balón de muestra está encima del aro, donde lo ha dejado el último que lo intentó.'] },
     sign: [25, 30],
+  },
+  // DEC-02: fútbol baja del fondo y se funde con roller y baloncesto (antes 59–60 × 2–10).
+  {
+    id: 'futbol', name: 'Fútbol', plan: 'Fútbol', family: 'colectivos', rect: R(25, 26, 29, 28),
+    props: [...all('ball-cage', [[25, 27], [29, 27]])],
+    browse: [[26, 27, 'left'], [28, 27, 'right']],
+    look: { tx: 25, ty: 27, lines: ['Una jaula llena de balones. Hay que agacharse para sacar uno, y entonces se caen otros tres.'] },
+    sign: [27, 22],
   },
   {
     id: 'minoritarios', name: 'Deportes minoritarios', plan: 'Minoritarios', family: 'montana', rect: R(32, 23, 38, 28),
@@ -322,10 +319,16 @@ export const SECTORS: readonly Sector[] = [
   },
 ];
 
-/** La fila de cajas y la taquilla del personal, junto a la puerta. */
+const CHECKOUTS = DECATHLON_LAYOUT.checkouts;
+const STAFFED = CHECKOUTS.filter((c) => c.kind === 'staffed');
+
+/**
+ * Las cajas (data/decathlonLayout.ts): con cajero, mostrador y registradora entre quien paga y quien cobra; de autopago,
+ * la máquina debajo de quien paga. La taquilla del personal y el punto de información, junto a la puerta.
+ */
 const FRONT: readonly PropPlacement[] = [
-  ...all('counter', [[64, 37], [65, 37], [68, 37], [69, 37], [72, 37], [73, 37]]),
-  ...all('register', [[65, 37], [69, 37], [73, 37]]),
+  ...STAFFED.flatMap((c) => [at('counter', c.till.tx + 1, c.till.ty), at('register', c.till.tx + 1, c.till.ty)]),
+  ...CHECKOUTS.filter((c) => c.kind === 'self').map((c) => at('register', c.till.tx, c.till.ty + 1)),
   at('lockers', 72, 40),
   // El punto de información, a la derecha de la puerta: se le habla por encima del mostrador.
   ...all('counter', [[66, 40], [67, 40]]),
@@ -348,7 +351,12 @@ const LIGHTS: readonly PropPlacement[] = [
 const inRect = (r: Rect, x: number, y: number): boolean => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
 export const inAisle = (x: number, y: number): boolean => AISLES.some((a) => inRect(a.rect, x, y));
 
-/** Muro arriba (dos filas), a los lados y abajo; la puerta en la penúltima fila. Pasillos de hormigón, fitness de goma. */
+const QUEUE_TILES = new Set(CHECKOUTS.flatMap((c) => c.queue.map((q) => `${q.tx},${q.ty}`)));
+
+/**
+ * Muro arriba (dos filas), a los lados y abajo; la puerta en la penúltima fila. Debajo del pasillo de cajas sólo hay
+ * nave en la franja de cajas y salida. Pasillos de hormigón, colas con su cinta amarilla ('e'), fitness de goma.
+ */
 function ground(): string[] {
   const fitness = SECTORS.find((s) => s.id === 'fitness-mat')!.rect;
   const rows: string[] = [];
@@ -357,6 +365,8 @@ function ground(): string[] {
     for (let x = 0; x < DECATHLON_W; x++) {
       if (y < 2 || y === DECATHLON_H - 1 || x === 0 || x === DECATHLON_W - 1) r += 'W';
       else if (y === DECATHLON_H - 2) r += x === DOOR_X ? 'D' : 'W';
+      else if (y >= CHECKOUT_Y && x < CHECKOUT_X0) r += 'W';
+      else if (QUEUE_TILES.has(`${x},${y}`)) r += 'e';
       else if (inAisle(x, y)) r += 'h';
       else if (inRect(fitness, x, y)) r += 'm';
       else r += 't';
@@ -405,15 +415,14 @@ export const DECATHLON_STORE: LocationDef = {
   ],
   points: {
     [`${P}_EXIT`]: p(EXIT.tx, EXIT.ty, 'exit', 'up'),
-    // Quien cobra, detrás del mostrador (65, 37); quien paga, delante, y se le habla por encima (systems/Interaction, `across`).
-    [`${P}_STAFF`]: p(65, 36, 'work', 'down'),
-    [`${P}_TILL`]: p(65, 38, 'interact', 'up'),
-    [`${P}2_STAFF`]: p(69, 36, 'work', 'down'),
-    [`${P}2_TILL`]: p(69, 38, 'interact', 'up'),
-    [`${P}3_STAFF`]: p(73, 36, 'work', 'down'),
-    [`${P}3_TILL`]: p(73, 38, 'interact', 'up'),
-    [`${P}_QUEUE_01`]: p(64, 38, 'wait', 'right'),
-    [`${P}_QUEUE_02`]: p(63, 38, 'wait', 'right'),
+    // Cajas con cajero (data/decathlonLayout.ts): quien paga a la izquierda del mostrador, quien cobra a la derecha, y
+    // se le habla por encima (systems/Interaction, `across`). La cola baja hacia la caja. El autopago no tiene punto:
+    // es decorado hasta DEC-04, sin nadie que cobre ni nada que se pueda pulsar.
+    ...Object.fromEntries(STAFFED.flatMap((c, i): [string, PointDef][] => [
+      [`${P}_TILL_${i + 1}`, p(c.till.tx, c.till.ty, 'interact', 'right')],
+      [`${P}_STAFF_${i + 1}`, p(c.staff!.tx, c.staff!.ty, 'work', 'left')],
+      ...c.queue.map((q, k): [string, PointDef] => [`${P}_QUEUE_${i + 1}_${TWO(k)}`, p(q.tx, q.ty, 'wait', 'down')]),
+    ])),
     ...Object.fromEntries(FITTINGS.map((pt, i): [string, PointDef] => [`${P}_FITTING_${TWO(i)}`, pt])),
     ...Object.fromEntries(BROWSE.map(([x, y, f], i): [string, PointDef] => [browseId(i), p(x, y, 'interact', f)])),
   },
@@ -424,6 +433,16 @@ const floor = (look: string, label: string, line: string, sections: readonly str
   ({ service: 'shop-worker', label, line, look, points: sectionPoints(sections), offers, days });
 const WEEKEND = [5, 6] as const;
 
+/** Quien cobra en cada caja con cajero: el turno sale de su `open` (data/decathlonLayout.ts) y nadie repite chaleco. */
+const TILL_LOOKS = ['decathlon_employee', 'decathlon_employee_6', 'decathlon_employee_7', 'decathlon_employee_9', 'decathlon_employee_10', 'decathlon_employee_11'];
+const TILL_LINES = ['Aquí puedes comprar ropa y calzado.', 'Puedes pasar por aquí.', 'Pasa, que abro esta.', 'Atendemos también por esta caja el fin de semana.', 'Si vas con prisa, ven por aquí.', 'Abrimos esta, que se está llenando.'];
+const TILL_STAFF: readonly StaffRole[] = STAFFED.map((c, i): StaffRole => ({
+  ...cashier(P, `Caja ${i + 1}`, TILL_LINES[i], TILL_LOOKS[i], 'shop-decathlon'),
+  points: [`${P}_STAFF_${i + 1}`],
+  ...(c.open?.days ? { days: c.open.days } : {}),
+  ...(c.open?.minLevel ? { minLevel: c.open.minLevel } : {}),
+}));
+
 export const DECATHLON_PROFILE: PopulationProfile = {
   place: 'decathlon-tienda',
   bands: [[9, 11, 'LOW'], [11, 14, 'MEDIUM'], [14, 17, 'LOW'], [17, 21, 'HIGH']],
@@ -431,9 +450,7 @@ export const DECATHLON_PROFILE: PopulationProfile = {
   // Una nave de este tamaño se ve vacía con ocho: catorce, repartidos por los BROWSE de todas las secciones.
   maxVisitors: 14,
   staff: [
-    cashier(P, 'Caja 1', 'Aquí puedes comprar ropa y calzado.', 'decathlon_employee', 'shop-decathlon'),
-    cashier(`${P}2`, 'Caja 2', 'Puedes pasar por aquí.', 'decathlon_employee_6', 'shop-decathlon'),
-    { ...cashier(`${P}3`, 'Caja 3', 'Atendemos también por esta caja el fin de semana.', 'decathlon_employee_7', 'shop-decathlon'), days: WEEKEND },
+    ...TILL_STAFF,
     floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana'),
     floor('decathlon_employee_3', 'Sección de running', 'Pruébate el calzado con los calcetines que usas al correr.', ['running', 'calzado-mujer', 'calzado-hombre'], 'decathlon-running'),
     floor('decathlon_employee_4', 'Sección de ciclismo', 'La medida de la cámara la pone en el neumático.', ['ciclismo', 'segunda-vida'], 'decathlon-ciclismo'),

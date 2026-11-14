@@ -53,6 +53,22 @@ function drawHallFloor(ctx: Ctx, v: number): void {
   if (v === 1) px(ctx, shade(base, -0.1), 0, 0, TILE, 1);
 }
 
+/**
+ * Cola de caja (DEC-02): el hormigón de la nave sin junta, con la cinta amarilla a izquierda y derecha. La cinta sigue
+ * de un tile al siguiente (la cola es una calle), con desgaste por ruido y no por recuadros.
+ */
+function drawQueueFloor(ctx: Ctx, v: number): void {
+  const base = '#c4c8cc';
+  px(ctx, base, 0, 0, TILE, TILE);
+  sprinkle(ctx, shade(base, 0.04), TILE, TILE, 61 + v * 13, 6);
+  sprinkle(ctx, shade(base, -0.05), TILE, TILE, 83 + v * 11, 4);
+  for (const x of [1, TILE - 3]) {
+    px(ctx, PALETTE.floorTape, x, 0, 2, TILE);
+    // Desgaste de la cinta: un píxel más oscuro cada pocos, desplazado por variante y por lado.
+    for (let y = (v * 5 + x) % 6; y < TILE; y += 6 + v) px(ctx, shade(PALETTE.floorTape, -0.18), x + (y % 2), y);
+  }
+}
+
 /** Pista de pádel de prueba, 6 × 12 tiles, pintada en el suelo: césped azul, líneas blancas y el vidrio del fondo. */
 function drawPadelCourt(ctx: Ctx): void {
   const w = TILE * 6;
@@ -432,6 +448,7 @@ export function drawMegastoreGlow(ctx: Ctx, w: number, h: number, doorCol: numbe
 
 export function buildStoreTextures(scene: Phaser.Scene): void {
   for (let v = 0; v < 2; v++) make(scene, `tile-floor-hall-${v}`, TILE, TILE, (ctx) => drawHallFloor(ctx, v));
+  for (let v = 0; v < 3; v++) make(scene, `tile-floor-queue-${v}`, TILE, TILE, (ctx) => drawQueueFloor(ctx, v));
   make(scene, 'prop-padel-court', TILE * 6, TILE * 12, drawPadelCourt);
   make(scene, 'prop-padel-net', TILE * 6, TILE, drawPadelNet);
   for (let v = 0; v < 3; v++) make(scene, `prop-camping-tent-${v}`, TILE * 3, TILE * 2, (ctx) => drawCampingTent(ctx, v));

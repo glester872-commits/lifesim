@@ -62,6 +62,9 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   Y: { key: 'tile-stand-stairs', solid: false, variants: 1 },
   // Hormigón pulido de la nave de Decathlon (data/decathlon.ts, world/StoreArt): los pasillos de circulación.
   h: { key: 'tile-floor-hall', solid: false, variants: 2 },
+  // DEC-02: cola delimitada de las cajas de Decathlon: el mismo hormigón con la cinta amarilla a los lados. Tres
+  // variantes de ruido: con dos, la elección por posición sería un damero.
+  e: { key: 'tile-floor-queue', solid: false, variants: 3 },
 };
 
 export interface PropDef {

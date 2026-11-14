@@ -19,7 +19,8 @@ Ninguna imagen se usa como textura: todo se dibuja por código.
 
 ## Rejilla
 
-Nave de 76 × 46 tiles (`data/decathlon.ts`). El plano mide ~1230 × 685 px: 1 tile ≈ 16 px de plano en horizontal y
+Nave de 76 × 52 tiles (`data/decathlon.ts`; 76 × 46 hasta DEC-02, que añade debajo la línea de cajas: filas 0–43 sin
+cambios, 44–49 nave sólo en x 41..74, 50 puerta, 51 muro). Distribución en datos: `data/decathlonLayout.ts`. El plano mide ~1230 × 685 px: 1 tile ≈ 16 px de plano en horizontal y
 ≈ 15 px en vertical. Las coordenadas son una lectura del plano, no una medida: se ha respetado primero el orden y la
 adyacencia de las secciones y la posición de pasillos y entrada.
 
@@ -32,9 +33,7 @@ adyacencia de las secciones y la posición de pasillos y entrada.
 | Sportswear | `sportswear` | 18,2–20,10 |
 | Probadores | `probadores` (5 cabinas) | 21,2–25,10 |
 | Montaña JR / mujer / Hombre | `montana-jr`, `montana-mujer`, `montana-hombre` | 26–44, 2–10 |
-| Camping (arriba) | `camping` | 45,2–54,10 |
-| mochilas | `mochilas` | 55,2–58,10 |
-| Fútbol | `futbol` | 59,2–60,10 |
+| Camping (arriba) | `camping` (DEC-02: se queda el hueco de mochilas y fútbol, sin muebles nuevos) | 45,2–60,10 |
 | Pro shop de segunda vida | `segunda-vida` | 63,2–74,12 |
 | Ciclismo | `ciclismo` | 63,15–74,33 |
 | Raqueta (banda central) | `raqueta` | 11,14–20,20 |
@@ -42,10 +41,12 @@ adyacencia de las secciones y la posición de pasillos y entrada.
 | ESCALADA | `escalada` | 32,14–33,20 |
 | Calzado Mujer / Hombre | `calzado-mujer`, `calzado-hombre` | 34–44, 14–20 |
 | Camping (banda central) | `camping-2` | 47,14–53,20 |
-| accesorios | `accesorios` | 54,14–60,20 |
+| mochilas | `mochilas` (DEC-02: antes 55,2–58,10) | 54,14–56,20 |
+| accesorios | `accesorios` (DEC-02: comparte el bloque con mochilas) | 57,14–60,20 |
 | Kids / Underwear | `kids` | 11,23–20,28 |
 | Roller | `roller` | 21,23–24,28 |
-| Baloncesto | `baloncesto` | 25,23–29,28 |
+| Baloncesto | `baloncesto` | 25,23–29,25 |
+| Fútbol | `futbol` (DEC-02: antes 59,2–60,10; junto a roller y baloncesto) | 25,26–29,28 |
 | Minoritarios | `minoritarios` | 32,23–38,28 |
 | Caza | `caza` | 39,23–44,28 |
 | Pesca | `pesca` | 47,23–53,28 |
@@ -58,14 +59,17 @@ adyacencia de las secciones y la posición de pasillos y entrada.
 | Equitación | `equitacion` | 36,33–39,40 |
 | Salud y accesorios | `salud` | 40,33–47,40 |
 | SWIM PRO | `natacion` | 51,33–60,40 |
-| Cajas (abajo der., flechas I1/I2 del plano) | mostradores, taquilla y puerta | 63–74, 36–44 |
+| Cajas (abajo der., flechas I1/I2 del plano) | DEC-02: 6 con cajero (cliente c, mostrador c+1, cajero c+2, c = 47…62, fila 46; cola c,44–45) y 2 de autopago (42 y 44, máquina en la fila 47) | 41–66, 44–49 |
+| Salida y puerta | pasillo `salida` 45,47–66,49; puerta 67,50 (entrada y salida); taquilla 72,40, información 66–67,40 | 45–74, 40–50 |
 
 ## Interpretaciones y diferencias
 
 - **Pista de pádel:** el plano no la rotula. Se lee como el rectángulo alto dentro de Raqueta, arriba a la izquierda.
 - **Golf Textil** se ha juntado con Golf, y la **Equitación** de la banda central, con la de abajo: en el plano son
   tiras muy estrechas que a 1 tile por persona no caben como sección propia.
-- **Fútbol** va arriba, junto a mochilas. En el plano su etiqueta cae algo más abajo, en la cuña que baja hacia «accesorios».
+- **Fútbol** (DEC-02) baja a la banda central, junto a roller y baloncesto; **mochilas**, al bloque de accesorios.
 - **Pasillo sur:** en el plano está a ~0,75 de la altura; aquí, a ~0,65, para dar a la banda de abajo sitio para
   máquinas de fitness y kayaks.
-- **Entrada:** abajo a la derecha, como en el plano. La fila inferior del plano es el pasillo de cajas, de punta a punta.
+- **Entrada:** abajo a la derecha, como en el plano. La fila inferior del plano es el pasillo de cajas, de punta a punta
+  (`cajas-acceso`, 1,41–74,43); debajo, desde DEC-02, la línea de cajas y la salida. Una sola puerta, de entrada y de
+  salida: la segunda puerta del plano queda fuera de alcance.
