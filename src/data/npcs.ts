@@ -410,6 +410,10 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'decathlon_employee_6', cloth: '#0a42aa', clothDark: '#023087', hair: '#3c2524', skin: '#d4a282', sleeves: '#e5e6ee', trousers: '#33394a', badge: '#f4f4ef' },
   { id: 'decathlon_employee_7', cloth: '#0a42aa', clothDark: '#023087', hair: '#242120', skin: '#704c38', sleeves: '#e5e6ee', trousers: '#25364a', badge: '#f4f4ef', longHair: true },
   { id: 'decathlon_employee_8', cloth: '#0a42aa', clothDark: '#023087', hair: '#574439', skin: '#ebbc96', sleeves: '#121319', trousers: '#425366', badge: '#f4f4ef' },
+  // DEC-02: tres cajas más (seis con cajero), cada una con su cara.
+  { id: 'decathlon_employee_9', cloth: '#0a42aa', clothDark: '#023087', hair: '#6b4a2e', skin: '#a8714f', sleeves: '#121319', trousers: '#3a4f66', badge: '#f4f4ef', longHair: true },
+  { id: 'decathlon_employee_10', cloth: '#0a42aa', clothDark: '#023087', hair: '#b8b2a8', skin: '#f0c6a0', sleeves: '#e5e6ee', trousers: '#1c2230', badge: '#f4f4ef' },
+  { id: 'decathlon_employee_11', cloth: '#0a42aa', clothDark: '#023087', hair: '#1d1816', skin: '#9c6646', sleeves: '#e5e6ee', trousers: '#5f7690', badge: '#f4f4ef', longHair: true },
   { id: 'uniforme-seguridad', cloth: '#ff8a2a', clothDark: '#d86a18', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20', reflective: '#e9ecd2' },
 ];
 

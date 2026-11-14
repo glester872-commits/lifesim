@@ -129,6 +129,8 @@ export const PALETTE = {
   glassLit: '#8fd6cd',
   amber: '#f0b46a',
   amberDim: '#b88046',
+  /** Cinta amarilla de suelo (colas de caja de la nave de Decathlon, world/StoreArt). */
+  floorTape: '#e3c23a',
 
   wood: '#7b5a3d',
   woodLit: '#8e6b4b',

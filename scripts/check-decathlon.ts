@@ -3,8 +3,14 @@
 // más; hay circuitos cerrados de verdad alrededor de cada bloque de secciones (anillos de tiles pisables, no un dibujo
 // redondo); el mobiliario no se pisa entre sí ni tapa probadores, cajas o fichaje; la gente llega por rutas; y una
 // partida guardada en la tienda pequeña de antes reaparece en un sitio pisable.
+// DEC-02: la distribución es data/decathlonLayout.ts (departamentos, pasillos, cajas y sus turnos) y aquí se prueba que
+// la nave la cumple: §7 cajas, §8 turnos de caja, §14 distribución.
 import assert from 'node:assert/strict';
 import { AISLES, DECATHLON_H, DECATHLON_PROFILE, DECATHLON_STORE, DECATHLON_W, SECTORS, inAisle, type Rect } from '../src/data/decathlon.ts';
+import { DECATHLON_LAYOUT } from '../src/data/decathlonLayout.ts';
+import { levelAt, staffOnShift } from '../src/systems/Crowd.ts';
+import { weekIndex } from '../src/systems/Calendar.ts';
+import { LEVELS } from '../src/config/population.ts';
 import { getStore } from '../src/data/retail.ts';
 import { getOffer } from '../src/data/services.ts';
 import { Crowd } from '../src/systems/Crowd.ts';
@@ -29,9 +35,11 @@ assert.ok(loc.ground.every((r) => r.length === DECATHLON_W));
 assert.ok(DECATHLON_W >= 70 && DECATHLON_H >= 40, 'la tienda no es de gran formato');
 
 // 2 · Los pasillos: hormigón, dos tiles o más de ancho y nada sólido encima.
-for (const a of AISLES) {
+// DEC-02: cada uno con su mínimo (principales tres tiles, secundarios dos).
+for (const a of DECATHLON_LAYOUT.aisles) {
   const { x0, y0, x1, y1 } = a.rect;
-  assert.ok(Math.min(x1 - x0, y1 - y0) + 1 >= 2, `${a.name}: más estrecho que dos tiles`);
+  assert.ok(Math.min(x1 - x0, y1 - y0) + 1 >= Math.max(2, a.minWidth), `${a.name}: más estrecho que ${a.minWidth} tiles`);
+  if (['norte', 'sur', 'cajas-acceso', 'salida'].includes(a.id)) assert.ok(a.minWidth >= 3, `${a.name}: un pasillo principal de menos de tres tiles`);
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     assert.ok(isWalkable(loc, x, y), `${a.name}: bloqueado en (${x}, ${y})`);
     assert.equal(loc.ground[y][x], 'h', `${a.name}: (${x}, ${y}) sin suelo de pasillo`);
@@ -138,20 +146,37 @@ for (const s of SECTORS) {
 for (const [id, pt] of Object.entries(loc.points ?? {}).filter(([id]) => id.startsWith('DECAT_FITTING_'))) {
   assert.ok(loc.props.some((pr) => pr.kind === 'fitting-room' && pr.tx === pt.tx && pr.ty === pt.ty - 1), `${id}: sin probador delante`);
 }
-for (const pre of ['DECAT', 'DECAT2', 'DECAT3']) {
-  const staff = loc.points![`${pre}_STAFF`];
-  const till = loc.points![`${pre}_TILL`];
-  assert.ok(staff.tx === till.tx && till.ty - staff.ty === 2 && loc.props.some((pr) => pr.kind === 'counter' && pr.tx === till.tx && pr.ty === till.ty - 1), `${pre}: la caja no queda entre cajero y cliente`);
-  assert.ok(loc.props.some((pr) => pr.kind === 'register' && pr.tx === till.tx && pr.ty === till.ty - 1), `${pre}: falta la registradora`);
+// DEC-02 · Cajas con cajero: quien paga en (c, 46) mirando a la derecha, mostrador y registradora en (c+1, 46), quien
+// cobra en (c+2, 46) mirando a la izquierda; puntos DECAT_TILL_n, DECAT_STAFF_n y DECAT_QUEUE_n_01/02.
+const has = (kind: string, tx: number, ty: number): boolean => loc.props.some((pr) => pr.kind === kind && pr.tx === tx && pr.ty === ty);
+const STAFFED = DECATHLON_LAYOUT.checkouts.filter((c) => c.kind === 'staffed');
+const SELF = DECATHLON_LAYOUT.checkouts.filter((c) => c.kind === 'self');
+for (const [i, c] of STAFFED.entries()) {
+  const n = i + 1;
+  const till = loc.points![`DECAT_TILL_${n}`];
+  const staff = loc.points![`DECAT_STAFF_${n}`];
+  assert.ok(till && staff, `${c.id}: sin sus puntos`);
+  assert.deepEqual([till.tx, till.ty, till.facing], [c.till.tx, 46, 'right'], `${c.id}: quien paga fuera de su sitio`);
+  assert.deepEqual([staff.tx, staff.ty, staff.facing], [c.till.tx + 2, 46, 'left'], `${c.id}: quien cobra fuera de su sitio`);
+  assert.ok(has('counter', c.till.tx + 1, 46) && has('register', c.till.tx + 1, 46), `${c.id}: el mostrador no queda entre cajero y cliente`);
+  c.queue.forEach((q, k) => {
+    const pt = loc.points![`DECAT_QUEUE_${n}_${String(k + 1).padStart(2, '0')}`];
+    assert.ok(pt && pt.tx === q.tx && pt.ty === q.ty, `${c.id}: plaza ${k + 1} de la cola sin punto`);
+  });
 }
 const shop = placeInfo(loc.id)!;
-for (const [day, hour, expectedStaff, expectedTills] of [[1, 12, 6, 2], [6, 12, 8, 3], [7, 12, 8, 3], [7, 22, 0, 0]]) {
+const isCashier = (s: { service: string }): boolean => s.service === 'cashier';
+// Lunes, sábado y domingo a mediodía, y domingo de noche: lo que hay sale de levelAt + staffOnShift, no de una cuenta a mano.
+for (const [day, hour] of [[1, 12], [6, 12], [7, 12], [7, 22]]) {
+  const clock = { day, hour, minute: 0 };
+  const level = levelAt(shop, DECATHLON_PROFILE, clock);
+  const expected = DECATHLON_PROFILE.staff.filter((r) => staffOnShift(r, level, weekIndex(day)));
   const crowd = new Crowd(loc, shop, DECATHLON_PROFILE);
-  crowd.populate({ day, hour, minute: 0 }, entry);
+  crowd.populate(clock, entry);
   const staff = crowd.agents.flatMap((a) => a.staffRole ? [a.staffRole] : []);
-  assert.equal(staff.length, expectedStaff, `personal del día ${day} a las ${hour}:00`);
-  const cashiers = staff.filter((s) => s.service === 'cashier');
-  assert.equal(cashiers.length, expectedTills);
+  assert.equal(staff.length, expected.length, `personal del día ${day} a las ${hour}:00`);
+  const cashiers = staff.filter(isCashier);
+  assert.equal(cashiers.length, expected.filter(isCashier).length, `cajeros del día ${day} a las ${hour}:00`);
   for (const cashier of cashiers) {
     assert.ok(cashier.offers, 'caja sin oferta');
     const offer = getOffer(cashier.offers);
@@ -168,6 +193,66 @@ for (const role of DECATHLON_PROFILE.staff.filter((s) => s.label?.startsWith('Se
   assert.ok(offer.questions.every(({ question, answer }) => question.trim() && answer.trim()));
 }
 for (const r of loc.racks ?? []) assert.ok(getStore(r.store).stock.length > 0, `${r.name}: perchero sin género`);
+// DEC-02 · Turnos de caja: más cajas abiertas cuanta más gente; nunca las seis a afluencia media; ninguna con la tienda
+// cerrada. Días: 1 lunes, 3 miércoles, 6 sábado (systems/Calendar).
+const tills = (day: number, hour: number): number =>
+  DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, levelAt(shop, DECATHLON_PROFILE, { day, hour, minute: 0 }), weekIndex(day))).length;
+const [monNoon, wedEve, satEve, satNoon] = [tills(1, 12), tills(3, 18), tills(6, 18), tills(6, 12)];
+assert.ok(monNoon >= 1 && monNoon <= wedEve && wedEve <= satEve, `cajas: lunes 12 h ${monNoon}, miércoles 18 h ${wedEve}, sábado 18 h ${satEve}`);
+assert.ok(satNoon > monNoon, `cajas: el sábado a mediodía (${satNoon}) no abre más que el lunes (${monNoon})`);
+for (let d = 0; d < 7; d++) {
+  const atMedium = DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, 'MEDIUM', d)).length;
+  assert.ok(atMedium < STAFFED.length, `cajas: las ${STAFFED.length} abiertas a afluencia media (día ${d})`);
+}
+for (const day of [1, 3, 6, 7]) for (const hour of [7, 22]) assert.equal(tills(day, hour), 0, `cajas abiertas con la tienda cerrada (día ${day}, ${hour} h)`);
+// Cada turno de caja es el `open` de su caja en la distribución.
+for (const [i, c] of STAFFED.entries()) {
+  const role = DECATHLON_PROFILE.staff.find((r) => r.points.includes(`DECAT_STAFF_${i + 1}`));
+  assert.ok(role && isCashier(role), `${c.id}: sin cajero`);
+  assert.deepEqual([role.days, role.minLevel], [c.open?.days, c.open?.minLevel], `${c.id}: el turno no es el de la distribución`);
+  if (role.minLevel) assert.ok(LEVELS.includes(role.minLevel), `${c.id}: nivel ${role.minLevel} desconocido`);
+}
+// DEC-04 · Cola y pago por carril: quien hace cola en la caja n paga en la n, y sólo en una caja con cajero.
+assert.ok(DECATHLON_PROFILE.lane, 'el perfil no dice dónde está el cajero de cada caja');
+const shopperPlan = DECATHLON_PROFILE.visitors.find((v) => v.role === 'shopper')!.plan.flatMap((s) => s.points);
+assert.ok(shopperPlan.includes('DECAT_QUEUE_{n}_') && shopperPlan.includes('DECAT_TILL_{n}'), 'el plan shopper no paga por carril');
+const AT_TILL = /^DECAT_(?:QUEUE_(\d+)_\d+|TILL_(\d+))$/;
+const runTills = (profile: typeof DECATHLON_PROFILE, day: number, hour: number): { queue: number; till: number; lanes: Set<string> } => {
+  const clock = { day, hour, minute: 0 };
+  const crowd = new Crowd(loc, shop, profile);
+  crowd.populate(clock, entry);
+  const queuedIn = new Map<number, string>();
+  const seen = { queue: 0, till: 0, lanes: new Set<string>() };
+  for (let t = 0; t < 3000; t++) {
+    crowd.update(500, clock, entry);
+    const open = new Set(crowd.agents.flatMap((a) => (a.staffRole && !a.leaving ? a.staffRole.points.flatMap((p) => /^DECAT_STAFF_(\d+)$/.exec(p)?.[1] ?? []) : [])));
+    for (const a of crowd.agents) {
+      const m = !a.staffRole && a.point ? AT_TILL.exec(a.point) : null;
+      if (!m) continue;
+      const n = m[1] ?? m[2];
+      const where = `día ${day} ${hour} h, ${a.id} en ${a.point}`;
+      assert.ok(open.has(n), `${where}: caja sin cajero`);
+      assert.equal(a.lane, n, `${where}: carril ${a.lane}`);
+      if (m[1]) {
+        queuedIn.set(a.id, n);
+        seen.queue++;
+      } else {
+        const q = queuedIn.get(a.id);
+        assert.ok(q === undefined || q === n, `${where}: hizo cola en la caja ${q}`);
+        seen.till++;
+      }
+      seen.lanes.add(n);
+    }
+  }
+  return seen;
+};
+for (const [day, hour] of [[1, 12], [6, 18]]) {
+  const seen = runTills(DECATHLON_PROFILE, day, hour);
+  assert.ok(seen.queue > 0 && seen.till > 0, `día ${day} ${hour} h: nadie hace cola (${seen.queue}) o paga (${seen.till})`);
+  if (day === 6) assert.ok(seen.lanes.size >= 2, `sábado 18 h: sólo se usa ${seen.lanes.size} caja`);
+}
+const noCashiers = runTills({ ...DECATHLON_PROFILE, staff: DECATHLON_PROFILE.staff.filter((s) => s.service !== 'cashier') }, 1, 12);
+assert.equal(noCashiers.queue + noCashiers.till, 0, 'sin cajeros, alguien hace cola o paga');
 
 // 8 · Las rutas de la gente (systems/Navigation): de la puerta a cada punto de la tienda y de vuelta.
 for (const id of Object.keys(loc.points ?? {})) {
@@ -178,7 +263,8 @@ for (const id of Object.keys(loc.points ?? {})) {
 // Cada prefijo del perfil de gente resuelve a algún punto de aquí.
 const ids = Object.keys(loc.points ?? {});
 for (const prefixes of [...DECATHLON_PROFILE.staff.map((s) => s.points), ...DECATHLON_PROFILE.visitors.flatMap((v) => v.plan.map((s) => s.points))]) {
-  for (const prefix of prefixes) assert.ok(ids.some((id) => id.startsWith(prefix)), `ningún punto con ${prefix}`);
+  // `{n}` (la caja): basta con la primera.
+  for (const prefix of prefixes) assert.ok(ids.some((id) => id.startsWith(prefix.replace('{n}', '1'))), `ningún punto con ${prefix}`);
 }
 
 // 9 · Merchandising variado: la nave con muchos tipos de mueble distintos y los carteles de casi todas las familias.
@@ -211,7 +297,8 @@ assert.ok(loc.portals[0].tx > DECATHLON_W * 0.75 && loc.portals[0].ty === DECATH
 
 // 11 · Partidas guardadas en la tienda de antes (14 × 11, entrada en (7, 8)): reaparecen en un sitio pisable. Si el tile
 // guardado cae ahora en un mueble, el más cercano libre; si no hay, la entrada.
-for (const t of [{ tx: 7, ty: 8 }, { tx: 2, ty: 2 }, { tx: 6, ty: 2 }, { tx: 8, ty: 5 }, { tx: 12, ty: 3 }, { tx: 10, ty: 8 }]) {
+// DEC-02: y las de la nave de 46 filas (entrada en (67, 43), puerta en (67, 44)) y una pegada al muro de abajo a la izquierda.
+for (const t of [{ tx: 7, ty: 8 }, { tx: 2, ty: 2 }, { tx: 6, ty: 2 }, { tx: 8, ty: 5 }, { tx: 12, ty: 3 }, { tx: 10, ty: 8 }, { tx: 7, ty: 43 }, { tx: 67, ty: 43 }, { tx: 67, ty: 44 }]) {
   const pos = safePosition(loc.id, spawnToWorld({ ...t, facing: 'up' }), 'entry');
   assert.ok(isWalkable(loc, Math.floor(pos.x / 16), Math.floor((pos.y - 1) / 16)), `partida antigua en (${t.tx}, ${t.ty}): reaparece dentro de algo`);
 }
@@ -261,5 +348,103 @@ for (const tr of profile.trips.filter((t) => [t.from, t.to].some((e) => e.tags?.
   assert.ok(a >= open - 0.5 && b <= close + 0.5, `${tr.role}: va o viene de la tienda cerrada (${a}–${b})`);
 }
 assert.ok(profile.trips.some((t) => t.from.points?.includes('PN_PARK_')) && profile.trips.some((t) => t.to.points?.includes('PN_PARK_')), 'nadie llega ni vuelve al coche');
+
+// 14 · DEC-02 · La distribución (data/decathlonLayout.ts).
+const L = DECATHLON_LAYOUT;
+// (a) Es la de esta tienda.
+assert.equal(L.storeId, loc.id);
+assert.equal(L.version, 1);
+// (b) Seis departamentos, cada sección en exactamente uno, y cada uno donde dice su zona: el centro de sus secciones
+// respecto al centro de la sala de ventas (filas 0–43).
+assert.equal(L.departments.length, 6);
+assert.deepEqual(new Set(L.departments.map((d) => d.zone)), new Set(['NW', 'N', 'NE', 'C', 'SW', 'SE']));
+for (const s of SECTORS) assert.equal(L.departments.filter((d) => d.sectorIds.includes(s.id)).length, 1, `${s.id}: en ${L.departments.filter((d) => d.sectorIds.includes(s.id)).length} departamentos`);
+for (const d of L.departments) for (const id of d.sectorIds) assert.ok(SECTORS.some((s) => s.id === id), `${d.id}: sección ${id} que no existe`);
+const centre = (id: string): { x: number; y: number } => {
+  const rs = L.departments.find((d) => d.id === id)!.sectorIds.map((s) => rectOf(s));
+  return { x: rs.reduce((a, r) => a + (r.x0 + r.x1) / 2, 0) / rs.length, y: rs.reduce((a, r) => a + (r.y0 + r.y1) / 2, 0) / rs.length };
+};
+const CX = DECATHLON_W / 2;
+const CY = 22;
+const zones = Object.fromEntries(L.departments.map((d) => [d.zone, centre(d.id)]));
+assert.ok(zones.NW.x < CX && zones.NW.y < CY, 'el departamento NW no está arriba a la izquierda');
+assert.ok(zones.N.y < CY && Math.abs(zones.N.x - CX) < DECATHLON_W / 6, 'el departamento N no está arriba en el centro');
+assert.ok(zones.NE.x > CX && zones.NE.y < CY, 'el departamento NE no está arriba a la derecha');
+assert.ok(Math.abs(zones.C.x - CX) < DECATHLON_W / 6 && Math.abs(zones.C.y - CY) < CY / 3, 'el departamento C no está en el centro');
+assert.ok(zones.SW.x < CX && zones.SW.y > CY, 'el departamento SW no está abajo a la izquierda');
+assert.ok(zones.SE.x > CX && zones.SE.y > CY, 'el departamento SE no está abajo a la derecha');
+assert.ok(zones.NW.x < zones.N.x && zones.N.x < zones.NE.x && zones.SW.x < zones.SE.x, 'departamentos fuera de orden de izquierda a derecha');
+// (c) Seis cajas con cajero y dos de autopago; todo pisable; la cola, de dos plazas o más y fuera de los pasillos.
+assert.equal(STAFFED.length, 6);
+assert.equal(SELF.length, 2);
+for (const c of L.checkouts) {
+  for (const t of [c.till, c.exit, ...c.queue]) assert.ok(isStandable(loc, t.tx, t.ty), `${c.id}: (${t.tx}, ${t.ty}) no se pisa`);
+  if (c.staff) assert.ok(isStandable(loc, c.staff.tx, c.staff.ty), `${c.id}: quien cobra no tiene sitio`);
+  assert.ok(c.queue.length >= 2, `${c.id}: cola de menos de dos plazas`);
+  for (const q of c.queue) {
+    assert.ok(!inAisle(q.tx, q.ty), `${c.id}: la cola invade un pasillo en (${q.tx}, ${q.ty})`);
+    assert.equal(loc.ground[q.ty][q.tx], 'e', `${c.id}: cola sin delimitar en (${q.tx}, ${q.ty})`);
+  }
+  if (c.kind === 'staffed') {
+    assert.ok(c.staff && c.staff.ty === c.till.ty && c.staff.tx === c.till.tx + 2 && has('counter', c.till.tx + 1, c.till.ty), `${c.id}: sin mostrador entre cliente y cajero`);
+  } else {
+    assert.ok(!c.staff && has('register', c.till.tx, c.till.ty + 1), `${c.id}: autopago sin máquina o con cajero`);
+  }
+}
+// Ninguna plaza de cola cae en el sitio de un cajero o de otra cola.
+const queueOwner = new Map<string, string>();
+for (const c of L.checkouts) for (const q of c.queue) {
+  assert.ok(!queueOwner.has(key(q)), `${c.id} y ${queueOwner.get(key(q))} comparten la plaza (${q.tx}, ${q.ty})`);
+  queueOwner.set(key(q), c.id);
+}
+const staffTiles = new Set(STAFFED.map((c) => key(c.staff!)));
+for (const k of queueOwner.keys()) assert.ok(!staffTiles.has(k), `una cola pisa a un cajero en ${k}`);
+// (d) Debajo de natación, solapando su ancho, a la izquierda de la puerta.
+const swim = rectOf('natacion');
+const door = loc.portals[0];
+const xs = L.checkouts.map((c) => c.till.tx);
+assert.ok(L.checkouts.every((c) => c.till.ty > swim.y1), 'una caja por encima de natación');
+assert.ok(Math.min(...xs) <= swim.x1 && Math.max(...xs) >= swim.x0, 'las cajas no quedan bajo natación');
+assert.ok(Math.max(...xs, ...STAFFED.map((c) => c.staff!.tx)) < door.tx, 'una caja a la derecha de la puerta');
+// (e) De cada caja a la puerta sin pisar las colas de las demás ni a ningún cajero.
+for (const c of L.checkouts) {
+  const avoid = new Set([...staffTiles, ...[...queueOwner].filter(([, id]) => id !== c.id).map(([k]) => k)]);
+  assert.ok(tilePath(loc, c.till, entry, avoid), `${c.id}: no se sale sin cruzar otra cola o un cajero`);
+  assert.ok(tilePath(loc, c.exit, entry, avoid), `${c.id}: su salida no lleva a la puerta`);
+}
+// (g) Cada punto de caja, alcanzable por ruta desde la puerta y de vuelta (§8 ya los recorre todos); aquí, que existen.
+for (const id of Object.keys(loc.points!).filter((i) => /^DECAT_(TILL|STAFF|QUEUE)_/.test(i))) {
+  assert.ok(route('DECAT_EXIT', id) && route(id, 'DECAT_EXIT'), `${id}: sin ruta con la puerta`);
+}
+// (h) La puerta y su entorno, pisables; el pasillo de salida, sin nada encima.
+assert.deepEqual([door.tx, door.ty, entry.tx, entry.ty], [67, DECATHLON_H - 2, 67, DECATHLON_H - 3], 'la puerta no está donde dice la distribución');
+assert.deepEqual(L.entrances.map((e) => key(e.tile)), [key(door)]);
+assert.deepEqual(L.exits.map((e) => key(e.tile)), [key(door)]);
+for (const t of [door, entry, { tx: door.tx - 1, ty: entry.ty }, { tx: door.tx + 1, ty: entry.ty }]) assert.ok(isWalkable(loc, t.tx, t.ty), `la puerta, cerrada en (${t.tx}, ${t.ty})`);
+const exitAisle = L.aisles.find((a) => a.id === 'salida')!.rect;
+for (const pr of loc.props) {
+  const def = PROPS[pr.kind];
+  if (def.overhead || def.flat) continue;
+  for (let x = pr.tx; x < pr.tx + (def.tilesWide ?? 1); x++) assert.ok(!inRect(exitAisle, x, pr.ty), `${pr.kind} en el pasillo de salida (${x}, ${pr.ty})`);
+}
+// Debajo del pasillo de cajas sólo hay nave en la franja de cajas (x 41..74).
+for (let y = 44; y < DECATHLON_H - 2; y++) for (let x = 1; x < DECATHLON_W - 1; x++) assert.equal(loc.ground[y][x] === 'W', x < 41, `(${x}, ${y}): la franja de cajas no es x 41..74`);
+// (j) El autopago es decorado hasta DEC-04: ni punto, ni personal, ni nada con E en su sitio.
+for (const c of SELF) {
+  const tiles = new Set([c.till, c.exit, ...c.queue, { tx: c.till.tx, ty: c.till.ty + 1 }].map(key));
+  assert.ok(!Object.values(loc.points!).some((pt) => tiles.has(key(pt))), `${c.id}: autopago con punto`);
+  assert.ok(![...(loc.spots ?? []), ...(loc.inspects ?? []), ...(loc.racks ?? [])].some((s) => tiles.has(key(s))), `${c.id}: autopago con algo que se usa`);
+}
+// (k) Ids de caja únicos, y ningún prefijo de caja atrae a un punto que no sea de caja (ni de otra caja).
+assert.equal(new Set(L.checkouts.map((c) => c.id)).size, L.checkouts.length);
+const pointIds = Object.keys(loc.points!);
+for (const pre of ['DECAT_TILL_', 'DECAT_QUEUE_', 'DECAT_STAFF_']) assert.ok(pointIds.filter((id) => id.startsWith(pre)).every((id) => /^DECAT_(TILL|QUEUE|STAFF)_\d/.test(id)), `${pre} atrae a otro punto`);
+for (let n = 1; n <= STAFFED.length; n++) {
+  assert.deepEqual(pointIds.filter((id) => id.startsWith(`DECAT_TILL_${n}`)), [`DECAT_TILL_${n}`], `DECAT_TILL_${n} ambiguo`);
+  assert.deepEqual(pointIds.filter((id) => id.startsWith(`DECAT_STAFF_${n}`)), [`DECAT_STAFF_${n}`], `DECAT_STAFF_${n} ambiguo`);
+  assert.equal(pointIds.filter((id) => id.startsWith(`DECAT_QUEUE_${n}_`)).length, STAFFED[n - 1].queue.length, `DECAT_QUEUE_${n}_ ambiguo`);
+}
+// Mochilas y fútbol, en la banda central (DEC-02), no en el fondo.
+assert.ok(rectOf('mochilas').y0 >= 14 && rectOf('futbol').y0 >= 23, 'mochilas o fútbol siguen al fondo');
 
 console.log(`check-decathlon: OK · calle ${walkTo.length} tiles del metro a la puerta · ${SECTORS.length} secciones · ${AISLES.length} pasillos · ${BLOCKS.length} circuitos · ${loc.props.length} muebles de ${kinds.size} tipos · ${seen.size} tiles alcanzables`);
