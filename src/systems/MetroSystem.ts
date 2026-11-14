@@ -46,6 +46,7 @@ import { absMinute, FRESH_MINUTES, handoffs } from './Handoff';
 import { identityOf } from './Zones';
 import { LOCATION_DISTRICT } from '../data/districtIdentity';
 import { STOPS } from '../data/transit';
+import { phaseOf, tripsAt, type Trip } from './MetroDemand';
 import { weatherAt } from './Weather';
 import { dressedLook } from '../world/WeatherLooks';
 import { StuckWatch } from './Recovery';
@@ -186,6 +187,9 @@ export class MetroSystem {
   readonly watch = new StuckWatch();
   private readonly camera: Phaser.Cameras.Scene2D.Camera;
   private readonly stationId: string;
+  /** MOV-01: viajes de esta hora que pasan por este andén, y por cuál va el reparto. */
+  private demand: { key: string; stopId: string; trips: readonly Trip[] } = { key: '', stopId: '', trips: [] };
+  private tripCursor = 0;
   /** Ms de escena desde que existe la estación: mide la edad del robo en curso. */
   private elapsed = 0;
   /**
@@ -467,6 +471,8 @@ export class MetroSystem {
 
     for (const p of this.passengers) {
       p.update(dt);
+      this.assignTrip(p);
+      if (p.trip) p.trip.state = phaseOf(p.state, p.trip, this.demand.stopId);
     }
 
     /*
@@ -726,6 +732,36 @@ export class MetroSystem {
   /** Depuración (lifesim.handoff): los pasajeros que bajaron desde la calle delante del jugador. */
   handoffPassengers(): readonly PassengerAI[] {
     return this.passengers.filter((p) => p.handoff);
+  }
+
+  /**
+   * MOV-01: cada pasajero que se ve lleva un viaje (systems/MetroDemand) de los que pasan por este andén a esta
+   * hora; al salir de escena lo suelta. Un único sitio para todas las entradas (populate, world(), traspasos,
+   * los que bajan del tren, LATE_RUNNER). Sin viajes, trip se queda vacío y no cambia nada.
+   */
+  private assignTrip(p: PassengerAI): void {
+    if (!p.walker.visible) {
+      p.trip = undefined;
+      return;
+    }
+    if (p.trip) return;
+    const { day, hour } = this.clock;
+    const key = `${day}:${hour}`;
+    if (this.demand.key !== key) {
+      const stop = STOPS.find((s) => s.station === this.stationId);
+      this.demand = { key, stopId: stop?.id ?? '', trips: stop ? tripsAt(stop.id, day, hour) : [] };
+    }
+    const { trips } = this.demand;
+    if (!trips.length) return;
+    const taken = new Set(this.passengers.map((q) => q.trip?.tripId));
+    for (let i = 0; i < trips.length; i++) {
+      const t = trips[(this.tripCursor + i) % trips.length];
+      if (taken.has(t.tripId)) continue;
+      this.tripCursor = (this.tripCursor + i + 1) % trips.length;
+      // Copia: la fase es de este pasajero; los Trip de tripsFor están memoizados y los comparten las estaciones.
+      p.trip = { ...t };
+      return;
+    }
   }
 
   /** Arranque inicial. */
@@ -2002,6 +2038,8 @@ export class MetroSystem {
       `ahora      ${this.tag} → ${this.level} · objetivo ${this.target} · en estación ${visible} · a bordo ${riding}`,
 
       `tren       ${train.state} · siguiente ${next}`,
+
+      `viajes     ${this.demand.trips.length} por este andén · con viaje ${this.passengers.filter((p) => p.trip).length}`,
 
       `seguridad  ${
         activeGuards.length ===

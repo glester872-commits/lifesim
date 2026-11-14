@@ -3,6 +3,7 @@ import type { RecoveryLevel } from './Recovery';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
 import type { Walker } from '../entities/Walker';
 import type { TrainSystem } from './TrainSystem';
+import type { Trip } from './MetroDemand.ts';
 import { weighted, type Archetype, type ArchetypeParams, type CrowdProfile, type StationMood } from './MetroDaily.ts';
 
 export type PassengerState =
@@ -84,6 +85,8 @@ export class PassengerAI {
   state: PassengerState = 'OFFSTAGE';
   /** Bajó desde la calle delante del jugador (systems/Handoff): su ficha. */
   handoff?: string;
+  /** MOV-01: su viaje (systems/MetroDemand). Sin él, el comportamiento de siempre. */
+  trip?: Trip;
   /** Qué está haciendo dentro del estado; sólo para leerlo en el debug. */
   activity = '';
   archetype: Archetype = 'CALM';
