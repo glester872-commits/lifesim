@@ -6,6 +6,7 @@
  * local nuevo es otra entrada aquí y `tableService.menu` en su perfil de
  * población (data/population.ts); el servicio no sabe de ningún local.
  */
+import { getCatalog } from './catalogs.ts';
 import { FOOD_VENUE_MENUS } from './foodVenues.ts';
 
 /** Qué clase de local es: decide la carta, las frases y qué se ofrece para seguir pidiendo. Nunca el nombre del local. */
@@ -465,8 +466,31 @@ const MARQUES: ServiceMenu = {
   items: LA_CEPA.items.map((i) => ({ ...i, price: Math.round(i.price * 1.4 * 10) / 10 })),
 };
 
+/**
+ * CAS-06 · Taberna La Lonja, la terraza de la plaza: lo mismo que la barra (catálogo 'cas-taberna-tapas') y al mismo
+ * precio, que se lee de ese catálogo: la terraza no puede cobrar distinto que la barra.
+ */
+const LONJA_BAR = getCatalog('cas-taberna-tapas');
+const lonja = (id: string): number => {
+  const product = LONJA_BAR.products.find((p) => p.id === id);
+  if (!product) throw new Error(`La Lonja: ${id} no está en la barra`);
+  return product.price;
+};
+const LONJA: ServiceMenu = {
+  ...BAR_RIBERA,
+  id: 'cas-taberna-terraza',
+  title: 'Taberna La Lonja',
+  items: [
+    { id: 'tapa-tortilla', name: 'Pincho de tortilla', price: lonja('tapa-tortilla'), kind: 'food', category: 'picar', prep: 3, duration: 10, energy: 10, dish: 'tortilla' },
+    { id: 'tapa-bravas', name: 'Ración de bravas', price: lonja('tapa-bravas'), kind: 'food', category: 'picar', prep: 7, duration: 15, energy: 13, dish: 'tapa' },
+    { id: 'sandwich', name: 'Montadito', price: lonja('sandwich'), kind: 'food', category: 'picar', prep: 4, duration: 12, energy: 12, dish: 'sandwich' },
+    { id: 'cola', name: 'Refresco de cola', price: lonja('cola'), kind: 'drink', category: 'bebidas', prep: 1, duration: 10, energy: 6, dish: 'soda' },
+    { id: 'water', name: 'Agua', price: lonja('water'), kind: 'drink', category: 'bebidas', prep: 1, duration: 10, energy: 3, dish: 'water' },
+  ],
+};
+
 /** Las cartas de los locales de comida de la ciudad salen de sus arquetipos (data/foodVenues.ts), no se escriben a mano. */
-export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR, MOLINILLO, CAFE_RIO, BAR_RIBERA, ALMA, AURELIA, MARQUES, ...FOOD_VENUE_MENUS];
+export const MENUS: readonly ServiceMenu[] = [CASA_TOMAS, PAUSA, LA_CEPA, CASA_MAR, MOLINILLO, CAFE_RIO, BAR_RIBERA, ALMA, AURELIA, MARQUES, LONJA, ...FOOD_VENUE_MENUS];
 
 export function getMenu(id: string): ServiceMenu {
   const menu = MENUS.find((m) => m.id === id);

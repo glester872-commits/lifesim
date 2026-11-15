@@ -29,6 +29,8 @@ const TERRACES: readonly Terrace[] = [
   { location: 'ribera', place: 'bar-ribera', menu: 'bar-ribera', seats: ['RB_BAR_TERRACE_01', 'RB_BAR_TERRACE_02'], open: ['18:00', '15:00', '20:00'], closed: '06:00', player: { tx: 20, ty: 19 } },
   { location: 'ribera', place: 'cafe-rio', menu: 'cafe-rio', seats: ['RB_CAFE_TERRACE_01', 'RB_CAFE_TERRACE_02'], open: ['10:00', '17:00', '12:00'], closed: '05:00', player: { tx: 20, ty: 19 } },
   { location: 'ribera', place: 'casa-mar', menu: 'casa-mar', seats: ['RB_CASAMAR_TERRACE_01', 'RB_CASAMAR_TERRACE_02'], open: ['14:00', '21:00', '13:00', '12:30', '18:00'], closed: '05:00', player: { tx: 20, ty: 19 } },
+  // CAS-06: la terraza de La Lonja en la Plaza del Mercado; el jugador, en la bajada entre las dos mesas.
+  { location: 'casco-antiguo', place: 'cas-taberna', menu: 'cas-taberna-terraza', seats: ['CAS_TABERNA_TERRACE_01', 'CAS_TABERNA_TERRACE_02'], open: ['14:00', '21:00', '13:30'], closed: '05:00', player: { tx: 34, ty: 17 } },
 ];
 
 const at = (day: number, hhmm: string): Clock => ({ day, hour: Number(hhmm.slice(0, 2)), minute: Number(hhmm.slice(3)) });

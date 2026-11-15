@@ -75,6 +75,9 @@ export const ITEMS: readonly ItemDef[] = [
   // Ribera Norte: el quiosco de helados.
   { id: 'ice-cream', name: 'Helado de cucurucho', kind: 'food', energy: 7, use: 'Se derrite más rápido de lo que lo comes. Siempre.' },
   { id: 'ice-lolly', name: 'Polo de limón', kind: 'food', energy: 5, use: 'Ácido, frío, y los dedos pegajosos hasta mañana.' },
+  // CAS-06 · la barra de la Taberna La Lonja (Casco Antiguo).
+  { id: 'tapa-tortilla', name: 'Pincho de tortilla', kind: 'food', energy: 10, use: 'Jugosa por dentro, con cebolla. Sin discusión.' },
+  { id: 'tapa-bravas', name: 'Ración de bravas', kind: 'food', energy: 13, use: 'Patata frita, salsa que pica lo justo y un palillo por cabeza.' },
   { id: 'transport', name: 'Tarjeta de transporte', kind: 'card' },
   // Para llevar de pizzerías, hamburgueserías y sushi (data/foodItems.ts).
   ...takeawayItems,
