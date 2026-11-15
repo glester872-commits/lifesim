@@ -18,8 +18,11 @@ import { hashSeed, seededRng } from './MetroDaily.ts';
  * cambia poco a poco: la lluvia entra y sale en rampa, el suelo se seca en horas.
  */
 
-export type Sky = 'clear' | 'cloudy' | 'light-rain' | 'heavy-rain';
+export type Sky = 'clear' | 'cloudy' | 'fog' | 'light-rain' | 'heavy-rain' | 'storm';
 export type Temp = 'warm' | 'mild' | 'cold';
+
+/** Llueve (de cualquier forma): lo que antes era `sky.endsWith('rain')`, ahora con la tormenta. */
+export const isRainy = (sky: Sky): boolean => sky === 'light-rain' || sky === 'heavy-rain' || sky === 'storm';
 
 export interface Weather {
   /** Nubes, de 0 (despejado) a 1 (cubierto): apaga el sol y agrisa el cielo. */
@@ -31,6 +34,10 @@ export interface Weather {
   celsius: number;
   sky: Sky;
   temp: Temp;
+  /** MAP-08. Niebla, de 0 a 1: madrugadas frías y secas; se levanta hacia las diez. Opcional para los Weather escritos a mano. */
+  fog?: number;
+  /** MAP-08. Viento de tormenta, de 0 a 1: el pico del chaparrón tormentoso por su rampa. */
+  gust?: number;
 }
 
 /** Umbrales: lo que cuenta como lluvia fuerte, frío o calor. */
@@ -44,13 +51,24 @@ interface Episode {
   start: number;
   end: number;
   peak: number;
+  /** MAP-08: chaparrón con tormenta (viento, más oscuro, metro con retraso). */
+  storm?: boolean;
 }
 
 interface DayPlan {
   cloud: number;
   celsius: number;
   episodes: Episode[];
+  /** MAP-08: densidad de la niebla de madrugada (0: no hay). */
+  fog: number;
 }
+
+/** MAP-08: de los chaparrones (pico ≥ 0,75), cuántos traen tormenta; sólo con algo de calor y fuera del invierno. */
+const STORM_CHANCE = 0.35;
+const STORM_ABOVE = 8;
+/** MAP-08: días fríos (plan por debajo de 11 °C) con niebla de madrugada. */
+const FOG_CHANCE = 0.3;
+const FOG_BELOW = 11;
 
 const plans = new Map<number, DayPlan>();
 
@@ -80,7 +98,16 @@ function planFor(day: number): DayPlan {
       episodes.push({ start, end: start + 2 + rng() * 5, peak: heavy ? 0.75 + rng() * 0.25 : 0.25 + rng() * 0.28 });
     }
   }
-  const plan = { cloud, celsius, episodes };
+  // MAP-08: tiradas nuevas AL FINAL, siempre las mismas, para no cambiar el tiempo de los días ya conocidos.
+  const season = dateOf(day).season;
+  for (const e of episodes) {
+    const roll = rng();
+    if (e.peak >= 0.75 && celsius > STORM_ABOVE && season !== 'winter' && roll < STORM_CHANCE) e.storm = true;
+  }
+  const fogRoll = rng();
+  const fogDensity = 0.6 + rng() * 0.35;
+  const fog = fogRoll < FOG_CHANCE && celsius < FOG_BELOW ? fogDensity : 0;
+  const plan: DayPlan = { cloud, celsius, episodes, fog };
   plans.set(day, plan);
   return plan;
 }
@@ -89,11 +116,12 @@ const smooth = (x: number): number => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 
 /** Lo que tarda la lluvia en arrancar o en parar, en horas. */
 const RAMP_H = 0.6;
 
-/** Lluvia a esa hora, contando la que empezó ayer y sigue de madrugada. */
-function rainAt(day: number, hour: number): number {
+/** Lluvia a esa hora, contando la que empezó ayer y sigue de madrugada. Con `storms`, sólo la de tormenta (el viento). */
+function rainAt(day: number, hour: number, storms = false): number {
   let rain = 0;
   for (const [d, offset] of [[day, 0], [day - 1, 24]] as const) {
     for (const e of planFor(d).episodes) {
+      if (storms && !e.storm) continue;
       const t = hour + offset;
       const k = Math.min(smooth((t - e.start) / RAMP_H), smooth((e.end - t) / RAMP_H));
       rain = Math.max(rain, e.peak * k);
@@ -135,8 +163,21 @@ function celsiusAt(day: number, hour: number, rain: number): number {
   return planFor(day).celsius + 4 * Math.sin(((hour - 9) / 24) * Math.PI * 2) - rain * 2.5;
 }
 
-export function skyOf(cloud: number, rain: number): Sky {
-  return rain > HEAVY_RAIN ? 'heavy-rain' : rain > LIGHT_RAIN ? 'light-rain' : cloud > 0.5 ? 'cloudy' : 'clear';
+/** MAP-08: niebla de madrugada; entra a la 1, cubre de 3 a 8 y se levanta hacia las 10:30. La lluvia la borra. */
+function fogAt(day: number, hour: number, rain: number): number {
+  const fog = planFor(day).fog;
+  if (fog === 0) return 0;
+  return fog * Math.min(smooth((hour - 1) / 2), smooth((10.5 - hour) / 2.5)) * (1 - smooth(rain / LIGHT_RAIN));
+}
+
+/** Viento por encima de esto, con lluvia, es tormenta. */
+const STORM_GUST = 0.4;
+
+export function skyOf(cloud: number, rain: number, fog = 0, gust = 0): Sky {
+  if (gust > STORM_GUST && rain > LIGHT_RAIN) return 'storm';
+  if (rain > HEAVY_RAIN) return 'heavy-rain';
+  if (rain > LIGHT_RAIN) return 'light-rain';
+  return fog > 0.5 ? 'fog' : cloud > 0.5 ? 'cloudy' : 'clear';
 }
 
 export function tempOf(celsius: number): Temp {
@@ -144,7 +185,7 @@ export function tempOf(celsius: number): Temp {
 }
 
 /** Forzar el tiempo en desarrollo (lifesim.weather): null vuelve al del calendario. */
-let forced: Partial<Pick<Weather, 'cloud' | 'rain' | 'wet' | 'celsius'>> | null = null;
+let forced: Partial<Pick<Weather, 'cloud' | 'rain' | 'wet' | 'celsius' | 'fog' | 'gust'>> | null = null;
 
 export function forceWeather(w: typeof forced): void {
   forced = w;
@@ -163,7 +204,10 @@ export function weatherAt(day: number, hour: number): Weather {
   const cloud = forced?.cloud ?? Math.max(cloudAt(day, h), rain > 0 ? 0.8 : 0);
   const wet = forced?.wet ?? (forced?.rain !== undefined ? Math.min(1, forced.rain * 1.4) : wetAt(day, h));
   const celsius = forced?.celsius ?? celsiusAt(day, h, rain);
-  const w: Weather = { cloud, rain, wet, celsius, sky: skyOf(cloud, rain), temp: tempOf(celsius) };
+  // Forzado sin decirlo, ni niebla ni viento: un lifesim.weather.force antiguo sigue dando lo mismo.
+  const fog = forced ? (forced.fog ?? 0) : fogAt(day, h, rain);
+  const gust = forced ? (forced.gust ?? 0) : rainAt(day, h, true);
+  const w: Weather = { cloud, rain, wet, celsius, sky: skyOf(cloud, rain, fog, gust), temp: tempOf(celsius), fog, gust };
   if (memo.size > 600) memo.clear();
   memo.set(key, w);
   return w;
@@ -182,4 +226,50 @@ export function outdoorAppeal(w: Weather): number {
   const rain = w.rain > HEAVY_RAIN ? 0.15 : w.rain > LIGHT_RAIN ? 0.45 : 1;
   const temp = w.celsius < FREEZING_BELOW ? 0.4 : w.celsius >= SCORCHING_ABOVE ? 0.7 : w.temp === 'cold' ? 0.6 : w.temp === 'warm' ? 1.4 : 1;
   return rain * temp;
+}
+
+/** MAP-08: la previsión, tramo a tramo desde ahora; cruza la medianoche. Es weatherAt, así que acierta siempre. */
+export function forecast(day: number, hour: number, hours = 12, step = 3): { day: number; hour: number; w: Weather }[] {
+  const out: { day: number; hour: number; w: Weather }[] = [];
+  for (let t = step; t <= hours; t += step) {
+    const abs = hour + t;
+    const d = day + Math.floor(abs / 24);
+    const h = abs - Math.floor(abs / 24) * 24;
+    out.push({ day: d, hour: h, w: weatherAt(d, h) });
+  }
+  return out;
+}
+
+const LABELS: Readonly<Record<Sky, string>> = {
+  clear: 'Despejado',
+  cloudy: 'Nublado',
+  fog: 'Niebla',
+  'light-rain': 'Lluvia',
+  'heavy-rain': 'Chaparrón',
+  storm: 'Tormenta',
+};
+
+export const weatherLabel = (w: Weather): string => LABELS[w.sky];
+
+/** MAP-08: cuánto frena el tiempo al andar por la calle (1: nada). */
+export const WALK_PACE: Readonly<Record<Sky, number>> = {
+  clear: 1,
+  cloudy: 1,
+  'light-rain': 1,
+  'heavy-rain': 0.9,
+  storm: 0.85,
+  fog: 0.95,
+};
+/** MAP-08: minutos de más por parada de metro según el tiempo a la salida (la tarifa no cambia). */
+export const METRO_DELAY_PER_STOP: Readonly<Record<Sky, number>> = {
+  clear: 0,
+  cloudy: 0,
+  'light-rain': 0,
+  'heavy-rain': 0,
+  storm: 3,
+  fog: 1,
+};
+
+export function weatherEffects(w: Weather): { walkPace: number; metroDelayPerStop: number } {
+  return { walkPace: WALK_PACE[w.sky], metroDelayPerStop: METRO_DELAY_PER_STOP[w.sky] };
 }

@@ -121,6 +121,7 @@ export class WeatherView {
   private readonly puddles: Phaser.GameObjects.Image[] = [];
   private readonly facades: { x: number; w: number; y: number }[] = [];
   private readonly people: () => readonly Phaser.GameObjects.Sprite[];
+  private readonly fogVeil: Phaser.GameObjects.Rectangle;
   private dripClock = 0;
   private rippleClock = 0;
   private breathClock = 0;
@@ -130,6 +131,8 @@ export class WeatherView {
     this.weather = weather;
     this.hour = hour;
     this.people = people;
+    // Sigue a la vista de la cámara en coordenadas de mundo (no scrollFactor 0: con zoom, así cubre exacto).
+    this.fogVeil = scene.add.rectangle(0, 0, 1, 1, 0xd6dae0, 0).setOrigin(0, 0).setDepth(EMISSIVE_DEPTH - 2).setVisible(false);
     this.placePuddles(def);
     // Goteo: al pie de las fachadas que dan al sur (el alero, el toldo), sobre la acera.
     for (const b of def.buildings ?? []) if (b.front === 's') this.facades.push({ x: b.tx * TILE, w: b.w * TILE, y: (b.ty + b.h) * TILE + 2 });
@@ -184,7 +187,13 @@ export class WeatherView {
 
     // Gotas: tantas como pide la lluvia para el trozo de ciudad que se ve.
     const area = Math.min(1.4, (view.width * view.height) / (480 * 270));
-    const wanted = Math.round(MAX_DROPS * area * Math.min(1, w.rain * 1.15));
+    // MAP-08: con tormenta, la lluvia al máximo.
+    const wanted = Math.round(MAX_DROPS * area * Math.min(1, w.rain * 1.15 + (w.gust ?? 0)));
+
+    // MAP-08: niebla, un velo liso del color del aire sobre lo que se ve (por debajo de lo que brilla).
+    const fog = w.fog ?? 0;
+    this.fogVeil.setVisible(fog > 0.02);
+    if (fog > 0.02) this.fogVeil.setPosition(view.x - 4, view.y - 4).setSize(view.width + 8, view.height + 8).setFillStyle(night > 0.5 ? 0x7c8496 : 0xd6dae0, fog * 0.38);
     const tint = night > 0.5 ? 0x9fb0cc : 0xdfe7f2;
     const alpha = (night > 0.5 ? 0.32 : 0.42) * (0.6 + 0.4 * Math.min(1, w.rain * 1.5));
     while (this.drops.length < wanted) {

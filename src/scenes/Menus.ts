@@ -7,7 +7,7 @@ import { getActivity, getOffMapPlace, type ActivityDef } from '../data/activitie
 import { STOPS, type TransitStop } from '../data/transit';
 import { checkout, consume, euros, maxQty, payFare, productUse, purchase, spend } from '../systems/Commerce';
 import { blocker, perform, type ActivityContext } from '../systems/Activities';
-import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, type Destination } from '../systems/Transit';
+import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, weatherDelay, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
 import { getJob, jobAt, type JobDef } from '../data/jobs';
 import { clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, missedNotice, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
@@ -297,7 +297,8 @@ export class Menus {
       ...dests.map((d) => {
         const fare = journeyFare(state.metroJourney ?? null, from, d.fare);
         const paid = payFare(state.wallet, d.line.card, fare);
-        return { label: d.stop.name, detail: d.minutes + ' min · ' + (fare ? euros(fare) + ' · validar tarjeta' : 'billete validado · sin recargo'), disabled: !visitable(d.stop) ? 'Sin mapa visitable: no se puede viajar aquí.' : !serviceOpen(d.line, state.hour) ? 'Fuera de servicio.' : paid.ok ? undefined : paid.message };
+        const late = weatherDelay(from, d.stop, state.hour + state.minute / 60, state.day);
+        return { label: d.stop.name, detail: d.minutes + late + ' min' + (late ? ' (retraso por el tiempo)' : '') + ' · ' + (fare ? euros(fare) + ' · validar tarjeta' : 'billete validado · sin recargo'), disabled: !visitable(d.stop) ? 'Sin mapa visitable: no se puede viajar aquí.' : !serviceOpen(d.line, state.hour) ? 'Fuera de servicio.' : paid.ok ? undefined : paid.message };
       }),
       { label: 'Quedarme en el andén' },
     ];
@@ -314,7 +315,7 @@ export class Menus {
     const { state, menu, metroEvents } = this.services;
     // Una elección antigua o repetida no puede cobrar ni saltarse las puertas.
     if (!this.host.canBoard(from.station ?? '') || state.locationId !== from.station) { menu.close(); return; }
-    const result = prepareRide(state.wallet, state.metroJourney ?? null, from, d.stop, state.hour);
+    const result = prepareRide(state.wallet, state.metroJourney ?? null, from, d.stop, state.hour + state.minute / 60, state.day);
     if (!result.ok) { this.board(from, result.message); return; }
     menu.close();
     state.wallet = result.wallet;

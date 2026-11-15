@@ -1,5 +1,6 @@
 import type { GameState } from '../state/GameState';
 import { formatClock } from '../systems/TimeSystem';
+import { weatherAt, weatherLabel } from '../systems/Weather';
 
 // es-ES omite el punto en cifras de cuatro digitos; el formato pedido lo lleva.
 const MONEY = new Intl.NumberFormat('es-ES', {
@@ -20,6 +21,7 @@ const money = (n: number): string => `€${(Number.isInteger(n) ? MONEY : CENTS)
  */
 export class HUD {
   private readonly clockEl: HTMLElement;
+  private readonly weatherEl: HTMLElement;
   private readonly moneyEl: HTMLElement;
   private readonly energyEl: HTMLElement;
   private readonly savedEl: HTMLElement;
@@ -43,6 +45,7 @@ export class HUD {
     root.innerHTML = `
       <p class="hud__mark">LIFE<i>//</i>SIM</p>
       <p class="hud__clock"></p>
+      <p class="hud__weather"></p>
       <p class="hud__vitals"><span class="hud__money"></span><span class="hud__energy"></span></p>
       <button type="button" class="hud__more-btn" id="hud-more-button" aria-expanded="false" aria-controls="hud-more" aria-label="Detalles: agenda y tarjeta" title="Detalles: agenda y tarjeta" hidden><span aria-hidden="true">▾</span></button>
       <div class="hud__more" id="hud-more">
@@ -74,6 +77,7 @@ export class HUD {
 
     this.nextEl = this.pick(root, '.hud__next');
     this.clockEl = this.pick(root, '.hud__clock');
+    this.weatherEl = this.pick(root, '.hud__weather');
     this.moneyEl = this.pick(root, '.hud__money');
     this.energyEl = this.pick(root, '.hud__energy');
     this.savedEl = this.pick(root, '.hud__saved');
@@ -103,6 +107,10 @@ export class HUD {
     const { day, hour, minute, money: cash, energy } = this.state;
     this.clockEl.textContent = formatClock(day, hour, minute);
     this.clockEl.dataset.mode = this.clockMode;
+    // MAP-08: el tiempo que hace fuera, junto al reloj; sólo se toca el DOM si cambia el texto.
+    const w = weatherAt(day, hour + minute / 60);
+    const sky = `${weatherLabel(w)} ${Math.round(w.celsius)}°`;
+    if (this.weatherEl.textContent !== sky) this.weatherEl.textContent = sky;
     this.moneyEl.textContent = money(cash);
     this.energyEl.textContent = `⚡ ${energy}`;
     const card = this.state.wallet.cards.transport;

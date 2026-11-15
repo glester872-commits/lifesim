@@ -7,7 +7,7 @@ import { weekIndex } from './Calendar.ts';
 import { getLocation } from './LocationSystem.ts';
 import { crossingOf, minutesUntilWalk } from './Signals.ts';
 import { isOpen, placeOfPoint } from './Places.ts';
-import { weatherAt } from './Weather.ts';
+import { isRainy, weatherAt } from './Weather.ts';
 import { phaseOn } from './Pregnancy.ts';
 
 /**
@@ -275,7 +275,7 @@ const RAINY = new Map<number, boolean>();
 export function rainyDay(day: number): boolean {
   let r = RAINY.get(day);
   if (r === undefined) {
-    r = weatherAt(day, 10).sky.endsWith('rain');
+    r = isRainy(weatherAt(day, 10).sky);
     if (RAINY.size > MAX_VARIANTS) RAINY.clear();
     RAINY.set(day, r);
   }

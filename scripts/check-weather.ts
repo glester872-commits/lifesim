@@ -1,9 +1,11 @@
 // El tiempo: `npm run check`. Falla si deja de ser determinista, si cambia de golpe,
 // si el suelo no se seca, o si la gente deja de reaccionar (terrazas, calle, bares).
 import assert from 'node:assert/strict';
-import { forceWeather, outdoorAppeal, weatherAt } from '../src/systems/Weather.ts';
+import { forceWeather, forecast, isRainy, outdoorAppeal, skyOf, weatherAt, weatherEffects, weatherLabel, type Sky } from '../src/systems/Weather.ts';
+import { dateOf } from '../src/systems/Calendar.ts';
 import { streetWeatherScale, weatherBias } from '../src/systems/StreetLife.ts';
 import { STREET_PROFILES } from '../src/data/streets.ts';
+import { getStop, prepareRide } from '../src/systems/Transit.ts';
 
 // El mismo día a la misma hora, el mismo tiempo; y en tres meses hay de todo.
 assert.deepEqual(weatherAt(40, 15.5), weatherAt(40, 15.5));
@@ -55,6 +57,82 @@ forceWeather({ rain: 0.9, celsius: 3 });
 assert.equal(weatherAt(5, 12).sky, 'heavy-rain');
 assert.equal(weatherAt(5, 12).temp, 'cold');
 forceWeather(null);
+
+// MAP-08: tormenta y niebla, previsión y efectos.
+{
+  let stormDays = 0;
+  let fogDays = 0;
+  const seen = new Set<Sky>();
+  for (let d = 1; d <= 400; d++) {
+    let storm = false;
+    let fog = false;
+    for (let m = 0; m < 1440; m += 10) {
+      const w = weatherAt(d, m / 60);
+      seen.add(w.sky);
+      if (w.sky === 'storm') {
+        storm = true;
+        // La de ayer puede seguir de madrugada: cuenta la estación del día que la trajo.
+        const from = m < 360 && dateOf(d).season === 'winter' ? d - 1 : d;
+        assert.notEqual(dateOf(from).season, 'winter', `día ${d}: tormenta en invierno`);
+      }
+      if ((w.fog ?? 0) > 0) {
+        assert.ok(w.rain <= 0.08, `día ${d} ${m} min: niebla con lluvia ${w.rain.toFixed(2)}`);
+        if (w.sky === 'fog') fog = true;
+      }
+    }
+    if (storm) stormDays++;
+    if (fog) fogDays++;
+  }
+  assert.ok(stormDays >= 2 && stormDays <= 40, `tormenta ${stormDays} de 400 días (0,5–10 %)`);
+  assert.ok(fogDays >= 8 && fogDays <= 80, `niebla ${fogDays} de 400 días (2–20 %)`);
+  for (const s of ['clear', 'cloudy', 'fog', 'light-rain', 'heavy-rain', 'storm'] as const) assert.ok(seen.has(s), `en 400 días nunca hay ${s}`);
+  assert.equal(skyOf(1, 0.9, 0, 0.9), 'storm');
+  assert.equal(skyOf(0.2, 0, 0.8, 0), 'fog');
+  assert.equal(skyOf(0.2, 0.3, 0.8, 0), 'light-rain');
+  assert.ok(isRainy('storm') && !isRainy('fog'));
+  assert.deepEqual(weatherAt(123, 5.5), weatherAt(123, 5.5));
+
+  // La previsión es el tiempo que luego hace, también pasada la medianoche.
+  const f = forecast(30, 20.5);
+  assert.equal(f.length, 4);
+  assert.deepEqual(f.map((x) => [x.day, x.hour]), [[30, 23.5], [31, 2.5], [31, 5.5], [31, 8.5]]);
+  for (const x of f) assert.deepEqual(x.w, weatherAt(x.day, x.hour));
+  assert.equal(weatherLabel(weatherAt(30, 20.5)).length > 0, true);
+
+  // Efectos: andar más despacio con chaparrón y más con tormenta; el metro sólo se retrasa con tormenta o niebla.
+  const at = (sky: Sky) => ({ cloud: 1, rain: 0, wet: 0, celsius: 14, sky, temp: 'mild' as const });
+  const sun = weatherEffects(at('clear'));
+  const heavy = weatherEffects(at('heavy-rain'));
+  const storm = weatherEffects(at('storm'));
+  assert.ok(sun.walkPace === 1 && heavy.walkPace < sun.walkPace && storm.walkPace < heavy.walkPace, 'el paso no nota el tiempo');
+  assert.equal(sun.metroDelayPerStop, 0);
+  assert.ok(storm.metroDelayPerStop > 0 && weatherEffects(at('fog')).metroDelayPerStop > 0);
+  for (const s of seen) assert.ok(weatherLabel(at(s)).length > 0);
+}
+
+// MAP-08: el retraso llega al viaje real; la tarifa sigue siendo €2 exactos.
+{
+  const ride = (to: string, day?: number) => {
+    const wallet = { money: 20, cards: { transport: 20 }, inventory: {} };
+    const r = prepareRide(wallet, null, getStop('vallesco'), getStop(to), 12, day);
+    if (!r.ok) throw new Error(r.message);
+    assert.equal(r.wallet.cards.transport, 18, `${to}: no cobra €2 exactos`);
+    return r.minutes;
+  };
+  const cases = [
+    ['sol', { rain: 0, cloud: 0, fog: 0, gust: 0 }, 15, 60],
+    ['tormenta', { rain: 0.9, cloud: 1, fog: 0, gust: 0.9 }, 18, 72],
+    ['niebla', { rain: 0, cloud: 0.5, fog: 0.9, gust: 0 }, 16, 64],
+  ] as const;
+  for (const [name, w, ribera, arena] of cases) {
+    forceWeather(w);
+    assert.equal(ride('ribera', 5), ribera, `${name}: Vallesco–Ribera`);
+    assert.equal(ride('arena', 5), arena, `${name}: Vallesco–Arena`);
+  }
+  forceWeather(cases[1][1]);
+  assert.equal(ride('ribera'), 15, 'sin día no debe haber retraso');
+  forceWeather(null);
+}
 
 console.log(`90 días: ${[...skies].map(([k, v]) => `${k} ${Math.round((v / 90 / 288) * 100)} %`).join(' · ')} · ${[...temps].map(([k, v]) => `${k} ${Math.round((v / 90 / 288) * 100)} %`).join(' · ')}`);
 console.log('OK: tiempo determinista y gradual, el suelo se seca, la calle y los locales reaccionan.');

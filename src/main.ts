@@ -956,7 +956,10 @@ social: {
       // El tiempo: lifesim.weather.now() y, para probar, lifesim.weather.force({ rain: 0.9, celsius: 5 }) (null: el del calendario).
       weather: {
         now: () => weatherAt(state.day, state.hour + state.minute / 60),
-        force: (w: Parameters<typeof forceWeather>[0]) => forceWeather(w),
+        force: (w: Parameters<typeof forceWeather>[0]) => {
+          forceWeather(w);
+          state.emit('change'); // el HUD se repinta al instante, sin esperar al siguiente minuto
+        },
       },
       // Quien entró por una puerta delante del jugador (systems/Handoff): lifesim.handoff() saca la cola en una tabla
       // (persona, de dónde, a dónde, cuándo entró, hasta cuándo se queda, si ya salió) y, si estás dentro de un local

@@ -83,6 +83,19 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* MAP-08: el tiempo que hace, bajo el reloj y en su misma letra, más pequeño y apagado. */
+.hud__weather {
+  margin-top: 1px !important;
+  font-family: var(--ui-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: rgba(232, 227, 218, 0.72);
+}
+
+#hud[data-watch] .hud__weather {
+  display: none;
+}
+
 .hud__vitals {
   margin-top: 2px !important;
   display: flex;
@@ -594,7 +607,9 @@ body.has-touch .hud__key {
     white-space: nowrap;
   }
 
-  .hud__mark {
+  /* MAP-08: en la barra de una línea no cabe el tiempo sin recortar la hora; en el móvil está en la app Tiempo. */
+  .hud__mark,
+  .hud__weather {
     display: none;
   }
 

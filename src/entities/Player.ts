@@ -50,6 +50,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Lo que se ve de la máquina mientras se usa: la banda, la jaula vacía (debajo) y la barra (encima). */
   private gearUnder?: Phaser.GameObjects.Image;
   private gearOver?: Phaser.GameObjects.Image;
+  /** MAP-08: el tiempo frena el paso fuera (systems/Weather.weatherEffects); lo fija WorldScene, 1 bajo techo. */
+  weatherPace = 1;
 
   constructor(scene: Phaser.Scene, x: number, y: number, facing: Facing) {
     super(scene, x, y, `player-${facing}-0`);
@@ -122,6 +124,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
+    pace *= this.weatherPace;
     const length = Math.hypot(vx, vy);
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setVelocity((vx / length) * PLAYER_SPEED * pace, (vy / length) * PLAYER_SPEED * pace);

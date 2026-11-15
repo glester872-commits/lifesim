@@ -6,7 +6,7 @@ import { DAY_STARTS, catchUp, routineFor, tripsOf, whereabouts, whereaboutsIn, t
 import { getLocation, isStandable } from '../src/systems/LocationSystem.ts';
 import { isOpen, placeOfPoint } from '../src/systems/Places.ts';
 import { weekday } from '../src/systems/MetroDaily.ts';
-import { weatherAt } from '../src/systems/Weather.ts';
+import { isRainy, weatherAt } from '../src/systems/Weather.ts';
 import { resolve, usePregnancies } from '../src/systems/Pregnancy.ts';
 
 // Como una partida nueva (main.ts los resuelve el día 1): en estas ocho semanas pasan todas las fases de cada
@@ -68,7 +68,7 @@ for (const def of CHARACTERS) {
 const WEEKS = 8;
 const picked = new Map<string, number>();
 // Como en el juego (scenes/WorldScene): el tiempo de cada día decide si sale la rutina de lluvia.
-const rainy = (day: number): boolean => weatherAt(day, 10).sky.endsWith('rain');
+const rainy = (day: number): boolean => isRainy(weatherAt(day, 10).sky);
 for (const def of CHARACTERS) {
   const pick = (day: number) => routineFor(def, day, { rainy: rainy(day) });
   let prev = whereabouts(def, DAY_STARTS - STEP, pick);

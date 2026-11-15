@@ -176,7 +176,7 @@ import { ForegroundView } from '../world/Foreground';
 import { PopUpView } from '../world/PopUpView';
 import { StringLightsView } from '../world/StringLights';
 import { DEBUG } from '../config/debug';
-import { weatherAt } from '../systems/Weather';
+import { isRainy, weatherAt, weatherEffects } from '../systems/Weather';
 import { ChatLog, Conversation, placeOf, weatherKind, type ChatTurn } from '../systems/Chat';
 import {
   applyDelta,
@@ -1224,6 +1224,9 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    // MAP-08: fuera, el chaparrón, la tormenta o la niebla frenan el paso; bajo techo, nada.
+    const paceState = this.services.state;
+    this.player.weatherPace = getLocation(paceState.locationId).kind === 'exterior' ? weatherEffects(weatherAt(paceState.day, paceState.hour + paceState.minute / 60)).walkPace : 1;
     // Teclas y joystick, al mismo movimiento: las teclas por su lado y el stick, analógico.
     this.player.move({
       up: this.keyHeld('up') || this.keyHeld('upAlt'),
@@ -1669,7 +1672,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Si ese día llueve por la mañana: lo que decide una rutina de lluvia o cancelar un plan de fuera. */
   private rainyDay(day: number): boolean {
-    return weatherAt(day, 10).sky.endsWith('rain');
+    return isRainy(weatherAt(day, 10).sky);
   }
 
   /**
