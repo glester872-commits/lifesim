@@ -800,6 +800,8 @@ export interface GameStateData {
   ledger?: import('../systems/Household.ts').Movement[];
   /** Micropréstamo (systems/Credit): préstamos, cuotas y cooldown. Opcional: sin campo, sin préstamo. */
   credit?: import('../systems/Credit.ts').CreditState;
+  /** Rarezas del Gran Rastro vendidas en la jornada `edition` (systems/Rastro). Sin campo: ninguna. */
+  rastro?: import('../systems/Rastro.ts').RastroLedger;
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */

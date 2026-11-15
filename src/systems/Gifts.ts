@@ -31,6 +31,11 @@ export const GIFTS: Readonly<Record<string, Omit<SocialDelta, 'romance' | 'attra
   'rastro-handheld': { friendship: 6, trust: 1, mood: 10, given: 'Le das la consola. La enciende y la pantalla verdosa le ilumina la cara.' },
   'rastro-badge': { friendship: 2, trust: 0, mood: 4, given: 'Le das la chapa y se la prende en la chaqueta.' },
   'rastro-keyring': { friendship: 2, trust: 0, mood: 4, given: 'Le das el llavero. Prueba la llave en el aire, por si acaso.' },
+  // CAS-04 · rarezas: piezas únicas, pesan algo más que lo común.
+  'rastro-vinyl-first': { friendship: 7, trust: 2, mood: 11, given: 'Le das el vinilo. Ve que es primera edición y se queda un rato sin decir nada.' },
+  'rastro-book-signed': { friendship: 6, trust: 2, mood: 9, given: 'Le das el libro firmado. Pasa el dedo por la firma, sin tocar la tinta.' },
+  'rastro-camera-slr': { friendship: 8, trust: 3, mood: 12, given: 'Le das la réflex. Mira por el visor y enfoca tu cara despacio.' },
+  'rastro-figure': { friendship: 7, trust: 2, mood: 11, given: 'Le das la figura. No la saca de la caja: así vale más, te explica.' },
 };
 
 /** La nota que deja en su memoria: así se sabe si ya hubo regalo hoy. */

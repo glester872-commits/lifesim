@@ -30,6 +30,10 @@ import { buyGarment, resaleValue, sellGarment, stockOf, takeOff, wear } from '..
 import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
 import { CATEGORIES, getGarment, getStore } from '../data/retail';
+import { agreedPrice, haggle, HAGGLE_OFFERS, markHaggled, markSold, MOOD_BY_VENDOR, rareStatus } from '../systems/Rastro';
+
+/** Un puesto que atiende a ratos; `rastro`, la clave de su catálogo o tienda en el Gran Rastro (CAS-04). */
+type Stall = { closed: () => string | null; rastro?: string };
 import { getDesign, getZone, STYLE_NAMES, TATTOO_DESIGNS, TATTOO_ZONES, type TattooZone } from '../data/tattoos';
 import { PLAYER_COLORS } from '../world/TextureFactory';
 import { pairingFor, type MenuItem, type MoreOption, type ServiceMenu } from '../data/menus';
@@ -116,9 +120,12 @@ export class Menus {
    * quiosco del estadio) pasa `stall`: el menú es «en vivo» (el mundo y el partido siguen mientras se elige) y, si deja
    * de atender con el menú abierto, ya no cobra.
    */
-  openCatalog(title: string, catalogId: string, note = '', selected = 0, onClose?: () => void, stall?: { closed: () => string | null }): void {
+  openCatalog(title: string, catalogId: string, note = '', selected = 0, onClose?: () => void, stall?: Stall): void {
     const { state, menu } = this.services;
-    const catalog = getCatalog(catalogId);
+    const full = getCatalog(catalogId);
+    // CAS-04 · las rarezas del Rastro (systems/Rastro): sólo desde su puesto y si hoy las saca; vendidas, «Agotado».
+    const rare = (p: Product) => rareStatus(catalogId, p.id, state.day, state.rastro, stall?.rastro === catalogId);
+    const catalog: Catalog = { ...full, products: full.products.filter((p) => rare(p) !== 'hidden') };
     if (catalog.checkout && !stall) {
       this.openShop(title, catalog, note, selected);
       return;
@@ -126,10 +133,14 @@ export class Menus {
     const wallet = state.wallet;
     const shut = stall?.closed() ?? null;
     // Un puesto con caja (el rastro, CAS-03) cobra de uno en uno con Commerce.checkout: también mira lo que cabe en la bolsa.
-    const buy = (w: typeof wallet, p: Product) => (catalog.checkout ? checkout(w, catalog, p.id, 1) : purchase(w, p));
+    // `f`: precio pactado / precio de lista de una rareza regateada (CAS-04); 1 sin regateo.
+    const buy = (w: typeof wallet, p: Product, f = 1) => (catalog.checkout ? checkout(w, catalog, p.id, 1, f) : purchase(w, p));
+    const haggles = (p: Product): boolean => !!stall && !!catalog.checkout && !!MOOD_BY_VENDOR[catalogId] && p.price > 0 && rare(p) === 'available';
     const options: MenuOption[] = catalog.products.map((p) => {
-      const trial = buy(wallet, p);
-      return { label: p.label, detail: euros(p.price), disabled: shut ?? (trial.ok ? undefined : trial.message), icon: productIcon(p) };
+      const pact = haggles(p) ? agreedPrice(state.rastro, state.day, p.id) : undefined;
+      const trial = buy(wallet, p, pact === undefined ? 1 : pact / p.price);
+      const sold = rare(p) === 'sold' ? 'Agotado' : undefined;
+      return { label: p.label, detail: sold ?? euros(p.price), disabled: shut ?? sold ?? (trial.ok ? undefined : trial.message), icon: productIcon(p) };
     });
     options.push({ label: 'Salir' });
     menu.open(
@@ -147,20 +158,77 @@ export class Menus {
           this.openCatalog(title, catalogId, closed, i, onClose, stall);
           return;
         }
-        const result = buy(state.wallet, catalog.products[i]);
-        if (result.ok) {
-          state.as(catalog.products[i].label, () => {
-            state.wallet = result.wallet;
-          });
-          this.host.persist();
+        const p = catalog.products[i];
+        if (rare(p) === 'sold') {
+          this.openCatalog(title, catalogId, 'Agotado: ya se ha vendido hoy.', i, onClose, stall);
+          return;
         }
-        this.openCatalog(title, catalogId, result.message, i, onClose, stall);
+        const back = (n?: string) => this.openCatalog(title, catalogId, n ?? '', i, onClose, stall);
+        const finish = (agreed?: number): void => {
+          // El submenú del regateo también respeta el cierre del puesto.
+          const shutNow = stall?.closed() ?? null;
+          if (shutNow) return back(shutNow);
+          if (rare(p) === 'sold') return back('Agotado: ya se ha vendido hoy.');
+          const result = buy(state.wallet, p, agreed === undefined ? 1 : agreed / p.price);
+          if (result.ok) {
+            state.as(p.label, () => {
+              state.wallet = result.wallet;
+            });
+            if (rare(p) === 'available') state.rastro = markSold(state.rastro, state.day, p.id);
+            this.host.persist();
+          }
+          back(result.message);
+        };
+        if (stall && haggles(p)) {
+          this.openHaggle(p.label, catalogId, p.id, p.price, finish, back, stall, true);
+          return;
+        }
+        finish();
       },
       onClose,
       shut ?? note,
       selected,
       !!stall,
     );
+  }
+
+  /**
+   * CAS-04 · regatear una rareza del Rastro (systems/Rastro.haggle). Un intento por pieza y jornada: la oferta deja
+   * apuntado el precio resultante en cuanto se hace, aunque luego te marches, y a la vuelta sólo queda pagarlo.
+   * `pay` cobra con ese precio; `back` vuelve al puesto. El cierre del puesto se mira en cada paso.
+   */
+  private openHaggle(title: string, key: string, id: string, base: number, pay: (price: number) => void, back: (note?: string) => void, stall: Stall, live: boolean): void {
+    const { state, menu } = this.services;
+    const mood = MOOD_BY_VENDOR[key];
+    const shut = stall.closed();
+    if (shut || !mood) return back(shut ?? undefined);
+    const agreed = agreedPrice(state.rastro, state.day, id);
+    if (agreed !== undefined) {
+      menu.open(title, `Ya habéis tratado el precio. Llevas ${euros(state.money)}.`, [{ label: `Pagar ${euros(agreed)}` }, { label: 'Marcharse' }], (i) => {
+        if (i === 0) pay(agreed);
+        else back();
+      }, () => back(), '', 0, live, `haggle:${id}`);
+      return;
+    }
+    const options: MenuOption[] = [
+      { label: `Pagar ${euros(base)}` },
+      ...HAGGLE_OFFERS.map((o) => ({ label: `Ofrecer ${euros(Math.round(base * (1 - o) * 100) / 100)} (−${Math.round(o * 100)} %)` })),
+      { label: 'Marcharse' },
+    ];
+    menu.open(title, `Precio de lista: ${euros(base)}. Sólo se regatea una vez. Lo que ofreces no es lo que pagas: puede aceptarlo, contraofertar o, si pides demasiado, plantarse en el precio de lista. Llevas ${euros(state.money)}.`, options, (i) => {
+      if (i === 0) return pay(base);
+      if (i > HAGGLE_OFFERS.length) return back();
+      const closed = stall.closed();
+      if (closed) return back(closed);
+      const r = haggle(base, mood, HAGGLE_OFFERS[i - 1]);
+      // Se apunta ya: recargar o marcharse no da otro intento.
+      state.rastro = markHaggled(state.rastro, state.day, id, r.price);
+      this.host.persist();
+      menu.open(title, `«${r.line}» Queda en ${euros(r.price)}. Llevas ${euros(state.money)}.`, [{ label: `Aceptar ${euros(r.price)}` }, { label: 'Marcharse' }], (j) => {
+        if (j === 0) pay(r.price);
+        else back();
+      }, () => back(), '', 0, live, `haggle:${id}:offer`);
+    }, () => back(), '', 0, live, `haggle:${id}`);
   }
 
   // ------------------------------------------------------ tienda con caja
@@ -1388,14 +1456,16 @@ export class Menus {
    * elegir una se ve su ficha y se puede probar, comprar o dejar (openGarment).
    * El género y los precios son los de la tienda: los mismos que en caja.
    */
-  openRack(rack: RackDef, note = '', selected = 0, stall?: { closed: () => string | null }): void {
+  openRack(rack: RackDef, note = '', selected = 0, stall?: Stall): void {
     this.endFitting();
     const { state, menu } = this.services;
     menu.peek(false);
-    const lines = stockOf(rack.store, state.wardrobe, state.appearanceOf('player'), rack.categories);
+    // CAS-04 · la prenda rara del Rastro: sólo si hoy la saca el puesto; vendida en la jornada, «Agotado».
+    const rare = (garment: string) => rareStatus(rack.store, garment, state.day, state.rastro, stall?.rastro === rack.store);
+    const lines = stockOf(rack.store, state.wardrobe, state.appearanceOf('player'), rack.categories).filter((l) => rare(l.garment) !== 'hidden');
     const options: MenuOption[] = lines.map((l) => ({
       label: l.def.name,
-      detail: l.owned ? 'tuya' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`,
+      detail: l.owned ? 'tuya' : rare(l.garment) === 'sold' ? 'Agotado' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`,
     }));
     options.push({ label: 'Cerrar' });
     menu.open(`${rack.name} · ${getStore(rack.store).name}`, `Llevas ${euros(state.money)}.`, options, (i) => {
@@ -1418,31 +1488,49 @@ export class Menus {
    * restaura. COMPRAR cobra una sola vez (systems/Retail.ts) y la guarda en el
    * armario; para equiparla luego, el armario de casa.
    */
-  private openGarment(rack: RackDef, garment: string, index: number, note = '', stall?: { closed: () => string | null }): void {
+  private openGarment(rack: RackDef, garment: string, index: number, note = '', stall?: Stall): void {
     const { state, menu, clock } = this.services;
     const def = getGarment(garment);
     const factor = this.priceHere();
-    const price = this.priced(getStore(rack.store).stock.find((l) => l.garment === garment)?.price ?? 0);
+    const list = getStore(rack.store).stock.find((l) => l.garment === garment)?.price ?? 0;
+    const price = this.priced(list);
     const current = state.appearanceOf('player');
     const owned = state.wardrobe.includes(garment);
-    const trial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, factor);
+    // CAS-04: una rareza del Rastro ya vendida hoy no vuelve aunque haya salido del armario; oculta, no se cobra.
+    const rare = rareStatus(rack.store, garment, state.day, state.rastro, stall?.rastro === rack.store);
+    // Con un precio ya pactado hoy (CAS-04), lo que llega se mide contra ése.
+    const pact = rare === 'available' && list > 0 ? agreedPrice(state.rastro, state.day, garment) : undefined;
+    const realTrial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, pact === undefined ? factor : pact / list);
+    const trial = !owned && (rare === 'sold' || rare === 'hidden') ? { ok: false as const, message: 'Agotado.' } : realTrial;
     const title = `${def.name} · ${euros(price)}`;
     // Qué hueco ocupa y qué quita: lo de antes vuelve al armario, nunca se pierde.
     const before = (this.fitting ?? current)[def.slot];
     const swap = before && before !== garment ? `, en lugar de ${getGarment(before).name.toLowerCase()}` : !before ? ', en lugar de tu ropa de siempre' : '';
     const text = `${CATEGORIES[def.category].label}${def.unique ? ' · pieza única' : ''}. Va ${SLOT_LABEL[def.slot]}${swap}. ${def.description} Llevas ${euros(state.money)}.`;
-    const buy = (): void => {
+    // `agreed`: el precio pagado tras el regateo (CAS-04); sin él, el de la lista con la reputación del barrio.
+    const buy = (agreed?: number): void => {
       // Un puesto que ha cerrado con la ficha abierta (el rastro a las 15:00) ya no cobra.
       const closed = stall?.closed() ?? null;
       if (closed) {
         this.openGarment(rack, garment, index, closed, stall);
         return;
       }
-      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, factor);
+      const now = rareStatus(rack.store, garment, state.day, state.rastro, stall?.rastro === rack.store);
+      if (now === 'sold' || now === 'hidden') {
+        this.openGarment(rack, garment, index, 'Agotado: ya se ha vendido hoy.', stall);
+        return;
+      }
+      if (agreed === undefined && now === 'available' && stall && MOOD_BY_VENDOR[rack.store] && list > 0) {
+        this.openHaggle(def.name, rack.store, garment, price, (p) => buy(p), (n) => this.openGarment(rack, garment, index, n ?? '', stall), stall, false);
+        return;
+      }
+      const f = agreed === undefined ? factor : agreed / list;
+      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, f);
       if (!result.ok) {
         this.openGarment(rack, garment, index, result.message, stall);
         return;
       }
+      if (now === 'available') state.rastro = markSold(state.rastro, state.day, garment);
       state.as(getGarment(garment).name, () => {
         state.wallet = result.wallet;
       });

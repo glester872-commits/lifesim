@@ -14,6 +14,7 @@ import { weekIndex } from '../src/systems/Calendar.ts';
 import { carryMax, checkout, type Wallet } from '../src/systems/Commerce.ts';
 import { buyGarment } from '../src/systems/Retail.ts';
 import { GIFTS } from '../src/systems/Gifts.ts';
+import { isRare } from '../src/systems/Rastro.ts';
 import { BASE_DRAFT, newGameState } from '../src/systems/CharacterCreator.ts';
 import { SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
 import { pickTarget, tileAhead, type Candidate } from '../src/systems/Interaction.ts';
@@ -72,8 +73,11 @@ for (const v of vendors) {
       const item = getItem(p.effect.item);
       assert.equal(item.kind, 'gift', `${item.id}: no es un regalo`);
       assert.ok(GIFTS[item.id], `${item.id}: regalo que no hace nada`);
-      assert.ok(p.price >= 2 && p.price <= 60, `${c.id}/${p.id}: precio ${p.price} fuera del mercadillo`);
-      assert.ok(item.max === 2 || item.max === 3, `${item.id}: bolsa de ${item.max}`);
+      // Las rarezas de CAS-04 (tope 1, 25-90 €) se validan en check-rastro-rarities.ts
+      if (!isRare(item.id)) {
+        assert.ok(p.price >= 2 && p.price <= 60, `${c.id}/${p.id}: precio ${p.price} fuera del mercadillo`);
+        assert.ok(item.max === 2 || item.max === 3, `${item.id}: bolsa de ${item.max}`);
+      }
     }
   } else {
     const s = getStore(v.store!);

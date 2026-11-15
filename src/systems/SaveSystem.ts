@@ -18,6 +18,7 @@ import { createPhone, parsePhone } from './Phone.ts';
 import { parseJob } from './Jobs.ts';
 import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
 import { emptyCredit, parseCredit } from './Credit.ts';
+import { parseRastro } from './Rastro.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
@@ -394,6 +395,8 @@ function parseState(value: unknown): GameStateData | null {
     // Sin préstamo guardado (partida anterior a la Fase 3a, SAVE_VERSION sigue en 4) carga sin la clave, como `paid`:
     // vuelve igual que se guardó y GameState empieza sin préstamo. Uno dañado se lee como «sin préstamo».
     ...(s.credit === undefined ? {} : { credit: parseCredit(s.credit, Math.floor(total / 1440) + 1) }),
+    // CAS-04 · sin registro del Rastro (partida anterior) carga sin la clave: ninguna rareza vendida.
+    ...(s.rastro === undefined ? {} : { rastro: parseRastro(s.rastro) }),
     // Una partida anterior a los estudios carga sin curso ni habilidades.
     study: parseStudy(s.study),
     // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.

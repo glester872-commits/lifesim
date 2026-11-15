@@ -3258,7 +3258,8 @@ export class WorldScene extends Phaser.Scene {
     // Un puesto del rastro (CAS-03): si ya no vende, por qué; si vende, el menú deja de cobrar en cuanto cierra.
     if ((target.kind === 'terminal' || target.kind === 'rack') && target.vendor) {
       const vendor = target.vendor;
-      const stall = { closed: () => this.vendorClosed(vendor) };
+      // `rastro`: su catálogo o tienda, para sus rarezas de la jornada (systems/Rastro, CAS-04).
+      const stall = { closed: () => this.vendorClosed(vendor), rastro: target.kind === 'terminal' ? target.catalog : target.rack.store };
       const why = stall.closed();
       if (why) this.openDialogue(target.kind === 'terminal' ? target.name : target.rack.name, [why]);
       else if (target.kind === 'terminal') this.menus.openCatalog(target.name, target.catalog, '', 0, undefined, stall);
