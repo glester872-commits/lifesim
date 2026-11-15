@@ -3,6 +3,7 @@
 // dispatchTouchEvent), clics, capturas y lectura del texto que ve el jugador. No lee ni toca `lifesim`.
 //
 //   node scripts/qa/pilot.mjs start [desktop|mobile]   (antes: npm run dev -- --port 5199)
+//   ... start [desktop|mobile] --profile <dir>   perfil persistente (stop no lo borra); `key F5` recarga la página
 //   node scripts/qa/pilot.mjs walk <n|ne|e|se|s|sw|w|nw> <ms>     teclado WASD mantenido
 //   node scripts/qa/pilot.mjs key <E|M|P|I|Escape|Space|Enter|1..9|+|-> [ms]
 //   node scripts/qa/pilot.mjs stick <dir> <ms>          joystick con un dedo real
@@ -16,9 +17,9 @@
 //   node scripts/qa/pilot.mjs selftest                   comprueba teclas y joystick (sí lee el juego)
 //   node scripts/qa/pilot.mjs stop
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const PORT = 9341;
 const URL = 'http://localhost:5199/';
@@ -29,6 +30,7 @@ const KEYS = {
   W: ['w', 'KeyW', 87], A: ['a', 'KeyA', 65], S: ['s', 'KeyS', 83], D: ['d', 'KeyD', 68], E: ['e', 'KeyE', 69],
   M: ['m', 'KeyM', 77], P: ['p', 'KeyP', 80], I: ['i', 'KeyI', 73], Q: ['q', 'KeyQ', 81], Escape: ['Escape', 'Escape', 27],
   Space: [' ', 'Space', 32], Enter: ['Enter', 'Enter', 13], '+': ['+', 'BracketRight', 187], '-': ['-', 'Slash', 189],
+  F5: ['F5', 'F5', 116],
   ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [String(n), [String(n), `Digit${n}`, 48 + n]])),
 };
 
@@ -100,19 +102,23 @@ if (cmd === 'start') {
   const mobile = args[0] === 'mobile';
   const chromePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'].find(existsSync);
   if (!chromePath) throw new Error('Chrome no disponible');
-  const profile = mkdtempSync(join(tmpdir(), 'lifesim-pilot-'));
+  const at = args.indexOf('--profile');
+  const keep = at >= 0;
+  if (keep && !args[at + 1]) throw new Error('--profile necesita un directorio');
+  const profile = keep ? resolve(args[at + 1]) : mkdtempSync(join(tmpdir(), 'lifesim-pilot-'));
+  if (keep) mkdirSync(profile, { recursive: true });
   // El tamaño, la densidad y el táctil van en el arranque: la emulación de CDP se pierde al cerrar cada orden.
   const screen = mobile ? ['--window-size=390,844', '--force-device-scale-factor=3', '--touch-events=enabled'] : ['--window-size=1440,900', '--force-device-scale-factor=1'];
   const chrome = spawn(chromePath, ['--headless=new', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', ...screen, URL], { stdio: 'ignore', detached: true, windowsHide: true });
   chrome.unref();
-  writeFileSync(STATE, JSON.stringify({ pid: chrome.pid, profile, mobile }));
+  writeFileSync(STATE, JSON.stringify({ pid: chrome.pid, profile, mobile, ...(keep && { keep: true }) }));
   for (let i = 0; i < 80; i++) { await sleep(250); if (await fetch(`http://127.0.0.1:${PORT}/json/list`).then(() => true).catch(() => false)) break; }
   console.log(`pilot: Chrome ${chrome.pid} (${mobile ? 'móvil 390×844@3 táctil' : 'escritorio 1440×900'}), perfil aislado ${profile}`);
 } else if (cmd === 'stop') {
   const s = existsSync(STATE) ? JSON.parse(readFileSync(STATE, 'utf8')) : null;
   try { const { send } = await connect(); await send('Browser.close').catch(() => {}); } catch { /* ya cerrado */ }
   await sleep(800);
-  if (s) { rmSync(s.profile, { recursive: true, force: true, maxRetries: 5 }); rmSync(STATE, { force: true }); }
+  if (s) { if (!s.keep) rmSync(s.profile, { recursive: true, force: true, maxRetries: 5 }); rmSync(STATE, { force: true }); }
   console.log('pilot: cerrado');
 } else {
   const { ws, send, evaluate } = await connect();

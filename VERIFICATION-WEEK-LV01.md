@@ -50,7 +50,7 @@ equivalente ya existente: exportar/importar JSON en «Partidas».
 
 | Día | Tiempo in-game | Lugar | Saldo | Energía | Decisiones | Bloqueos | Captura / descripción |
 | --- | --- | --- | ---: | ---: | --- | --- | --- |
-| — | — | — | — | — | No jugado (ver bloqueo) | — | — |
+| 1 (parcial) | Lun 08:30–09:53 | Olmo 7 → Plazuela del Metro → Metro · Vallesco (vestíbulo, máquina, andén) | €107,50 (tarjeta €10) | 100 | Tarjeta comprada (€12,50: €120 → €107,50, HUD «tarjeta · €10»); guía saltada; no se subió al tren | Recorrido detenido por coste (ver «Fase 2 — estado 15 nov»); sin turno, cobro, vuelta, cena ni Dormir | scratchpad day1-n.png |
 
 ### 6. Severidades
 
@@ -100,6 +100,16 @@ retrasada en las capturas.
 Estado: herramienta lista y medida; el recorrido del día 1 se empezó (guía leída, camino al metro) y se
 interrumpió en la boca del metro de Vallesco, lunes 09:26, sin registrar. **Ningún día completado todavía.**
 
+**Estado 15 nov 2026 (con MAP-08 sin commit en el árbol).** `pilot.mjs` admite ahora `start <modo> --profile <dir>` (perfil persistente; `stop` no lo borra) y `key F5`. Se comprobó cerrando y reabriendo Chrome: la portada recupera la partida (Día 1 · Lun 12 Abr · 08:30 · Barrio Vallesco · €120). El perfil está en el scratchpad de la sesión: `lifesim-week`. Se reinició el día 1 con partida nueva. Dos sesiones de QA (unos 40 turnos) avanzaron solo de 08:30 a 09:53. A ese ritmo, la semana completa costaría más de 30 sesiones, y el usuario decidió parar y documentar. **LV-01 sigue abierto.** Cubre la semana, de forma sintética, `check-week` (en `npm run check`, en verde con MAP-08).
+Clima observado (MAP-08): HUD «Despejado 20°» a las 08:30 y «Despejado 21°» de 09:08 a 09:53. App Tiempo a las 08:30: Ahora Despejado 20° · 11:00 22° · 14:00 24° · 17:00 24° · 20:00 21°, todo despejado. No hubo lluvia, tormenta ni niebla. Sin efectos que medir.
+Hallazgos (todos P2, sin confirmar a mano):
+- Los torniquetes del vestíbulo de Metro · Vallesco dejan una rendija estrecha y sin señalizar hacia el andén: se perdieron unos 20 min de juego (09:30→09:50) y un tren. Puede ser solo la granularidad de `walk`.
+- En day1-n.png el personaje parece pisar la franja amarilla del andén. Puede ser el orden de dibujo de los sprites.
+- La primera E delante de la boca de metro abrió «GUÍA 1/5 · CASA» en vez de entrar; la segunda E entró.
+- «1. Tarjeta de transporte €12,50» se sigue ofreciendo después de comprarla. No se probó una segunda compra.
+Notas de pilot: cada orden cuesta 1–3 min de juego aunque solo sea `key E` + `read`. `walk` avanza unos 60–80 px de pantalla por segundo y se atasca con NPC y mobiliario sin avisar. `tap "Hoy"` falla si hay una app del móvil abierta.
+Navegación reutilizable: desde el portal de Olmo 7, walk s 250 → w 700 → n ~3000 hasta «Metro · Vallesco» y E. En el vestíbulo, la máquina está a la derecha (s 250 → e 600 → n 300). Al andén, desde la máquina: s 200 → w 120 → n 1200 → e 300 → n 1200. El menú de destino sale con E en el andén cuando el tren está parado con las puertas abiertas.
+
 ## Fase 3 — Táctil
 
 | Prueba | Emulado (390×844@3, 844×390@3) | Físico |
@@ -148,7 +158,7 @@ Emulación en un PC: la CPU es la del PC, no la de un teléfono. Sin correccione
 | git status/diff iniciales; cambios ajenos conservados | PASS |
 | Evidencia existente clasificada | PASS |
 | Partida aislada documentada y usada | PASS (contexto aislado) |
-| Registro diario en este archivo | Formato PASS; días NO VERIFICADO |
+| Registro diario en este archivo | Formato PASS; día 1 parcial, días 2–7 NO VERIFICADO (parado por coste, 15 nov) |
 | 7 días o corte exacto | Corte en el día 1, lunes 09:26, boca del metro de Vallesco (sin registrar); piloto listo |
 | Ruta crítica cubierta | NO VERIFICADO (sólo por tests) |
 | Sin bloqueos de ruta crítica abiertos | NO VERIFICADO |
