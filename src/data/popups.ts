@@ -9,7 +9,12 @@
  * horas) y de una tirada por semana con semilla fija: la misma partida tiene
  * los mismos eventos en los mismos días, y ninguna semana es igual a otra.
  * Con lluvia fuerte, los de la calle se suspenden.
+ *
+ * El Gran Rastro del Casco Antiguo no lleva `props`: sus puestos salen de las
+ * anclas del sitio (`LocationDef.stallAnchors`, `stalls`) y se montan y recogen
+ * poco a poco (systems/PopUps.popUpProgress).
  */
+import type { StallAnchor } from '../types/game.ts';
 
 export type PopUpPiece =
   | 'stall-vintage'
@@ -20,7 +25,12 @@ export type PopUpPiece =
   | 'sign-sneaker'
   | 'boxes'
   // Velaria: alfombra con postes de latón y cordón, para lanzamientos y galas.
-  | 'carpet';
+  | 'carpet'
+  // Gran Rastro: puestos ligeros de fruta, ropa, libros y antigüedades, y segunda mano.
+  | 'stall-fruit'
+  | 'stall-clothes'
+  | 'stall-books'
+  | 'stall-junk';
 
 export interface PopUpProp {
   piece: PopUpPiece;
@@ -50,6 +60,13 @@ export interface PopUpDef {
   outdoor: boolean;
   /** Horas antes de abrir en las que ya se está montando (las piezas se ven, la gente aún no). */
   setup: number;
+  /** Horas que se tarda en recoger después de cerrar (las piezas se ven, la gente ya no). Sin él, media hora. */
+  teardown?: number;
+  /**
+   * Puestos sacados de las anclas del sitio (`LocationDef.stallAnchors`) de esos tipos, cada uno de una de estas
+   * familias (por hash del id del ancla). Decorado: no bloquean el paso ni se compra en ellos.
+   */
+  stalls?: { types: readonly StallAnchor['type'][]; families: readonly PopUpPiece[] };
   /** Luz propia de noche: ámbar de galería o focos de baile. */
   glow?: 'gallery' | 'dj';
   props: readonly PopUpProp[];
@@ -138,5 +155,16 @@ export const POPUPS: readonly PopUpDef[] = [
       { piece: 'easel', tx: 87, ty: 53, solid: 1 },
       { piece: 'easel', tx: 98, ty: 53, solid: 1 },
     ],
+  },
+  // ------------------------------------------------------------ Casco Antiguo
+  // Gran Rastro: todos los domingos (6, Calendar.weekIndex) de nueve a tres; se monta desde las siete y se recoge hasta
+  // las cinco. Los puestos, en las anclas de la plaza, la Calle Mayor y la Calle del Rastro (los accesos quedan libres).
+  // La basura de después: systems/PopUps.popUpLitter da surge 2 a systems/Litter mientras se recoge y una hora más
+  // (15:00 a 18:00; no si llueve), así cae el doble y cabe el doble, y la limpieza viaria existente lo recoge.
+  {
+    id: 'gran-rastro', name: 'Gran Rastro', location: 'casco-antiguo',
+    days: [6], hours: [9, 15], chance: 1, extra: 14, outdoor: true, setup: 2, teardown: 2,
+    props: [],
+    stalls: { types: ['market', 'stall'], families: ['stall-fruit', 'stall-clothes', 'stall-books', 'stall-junk'] },
   },
 ];

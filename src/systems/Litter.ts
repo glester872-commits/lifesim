@@ -6,6 +6,7 @@ import { ROADWAY, isStandable } from './LocationSystem.ts';
 import { hashSeed, seededRng, type Rng } from './MetroDaily.ts';
 import { zoneActivity, zoneAt, type ZoneClock } from './Zones.ts';
 import { matchLitter } from './Match.ts';
+import { popUpLitter } from './PopUps.ts';
 import { LOCATION_DISTRICT } from '../data/districtIdentity.ts';
 import type { ZoneType } from '../data/zones.ts';
 import { PROPS } from '../world/tiles.ts';
@@ -125,8 +126,9 @@ export class Litter {
     }
     const rng = seededRng(hashSeed('litter', this.loc.id, now));
     // Después del partido (systems/Match) cae mucho más y cabe más en el suelo: vasos, papeles, latas; la limpieza viaria
-    // lo recoge igual. Sin partido, surge 1: lo de siempre.
-    const surge = matchLitter(LOCATION_DISTRICT[this.loc.id], clock);
+    // lo recoge igual. Lo mismo mientras se recoge un mercadillo con puestos y la hora siguiente (systems/PopUps,
+    // el Gran Rastro). Sin nada de eso, surge 1: lo de siempre.
+    const surge = Math.max(matchLitter(LOCATION_DISTRICT[this.loc.id], clock), popUpLitter(this.loc.id, clock));
     const cap = Math.round(LITTER_CAP * Math.min(2.5, surge));
     const local = Math.round(LOCAL_CAP * Math.min(2, surge));
     // Menos probable cuanto más lleno esté el cupo: el suelo no se llena.

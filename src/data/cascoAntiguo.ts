@@ -15,7 +15,7 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement, Stall
  *   y 36–43 los bajos del Rastro: viviendas, unas antigüedades y una churrería
  *
  * El local con puerta es la frutería (data/cascoAntiguoVenues.ts); las demás fachadas, sin `enter`.
- * `stallAnchors`: dónde irán los puestos del futuro Gran Rastro; hoy no se leen en juego.
+ * `stallAnchors`: dónde van los puestos del Gran Rastro de los domingos (data/popups.ts 'gran-rastro').
  */
 const W = 52;
 const H = 44;
@@ -159,7 +159,7 @@ const LINKS: readonly Link[] = [
   ['CAS_METRO_WAIT_01', 'cas-n40'],
 ];
 
-// Anclas del futuro Gran Rastro: sólo datos, validados en systems/LocationSystem. Nada las lee en juego.
+// Anclas del Gran Rastro, validadas en systems/LocationSystem: los puestos salen de 'market' y 'stall' (systems/PopUps.popUpStalls).
 const CAPACITY: Record<StallAnchor['type'], number> = { market: 4, stall: 2, access: 1 };
 const anchors = (zone: string, type: StallAnchor['type'], cells: readonly (readonly [number, number])[]): StallAnchor[] =>
   cells.map(([tx, ty], i) => ({ id: `casco.${zone}.${type}.${pad(i + 1)}`, tx, ty, type, capacity: CAPACITY[type] }));

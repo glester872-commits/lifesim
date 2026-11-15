@@ -639,7 +639,7 @@ export interface LocationDef {
    * en el centro. Cuelgan por encima de la gente y de noche se encienden.
    */
   garlands?: readonly { x0: number; y0: number; x1: number; y1: number; sag: number }[];
-  /** Anclas estáticas para puestos futuros (validadas en systems/LocationSystem). Nada las lee en juego; sin afordancia. */
+  /** Anclas estáticas de puestos (validadas en systems/LocationSystem); las lee un PopUpDef con `stalls`. Decorado, sin afordancia. */
   stallAnchors?: readonly StallAnchor[];
 }
 
