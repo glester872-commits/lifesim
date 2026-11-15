@@ -259,6 +259,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'res-cas-2', name: 'Calle Mayor 8', type: 'residence', tags: ['home'], building: 'cas-res-2', capacity: 10 },
   { id: 'res-cas-3', name: 'Calle Mayor 16', type: 'residence', tags: ['home'], building: 'cas-res-3', capacity: 14 },
   { id: 'cas-fruteria', name: 'Mercado · Frutas del Casco', type: 'business', tags: ['shop', 'food', WORK], building: 'cas-fruteria', capacity: 5, hours: [8, 21], hoursByDay: { sunday: [9, 14] }, why: 'Fruta y verdura del mercado, a precio de plaza.' },
+  // CAS-06: el domingo abre a las 13, cuando el Gran Rastro (hasta las 15, recoge hasta las 17) ya da su gente.
+  { id: 'cas-taberna', name: 'Taberna La Lonja', type: 'business', tags: ['food', 'social', WORK], building: 'cas-cafe', anchors: ['CAS_TABERNA_TERRACE_01', 'CAS_TABERNA_TERRACE_02'], capacity: 12, hours: [12, 24], hoursByDay: { sunday: [13, 24] }, why: 'Tapas y una caña en la barra de la Calle Mayor; el domingo, después del Rastro.' },
   { id: 'metro-casco-antiguo', name: 'Metro · Casco Antiguo', type: 'transit', tags: ['transit'], building: 'cas-metro', capacity: 40 },
   // Luna (data/luna.ts): tres portales de vecinos, el bar, la tienda de noche y la boca de metro.
   { id: 'res-lu-1', name: 'Calle de la Luna 2', type: 'residence', tags: ['home'], building: 'lu-res-1', capacity: 12 },

@@ -44,7 +44,8 @@ assert.ok(shop.enter && hasLocation(shop.enter.location), 'la frutería no tiene
 const inside = getLocation(shop.enter!.location);
 assert.ok(inside.terminals?.length, 'la frutería no tiene caja');
 assert.ok(inside.spawns[shop.enter!.spawn] && inside.portals.some((p) => p.to.location === ID && street.spawns[p.to.spawn]), 'la frutería no devuelve a la calle');
-assert.ok(street.buildings!.filter((b) => b.enter).length === 2, 'sólo la frutería y el metro llevan enter');
+// CAS-06: taberna en cas-cafe (cambio intencionado de puertas)
+assert.ok(street.buildings!.filter((b) => b.enter).length === 3, 'sólo la frutería, la taberna y el metro llevan enter');
 const walk = tilePath(street, street.spawns[out.to.spawn], street.spawns[shop.id]);
 assert.ok(walk && walk.length > 3, 'del metro a la puerta de la frutería no se llega andando');
 
@@ -122,6 +123,7 @@ for (const [tx, ty] of [[40, 9], [18, 9], [21, 20], [34, 20], [43, 10], [43, 15]
 }
 
 // f) Ningún local nuevo con interior.
-assert.equal(street.buildings!.filter((b) => b.enter).length, 2, 'sólo la frutería y el metro llevan enter');
+// CAS-06: taberna en cas-cafe (cambio intencionado de puertas)
+assert.equal(street.buildings!.filter((b) => b.enter).length, 3, 'sólo la frutería, la taberna y el metro llevan enter');
 
 console.log('check-casco-antiguo: ok');

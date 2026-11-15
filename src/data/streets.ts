@@ -783,7 +783,17 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     scale: 2,
     maxWalkers: 36,
     bursts: [{ point: 'CAS_METRO_ENTRANCE', every: [[7, 10, 6], [11, 14, 6], [17, 21, 5], [21, 23, 10]], size: [1, 3] }],
+    // CAS-06: la terraza de La Lonja (LocationDef.tables de data/cascoAntiguo.ts), con la carta de la barra a su precio.
+    tableService: [{ place: 'cas-taberna', menu: 'cas-taberna-terraza', pass: 'CAS_TABERNA_TERRACE_WAITER' }],
+    staff: [
+      { service: 'waiter', place: 'cas-taberna', base: 'CAS_TABERNA_TERRACE_WAITER', serves: ['CAS_TABERNA_TERRACE_'], label: 'Camarero de La Lonja', line: '¿Qué os pongo? La tortilla está recién hecha.' },
+    ],
     trips: [
+      { role: 'terrace', label: 'Alguien en la terraza de La Lonja', line: 'Una caña y una de bravas. Y luego ya veremos.', weight: 3, hours: [13, 23.5], from: HOMES_OR_CITY, to: { points: ['CAS_TABERNA_TERRACE_'] }, stay: [15, 40], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
+      // El domingo, entre la recogida del Rastro y la sobremesa (de 15 a 17), la terraza tira algo más.
+      { role: 'terrace', label: 'Alguien de vuelta del Rastro', line: 'Me he llevado un tocadiscos. No sé si funciona.', weight: 4, hours: [15, 17], rhythms: ['sunday-day'], from: HOMES_OR_CITY, to: { points: ['CAS_TABERNA_TERRACE_'] }, stay: [15, 40], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
+      // La Sobremesa del Rastro (data/popups.ts): domingo de 17 a 20:30, la plaza y la terraza llenas.
+      { role: 'terrace', label: 'Alguien de sobremesa en la plaza', line: 'Un domingo de Rastro no se acaba a las tres.', weight: 6, popup: 'sobremesa-rastro', hours: [17, 20.5], from: HOMES_OR_CITY, to: { points: ['CAS_TABERNA_TERRACE_', 'CAS_PLAZA_'] }, stay: [15, 40], stayState: 'DRINK', group: [1, 3], bond: ['friends', 'family', 'couple'] },
       { role: 'commuter', label: 'Vecino camino del metro', line: 'Tres paradas hasta Vallesco. Me da para el periódico.', weight: 3, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
       { role: 'returning', label: 'Vecina de vuelta a casa', line: 'Subo la compra y bajo otra vez a la plaza.', weight: 4, hours: [17, 22], from: TRANSIT, to: HOMES },
       { role: 'shopper', label: 'Alguien que va al mercado', line: 'A por fruta, que la del súper no sabe a nada.', weight: 6, hours: [8, 20.5], from: HOMES, to: { tags: ['food'] }, then: HOMES_OR_CITY },

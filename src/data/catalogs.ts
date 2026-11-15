@@ -130,6 +130,12 @@ export const CATALOGS: readonly Catalog[] = [
     products: [item('fruit', 'Bolsa de fruta', 2), item('groceries', 'Verdura y legumbre para cocinar', 7.5), item('water', 'Agua', 0.8)],
   },
   {
+    // CAS-06 · Taberna La Lonja (Casco Antiguo): la barra de tapas, a precio de bar.
+    id: 'cas-taberna-tapas',
+    greeting: '¿Qué va a ser? La tortilla está recién hecha.',
+    products: [item('tapa-tortilla', 'Pincho de tortilla', 2.5), item('tapa-bravas', 'Ración de bravas', 4.5), item('sandwich', 'Montadito', 3), item('cola', 'Refresco de cola', 2), item('water', 'Agua', 1.5)],
+  },
+  {
     // Conecta (Cuatro Ríos): tienda de móviles que, como tantas, recarga la tarjeta de transporte y tiene nevera.
     id: 'conecta-counter',
     greeting: 'Recargas, fundas y reparaciones. ¿Qué necesitas?',

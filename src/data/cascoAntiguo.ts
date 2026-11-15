@@ -14,7 +14,7 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement, Stall
  *   y 34–35 la Calle del Rastro: peatonal, sin calzada
  *   y 36–43 los bajos del Rastro: viviendas, unas antigüedades y una churrería
  *
- * El local con puerta es la frutería (data/cascoAntiguoVenues.ts); las demás fachadas, sin `enter`.
+ * Los locales con puerta son la frutería y la Taberna La Lonja (data/cascoAntiguoVenues.ts); las demás fachadas, sin `enter`.
  * `stallAnchors`: dónde van los puestos del Gran Rastro de los domingos (data/popups.ts 'gran-rastro').
  */
 const W = 52;
@@ -61,7 +61,8 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('cas-fruteria', 'Mercado · Frutas del Casco', 'fruit', [16, 2, 6, 7], 's', 18, { enter: { location: 'cas-fruteria', spawn: 'entry' }, point: 'CAS_FRUIT_ENTRANCE' }),
   b('cas-ultramarinos', 'Ultramarinos Mayor', 'grocer', [22, 2, 5, 7], 's', 24),
   b('cas-res-3', 'Calle Mayor 16', 'res-modern', [27, 2, 6, 7], 's', 29, { point: 'CAS_RES_3_ENTRANCE' }),
-  b('cas-cafe', 'Café La Lonja', 'cafe', [33, 2, 5, 7], 's', 35),
+  // CAS-06: la taberna de tapas, con interior (data/cascoAntiguoVenues.ts); la puerta en x 35, fuera del Pasaje y de las columnas 19–23.
+  b('cas-cafe', 'Taberna La Lonja', 'cafe', [33, 2, 5, 7], 's', 35, { enter: { location: 'cas-taberna', spawn: 'entry' }, point: 'CAS_TABERNA_ENTRANCE' }),
   b('cas-metro', 'Metro · Casco Antiguo', 'metro', [38, 5, 5, 4], 's', 40, { enter: { location: 'casco-antiguo-station', spawn: 'entry' }, point: 'CAS_METRO_ENTRANCE' }),
   b('cas-res-4', 'Calle Mayor 1', 'res-plaster', [0, 26, 6, 8], 'n', 3),
   b('cas-res-5', 'Calle Mayor 5', 'res-brick', [6, 26, 6, 8], 'n', 9),
@@ -99,10 +100,13 @@ const PROPS: readonly PropPlacement[] = [
   ...many('bin', [[26, 9], [30, 14]]),
   at('vending', 26, 14),
   ...many('planter-box', [[8, 14], [40, 14]]),
-  // La Plaza del Mercado: pocos árboles en las esquinas, bancos mirando al centro y la terraza del café.
+  // La Plaza del Mercado: pocos árboles en las esquinas y bancos mirando al centro.
   ...many('tree', [[4, 17], [39, 17], [5, 22], [38, 22]]),
   ...many('bench', [[13, 17], [16, 17], [26, 17], [29, 17], [13, 22], [29, 22]]),
-  ...many('cafe-table', [[33, 18], [35, 18], [34, 21]]),
+  // La terraza de La Lonja: dos mesas con su silla (tables, abajo); el camarero, entre las dos sillas y a 2 tiles de
+  // cada una para no tapar la E de las opciones de mesa, como en Puerta Central.
+  ...many('cafe-table', [[32, 18], [36, 18]]),
+  ...many('chair-up', [[32, 19], [36, 19]]),
   // La Calle del Rastro: dos farolas en el lado norte, fuera del Pasaje y del Callejón.
   ...many('street-lamp', [[15, 34], [42, 34]]),
 ];
@@ -111,7 +115,7 @@ const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['fa
 const pad = (x: number): string => String(x).padStart(2, '0');
 
 /** Puertas de la acera norte (nodo en la fila 10), nodos de la central (fila 15) y de la sur (fila 24). */
-const NORTH = [2, 13, 18, 21, 29, 40] as const;
+const NORTH = [2, 13, 18, 21, 29, 35, 40] as const;
 const MID = [10, 21, 33, 46] as const;
 const SOUTH = [9, 17, 21, 36, 44] as const;
 /** La Calle del Rastro (fila 35), donde desembocan el Pasaje (x 17) y el Callejón de las Cestas (x 44). */
@@ -137,6 +141,12 @@ const POINTS: Record<string, PointDef> = {
   CAS_PLAZA_07: p(35, 20, 'meet', 'right'), CAS_PLAZA_08: p(37, 20, 'meet', 'left'),
   // Quien espera a alguien a la boca de metro.
   CAS_METRO_WAIT_01: p(38, 9, 'wait', 'right'),
+  // La terraza de La Lonja: una silla debajo de cada mesa, el camarero entre las dos (a 2 tiles de cada silla: quieto en
+  // su base no acapara la E de las opciones de mesa, como en Puerta Central) y, en la fila 16, el nodo por el que se
+  // baja desde la acera central (cas-m33) por la columna 34, entre las dos mesas.
+  CAS_TABERNA_TERRACE_01: p(32, 19, 'seat', 'up'), CAS_TABERNA_TERRACE_02: p(36, 19, 'seat', 'up'),
+  CAS_TABERNA_TERRACE_WAITER: p(34, 19, 'work', 'up'),
+  'cas-terraza': p(34, 16, 'path'),
 };
 
 type Link = readonly [string, string];
@@ -153,10 +163,15 @@ const LINKS: readonly Link[] = [
   ['cas-s17', 'cas-r17'], ['cas-s44', 'cas-r44'],
   ['cas-m46', 'cas-plaza-e'], ['cas-plaza', 'cas-plaza-e'], ['cas-plaza-e', 'cas-s44'],
   ['CAS_RES_1_ENTRANCE', 'cas-n02'], ['CAS_RES_2_ENTRANCE', 'cas-n13'], ['CAS_RES_3_ENTRANCE', 'cas-n29'],
-  ['CAS_FRUIT_ENTRANCE', 'cas-n18'], ['CAS_METRO_ENTRANCE', 'cas-n40'],
+  ['CAS_FRUIT_ENTRANCE', 'cas-n18'], ['CAS_TABERNA_ENTRANCE', 'cas-n35'], ['CAS_METRO_ENTRANCE', 'cas-n40'],
   ['CAS_PLAZA_01', 'cas-plaza'], ['CAS_PLAZA_02', 'cas-plaza'], ['CAS_PLAZA_03', 'cas-plaza'], ['CAS_PLAZA_04', 'cas-plaza'],
   ['CAS_PLAZA_05', 'cas-plaza'], ['CAS_PLAZA_06', 'cas-plaza'], ['CAS_PLAZA_07', 'cas-plaza'], ['CAS_PLAZA_08', 'cas-plaza'],
   ['CAS_METRO_WAIT_01', 'cas-n40'],
+  // La terraza: de la acera a (34,16), bajando recto hasta el camarero (34,19) y de ahí a cada silla, en horizontal
+  // por (33,19) y (35,19), que quedan libres. Un tramo
+  // diagonal de (34,16) a una silla rozaría la mesa de encima (lineClear), por eso las sillas cuelgan del camarero.
+  ['cas-m33', 'cas-terraza'], ['CAS_TABERNA_TERRACE_WAITER', 'cas-terraza'],
+  ['CAS_TABERNA_TERRACE_01', 'CAS_TABERNA_TERRACE_WAITER'], ['CAS_TABERNA_TERRACE_02', 'CAS_TABERNA_TERRACE_WAITER'],
 ];
 
 // Anclas del Gran Rastro, validadas en systems/LocationSystem: los puestos salen de 'market' y 'stall' (systems/PopUps.popUpStalls).
@@ -210,4 +225,11 @@ export const CASCO_ANTIGUO: LocationDef = {
     { name: 'Callejón de las Cestas', tx: 44, ty: 30 },
   ],
   stallAnchors: STALL_ANCHORS,
+  // La terraza de La Lonja (data/streets.ts: tableService): cada mesa, su silla y el sitio de quien atiende, al lado de
+  // la silla, por fuera. (31,19), (37,19) y la bajada (34,16–18) quedan sin props ni points y a más de una casilla de las
+  // anclas del Rastro.
+  tables: [
+    { id: 'CAS_TABERNA_TERRAZA_01', seats: ['CAS_TABERNA_TERRACE_01'], service: { tx: 31, ty: 19 } },
+    { id: 'CAS_TABERNA_TERRAZA_02', seats: ['CAS_TABERNA_TERRACE_02'], service: { tx: 37, ty: 19 } },
+  ],
 };

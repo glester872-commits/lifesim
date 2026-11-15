@@ -188,4 +188,13 @@ export const POPUPS: readonly PopUpDef[] = [
       ],
     },
   },
+  // CAS-06 · Sobremesa del Rastro: el domingo, la gente que se queda en la plaza y en la terraza de La Lonja. Sin piezas
+  // ni puestos: sólo gente de más (`extra`) y sus viajes (data/streets.ts). Empieza a las 17 porque la ventana del Rastro
+  // (montaje y recogida incluidos) va hasta las 17 y weekPlan descarta lo que se solape. Sin montaje ni recogida:
+  // popUpProgress no divide por `setup` (antes de abrir no hay ventana) ni por `teardown` (al cerrar ya no está puesto).
+  {
+    id: 'sobremesa-rastro', name: 'Sobremesa del Rastro', location: 'casco-antiguo',
+    days: [6], hours: [17, 20.5], chance: 1, extra: 8, outdoor: true, setup: 0, teardown: 0,
+    props: [],
+  },
 ];

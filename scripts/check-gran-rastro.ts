@@ -49,7 +49,8 @@ for (const day of [7, 14, 21, 70]) {
   assert.equal(visiblePopUp(ID, at(day, 15, 0))?.id, def.id, 'a las 15:00 ya no se ve nada');
   const late = shownAt(day, 16, 59);
   assert.ok(late > 0 && late <= total * 0.1, `día ${day} 16:59: quedan ${late}`);
-  for (const [h, m] of [[17, 0], [18, 0], [23, 30]] as const) assert.equal(visiblePopUp(ID, at(day, h, m)), undefined, `día ${day} ${h}:${m}: sin recoger`);
+  // CAS-06: de 17 a 20:30 está la Sobremesa del Rastro (sin piezas); lo que no puede seguir puesto es el Rastro.
+  for (const [h, m] of [[17, 0], [18, 0], [23, 30]] as const) assert.notEqual(visiblePopUp(ID, at(day, h, m))?.id, def.id, `día ${day} ${h}:${m}: sin recoger`);
 }
 
 // ------------------------------------------------ de lunes a sábado, nada
@@ -61,7 +62,8 @@ for (let day = 1; day <= 8 * 7; day++) {
     assert.equal(activePopUp(ID, c), undefined, `día ${day} ${h}: rastro fuera del domingo`);
   }
 }
-assert.ok(upcoming(ID, 1, 28).every((e) => weekIndex(e.day) === SUNDAY) && upcoming(ID, 1, 28).length === 4, 'el calendario no es un domingo por semana');
+// CAS-06: el domingo también sale la Sobremesa del Rastro; el Rastro sigue siendo uno por semana.
+assert.ok(upcoming(ID, 1, 28).every((e) => weekIndex(e.day) === SUNDAY) && upcoming(ID, 1, 28).filter((e) => e.id === def.id).length === 4, 'el calendario no es un domingo por semana');
 
 // ------------------------------------------------ dónde: ni puertas, ni puntos, ni red, ni calzada, ni limpieza
 const doors = new Set<string>();
