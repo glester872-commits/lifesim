@@ -11,6 +11,7 @@ import { policeMemory, restoreIncidents } from '../systems/Police';
 import type { JobProgress } from '../systems/Jobs';
 import { recordMovement, type HouseholdState, type Movement, type MovementType } from '../systems/Household';
 import { emptyCredit, pendingEntry, type CreditResult, type CreditState } from '../systems/Credit';
+import type { RastroLedger } from '../systems/Rastro';
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { emptyParish, type ParishState } from '../systems/Parish';
 import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
@@ -129,6 +130,10 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** Micropréstamo (systems/Credit). */
   private _credit: CreditState;
+  /** CAS-04 · rarezas del Gran Rastro vendidas en la jornada (systems/Rastro). */
+  private _rastro: RastroLedger | undefined;
+  /** CAS-05 · tiques de objetos de la bolsa, el más antiguo primero (systems/Retail.sellItem). */
+  private _paidItems: Record<string, number[]>;
 
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). */
   private _study: StudyState;
@@ -243,6 +248,8 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._ledger = structuredClone(initial.ledger ?? []);
 
     this._credit = structuredClone(initial.credit ?? emptyCredit());
+    this._rastro = initial.rastro === undefined ? undefined : structuredClone(initial.rastro);
+    this._paidItems = structuredClone(initial.paidItems ?? {});
 
     this._study = structuredClone(initial.study ?? emptyStudy());
 
@@ -589,6 +596,22 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._paid = { ...prices };
   }
 
+  get paidItems(): Record<string, number[]> {
+    return structuredClone(this._paidItems);
+  }
+
+  set paidItems(t: Record<string, number[]>) {
+    this._paidItems = structuredClone(t);
+  }
+
+  get rastro(): RastroLedger | undefined {
+    return this._rastro === undefined ? undefined : structuredClone(this._rastro);
+  }
+
+  set rastro(l: RastroLedger | undefined) {
+    this._rastro = l === undefined ? undefined : structuredClone(l);
+  }
+
   /**
    * Dinero, objetos y tarjetas.
    */
@@ -876,6 +899,9 @@ export class GameState extends Phaser.Events.EventEmitter {
       ledger: structuredClone(this._ledger),
 
       credit: structuredClone(this._credit),
+
+      ...(this._rastro === undefined ? {} : { rastro: structuredClone(this._rastro) }),
+      ...(Object.keys(this._paidItems).length === 0 ? {} : { paidItems: structuredClone(this._paidItems) }),
 
       study: structuredClone(this._study),
 

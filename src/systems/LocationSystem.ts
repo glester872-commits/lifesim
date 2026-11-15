@@ -226,6 +226,14 @@ export function validate(loc: LocationDef, opts: { portals?: boolean } = {}): vo
     if (!pa || !pb) throw new Error(`[${loc.id}] tramo ${a}–${b} con un punto inexistente`);
     if (!lineClear(loc, pa, pb)) throw new Error(`[${loc.id}] tramo ${a}–${b} atraviesa algo sólido`);
   }
+  // Anclas de puestos futuros: suelo libre fuera de la calzada, ids únicos.
+  const anchorIds = new Set<string>();
+  for (const s of loc.stallAnchors ?? []) {
+    if (anchorIds.has(s.id)) throw new Error(`[${loc.id}] ancla ${s.id} repetida`);
+    anchorIds.add(s.id);
+    if (!isWalkable(loc, s.tx, s.ty)) throw new Error(`[${loc.id}] ancla ${s.id} en ${s.tx},${s.ty} no es transitable`);
+    if (ROADWAY.has(loc.ground[s.ty][s.tx])) throw new Error(`[${loc.id}] ancla ${s.id} en ${s.tx},${s.ty} cae en la calzada`);
+  }
   // Mesas con servicio: sus sillas son asientos de verdad y quien atiende tiene dónde ponerse.
   for (const t of loc.tables ?? []) {
     for (const seat of t.seats) if (loc.points?.[seat]?.kind !== 'seat') throw new Error(`[${loc.id}] mesa ${t.id}: ${seat} no es un asiento`);

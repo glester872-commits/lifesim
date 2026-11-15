@@ -9,7 +9,12 @@
  * horas) y de una tirada por semana con semilla fija: la misma partida tiene
  * los mismos eventos en los mismos días, y ninguna semana es igual a otra.
  * Con lluvia fuerte, los de la calle se suspenden.
+ *
+ * El Gran Rastro del Casco Antiguo no lleva `props`: sus puestos salen de las
+ * anclas del sitio (`LocationDef.stallAnchors`, `stalls`) y se montan y recogen
+ * poco a poco (systems/PopUps.popUpProgress).
  */
+import type { StallAnchor } from '../types/game.ts';
 
 export type PopUpPiece =
   | 'stall-vintage'
@@ -20,7 +25,12 @@ export type PopUpPiece =
   | 'sign-sneaker'
   | 'boxes'
   // Velaria: alfombra con postes de latón y cordón, para lanzamientos y galas.
-  | 'carpet';
+  | 'carpet'
+  // Gran Rastro: puestos ligeros de fruta, ropa, libros y antigüedades, y segunda mano.
+  | 'stall-fruit'
+  | 'stall-clothes'
+  | 'stall-books'
+  | 'stall-junk';
 
 export interface PopUpProp {
   piece: PopUpPiece;
@@ -30,6 +40,9 @@ export interface PopUpProp {
   /** Cuánto ocupa en tiles de ancho (para su cuerpo sólido). Sin él, no bloquea el paso. */
   solid?: number;
 }
+
+/** Un puesto que vende: exactamente uno de `catalog` (objetos, Commerce.checkout) o `store` (ropa, Retail.buyGarment). */
+export type StallVendorDef = { anchor: string; name: string; piece: PopUpPiece } & ({ catalog: string; store?: never } | { store: string; catalog?: never });
 
 export interface PopUpDef {
   id: string;
@@ -50,6 +63,15 @@ export interface PopUpDef {
   outdoor: boolean;
   /** Horas antes de abrir en las que ya se está montando (las piezas se ven, la gente aún no). */
   setup: number;
+  /** Horas que se tarda en recoger después de cerrar (las piezas se ven, la gente ya no). Sin él, media hora. */
+  teardown?: number;
+  /**
+   * Puestos sacados de las anclas del sitio (`LocationDef.stallAnchors`) de esos tipos, cada uno de una de estas
+   * familias (por hash del id del ancla). No bloquean el paso. Sólo se compra en los `vendors` (CAS-03): cada uno en su
+   * ancla, con la familia que dice lo que vende y su catálogo (data/catalogs.ts) o su tienda de ropa (data/retail.ts),
+   * mientras el evento está en marcha (systems/PopUps.stallVendors). El resto es ambientación.
+   */
+  stalls?: { types: readonly StallAnchor['type'][]; families: readonly PopUpPiece[]; vendors?: readonly StallVendorDef[] };
   /** Luz propia de noche: ámbar de galería o focos de baile. */
   glow?: 'gallery' | 'dj';
   props: readonly PopUpProp[];
@@ -138,5 +160,32 @@ export const POPUPS: readonly PopUpDef[] = [
       { piece: 'easel', tx: 87, ty: 53, solid: 1 },
       { piece: 'easel', tx: 98, ty: 53, solid: 1 },
     ],
+  },
+  // ------------------------------------------------------------ Casco Antiguo
+  // Gran Rastro: todos los domingos (6, Calendar.weekIndex) de nueve a tres; se monta desde las siete y se recoge hasta
+  // las cinco. Los puestos, en las anclas de la plaza, la Calle Mayor y la Calle del Rastro (los accesos quedan libres).
+  // La basura de después: systems/PopUps.popUpLitter da surge 2 a systems/Litter mientras se recoge y una hora más
+  // (15:00 a 18:00; no si llueve), así cae el doble y cabe el doble, y la limpieza viaria existente lo recoge.
+  {
+    id: 'gran-rastro', name: 'Gran Rastro', location: 'casco-antiguo',
+    days: [6], hours: [9, 15], chance: 1, extra: 14, outdoor: true, setup: 2, teardown: 2,
+    props: [],
+    stalls: {
+      types: ['market', 'stall'],
+      families: ['stall-fruit', 'stall-clothes', 'stall-books', 'stall-junk'],
+      // CAS-03: diez puestos que venden (design/CAS-03.md); los otros 28 son ambientación.
+      vendors: [
+        { anchor: 'casco.plaza.market.01', name: 'Puesto de ropa vintage', piece: 'stall-clothes', store: 'rastro-vintage' },
+        { anchor: 'casco.plaza.market.04', name: 'Puesto de discos', piece: 'stall-books', catalog: 'rastro-discos' },
+        { anchor: 'casco.plaza.market.10', name: 'Puesto de antigüedades', piece: 'stall-junk', catalog: 'rastro-antiguedades' },
+        { anchor: 'casco.plaza.market.13', name: 'Puesto de chapas y llaveros', piece: 'stall-junk', catalog: 'rastro-pequenos' },
+        { anchor: 'casco.calleMayor.stall.03', name: 'Puesto de zapatillas', piece: 'stall-clothes', store: 'rastro-zapatillas' },
+        { anchor: 'casco.calleMayor.stall.07', name: 'Puesto de libros', piece: 'stall-books', catalog: 'rastro-libros' },
+        { anchor: 'casco.calleMayor.stall.09', name: 'Puesto de cámaras', piece: 'stall-junk', catalog: 'rastro-camaras' },
+        { anchor: 'casco.calleSecundaria.stall.02', name: 'Perchero de ropa vintage', piece: 'stall-clothes', store: 'rastro-vintage' },
+        { anchor: 'casco.calleSecundaria.stall.06', name: 'Puesto de videojuegos retro', piece: 'stall-junk', catalog: 'rastro-retro' },
+        { anchor: 'casco.calleSecundaria.stall.10', name: 'Puesto de baratijas', piece: 'stall-junk', catalog: 'rastro-pequenos' },
+      ],
+    },
   },
 ];

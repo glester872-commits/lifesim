@@ -639,6 +639,16 @@ export interface LocationDef {
    * en el centro. Cuelgan por encima de la gente y de noche se encienden.
    */
   garlands?: readonly { x0: number; y0: number; x1: number; y1: number; sag: number }[];
+  /** Anclas estáticas de puestos (validadas en systems/LocationSystem); las lee un PopUpDef con `stalls`. Decorado, sin afordancia. */
+  stallAnchors?: readonly StallAnchor[];
+}
+
+export interface StallAnchor {
+  id: string;
+  tx: number;
+  ty: number;
+  type: 'market' | 'stall' | 'access';
+  capacity: number;
 }
 
 export interface DistrictZone {
@@ -754,6 +764,9 @@ export interface GameStateData {
   /** Precio realmente pagado por id de prenda. Sin registro (de inicio, regalada, partida antigua), no se revende. */
   paid?: Record<string, number>;
 
+  /** Tiques de objetos de la bolsa: precio pagado por unidad, la más antigua primero (CAS-05). */
+  paidItems?: Record<string, number[]>;
+
   /** Forma física del jugador. */
   fitness?: import('../systems/Fitness.ts').Fitness;
 
@@ -790,6 +803,8 @@ export interface GameStateData {
   ledger?: import('../systems/Household.ts').Movement[];
   /** Micropréstamo (systems/Credit): préstamos, cuotas y cooldown. Opcional: sin campo, sin préstamo. */
   credit?: import('../systems/Credit.ts').CreditState;
+  /** Rarezas del Gran Rastro vendidas en la jornada `edition` (systems/Rastro). Sin campo: ninguna. */
+  rastro?: import('../systems/Rastro.ts').RastroLedger;
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */

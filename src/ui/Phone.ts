@@ -3,6 +3,7 @@ import { PICK_LOCK_MS } from '../config/constants';
 import type { GameState } from '../state/GameState';
 import { reasonLabel, tone, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
+import { forecast, weatherAt, weatherLabel } from '../systems/Weather';
 import { getHome } from '../data/housing';
 import { DISTRICT_IDENTITIES } from '../data/districtIdentity';
 import { getNpc } from '../data/npcs';
@@ -65,7 +66,7 @@ export interface PhoneHost {
 type Screen =
   | { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'job' } | { app: 'thread'; npc: string }
   | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' } | { app: 'today' }
-  | { app: 'notes' } | { app: 'note'; id: string } | { app: 'reputation' }
+  | { app: 'notes' } | { app: 'note'; id: string } | { app: 'reputation' } | { app: 'weather' }
   | { app: 'credit' } | { app: 'loan' } | { app: 'loan-close' };
 
 /** Un identificador que no se repite entre recargas (el del mensaje o la nota). */
@@ -458,6 +459,7 @@ export class PhoneScreen {
     else if (s.app === 'notes') this.renderNotes();
     else if (s.app === 'note') this.renderNote(s.id);
     else if (s.app === 'reputation') this.renderReputation();
+    else if (s.app === 'weather') this.renderWeather();
     else this.renderThread(s.npc);
     this.selected = Math.min(Math.max(0, keep), Math.max(0, this.items.length - 1));
     this.mark();
@@ -494,6 +496,7 @@ export class PhoneScreen {
     app('€', 'Cuentas', () => this.go({ app: 'money' }), urgent);
     app('✍', 'Notas', () => this.go({ app: 'notes' }));
     app('◆', 'Reputación', () => this.go({ app: 'reputation' }));
+    app('☁', 'Tiempo', () => this.go({ app: 'weather' }));
     app('◉', 'Cámara', null);
     app('♪', 'Música', null);
     this.screenEl.replaceChildren(el('p', 'phone__greeting', this.greeting(unread)), grid);
@@ -1132,6 +1135,29 @@ export class PhoneScreen {
       ul.append(li);
     }
     this.screenEl.replaceChildren(ul);
+  }
+
+  // ------------------------------------------------------------ tiempo (MAP-08)
+
+  /** Ahora y la previsión cada tres horas (systems/Weather.forecast): lo mismo que luego hará. Sólo lectura. */
+  private renderWeather(): void {
+    this.titleEl.textContent = 'Tiempo';
+    const { day, hour, minute } = this.state;
+    const hh = (h: number): string => `${String(Math.floor(h)).padStart(2, '0')}:00`;
+    const now = weatherAt(day, hour + minute / 60);
+    const ahead = forecast(day, hour);
+    const ul = el('ul', 'phone__list');
+    const row = (when: string, w: typeof now): void => {
+      const li = el('li', 'phone__row');
+      li.append(el('span', 'phone__row-text', `${when} · ${weatherLabel(w)}`), el('span', 'phone__row-meta', `${Math.round(w.celsius)}°`));
+      ul.append(li);
+    };
+    row('Ahora', now);
+    for (const f of ahead) row(hh(f.hour), f.w);
+    const storm = ahead.find((f) => f.w.sky === 'storm');
+    const parts: HTMLElement[] = [ul];
+    if (storm && now.sky !== 'storm') parts.unshift(el('p', 'phone__greeting', `Tormenta hacia las ${hh(storm.hour)}.`));
+    this.screenEl.replaceChildren(...parts);
   }
 
   // ------------------------------------------------------------ notas

@@ -125,6 +125,7 @@ import {
 } from '../systems/Story';
 import { offCamera, settleNamed, type StuckWatch } from '../systems/Recovery';
 import { pickTarget, tileAhead, wallBetween, type Candidate as PickCandidate } from '../systems/Interaction';
+import { stallVendors } from '../systems/PopUps';
 import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Agent, type Clock } from '../systems/Crowd';
@@ -176,7 +177,7 @@ import { ForegroundView } from '../world/Foreground';
 import { PopUpView } from '../world/PopUpView';
 import { StringLightsView } from '../world/StringLights';
 import { DEBUG } from '../config/debug';
-import { weatherAt } from '../systems/Weather';
+import { isRainy, weatherAt, weatherEffects } from '../systems/Weather';
 import { ChatLog, Conversation, placeOf, weatherKind, type ChatTurn } from '../systems/Chat';
 import {
   applyDelta,
@@ -224,8 +225,9 @@ type Interactable =
   | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
   | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
-  | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string }
-  | { kind: 'rack'; x: number; y: number; rack: RackDef }
+  // `vendor`: el ancla de un puesto del rastro que vende (systems/PopUps.stallVendors, CAS-03); sólo mientras está en marcha.
+  | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string; vendor?: string }
+  | { kind: 'rack'; x: number; y: number; rack: RackDef; vendor?: string }
   | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; job?: string; lines?: readonly string[] }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'emergency'; x: number; y: number; view: EmergencyView }
@@ -1224,6 +1226,9 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    // MAP-08: fuera, el chaparrón, la tormenta o la niebla frenan el paso; bajo techo, nada.
+    const paceState = this.services.state;
+    this.player.weatherPace = getLocation(paceState.locationId).kind === 'exterior' ? weatherEffects(weatherAt(paceState.day, paceState.hour + paceState.minute / 60)).walkPace : 1;
     // Teclas y joystick, al mismo movimiento: las teclas por su lado y el stick, analógico.
     this.player.move({
       up: this.keyHeld('up') || this.keyHeld('upAlt'),
@@ -1669,7 +1674,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Si ese día llueve por la mañana: lo que decide una rutina de lluvia o cancelar un plan de fuera. */
   private rainyDay(day: number): boolean {
-    return weatherAt(day, 10).sky.endsWith('rain');
+    return isRainy(weatherAt(day, 10).sky);
   }
 
   /**
@@ -3162,7 +3167,15 @@ export class WorldScene extends Phaser.Scene {
     }
     // Quien atiende un local (personal: vende, da fichas, recibe denuncias): delante del jugador, gana al cliente que paga a su lado.
     const wrap = (item: Interactable): PickCandidate & { item: Interactable } => ({ id: this.idOf(item), kind: item.kind, ...anchor(item), serves: item.kind === 'npc' && this.attends(item.sprite), item });
-    const cands = [...this.interactables, ...this.crowdInteractables(), ...events]
+    // Los puestos del rastro que venden ahora (CAS-03): en el centro de su puesto (dos tiles desde el ancla). Fuera de horario, ninguno.
+    const vendors: Interactable[] = stallVendors(loc.id, this.clockNow()).map((s) => {
+      const x = (s.tx + 1) * TILE;
+      const y = s.ty * TILE + TILE / 2;
+      return s.vendor.store !== undefined
+        ? { kind: 'rack', x, y, rack: { tx: s.tx, ty: s.ty, name: s.vendor.name, store: s.vendor.store }, vendor: s.id }
+        : { kind: 'terminal', x, y, name: s.vendor.name, catalog: s.vendor.catalog, vendor: s.id };
+    });
+    const cands = [...this.interactables, ...this.crowdInteractables(), ...events, ...vendors]
       // Un asiento ocupado no se ofrece; las puertas del tren, sólo con las puertas abiertas; un NPC oculto, no existe.
       .filter((item) => !(item.kind === 'seat' && this.seatTaken(item.seat)) && !(item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) && !(item.kind === 'npc' && !item.sprite.visible))
       .map(wrap);
@@ -3242,6 +3255,17 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.player.halt();
+    // Un puesto del rastro (CAS-03): si ya no vende, por qué; si vende, el menú deja de cobrar en cuanto cierra.
+    if ((target.kind === 'terminal' || target.kind === 'rack') && target.vendor) {
+      const vendor = target.vendor;
+      // `rastro`: su catálogo o tienda, para sus rarezas de la jornada (systems/Rastro, CAS-04).
+      const stall = { closed: () => this.vendorClosed(vendor), rastro: target.kind === 'terminal' ? target.catalog : target.rack.store };
+      const why = stall.closed();
+      if (why) this.openDialogue(target.kind === 'terminal' ? target.name : target.rack.name, [why]);
+      else if (target.kind === 'terminal') this.menus.openCatalog(target.name, target.catalog, '', 0, undefined, stall);
+      else this.menus.openRack(target.rack, '', 0, stall);
+      return;
+    }
     // Un puesto que atiende a ratos del partido (el quiosco del estadio): cerrado, dice por qué y cuándo abre; abierto,
     // se compra con el partido en marcha (menú en vivo) y deja de cobrar si cierra con el menú abierto.
     if (target.kind === 'terminal' && target.serves) {
@@ -4413,6 +4437,11 @@ export class WorldScene extends Phaser.Scene {
    * Por qué no atiende ahora un puesto que va con el partido (TerminalDef.serves: systems/Concourse.kioskService) o
    * que no tiene a nadie detrás (TerminalDef.staff), o null si atiende.
    */
+  /** Por qué ya no vende un puesto del rastro (systems/PopUps.stallVendors), o null si vende. */
+  private vendorClosed(anchorId: string): string | null {
+    return stallVendors(this.services.state.locationId, this.clockNow()).some((s) => s.id === anchorId) ? null : 'El Rastro vende los domingos de 9:00 a 15:00.';
+  }
+
   private stallClosed(t: Extract<Interactable, { kind: 'terminal' }>): string[] | null {
     if (!t.serves) return null;
     const abs = this.absMinute();

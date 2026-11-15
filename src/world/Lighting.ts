@@ -27,7 +27,11 @@ function multiply(a: number, b: number): number {
 
 /** El cielo con el tiempo que hace: las nubes y la lluvia lo agrisan y lo enfrían, de día y de noche. */
 export function weatherSky(sky: number, w: Weather): number {
-  return multiply(sky, mix(0xffffff, 0x8a93aa, Math.min(1, w.cloud * 0.42 + w.rain * 0.3)));
+  const grey = multiply(sky, mix(0xffffff, 0x8a93aa, Math.min(1, w.cloud * 0.42 + w.rain * 0.3)));
+  // MAP-08: la tormenta oscurece un poco más y la niebla apaga el color hacia un gris claro. Leve: el velo de
+  // world/WeatherView pone el resto. skyAt (la noche, QA-06) no se toca; el andén del metro tampoco pasa por aquí.
+  const storm = multiply(grey, mix(0xffffff, 0x6a7088, (w.gust ?? 0) * 0.18));
+  return mix(storm, 0xc4c8cf, (w.fog ?? 0) * 0.22);
 }
 
 /** Suelo mojado: más oscuro y algo más frío que el seco; los tejados, no (ya los agrisa el cielo). */

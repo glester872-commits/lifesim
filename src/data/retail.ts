@@ -169,6 +169,8 @@ export interface RetailStoreDef {
   street?: true;
   /** Compra ropa usada con tique (systems/Retail.sellGarment): en la caja aparece «Vender ropa». */
   buysBack?: true;
+  /** CAS-05 · compra objetos con tique (systems/Retail.sellItem): id exacto o prefijo acabado en '*'. */
+  buysItems?: readonly string[];
 }
 
 export const STORES: readonly RetailStoreDef[] = [
@@ -181,6 +183,19 @@ export const STORES: readonly RetailStoreDef[] = [
   {
     id: 'manta-ropa', name: 'Manta de ropa', street: true, greeting: 'Todas las tallas, casi. Lo que ves es lo que hay.', thanks: 'Buena compra. Si encoge, no me has visto.',
     stock: [{ garment: 'camiseta-raya', price: 5 }, { garment: 'camiseta-mostaza', price: 4 }, { garment: 'camiseta-rosa', price: 7 }, { garment: 'gorra-negra', price: 6 }],
+  },
+  // CAS-03 · Gran Rastro del Casco Antiguo (data/popups.ts vendors): sólo los domingos mientras está en marcha. Lo
+  // único se vende una vez: cuando es tuyo, en el puesto ya no está (Retail.buyGarment).
+  {
+    id: 'rastro-vintage', name: 'Ropa vintage del Rastro', street: true, greeting: 'Todo lavado y planchado. Lo de colgar, de una sola pieza.', thanks: 'Esa tiene historia. Ahora la escribes tú.',
+    stock: [
+      { garment: 'cazadora-ante', price: 55 }, { garment: 'vestido-lunares', price: 22 }, { garment: 'jersey-rombos', price: 14 },
+      { garment: 'camisa-hawai', price: 12 }, { garment: 'pantalon-pata', price: 16 }, { garment: 'camisa-cuadros', price: 6 },
+    ],
+  },
+  {
+    id: 'rastro-zapatillas', name: 'Zapatillas del Rastro', street: true, greeting: 'Usadas, pero con suela. Las de la caja, sin estrenar.', thanks: 'Cámbiales los cordones y parecen nuevas.',
+    stock: [{ garment: 'zapatilla-retro', price: 28 }, { garment: 'lona-blanca', price: 6 }, { garment: 'zapatilla-edicion', price: 60 }, { garment: 'bota-cuero', price: 35 }],
   },
   // Distrito Arena, sólo en día de partido: bufandas y gorras en una manta, y la camiseta del día en otra.
   {
@@ -213,7 +228,7 @@ export const STORES: readonly RetailStoreDef[] = [
     ],
   },
   {
-    id: 'vuelta', name: 'Segunda Vuelta', greeting: 'Al peso o por prenda, como prefieras.', thanks: 'Una prenda más que no acaba en el vertedero.', buysBack: true,
+    id: 'vuelta', name: 'Segunda Vuelta', greeting: 'Al peso o por prenda, como prefieras.', thanks: 'Una prenda más que no acaba en el vertedero.', buysBack: true, buysItems: ['rastro-*'],
     stock: [
       { garment: 'camisa-cuadros', price: 8 }, { garment: 'camiseta-basica', price: 4 }, { garment: 'rebeca-punto', price: 9 },
       { garment: 'vaquero-gastado', price: 10 }, { garment: 'pana-marron', price: 9 }, { garment: 'camiseta-grafica', price: 6 },

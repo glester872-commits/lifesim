@@ -128,6 +128,7 @@ export const CAMPO_ALTO: LocationDef = {
   id: 'campo-alto',
   name: 'Campo Alto',
   kind: 'exterior',
+  finish: 'hd04',
   ground: GROUND,
   buildings: BUILDINGS,
   props: PROPS,

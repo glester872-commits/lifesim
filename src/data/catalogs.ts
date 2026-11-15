@@ -175,6 +175,31 @@ export const CATALOGS: readonly Catalog[] = [
     greeting: 'Quiosco de la Tribuna. Rápido, que se va a llenar.',
     products: [item('water', 'Agua', 2), item('sandwich', 'Sándwich', 4.5), item('chips', 'Bolsa de patatas', 2), item('cola', 'Refresco de cola', 2.5)],
   },
+  // CAS-03 · los puestos que venden en el Gran Rastro (data/popups.ts vendors): precio de mercadillo, pago en caja.
+  {
+    id: 'rastro-discos', greeting: 'Todo a mirar, que para eso están. Los de la caja de abajo, más baratos.', checkout: true,
+    products: [item('rastro-vinyl', 'Disco de vinilo (LP)', 12), item('rastro-vinyl-first', 'Vinilo de primera edición', 35)],
+  },
+  {
+    id: 'rastro-libros', greeting: 'Libros a peso de saldo. Si tiene dedicatoria, no cobro más.', checkout: true,
+    products: [item('rastro-book', 'Libro de segunda mano', 3), item('rastro-book-signed', 'Libro firmado por la autora', 25)],
+  },
+  {
+    id: 'rastro-camaras', greeting: 'Probadas todas. El carrete no lo pongo yo.', checkout: true,
+    products: [item('rastro-camera', 'Cámara analógica compacta', 45), item('rastro-camera-slr', 'Réflex analógica', 90)],
+  },
+  {
+    id: 'rastro-antiguedades', greeting: 'Esto tiene más años que tú y que yo juntos.', checkout: true,
+    products: [item('rastro-pocketwatch', 'Reloj de bolsillo de latón', 38)],
+  },
+  {
+    id: 'rastro-retro', greeting: 'Funcionan todos. Si alguno no, se sopla.', checkout: true,
+    products: [item('rastro-cartridge', 'Cartucho retro', 15), item('rastro-handheld', 'Consola portátil retro', 55), item('rastro-figure', 'Figura retro de colección', 40)],
+  },
+  {
+    id: 'rastro-pequenos', greeting: 'Chapas a dos, llaveros a cuatro. Coge sin miedo.', checkout: true,
+    products: [item('rastro-badge', 'Chapa de solapa', 2), item('rastro-keyring', 'Llavero antiguo', 4)],
+  },
   // El mostrador de para llevar de cada pizzería, hamburguesería y sushi (data/foodVenues.ts).
   ...FOOD_VENUE_CATALOGS,
 ];

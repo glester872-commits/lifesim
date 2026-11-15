@@ -4,6 +4,7 @@ import { getOffMapPlace } from '../data/activities.ts';
 import { getLocation, hasLocation } from './LocationSystem.ts';
 
 import { payFare, type Wallet } from './Commerce.ts';
+import { weatherAt, weatherEffects } from './Weather.ts';
 
 /** Un destino desde una parada: a dónde, cuánto se tarda y cuánto cuesta. */
 export interface Destination {
@@ -85,14 +86,23 @@ export function serviceOpen(line: TransitLine, hour: number): boolean {
   return b > a ? hour >= a && hour < b : hour >= a || hour < b;
 }
 
+/**
+ * MAP-08: minutos de retraso del trayecto por el tiempo a la hora de salida (tormenta, niebla). Único punto
+ * donde el clima toca el metro: la tarifa no cambia. Sin día (los checks antiguos), sin retraso.
+ */
+export function weatherDelay(from: TransitStop, to: TransitStop, hour: number, day?: number): number {
+  if (day === undefined) return 0;
+  return Math.abs(to.order - from.order) * weatherEffects(weatherAt(day, hour)).metroDelayPerStop;
+}
+
 /** Preparación sin efectos: se comprueban destino, horario y saldo antes de tocar el estado. */
-export function prepareRide(wallet: Wallet, journey: MetroJourney | null, from: TransitStop, to: TransitStop, hour: number) {
+export function prepareRide(wallet: Wallet, journey: MetroJourney | null, from: TransitStop, to: TransitStop, hour: number, day?: number) {
   const d = destinationsFrom(from).find(d => d.stop.id === to.id);
   if (!d || !visitable(to)) return { ok: false as const, message: 'Esta estación aún no tiene mapa visitable.' };
   if (!serviceOpen(d.line, hour)) return { ok: false as const, message: 'Esta línea está fuera de servicio.' };
   const paid = payFare(wallet, d.line.card, journeyFare(journey, from, d.fare));
   if (!paid.ok) return { ok: false as const, message: paid.message };
-  return { ok: true as const, wallet: paid.wallet, minutes: d.minutes, station: to.station!,
+  return { ok: true as const, wallet: paid.wallet, minutes: d.minutes + weatherDelay(from, to, hour, day), station: to.station!,
     journey: { version: 1, phase: 'platform', station: to.station! } satisfies MetroJourney };
 }
 

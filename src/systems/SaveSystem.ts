@@ -18,6 +18,7 @@ import { createPhone, parsePhone } from './Phone.ts';
 import { parseJob } from './Jobs.ts';
 import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
 import { emptyCredit, parseCredit } from './Credit.ts';
+import { parseRastro } from './Rastro.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
@@ -394,6 +395,10 @@ function parseState(value: unknown): GameStateData | null {
     // Sin préstamo guardado (partida anterior a la Fase 3a, SAVE_VERSION sigue en 4) carga sin la clave, como `paid`:
     // vuelve igual que se guardó y GameState empieza sin préstamo. Uno dañado se lee como «sin préstamo».
     ...(s.credit === undefined ? {} : { credit: parseCredit(s.credit, Math.floor(total / 1440) + 1) }),
+    // CAS-04 · sin registro del Rastro (partida anterior) carga sin la clave: ninguna rareza vendida.
+    ...(s.rastro === undefined ? {} : { rastro: parseRastro(s.rastro) }),
+    // CAS-05 · sin tiques de objetos (partida anterior) carga sin la clave: nada se revende.
+    ...(s.paidItems === undefined ? {} : { paidItems: parsePaidItems(s.paidItems) }),
     // Una partida anterior a los estudios carga sin curso ni habilidades.
     study: parseStudy(s.study),
     // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.
@@ -612,6 +617,18 @@ function parsePaid(value: unknown, wardrobe: readonly string[]): Record<string, 
   for (const id of wardrobe) {
     const n = value[id];
     if (isNumber(n) && n <= 100000 && cents(n) > 0) out[id] = cents(n);
+  }
+  return out;
+}
+
+/** CAS-05 · tiques por objeto: sólo números finitos ≥ €0,01 (en céntimos), sin listas vacías. Nunca lanza. */
+function parsePaidItems(value: unknown): Record<string, number[]> {
+  if (!isRecord(value)) return {};
+  const out: Record<string, number[]> = {};
+  for (const [id, list] of Object.entries(value)) {
+    if (!Array.isArray(list)) continue;
+    const ok = list.filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0.01).map(cents);
+    if (ok.length > 0) out[id] = ok;
   }
   return out;
 }

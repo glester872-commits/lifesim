@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import { PALETTE } from '../config/constants';
 import type { PopUpPiece } from '../data/popups';
 import { make, px, shade, type Ctx } from './paint';
+import { drawHuman, type HairStyle } from './HumanArt';
 
 /**
  * Las piezas de los eventos de la Calle del Carmen (data/popups.ts), dibujadas
@@ -24,7 +25,176 @@ export const PIECE_SIZE: Readonly<Record<PopUpPiece, readonly [number, number]>>
   'sign-sneaker': [16, 28],
   boxes: [16, 22],
   carpet: [48, 20],
+  'stall-fruit': [32, 30],
+  'stall-clothes': [32, 30],
+  'stall-books': [32, 30],
+  'stall-junk': [32, 30],
 };
+
+/** Ruido determinista para la mercancía del Gran Rastro: cada familia con su grano, sin recuadros alternos. */
+function lcg(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+/** Postes del toldo, de la fila 7 al suelo. */
+function posts(ctx: Ctx): void {
+  for (const x of [1, 30]) {
+    px(ctx, shade(PALETTE.woodDark, 0.1), x, 7, 1, 23);
+    px(ctx, shade(PALETTE.woodDark, 0.3), x, 7, 1, 1);
+  }
+}
+
+/** Mesa de caballetes: tablero con luz en `top`, frente en sombra hasta la fila 28 y patas. */
+function table(ctx: Ctx, top: number): void {
+  px(ctx, PALETTE.woodDark, 1, top + 2, 30, 27 - top);
+  px(ctx, shade(PALETTE.woodDark, -0.18), 1, 28, 30, 1);
+  px(ctx, PALETTE.wood, 1, top, 30, 2);
+  px(ctx, shade(PALETTE.wood, 0.18), 1, top, 30, 1);
+  px(ctx, PALETTE.woodDark, 2, 29, 2, 1);
+  px(ctx, PALETTE.woodDark, 28, 29, 2, 1);
+}
+
+/** Fruta: toldo verde y blanco, tres cajas inclinadas con su montón, pizarrita de precio y la balanza colgada. */
+function drawFruitStall(ctx: Ctx): void {
+  const r = lcg(0xf7a1);
+  const FRUIT = [PALETTE.brick, PALETTE.amber, PALETTE.floorTape, PALETTE.leafLit, PALETTE.rug] as const;
+  posts(ctx);
+  awning(ctx, 32, PALETTE.leaf, PALETTE.white);
+  px(ctx, PALETTE.metal, 24, 11, 5, 1);
+  px(ctx, PALETTE.metalLit, 26, 9, 1, 2);
+  table(ctx, 21);
+  [2, 12, 22].forEach((x0, k) => {
+    const c = FRUIT[(k * 2 + Math.floor(r() * 2)) % FRUIT.length];
+    for (let i = 0; i < 10; i++) {
+      const x = x0 + Math.floor(r() * 8);
+      const y = 14 + Math.floor(r() * 2) + (Math.abs(x - x0 - 4) > 2 ? 1 : 0);
+      px(ctx, c, x, y, 2, 2);
+      px(ctx, shade(c, 0.25), x, y, 1, 1);
+    }
+    px(ctx, PALETTE.woodLit, x0, 17, 9, 4);
+    px(ctx, PALETTE.woodDark, x0, 18, 9, 1);
+    px(ctx, shade(PALETTE.woodLit, -0.2), x0, 20, 9, 1);
+  });
+  px(ctx, PALETTE.ink, 13, 23, 6, 4);
+  px(ctx, PALETTE.white, 14, 24, 3, 1);
+  px(ctx, PALETTE.white, 14, 25, 2, 1);
+}
+
+/** Ropa: toldo liso con festón, una barra larga de prendas hasta abajo, cajón de lo doblado y un espejo de pie. */
+function drawClothesStall(ctx: Ctx): void {
+  const r = lcg(0xc107);
+  const c0 = PALETTE.brick;
+  posts(ctx);
+  px(ctx, c0, 0, 1, 32, 6);
+  px(ctx, shade(c0, 0.14), 0, 1, 32, 1);
+  px(ctx, shade(c0, -0.12), 0, 5, 32, 2);
+  for (let x = 0; x < 32; x += 4) {
+    px(ctx, shade(c0, -0.12), x, 7, 4, 1);
+    px(ctx, shade(c0, -0.12), x + 1, 8, 2, 1);
+  }
+  ctx.globalAlpha = 0.28;
+  px(ctx, PALETTE.ink, 0, 9, 32, 3);
+  ctx.globalAlpha = 1;
+  px(ctx, PALETTE.metalLit, 2, 11, 23, 1);
+  for (let x = 3; x < 24; x += 3) {
+    const c = CLOTHES[Math.floor(r() * CLOTHES.length)];
+    const h = 8 + Math.floor(r() * 6);
+    px(ctx, PALETTE.metal, x + 1, 10, 1, 1);
+    px(ctx, c, x, 12, 3, h);
+    px(ctx, shade(c, 0.16), x, 12, 1, h);
+    px(ctx, shade(c, -0.2), x + 2, 12, 1, h);
+  }
+  px(ctx, PALETTE.woodDark, 3, 24, 20, 5);
+  px(ctx, PALETTE.wood, 3, 24, 20, 1);
+  for (let x = 4; x < 21; x += 4) px(ctx, CLOTHES[Math.floor(r() * CLOTHES.length)], x, 22, 3, 2);
+  px(ctx, PALETTE.woodDark, 26, 12, 4, 17);
+  px(ctx, PALETTE.glass, 27, 13, 2, 14);
+  px(ctx, PALETTE.glassLit, 27, 14, 1, 4);
+  px(ctx, PALETTE.woodDark, 25, 29, 6, 1);
+}
+
+/** Libros y antigüedades: sombrilla redonda, mesa con lomos de colores, un cuadro apoyado y un quinqué. */
+function drawBooksStall(ctx: Ctx): void {
+  const r = lcg(0xb00c);
+  const SPINES = [PALETTE.brick, PALETTE.rug, PALETTE.glass, PALETTE.leaf, PALETTE.woodLit, PALETTE.white, PALETTE.amberDim] as const;
+  const top = PALETTE.rug;
+  px(ctx, PALETTE.metal, 15, 8, 2, 12);
+  for (let i = 0; i < 7; i++) {
+    const w = 12 + i * 3;
+    const x0 = Math.floor((32 - w) / 2);
+    const half = Math.floor(w * 0.55);
+    px(ctx, i < 2 ? shade(top, 0.14) : top, x0, 2 + i, half, 1);
+    px(ctx, shade(top, -0.14), x0 + half, 2 + i, w - half, 1);
+  }
+  for (let x = 2; x < 30; x += 3) px(ctx, shade(top, -0.24), x, 9, 2, 1);
+  px(ctx, PALETTE.metalLit, 15, 1, 2, 1);
+  table(ctx, 19);
+  for (let x = 2; x < 22; ) {
+    const c = SPINES[Math.floor(r() * SPINES.length)];
+    const h = 3 + Math.floor(r() * 3);
+    const w = 1 + Math.floor(r() * 2);
+    px(ctx, c, x, 19 - h, w, h);
+    px(ctx, shade(c, 0.2), x, 19 - h, w, 1);
+    x += w;
+  }
+  px(ctx, PALETTE.metal, 25, 16, 3, 3);
+  px(ctx, PALETTE.amber, 25, 13, 3, 3);
+  px(ctx, shade(PALETTE.amber, 0.2), 25, 13, 1, 1);
+  px(ctx, PALETTE.woodLit, 3, 21, 9, 8);
+  px(ctx, PALETTE.leaf, 4, 22, 7, 6);
+  px(ctx, PALETTE.floorTape, 7, 23, 3, 2);
+}
+
+/** Segunda mano: lona inclinada sobre dos palos, mesa baja con lámpara, radio y jarrón, y cajas en el suelo. */
+function drawJunkStall(ctx: Ctx): void {
+  const r = lcg(0x5ec0);
+  const tarp = PALETTE.glass;
+  for (const [x, y] of [[1, 4], [30, 9]] as const) px(ctx, PALETTE.metal, x, y, 1, 30 - y);
+  for (let x = 0; x < 32; x++) {
+    const y = 2 + Math.floor(x / 5);
+    px(ctx, x < 14 ? shade(tarp, 0.1) : tarp, x, y, 1, 5);
+    px(ctx, shade(tarp, -0.2), x, y + 5, 1, 1);
+  }
+  ctx.globalAlpha = 0.28;
+  for (let x = 0; x < 32; x++) px(ctx, PALETTE.ink, x, 8 + Math.floor(x / 5), 1, 2);
+  ctx.globalAlpha = 1;
+  table(ctx, 22);
+  // Lámpara de pie de mesa, radio con rejilla y un jarrón.
+  px(ctx, PALETTE.metal, 5, 16, 1, 6);
+  px(ctx, PALETTE.amberDim, 3, 13, 5, 3);
+  px(ctx, shade(PALETTE.amberDim, 0.2), 3, 13, 5, 1);
+  px(ctx, PALETTE.wood, 10, 17, 8, 5);
+  px(ctx, PALETTE.metalLit, 11, 18, 4, 3);
+  px(ctx, PALETTE.amber, 16, 18, 1, 1);
+  px(ctx, PALETTE.brick, 21, 16, 3, 6);
+  px(ctx, shade(PALETTE.brick, 0.2), 21, 16, 1, 6);
+  // Lo que no cabe en la mesa, en cajas al pie.
+  for (let i = 0; i < 4; i++) {
+    const x = 18 + Math.floor(r() * 9);
+    px(ctx, PALETTE.white, x, 24 + Math.floor(r() * 2), 2, 1);
+  }
+  px(ctx, PALETTE.woodLit, 24, 25, 6, 4);
+  px(ctx, shade(PALETTE.woodLit, -0.2), 24, 28, 6, 1);
+}
+
+/** Vendedores del Gran Rastro (CAS-03): pelo, camiseta y peinado por variante; PopUpView elige una por puesto, sin azar. */
+const VENDOR_LOOKS = [
+  [PALETTE.hair, PALETTE.brick, 'short'],
+  [PALETTE.woodDark, PALETTE.glass, 'bun'],
+  [PALETTE.amberDim, PALETTE.leaf, 'curly'],
+] as const;
+/** Como cualquier persona del juego (world/HumanArt, 16 × 24 con los pies en la base). */
+export const VENDOR_SIZE = [16, 24] as const;
+export const vendorKey = (i: number): string => `pu-vendor-${i % VENDOR_LOOKS.length}`;
+
+/** Quien atiende, de pie y de frente junto a su puesto: el mismo dibujo que el resto de la gente. */
+function drawVendor(ctx: Ctx, hair: string, shirt: string, hairStyle: HairStyle): void {
+  drawHuman(ctx, 'down', 0, { cloth: shirt, clothDark: shade(shirt, -0.2), hair, skin: PALETTE.skin, trousers: '#33374a', shoes: '#20232c', hairStyle });
+}
 
 function awning(ctx: Ctx, w: number, a: string, b: string): void {
   for (let x = 0; x < w; x += 4) {
@@ -239,4 +409,9 @@ export function buildPopUpTextures(scene: Phaser.Scene): void {
   make(scene, pieceKey('sign-sneaker'), PIECE_SIZE['sign-sneaker'][0], PIECE_SIZE['sign-sneaker'][1], drawSneakerSign);
   make(scene, pieceKey('boxes'), PIECE_SIZE.boxes[0], PIECE_SIZE.boxes[1], drawBoxes);
   make(scene, pieceKey('carpet'), PIECE_SIZE.carpet[0], PIECE_SIZE.carpet[1], drawCarpet);
+  make(scene, pieceKey('stall-fruit'), sw, sh, drawFruitStall);
+  make(scene, pieceKey('stall-clothes'), sw, sh, drawClothesStall);
+  make(scene, pieceKey('stall-books'), sw, sh, drawBooksStall);
+  make(scene, pieceKey('stall-junk'), sw, sh, drawJunkStall);
+  VENDOR_LOOKS.forEach(([hair, shirt, style], i) => make(scene, vendorKey(i), VENDOR_SIZE[0], VENDOR_SIZE[1], (ctx) => drawVendor(ctx, hair, shirt, style)));
 }

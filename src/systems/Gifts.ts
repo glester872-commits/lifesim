@@ -22,6 +22,20 @@ export const GIFTS: Readonly<Record<string, Omit<SocialDelta, 'romance' | 'attra
   'gift-magnet': { friendship: 2, trust: 0, mood: 4, given: 'Le das el imán. «Para la nevera», dice, y se ríe.' },
   'gift-keyring': { friendship: 2, trust: 0, mood: 4, given: 'Le das el llavero y lo engancha en sus llaves en el momento.' },
   'gift-fan': { friendship: 3, trust: 0, mood: 6, given: 'Le das el abanico. Lo abre y se da aire, aunque no haga calor.' },
+  // CAS-03 · del Gran Rastro: lo que vale es haberlo encontrado.
+  'rastro-vinyl': { friendship: 4, trust: 1, mood: 7, given: 'Le das el disco. Lee la contraportada entera antes de darte las gracias.' },
+  'rastro-book': { friendship: 3, trust: 1, mood: 5, given: 'Le das el libro. Lo primero que hace es leer la dedicatoria.' },
+  'rastro-camera': { friendship: 6, trust: 2, mood: 9, given: 'Le das la cámara. Te saca una foto en el momento, por probar.' },
+  'rastro-pocketwatch': { friendship: 6, trust: 2, mood: 8, given: 'Le das el reloj de bolsillo. Le da cuerda y se lo acerca al oído.' },
+  'rastro-cartridge': { friendship: 3, trust: 0, mood: 6, given: 'Le das el cartucho. Sopla los contactos, por costumbre.' },
+  'rastro-handheld': { friendship: 6, trust: 1, mood: 10, given: 'Le das la consola. La enciende y la pantalla verdosa le ilumina la cara.' },
+  'rastro-badge': { friendship: 2, trust: 0, mood: 4, given: 'Le das la chapa y se la prende en la chaqueta.' },
+  'rastro-keyring': { friendship: 2, trust: 0, mood: 4, given: 'Le das el llavero. Prueba la llave en el aire, por si acaso.' },
+  // CAS-04 · rarezas: piezas únicas, pesan algo más que lo común.
+  'rastro-vinyl-first': { friendship: 7, trust: 2, mood: 11, given: 'Le das el vinilo. Ve que es primera edición y se queda un rato sin decir nada.' },
+  'rastro-book-signed': { friendship: 6, trust: 2, mood: 9, given: 'Le das el libro firmado. Pasa el dedo por la firma, sin tocar la tinta.' },
+  'rastro-camera-slr': { friendship: 8, trust: 3, mood: 12, given: 'Le das la réflex. Mira por el visor y enfoca tu cara despacio.' },
+  'rastro-figure': { friendship: 7, trust: 2, mood: 11, given: 'Le das la figura. No la saca de la caja: así vale más, te explica.' },
 };
 
 /** La nota que deja en su memoria: así se sabe si ya hubo regalo hoy. */
