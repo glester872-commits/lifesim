@@ -1,4 +1,5 @@
 import type { Facing, TilePoint } from '../types/game.ts';
+import type { EventPolarity } from './reputation.ts';
 
 /**
  * Cosas que pasan en la ciudad aunque no mires: sitios escondidos donde,
@@ -71,6 +72,8 @@ export interface StreetEventDef {
   days: readonly number[];
   /** Probabilidad de que haya una de esas noches. */
   chance: number;
+  /** MAP-07b: qué es para el barrio. Con ella, `chance` se escala por su reputación (systems/Reputation.eventWeightFactor). */
+  polarity?: EventPolarity;
   /** Corro [mín, máx] en una noche templada y seca. */
   crowd: readonly [number, number];
   rounds: readonly [number, number];
@@ -123,6 +126,8 @@ export const STREET_EVENTS: readonly StreetEventDef[] = [
     // Jueves a domingo, como la Órbita: la noche del barrio.
     days: [3, 4, 5, 6],
     chance: 0.45,
+    // Una pelea clandestina con apuestas: donde el barrio te tiene mala fama, sale algo más a menudo.
+    polarity: 'negative',
     crowd: [5, 8],
     rounds: [2, 3],
     raid: 0.15,

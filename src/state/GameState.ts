@@ -17,7 +17,7 @@ import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/
 import { startIdentity } from '../systems/PlayerIdentity';
 import { startHousing, type HousingState } from '../systems/Housing';
 import { parseAgenda, type AgendaState } from '../systems/Agenda';
-import { apply as applyReputation, type Reputation } from '../systems/Reputation';
+import { apply as applyReputation, settleWithReputation, type Reputation } from '../systems/Reputation';
 
 /**
  * Estado central de la partida.
@@ -770,6 +770,20 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** MAP-07: mueve la reputación de un barrio; el mismo motivo dos veces, o sin barrio, no hace nada. */
   addReputation(zoneId: string | null, delta: number, reasonId: string): void {
     this.reputation = applyReputation(this.reputation, zoneId, delta, reasonId, this._day);
+  }
+
+  /**
+   * MAP-07b: repasa el contrato y lo aplica (Reputation.settleWithReputation): guarda el progreso si avanzó y la
+   * reputación de cada falta nueva. `changed`: hay algo que guardar.
+   */
+  settleJob(now: number): { progress: JobProgress | null; missed: number[]; fired: boolean; changed: boolean } {
+    const job = this._job;
+    if (!job) return { progress: null, missed: [], fired: false, changed: false };
+    const { progress, missed, fired, reputation } = settleWithReputation(job, this.reputation, now, this._day);
+    const changed = progress.checked !== job.checked;
+    if (changed) this.setJob(progress);
+    this.reputation = reputation;
+    return { progress, missed, fired, changed };
   }
 
   /**

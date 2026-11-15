@@ -9,6 +9,7 @@ import { isWalkable } from './LocationSystem.ts';
 import { weatherAt } from './Weather.ts';
 import { LOCATION_DISTRICT } from '../data/districtIdentity.ts';
 import { identityOf, zonesIn } from './Zones.ts';
+import { eventWeightFactor } from './Reputation.ts';
 import { eventId, type EventInfo, type Lifecycle } from './WorldEvents.ts';
 
 /**
@@ -139,8 +140,38 @@ export interface ForcedStart {
   rounds?: number;
 }
 
-/** Lo que pasa (o no) la noche que empieza el día `day`; con `force`, la que se empieza a mano. */
-export function planNight(def: StreetEventDef, loc: LocationDef, day: number, force?: ForcedStart): Night {
+/**
+ * MAP-07b: de dónde sale la reputación del jugador en un sitio (id de localización). La fija una vez main.ts, que
+ * tiene el GameState; sin fijar, 0 (scripts y pruebas: la noche de siempre).
+ */
+let reputationSource: (location: string) => number = () => 0;
+/** El valor leído por sitio y día: una noche ya planificada no cambia a mitad, y StreetEvent y AlleyDeals ven la misma. */
+const repCache = new Map<string, number>();
+
+export function setReputationSource(fn: (location: string) => number): void {
+  reputationSource = fn;
+  repCache.clear();
+}
+
+function repOn(location: string, day: number): number {
+  const key = `${location}|${day}`;
+  let v = repCache.get(key);
+  if (v === undefined) {
+    // ponytail: se vacía entera al pasar de 64 entradas (sólo se piden hoy y ayer por evento); LRU si alguna vez molesta.
+    if (repCache.size > 64) repCache.clear();
+    v = reputationSource(location);
+    repCache.set(key, v);
+  }
+  return v;
+}
+
+/**
+ * Lo que pasa (o no) la noche que empieza el día `day`; con `force`, la que se empieza a mano.
+ * MAP-07b: `rep`, la reputación del jugador en el barrio del evento; sin ella, la del proveedor (setReputationSource),
+ * leída una vez por sitio y día. Sólo pesa si la def declara `polarity`, y con 0 la noche es idéntica. Las tiradas no
+ * cambian ni de número ni de orden. StreetEvent.night y AlleyDeals la llaman sin `rep`: ven la misma noche.
+ */
+export function planNight(def: StreetEventDef, loc: LocationDef, day: number, force?: ForcedStart, rep?: number): Night {
   const rng = seededRng(force ? hashSeed(def.id, day, 'force', Math.round(force.start)) : hashSeed(def.id, day));
   const [h0, h1] = def.window;
   const from = day * 1440 + h0 * 60;
@@ -162,7 +193,8 @@ export function planNight(def: StreetEventDef, loc: LocationDef, day: number, fo
   if (!force && !def.days.includes(weekIndex(day))) return { ...base, happens: false, why: 'weekday' };
   // El carácter del barrio donde pasa (data/districtIdentity.events): más sucesos donde la calle está más viva.
   const home = zonesIn(def.location).find((z) => z.events?.[def.id])?.districtId ?? LOCATION_DISTRICT[def.location] ?? '';
-  if (!force && roll >= Math.min(1, def.chance * identityOf(home).events)) return { ...base, happens: false, why: 'chance' };
+  const weight = def.polarity ? eventWeightFactor(rep ?? repOn(def.location, day), def.polarity) : 1;
+  if (!force && roll >= Math.min(1, def.chance * weight * identityOf(home).events)) return { ...base, happens: false, why: 'chance' };
   const w = weatherAt(Math.floor(fightAt / 1440), (fightAt % 1440) / 60);
   if (!force && !def.covered && w.rain >= def.weather.cancelRain) return { ...base, happens: false, why: 'rain' };
 

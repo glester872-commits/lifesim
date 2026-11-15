@@ -1,10 +1,14 @@
 // Sin Phaser: lo usan GameState, SaveSystem, Menus, Phone y scripts/check-reputation.ts.
 import { DISTRICT_IDENTITIES } from '../data/districtIdentity.ts';
 import {
-  REPUTATION_MAX, REPUTATION_MAX_REASONS, REPUTATION_MIN, REPUTATION_PRICE_SPAN,
+  REPUTATION_EVENT_SPAN, REPUTATION_MAX, REPUTATION_MAX_REASONS, REPUTATION_MIN, REPUTATION_PRICE_SPAN,
   REPUTATION_TONE_HIGH, REPUTATION_TONE_LOW, REPUTATION_TRIGGERS,
+  type EventPolarity,
 } from '../data/reputation.ts';
 import { districtAt } from './World.ts';
+import { getJob } from '../data/jobs.ts';
+import { STOPS } from '../data/transit.ts';
+import { settle, type JobProgress } from './Jobs.ts';
 
 /** MAP-07: lo que un barrio sabe de ti. `reasons`, los últimos motivos (y la memoria para no contar dos veces uno). */
 export interface ZoneReputation {
@@ -35,6 +39,16 @@ export function priceFactor(value: number): number {
   return clamp(1 - (REPUTATION_PRICE_SPAN * value) / 100, 1 - REPUTATION_PRICE_SPAN, 1 + REPUTATION_PRICE_SPAN);
 }
 
+export type { EventPolarity };
+
+/** Multiplicador de la probabilidad de un evento: 1 a reputación neutra o a favor; hasta 1 + SPAN en el extremo que le toca. */
+export function eventWeightFactor(value: number, polarity: EventPolarity): number {
+  if (!Number.isFinite(value)) return 1;
+  const v = clamp(value, REPUTATION_MIN, REPUTATION_MAX);
+  const lean = polarity === 'negative' ? -v : v;
+  return 1 + (REPUTATION_EVENT_SPAN * Math.max(0, lean)) / 100;
+}
+
 export function tone(value: number): Tone {
   return value <= REPUTATION_TONE_LOW ? 'hostil' : value >= REPUTATION_TONE_HIGH ? 'amistoso' : 'neutral';
 }
@@ -57,6 +71,19 @@ export function zoneOf(locationId: string): string | null {
 
 export function valueIn(rep: Reputation, zoneId: string | null): number {
   return zoneId ? (rep[zoneId]?.value ?? 0) : 0;
+}
+
+/**
+ * MAP-07b: repasa el contrato (Jobs.settle) y resta cada falta nueva en el barrio de la estación del puesto
+ * (JobDef.place es una parada de STOPS), con la clave `missed:<empleo>:<día>`: repetirlo no cuenta dos veces.
+ */
+export function settleWithReputation(job: JobProgress, reputation: Reputation, now: number, day: number): { progress: JobProgress; missed: number[]; fired: boolean; reputation: Reputation } {
+  const { progress, missed, fired } = settle(job, now);
+  const station = STOPS.find((s) => s.id === getJob(job.job).place)?.station;
+  const zone = station ? zoneOf(station) : null;
+  let rep = reputation;
+  for (const d of missed) rep = apply(rep, zone, REPUTATION_TRIGGERS['shift-missed'].delta, `missed:${job.job}:${d}`, day);
+  return { progress, missed, fired, reputation: rep };
 }
 
 /** Cómo se lee un motivo: por su prefijo (`shift:…`) y, si dos comparten prefijo, por su delta. */

@@ -10,8 +10,8 @@ import { blocker, perform, type ActivityContext } from '../systems/Activities';
 import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
 import { getJob, jobAt, type JobDef } from '../data/jobs';
-import { clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, settle as settleJob, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
-import { formatDate, WEEKDAY_LABEL, weekdayOf } from '../systems/Calendar';
+import { clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, missedNotice, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
+import { formatDate } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
@@ -411,21 +411,16 @@ export class Menus {
 
   // -------------------------------------------------------------- empleo
 
-  /** Repasa el contrato hasta ahora (faltas, despido) y lo guarda si cambió. Devuelve qué contar. */
+  /**
+   * Repasa el contrato hasta ahora y lo guarda si cambió. MAP-07b: el repaso de cada minuto (main.ts reviewAgenda) ya
+   * avisa por el móvil; aquí sólo sale lo que ese repaso aún no ha visto (faltas que nadie había contado), nunca dos veces.
+   */
   private reviewJob(): string {
     const { state } = this.services;
-    const job = state.job;
-    if (!job) return '';
-    const { progress, missed, fired } = settleJob(job, this.now());
-    if (progress.checked !== job.checked) {
-      state.setJob(progress);
-      this.host.persist();
-    }
-    if (!missed.length) return '';
-    const days = missed.map((d) => WEEKDAY_LABEL[weekdayOf(d)]).join(', ');
-    const boss = getJob(progress.job).manager.split(',')[0];
-    if (fired) return `${boss} te espera en la puerta: con tantas faltas (${days}), el contrato se acaba aquí.`;
-    return `Faltaste al turno del ${days}. ${boss} lo tiene apuntado: ${progress.strikes} de ${getJob(progress.job).maxStrikes}. Dos buenos turnos seguidos lo arreglan.`;
+    const { progress, missed, changed } = state.settleJob(this.now());
+    if (!progress) return '';
+    if (changed) this.host.persist();
+    return missedNotice(progress, missed);
   }
 
   private now(): number {

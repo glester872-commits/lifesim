@@ -16,7 +16,7 @@ import { createSocialProfile, type ContactState } from '../systems/Social';
 import { dayOf, hireBlocker, levelOf, levelSummary, nextShift, settle, statusOf, type ShiftStatus } from '../systems/Jobs';
 import { getJob, JOBS } from '../data/jobs';
 import { WEEKDAY_SHORT, weekdayOf, formatDateShort } from '../systems/Calendar';
-import { billOf, dueLabel, goalAdvice, goalById, goalView, owed, pay, total, unpaid } from '../systems/Household';
+import { billOf, dueLabel, goalAdvice, goalById, goalView, owed, pay, statusOf as billStatus, total, unpaid } from '../systems/Household';
 import { BILLS, GOALS } from '../data/household';
 import { euros } from '../systems/Commerce';
 import { COURSES, getGig, getSkill } from '../data/study';
@@ -741,6 +741,8 @@ export class PhoneScreen {
     const confirm = el('li', `phone__row${enough ? '' : ' is-soon'}`);
     confirm.append(rowText(enough ? `Confirmar pago de ${euros(amount)}` : 'No te llega', enough ? 'Se paga con la cartera' : 'Sigue pendiente; no pasa nada hoy'));
     this.item(confirm, () => {
+      // MAP-07b: con recargo o fuera de plazo, pagar cuenta como retraso (−1), no como pagada a tiempo (+2).
+      const late = o.fee > 0 || billStatus(o, this.state.day) === 'late';
       const r = pay(this.state.household, this.state.money, bill, period, this.state.day);
       if (!r.ok) {
         this.flash = r.message;
@@ -752,7 +754,7 @@ export class PhoneScreen {
         this.state.money = r.money;
       });
       // MAP-07: lo nota el barrio de casa, una vez por factura y periodo.
-      this.state.addReputation(zoneOf(getHome(this.state.housing.home).location), REPUTATION_TRIGGERS['bill-paid'].delta, `bill:${bill}:${period}`);
+      this.state.addReputation(zoneOf(getHome(this.state.housing.home).location), REPUTATION_TRIGGERS[late ? 'bill-late' : 'bill-paid'].delta, `bill:${bill}:${period}`);
       this.host?.persist();
       this.flash = r.message;
       this.go({ app: 'money' });

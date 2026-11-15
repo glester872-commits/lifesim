@@ -167,6 +167,16 @@ export function settle(p: JobProgress, now: number): { progress: JobProgress; mi
   return { progress: out, missed, fired: out.status === 'fired' };
 }
 
+/** Lo que dice el jefe de las faltas nuevas de un repaso (settle): el despido o el aviso. Sin faltas, ''. */
+export function missedNotice(progress: JobProgress, missed: readonly number[]): string {
+  if (!missed.length) return '';
+  const def = getJob(progress.job);
+  const days = missed.map((d) => WEEKDAY_LABEL[weekdayOf(d)]).join(', ');
+  const boss = def.manager.split(',')[0];
+  if (progress.status === 'fired') return `${boss} te espera en la puerta: con tantas faltas (${days}), el contrato se acaba aquí.`;
+  return `Faltaste al turno del ${days}. ${boss} lo tiene apuntado: ${progress.strikes} de ${def.maxStrikes}. Dos buenos turnos seguidos lo arreglan.`;
+}
+
 /** Por qué no se puede fichar ahora, o null. `p` ya repasado. */
 /**
  * Con el uniforme puesto: contrato activo de ese empleo y el turno de hoy abierto (desde que se puede fichar hasta
