@@ -46,7 +46,7 @@ import { absMinute, FRESH_MINUTES, handoffs } from './Handoff';
 import { identityOf } from './Zones';
 import { LOCATION_DISTRICT } from '../data/districtIdentity';
 import { STOPS } from '../data/transit';
-import { phaseOf, tripsAt, type Trip } from './MetroDemand';
+import { balancedDepartures, orderAlighting, phaseOf, trainHeadingFor, tripFitsPhase, tripFor, tripsAt, type Trip, type TripWant } from './MetroDemand';
 import { weatherAt } from './Weather';
 import { dressedLook } from '../world/WeatherLooks';
 import { StuckWatch } from './Recovery';
@@ -188,7 +188,7 @@ export class MetroSystem {
   private readonly camera: Phaser.Cameras.Scene2D.Camera;
   private readonly stationId: string;
   /** MOV-01: viajes de esta hora que pasan por este andén, y por cuál va el reparto. */
-  private demand: { key: string; stopId: string; trips: readonly Trip[] } = { key: '', stopId: '', trips: [] };
+  private demand: { key: string; stopId: string; trips: readonly Trip[]; seq: number } = { key: '', stopId: '', trips: [], seq: 0 };
   private tripCursor = 0;
   /** Ms de escena desde que existe la estación: mide la edad del robo en curso. */
   private elapsed = 0;
@@ -740,25 +740,37 @@ export class MetroSystem {
    * los que bajan del tren, LATE_RUNNER). Sin viajes, trip se queda vacío y no cambia nada.
    */
   private assignTrip(p: PassengerAI): void {
+    // MOV-03: dentro del tren (RIDING) o esperando a bajar de él, el viaje sigue; si no, al salir de escena se suelta.
     if (!p.walker.visible) {
-      p.trip = undefined;
+      if (p.state !== 'RIDING' && !p.waitingForTrain) p.trip = undefined;
       return;
     }
-    if (p.trip) return;
     const { day, hour } = this.clock;
     const key = `${day}:${hour}`;
     if (this.demand.key !== key) {
       const stop = STOPS.find((s) => s.station === this.stationId);
-      this.demand = { key, stopId: stop?.id ?? '', trips: stop ? tripsAt(stop.id, day, hour) : [] };
+      this.demand = { key, stopId: stop?.id ?? '', trips: stop ? balancedDepartures(tripsAt(stop.id, day, hour), stop.id) : [], seq: 0 };
     }
-    const { trips } = this.demand;
-    if (!trips.length) return;
+    const { trips, stopId } = this.demand;
+    if (!stopId) return;
+    // MOV-02: el que baja o se va necesita un viaje que acabe (o transborde) aquí; el resto, uno que salga.
+    const want: TripWant = p.state === 'EXITING_TRAIN' || p.state === 'LEAVING_STATION' ? 'arrive' : 'depart';
+    if (p.trip && tripFitsPhase(p.trip, stopId, want)) return;
+    p.trip = undefined;
     const taken = new Set(this.passengers.map((q) => q.trip?.tripId));
     for (let i = 0; i < trips.length; i++) {
       const t = trips[(this.tripCursor + i) % trips.length];
-      if (taken.has(t.tripId)) continue;
+      if (taken.has(t.tripId) || !tripFitsPhase(t, stopId, want)) continue;
       this.tripCursor = (this.tripCursor + i + 1) % trips.length;
       // Copia: la fase es de este pasajero; los Trip de tripsFor están memoizados y los comparten las estaciones.
+      p.trip = { ...t };
+      return;
+    }
+    // MOV-02: agotados los de tripsAt, relleno determinista; el tope sólo protege de un bucle sin salida.
+    for (let guard = 0; guard < 1000; guard++) {
+      const t = tripFor(stopId, day, hour, this.demand.seq++, want);
+      if (!t) return;
+      if (taken.has(t.tripId) || !tripFitsPhase(t, stopId, want)) continue;
       p.trip = { ...t };
       return;
     }
@@ -1052,6 +1064,8 @@ export class MetroSystem {
         ),
 
       flagTrack: (kind, detail) => this.flagTrack(kind, detail),
+      stopId: () => STOPS.find((s) => s.station === this.stationId)?.id ?? null,
+      trainHeading: () => trainHeadingFor(STOPS.find((s) => s.station === this.stationId)?.id ?? '', this.train.cycle),
     };
   }
 
@@ -1185,21 +1199,9 @@ export class MetroSystem {
           'OFFSTAGE',
       );
 
-    const pool = [
-      ...Phaser.Utils.Array.Shuffle(
-        offstage.filter(
-          (p) =>
-            p.waitingForTrain,
-        ),
-      ),
-
-      ...Phaser.Utils.Array.Shuffle(
-        offstage.filter(
-          (p) =>
-            !p.waitingForTrain,
-        ),
-      ),
-    ];
+    // MOV-03: primero los que esperan tren y cuyo viaje acaba (o transborda) en este andén.
+    const stopId = STOPS.find((s) => s.station === this.stationId)?.id ?? '';
+    const pool = orderAlighting(offstage, stopId, Phaser.Utils.Array.Shuffle);
 
     const doors =
       Phaser.Utils.Array.Shuffle(
