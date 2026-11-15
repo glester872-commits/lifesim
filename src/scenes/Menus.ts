@@ -125,8 +125,10 @@ export class Menus {
     }
     const wallet = state.wallet;
     const shut = stall?.closed() ?? null;
+    // Un puesto con caja (el rastro, CAS-03) cobra de uno en uno con Commerce.checkout: también mira lo que cabe en la bolsa.
+    const buy = (w: typeof wallet, p: Product) => (catalog.checkout ? checkout(w, catalog, p.id, 1) : purchase(w, p));
     const options: MenuOption[] = catalog.products.map((p) => {
-      const trial = purchase(wallet, p);
+      const trial = buy(wallet, p);
       return { label: p.label, detail: euros(p.price), disabled: shut ?? (trial.ok ? undefined : trial.message), icon: productIcon(p) };
     });
     options.push({ label: 'Salir' });
@@ -145,7 +147,7 @@ export class Menus {
           this.openCatalog(title, catalogId, closed, i, onClose, stall);
           return;
         }
-        const result = purchase(state.wallet, catalog.products[i]);
+        const result = buy(state.wallet, catalog.products[i]);
         if (result.ok) {
           state.as(catalog.products[i].label, () => {
             state.wallet = result.wallet;
@@ -1386,7 +1388,7 @@ export class Menus {
    * elegir una se ve su ficha y se puede probar, comprar o dejar (openGarment).
    * El género y los precios son los de la tienda: los mismos que en caja.
    */
-  openRack(rack: RackDef, note = '', selected = 0): void {
+  openRack(rack: RackDef, note = '', selected = 0, stall?: { closed: () => string | null }): void {
     this.endFitting();
     const { state, menu } = this.services;
     menu.peek(false);
@@ -1398,8 +1400,8 @@ export class Menus {
     options.push({ label: 'Cerrar' });
     menu.open(`${rack.name} · ${getStore(rack.store).name}`, `Llevas ${euros(state.money)}.`, options, (i) => {
       if (i === lines.length) menu.close();
-      else this.openGarment(rack, lines[i].garment, i);
-    }, undefined, note, selected);
+      else this.openGarment(rack, lines[i].garment, i, '', stall);
+    }, undefined, stall?.closed() ?? note, selected);
   }
 
   /** Deja puesto lo de antes y cierra la prueba. */
@@ -1416,7 +1418,7 @@ export class Menus {
    * restaura. COMPRAR cobra una sola vez (systems/Retail.ts) y la guarda en el
    * armario; para equiparla luego, el armario de casa.
    */
-  private openGarment(rack: RackDef, garment: string, index: number, note = ''): void {
+  private openGarment(rack: RackDef, garment: string, index: number, note = '', stall?: { closed: () => string | null }): void {
     const { state, menu, clock } = this.services;
     const def = getGarment(garment);
     const factor = this.priceHere();
@@ -1430,9 +1432,15 @@ export class Menus {
     const swap = before && before !== garment ? `, en lugar de ${getGarment(before).name.toLowerCase()}` : !before ? ', en lugar de tu ropa de siempre' : '';
     const text = `${CATEGORIES[def.category].label}${def.unique ? ' · pieza única' : ''}. Va ${SLOT_LABEL[def.slot]}${swap}. ${def.description} Llevas ${euros(state.money)}.`;
     const buy = (): void => {
+      // Un puesto que ha cerrado con la ficha abierta (el rastro a las 15:00) ya no cobra.
+      const closed = stall?.closed() ?? null;
+      if (closed) {
+        this.openGarment(rack, garment, index, closed, stall);
+        return;
+      }
       const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, factor);
       if (!result.ok) {
-        this.openGarment(rack, garment, index, result.message);
+        this.openGarment(rack, garment, index, result.message, stall);
         return;
       }
       state.as(getGarment(garment).name, () => {
@@ -1445,7 +1453,7 @@ export class Menus {
       this.fitting = null;
       clock.advanceMinutes(5);
       this.host.persist();
-      this.openRack(rack, `${result.message} Guardada en tu armario.`, index);
+      this.openRack(rack, `${result.message} Guardada en tu armario.`, index, stall);
     };
     if (this.fitting) {
       menu.open(title, text, [
@@ -1457,7 +1465,7 @@ export class Menus {
           return;
         }
         this.endFitting();
-        this.openGarment(rack, garment, index);
+        this.openGarment(rack, garment, index, '', stall);
       }, () => this.endFitting(), note || 'Te la has puesto: mírate.', 0, false, `garment:fitting:${garment}`);
       menu.peek(true);
       return;
@@ -1472,10 +1480,10 @@ export class Menus {
       if (i === 0) {
         this.fitting = current;
         state.setAppearance('player', wear(current, garment));
-        this.openGarment(rack, garment, index);
+        this.openGarment(rack, garment, index, '', stall);
       } else if (i === 1) buy();
-      else this.openRack(rack, '', index);
-    }, () => this.openRack(rack, '', index), note);
+      else this.openRack(rack, '', index, stall);
+    }, () => this.openRack(rack, '', index, stall), note);
   }
 
   /**

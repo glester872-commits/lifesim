@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
 import { TILE } from '../config/constants';
 import { POPUPS, type PopUpDef } from '../data/popups';
-import { piecesShown, popUpProgress, popUpStalls, type PopUpClock } from '../systems/PopUps';
+import { piecesShown, popUpProgress, popUpStalls, stallVendors, type PopUpClock } from '../systems/PopUps';
+import { isWalkable } from '../systems/LocationSystem';
 import type { LocationDef } from '../types/game';
 import { LAYER, standing } from './Layers';
 import { EMISSIVE_DEPTH, nightAt } from './Lighting';
 import { LightDepth } from './LightDepth';
-import { PIECE_SIZE, pieceKey } from './PopUpArt';
+import { PIECE_SIZE, pieceKey, vendorKey } from './PopUpArt';
 
 /**
  * Pinta los eventos de la calle (data/popups.ts): crea las piezas de todos los
@@ -42,6 +43,8 @@ export class PopUpView {
   private readonly clock: () => PopUpClock;
   private readonly hour: () => number;
   private readonly groups = new Map<string, Group>();
+  /** Vendedores de los puestos que venden (CAS-03), por id de ancla; se ven sólo en horario de venta. */
+  private readonly vendors = new Map<string, Phaser.GameObjects.Image>();
   private current: string | null = null;
   private nextCheck = 0;
 
@@ -69,13 +72,24 @@ export class PopUpView {
         return { img, shadow, body };
       });
       // Gran Rastro: un puesto por ancla, dos tiles de ancho desde el ancla, sin cuerpo (es decorado, no corta el paso).
-      for (const s of popUpStalls(p)) {
+      const stalls = popUpStalls(p);
+      // Una tile lateral sirve si se puede pisar y ningún puesto del evento (tx, tx+1) la ocupa.
+      const free = (tx: number, ty: number): boolean => isWalkable(def, tx, ty) && !stalls.some((o) => o.ty === ty && tx >= o.tx && tx <= o.tx + 1);
+      for (const s of stalls) {
         const [w] = PIECE_SIZE[s.piece];
         const x = s.tx * TILE + w / 2;
         const baseY = (s.ty + 1) * TILE;
         const img = scene.add.image(x, baseY, pieceKey(s.piece)).setOrigin(0.5, 1).setDepth(standing(baseY)).setVisible(false);
         const shadow = scene.add.image(x, baseY - 1, 'fx-shadow').setOrigin(0.5, 0.5).setDepth(standing(baseY) - 1).setScale(Math.max(1.4, w / 15), 1.2).setAlpha(0.8).setVisible(false);
         pieces.push({ img, shadow });
+        // Quien atiende, de pie al lado del mostrador (a la derecha; si ahí no cabe, a la izquierda), pegado al puesto
+        // sin pisarlo y con los pies en su misma fila. Sin cuerpo: sólo se ve, no corta el paso.
+        if (s.vendor) {
+          const right = free(s.tx + 2, s.ty) || !free(s.tx - 1, s.ty);
+          const vx = right ? (s.tx + 2) * TILE + 5 : (s.tx - 1) * TILE + TILE - 5;
+          const v = scene.add.image(vx, baseY, vendorKey(this.vendors.size)).setOrigin(0.5, 1).setDepth(standing(baseY)).setVisible(false);
+          this.vendors.set(s.id, v);
+        }
       }
       const group: Group = { def: p, pieces, lights: [], shown: p.stalls ? 0 : undefined };
       if (p.glow === 'dj') {
@@ -143,6 +157,10 @@ export class PopUpView {
       if (id !== this.current) this.show(id);
       const shown = id ? this.groups.get(id) : undefined;
       if (now && shown?.def.stalls) this.reveal(shown, piecesShown(now.progress, shown.pieces.length));
+      if (this.vendors.size) {
+        const open = new Set(stallVendors(this.location, this.clock()).map((s) => s.id));
+        for (const [sid, v] of this.vendors) v.setVisible(open.has(sid));
+      }
     }
     const g = this.current ? this.groups.get(this.current) : undefined;
     if (!g || !g.def.glow) return;

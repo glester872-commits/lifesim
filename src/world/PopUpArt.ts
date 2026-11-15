@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import { PALETTE } from '../config/constants';
 import type { PopUpPiece } from '../data/popups';
 import { make, px, shade, type Ctx } from './paint';
+import { drawHuman, type HairStyle } from './HumanArt';
 
 /**
  * Las piezas de los eventos de la Calle del Carmen (data/popups.ts), dibujadas
@@ -178,6 +179,21 @@ function drawJunkStall(ctx: Ctx): void {
   }
   px(ctx, PALETTE.woodLit, 24, 25, 6, 4);
   px(ctx, shade(PALETTE.woodLit, -0.2), 24, 28, 6, 1);
+}
+
+/** Vendedores del Gran Rastro (CAS-03): pelo, camiseta y peinado por variante; PopUpView elige una por puesto, sin azar. */
+const VENDOR_LOOKS = [
+  [PALETTE.hair, PALETTE.brick, 'short'],
+  [PALETTE.woodDark, PALETTE.glass, 'bun'],
+  [PALETTE.amberDim, PALETTE.leaf, 'curly'],
+] as const;
+/** Como cualquier persona del juego (world/HumanArt, 16 × 24 con los pies en la base). */
+export const VENDOR_SIZE = [16, 24] as const;
+export const vendorKey = (i: number): string => `pu-vendor-${i % VENDOR_LOOKS.length}`;
+
+/** Quien atiende, de pie y de frente junto a su puesto: el mismo dibujo que el resto de la gente. */
+function drawVendor(ctx: Ctx, hair: string, shirt: string, hairStyle: HairStyle): void {
+  drawHuman(ctx, 'down', 0, { cloth: shirt, clothDark: shade(shirt, -0.2), hair, skin: PALETTE.skin, trousers: '#33374a', shoes: '#20232c', hairStyle });
 }
 
 function awning(ctx: Ctx, w: number, a: string, b: string): void {
@@ -397,4 +413,5 @@ export function buildPopUpTextures(scene: Phaser.Scene): void {
   make(scene, pieceKey('stall-clothes'), sw, sh, drawClothesStall);
   make(scene, pieceKey('stall-books'), sw, sh, drawBooksStall);
   make(scene, pieceKey('stall-junk'), sw, sh, drawJunkStall);
+  VENDOR_LOOKS.forEach(([hair, shirt, style], i) => make(scene, vendorKey(i), VENDOR_SIZE[0], VENDOR_SIZE[1], (ctx) => drawVendor(ctx, hair, shirt, style)));
 }

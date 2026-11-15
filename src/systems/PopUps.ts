@@ -1,5 +1,5 @@
 // Sin Phaser: lo usan StreetLife (viajes y gente de más), world/PopUpView, el inspector y scripts/check-popups.
-import { POPUPS, type PopUpDef, type PopUpPiece } from '../data/popups.ts';
+import { POPUPS, type PopUpDef, type PopUpPiece, type StallVendorDef } from '../data/popups.ts';
 import type { StallAnchor } from '../types/game.ts';
 import { nightOwner } from './Calendar.ts';
 import { getLocation } from './LocationSystem.ts';
@@ -120,35 +120,52 @@ export interface PopUpStall {
   tx: number;
   ty: number;
   piece: PopUpPiece;
+  /** Si vende (PopUpDef.stalls.vendors, CAS-03): su nombre y su catálogo o tienda. */
+  vendor?: StallVendorDef;
 }
 
 const stallCache = new Map<string, readonly PopUpStall[]>();
 
 /**
  * Los puestos de un evento con `stalls`, en el orden en que se montan (por hash del id del ancla; se recogen al revés).
- * La familia de cada uno también sale del hash: dentro de cada zona se barajan las anclas por hash y se reparten las
- * familias por turno, así ninguna zona se queda sin alguna y no hay alternancia par/impar en el suelo.
+ * Un vendedor lleva la familia de lo que vende; la del resto sale del hash: dentro de cada zona se barajan las demás
+ * anclas por hash y se reparten las familias por turno, así ninguna zona se queda sin alguna y no hay alternancia
+ * par/impar en el suelo.
  */
 export function popUpStalls(def: PopUpDef): readonly PopUpStall[] {
   if (!def.stalls) return [];
   const hit = stallCache.get(def.id);
   if (hit) return hit;
   const { types, families } = def.stalls;
+  const vendors = new Map((def.stalls.vendors ?? []).map((v) => [v.anchor, v]));
   const zoneOf = (a: StallAnchor): string => a.id.split('.').slice(1, -2).join('.');
   const anchors = (getLocation(def.location).stallAnchors ?? []).filter((a) => types.includes(a.type));
   const h = (salt: string, id: string): number => hashSeed('popup-stall', salt, def.id, id);
   const piece = new Map<string, PopUpPiece>();
   for (const zone of new Set(anchors.map(zoneOf))) {
     anchors
-      .filter((a) => zoneOf(a) === zone)
+      .filter((a) => zoneOf(a) === zone && !vendors.has(a.id))
       .sort((a, b) => h('family', a.id) - h('family', b.id))
       .forEach((a, i) => piece.set(a.id, families[i % families.length]));
   }
   const out = anchors
-    .map((a) => ({ id: a.id, zone: zoneOf(a), tx: a.tx, ty: a.ty, piece: piece.get(a.id)! }))
+    .map((a) => {
+      const vendor = vendors.get(a.id);
+      return { id: a.id, zone: zoneOf(a), tx: a.tx, ty: a.ty, piece: vendor?.piece ?? piece.get(a.id)!, ...(vendor ? { vendor } : {}) };
+    })
     .sort((a, b) => h('order', a.id) - h('order', b.id));
   stallCache.set(def.id, out);
   return out;
+}
+
+/**
+ * Los puestos que venden ahora mismo en ese sitio (CAS-03): sólo mientras su evento está en marcha (activePopUp: ni
+ * montando, ni recogiendo, ni con lluvia fuerte). Fuera de eso, ninguno.
+ */
+export function stallVendors(location: string, clock: PopUpClock): readonly (PopUpStall & { vendor: StallVendorDef })[] {
+  const def = activePopUp(location, clock);
+  if (!def) return [];
+  return popUpStalls(def).filter((s): s is PopUpStall & { vendor: StallVendorDef } => !!s.vendor);
 }
 
 /**

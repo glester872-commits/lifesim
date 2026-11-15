@@ -41,6 +41,9 @@ export interface PopUpProp {
   solid?: number;
 }
 
+/** Un puesto que vende: exactamente uno de `catalog` (objetos, Commerce.checkout) o `store` (ropa, Retail.buyGarment). */
+export type StallVendorDef = { anchor: string; name: string; piece: PopUpPiece } & ({ catalog: string; store?: never } | { store: string; catalog?: never });
+
 export interface PopUpDef {
   id: string;
   /** Lo que anuncia el tablón del barrio (systems/Boards); también lo usan el inspector y el registro. */
@@ -64,9 +67,11 @@ export interface PopUpDef {
   teardown?: number;
   /**
    * Puestos sacados de las anclas del sitio (`LocationDef.stallAnchors`) de esos tipos, cada uno de una de estas
-   * familias (por hash del id del ancla). Decorado: no bloquean el paso ni se compra en ellos.
+   * familias (por hash del id del ancla). No bloquean el paso. Sólo se compra en los `vendors` (CAS-03): cada uno en su
+   * ancla, con la familia que dice lo que vende y su catálogo (data/catalogs.ts) o su tienda de ropa (data/retail.ts),
+   * mientras el evento está en marcha (systems/PopUps.stallVendors). El resto es ambientación.
    */
-  stalls?: { types: readonly StallAnchor['type'][]; families: readonly PopUpPiece[] };
+  stalls?: { types: readonly StallAnchor['type'][]; families: readonly PopUpPiece[]; vendors?: readonly StallVendorDef[] };
   /** Luz propia de noche: ámbar de galería o focos de baile. */
   glow?: 'gallery' | 'dj';
   props: readonly PopUpProp[];
@@ -165,6 +170,22 @@ export const POPUPS: readonly PopUpDef[] = [
     id: 'gran-rastro', name: 'Gran Rastro', location: 'casco-antiguo',
     days: [6], hours: [9, 15], chance: 1, extra: 14, outdoor: true, setup: 2, teardown: 2,
     props: [],
-    stalls: { types: ['market', 'stall'], families: ['stall-fruit', 'stall-clothes', 'stall-books', 'stall-junk'] },
+    stalls: {
+      types: ['market', 'stall'],
+      families: ['stall-fruit', 'stall-clothes', 'stall-books', 'stall-junk'],
+      // CAS-03: diez puestos que venden (design/CAS-03.md); los otros 28 son ambientación.
+      vendors: [
+        { anchor: 'casco.plaza.market.01', name: 'Puesto de ropa vintage', piece: 'stall-clothes', store: 'rastro-vintage' },
+        { anchor: 'casco.plaza.market.04', name: 'Puesto de discos', piece: 'stall-books', catalog: 'rastro-discos' },
+        { anchor: 'casco.plaza.market.10', name: 'Puesto de antigüedades', piece: 'stall-junk', catalog: 'rastro-antiguedades' },
+        { anchor: 'casco.plaza.market.13', name: 'Puesto de chapas y llaveros', piece: 'stall-junk', catalog: 'rastro-pequenos' },
+        { anchor: 'casco.calleMayor.stall.03', name: 'Puesto de zapatillas', piece: 'stall-clothes', store: 'rastro-zapatillas' },
+        { anchor: 'casco.calleMayor.stall.07', name: 'Puesto de libros', piece: 'stall-books', catalog: 'rastro-libros' },
+        { anchor: 'casco.calleMayor.stall.09', name: 'Puesto de cámaras', piece: 'stall-junk', catalog: 'rastro-camaras' },
+        { anchor: 'casco.calleSecundaria.stall.02', name: 'Perchero de ropa vintage', piece: 'stall-clothes', store: 'rastro-vintage' },
+        { anchor: 'casco.calleSecundaria.stall.06', name: 'Puesto de videojuegos retro', piece: 'stall-junk', catalog: 'rastro-retro' },
+        { anchor: 'casco.calleSecundaria.stall.10', name: 'Puesto de baratijas', piece: 'stall-junk', catalog: 'rastro-pequenos' },
+      ],
+    },
   },
 ];
