@@ -142,6 +142,8 @@ const full: GameStateData = {
   parish: { attended: [{ id: 'coro-6', day: 6, stay: 'full', minutes: 90 }, { id: 'coro-13', day: 13, stay: 'partial', minutes: 30 }] },
   // Embarazos (systems/Pregnancy): uno a medias, uno ya nacido con su bebé y uno que aún no ha empezado.
   pregnancy: { amaia: { start: 9, phase: 'early' }, noa: { start: -20, phase: 'post', born: { day: 8, baby: { id: 'bebe-noa', name: 'Alba' } } }, yasmin: { start: 30, phase: 'waiting' } },
+  // Reputación por barrio (systems/Reputation, MAP-07): un barrio conocido, valor dentro del clamp y motivos válidos.
+  reputation: { vallesco: { zoneId: 'vallesco', value: 4, lastUpdated: 12, reasons: [{ id: 'shift:11:cafe', delta: 3, day: 11 }, { id: 'buy:12:super', delta: 1, day: 12 }] } },
 };
 assert.ok(save.save(full));
 assert.deepEqual(save.load(), full, 'el guardado no vuelve igual');

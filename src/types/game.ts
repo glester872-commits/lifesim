@@ -722,6 +722,8 @@ export interface PlayerIdentity {
 export interface GameStateData {
   /** V3: validación hasta salir a la calle; v1/v2 cargan sin billete activo. */
   metroJourney?: import('../systems/Transit.ts').MetroJourney | null;
+  /** V5 (MAP-07): reputación por barrio; una v4 carga con {}. */
+  reputation?: import('../systems/Reputation.ts').Reputation;
   /** Versión 2 (Alpha-04): sin ella, el nombre por defecto. */
   identity?: PlayerIdentity;
   money: number;

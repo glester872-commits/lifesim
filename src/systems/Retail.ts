@@ -60,20 +60,22 @@ export function stockOf(storeId: string, wardrobe: readonly string[], current: A
  * `equip` falso). Una pieza única que ya es tuya no se vuelve a vender, y
  * nada se cobra dos veces: lo que ya está en el armario se rechaza.
  */
-export function buyGarment(w: Wallet, wardrobe: readonly string[], current: Appearance, storeId: string, garment: string, equip = true): Purchase {
+export function buyGarment(w: Wallet, wardrobe: readonly string[], current: Appearance, storeId: string, garment: string, equip = true, factor = 1): Purchase {
   const store = getStore(storeId);
   const line = store.stock.find((l) => l.garment === garment);
   const refuse = (message: string): Purchase => ({ ok: false, wallet: w, wardrobe, appearance: current, paid: 0, message });
   if (!line) return refuse('Eso no lo tenemos.');
   const def = getGarment(garment);
   if (wardrobe.includes(garment)) return refuse(def.unique ? 'Era la única y ya es tuya.' : 'Ya tienes una igual.');
-  if (w.money + 1e-9 < line.price) return refuse(`No te llega: cuesta ${euros(line.price)}.`);
+  // MAP-07: el precio con la reputación del barrio (systems/Reputation.priceFactor); la reventa sale de `paid`.
+  const price = Math.round(line.price * factor * 100) / 100;
+  if (w.money + 1e-9 < price) return refuse(`No te llega: cuesta ${euros(price)}.`);
   return {
     ok: true,
-    wallet: { money: Math.round((w.money - line.price) * 100) / 100, inventory: { ...w.inventory }, cards: { ...w.cards } },
+    wallet: { money: Math.round((w.money - price) * 100) / 100, inventory: { ...w.inventory }, cards: { ...w.cards } },
     wardrobe: [...wardrobe, garment],
     appearance: equip ? wear(current, garment) : current,
-    paid: line.price,
+    paid: price,
     message: store.thanks,
   };
 }

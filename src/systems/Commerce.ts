@@ -69,11 +69,13 @@ const WHY: Readonly<Record<Refusal, (p?: Product) => string>> = {
 export const carryMax = (itemId: string): number => getItem(itemId).max ?? CARRY_MAX;
 
 /** Cuántas de un producto se pueden pagar ahora: lo que llega con el dinero y lo que cabe en la bolsa. 0 si ninguna. */
-export function maxQty(w: Wallet, p: Product): number {
+export function maxQty(w: Wallet, p: Product, factor = 1): number {
   if (!('item' in p.effect)) return 0;
   const per = p.effect.qty ?? 1;
   const room = Math.floor((carryMax(p.effect.item) - (w.inventory[p.effect.item] ?? 0)) / per);
-  const affordable = Math.floor(cents(w.money + 1e-9) / p.price + 1e-9);
+  let affordable = Math.floor(cents(w.money + 1e-9) / (p.price * factor) + 1e-9);
+  // Mismo redondeo que checkout: si el total en céntimos no llega, una menos.
+  if (affordable > 0 && w.money + 1e-9 < cents(p.price * affordable * factor)) affordable--;
   return Math.max(0, Math.min(room, affordable));
 }
 
@@ -82,11 +84,12 @@ export function maxQty(w: Wallet, p: Product): number {
  * producto se vende ahí y al precio de la lista, que la cantidad es un entero ≥ 1, que llega el dinero y que cabe en la
  * bolsa; si algo falla, la cartera vuelve igual. Si no, una cartera nueva con el cobro y lo comprado a la vez.
  */
-export function checkout(w: Wallet, catalog: Catalog, productId: string, qty: number): TxResult & { total?: number } {
+export function checkout(w: Wallet, catalog: Catalog, productId: string, qty: number, factor = 1): TxResult & { total?: number } {
   const p = catalog.products.find((x) => x.id === productId);
   if (!p || !('item' in p.effect)) return { ok: false, reason: 'not-sold', wallet: w, message: WHY['not-sold']() };
   if (!Number.isInteger(qty) || qty < 1) return { ok: false, reason: 'qty', wallet: w, message: WHY.qty() };
-  const total = cents(p.price * qty);
+  // MAP-07: `factor` es systems/Reputation.priceFactor del barrio (1 sin reputación).
+  const total = cents(p.price * qty * factor);
   if (w.money + 1e-9 < total) return { ok: false, reason: 'money', wallet: w, message: `No te llega: son ${euros(total)} y llevas ${euros(w.money)}.` };
   const id = p.effect.item;
   const units = (p.effect.qty ?? 1) * qty;

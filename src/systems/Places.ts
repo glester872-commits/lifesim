@@ -156,6 +156,9 @@ export function nextOpening(place: PlaceInfo, day: number, hour: number, minute 
  * Lo que dice un negocio cerrado: por qué (hoy no abre, aún no ha abierto, ya ha cerrado) y cuándo abre de verdad,
  * calculado desde su horario; y el horario entero. Lo usan la puerta, el mostrador y quien está dentro al cerrar.
  */
+/** MAP-07: lo que dice la puerta de un local con `minReputation` cuando tu reputación en el barrio no llega. */
+export const REFUSED_LINE = 'Hoy aquí no te atienden.';
+
 export function closedLines(place: PlaceInfo, day: number, hour: number, minute = 0): string[] {
   const today = hoursOn(place, weekIndex(day));
   const t = hour + minute / 60;

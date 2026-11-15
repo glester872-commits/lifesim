@@ -6,7 +6,7 @@ import {
   goalAdvice, goalView, LEDGER_SIZE, owed, parseHousehold, parseLedger, pay, recordMovement, startHousehold, statusOf, sync, total, unpaid, type HouseholdState, type Movement,
 } from '../src/systems/Household.ts';
 import { createInitialState, SaveSystem } from '../src/systems/SaveSystem.ts';
-import { SAVE_KEY } from '../src/config/constants.ts';
+import { SAVE_KEY, SAVE_VERSION } from '../src/config/constants.ts';
 import { CREDIT } from '../src/data/credit.ts';
 import { getJob } from '../src/data/jobs.ts';
 import { hire, promote, quit } from '../src/systems/Jobs.ts';
@@ -92,7 +92,7 @@ import {
   const first = save.load()!;
   assert.deepEqual(first.ledger!.map((m) => [m.movementId, m.type, m.source, m.status, m.amount]), [['legacy-0', 'other', 'legacy', 'posted', 60], ['legacy-1', 'other', 'legacy', 'posted', -45]]);
   assert.ok(save.save(first));
-  assert.equal(JSON.parse(store.get(SAVE_KEY)!).version, 4);
+  assert.equal(JSON.parse(store.get(SAVE_KEY)!).version, SAVE_VERSION);
   const second = save.load()!;
   assert.ok(save.save(second));
   const third = save.load()!;

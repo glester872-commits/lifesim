@@ -1,6 +1,10 @@
 import { formatDate, SEASON_LABEL, seasonOf } from '../systems/Calendar';
 import { PICK_LOCK_MS } from '../config/constants';
 import type { GameState } from '../state/GameState';
+import { reasonLabel, tone, valueIn, zoneOf } from '../systems/Reputation';
+import { REPUTATION_TRIGGERS } from '../data/reputation';
+import { getHome } from '../data/housing';
+import { DISTRICT_IDENTITIES } from '../data/districtIdentity';
 import { getNpc } from '../data/npcs';
 import { NAMED_PEOPLE } from '../data/namedPeople';
 import {
@@ -61,7 +65,7 @@ export interface PhoneHost {
 type Screen =
   | { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'job' } | { app: 'thread'; npc: string }
   | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' } | { app: 'today' }
-  | { app: 'notes' } | { app: 'note'; id: string }
+  | { app: 'notes' } | { app: 'note'; id: string } | { app: 'reputation' }
   | { app: 'credit' } | { app: 'loan' } | { app: 'loan-close' };
 
 /** Un identificador que no se repite entre recargas (el del mensaje o la nota). */
@@ -453,6 +457,7 @@ export class PhoneScreen {
     else if (s.app === 'loan-close') this.renderLoanClose();
     else if (s.app === 'notes') this.renderNotes();
     else if (s.app === 'note') this.renderNote(s.id);
+    else if (s.app === 'reputation') this.renderReputation();
     else this.renderThread(s.npc);
     this.selected = Math.min(Math.max(0, keep), Math.max(0, this.items.length - 1));
     this.mark();
@@ -488,6 +493,7 @@ export class PhoneScreen {
     const urgent = unpaid(this.state.household).filter((o) => o.due <= this.state.day).length;
     app('€', 'Cuentas', () => this.go({ app: 'money' }), urgent);
     app('✍', 'Notas', () => this.go({ app: 'notes' }));
+    app('◆', 'Reputación', () => this.go({ app: 'reputation' }));
     app('◉', 'Cámara', null);
     app('♪', 'Música', null);
     this.screenEl.replaceChildren(el('p', 'phone__greeting', this.greeting(unread)), grid);
@@ -745,6 +751,8 @@ export class PhoneScreen {
       this.state.as(def.name, () => {
         this.state.money = r.money;
       });
+      // MAP-07: lo nota el barrio de casa, una vez por factura y periodo.
+      this.state.addReputation(zoneOf(getHome(this.state.housing.home).location), REPUTATION_TRIGGERS['bill-paid'].delta, `bill:${bill}:${period}`);
       this.host?.persist();
       this.flash = r.message;
       this.go({ app: 'money' });
@@ -1093,6 +1101,35 @@ export class PhoneScreen {
     this.items.push({ el: field, run: () => field.focus() });
     paint();
     return form;
+  }
+
+  // ------------------------------------------------------------ reputación (MAP-07)
+
+  /** Los barrios que te conocen (valor ≠ 0) y el de donde estás: valor, tono y los últimos 3 motivos. Sólo lectura. */
+  private renderReputation(): void {
+    this.titleEl.textContent = 'Reputación';
+    const rep = this.state.reputation;
+    const here = zoneOf(this.state.locationId);
+    const zones = [...new Set([...(here ? [here] : []), ...Object.keys(rep).filter((z) => rep[z].value !== 0)])];
+    if (!zones.some((z) => valueIn(rep, z) !== 0)) {
+      this.screenEl.replaceChildren(el('p', 'phone__empty', 'Aún no te conoce nadie.'));
+      return;
+    }
+    const ul = el('ul', 'phone__list');
+    for (const z of zones) {
+      const value = valueIn(rep, z);
+      // Una línea por motivo, las 3 más recientes; el delta guardado es el pedido, no el aplicado (clamp), así que no se enseña.
+      const text = el('span', 'phone__row-text');
+      text.append(el('b', '', `${DISTRICT_IDENTITIES[z]?.name ?? z}${z === here ? ' · aquí' : ''}`));
+      for (const r of (rep[z]?.reasons ?? []).slice(-3).reverse()) text.append(el('span', 'phone__rep-why', reasonLabel(r)));
+      const t = tone(value);
+      const meta = el('span', 'phone__row-meta', `${value > 0 ? '+' : ''}${value}`);
+      meta.append(el('span', `phone__tone phone__tone--${t}`, t));
+      const li = el('li', 'phone__row');
+      li.append(text, meta);
+      ul.append(li);
+    }
+    this.screenEl.replaceChildren(ul);
   }
 
   // ------------------------------------------------------------ notas

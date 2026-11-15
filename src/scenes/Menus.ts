@@ -27,6 +27,8 @@ import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
 import type { HumanColors } from '../world/HumanArt';
 import { buyGarment, resaleValue, sellGarment, stockOf, takeOff, wear } from '../systems/Retail';
+import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
+import { REPUTATION_TRIGGERS } from '../data/reputation';
 import { CATEGORIES, getGarment, getStore } from '../data/retail';
 import { getDesign, getZone, STYLE_NAMES, TATTOO_DESIGNS, TATTOO_ZONES, type TattooZone } from '../data/tattoos';
 import { PLAYER_COLORS } from '../world/TextureFactory';
@@ -169,13 +171,30 @@ export class Menus {
     const { state, menu } = this.services;
     const options: MenuOption[] = catalog.products.map((p) => {
       const have = 'item' in p.effect ? (state.wallet.inventory[p.effect.item] ?? 0) : 0;
-      return { label: p.label, detail: `${euros(p.price)} · ${productUse(p)}${have ? ` · llevas ${have}` : ''}`, icon: productIcon(p) };
+      return { label: p.label, detail: `${euros(this.priced(p.price))} · ${productUse(p)}${have ? ` · llevas ${have}` : ''}`, icon: productIcon(p) };
     });
     options.push({ label: 'Salir' });
     menu.open(title, `${catalog.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
       if (i === catalog.products.length) menu.close();
       else this.openProductSheet(title, catalog, i, 1);
     }, undefined, note, selected);
+  }
+
+  /** MAP-07: lo que pesa la reputación del barrio donde estás en el precio (1 sin ella). */
+  private priceHere(): number {
+    const { state } = this.services;
+    return priceFactor(valueIn(state.reputation, zoneOf(state.locationId)));
+  }
+
+  /** MAP-07: el precio de compra aquí, redondeado a céntimos como cobran Commerce.checkout y Retail.buyGarment. */
+  private priced(base: number): number {
+    return Math.round(base * this.priceHere() * 100) / 100;
+  }
+
+  /** MAP-07: el barrio donde estás lo nota (una vez por `reasonId`). */
+  private reputationHere(delta: number, reasonId: string): void {
+    const { state } = this.services;
+    state.addReputation(zoneOf(state.locationId), delta, reasonId);
   }
 
   /**
@@ -186,12 +205,14 @@ export class Menus {
   private openProductSheet(title: string, catalog: Catalog, index: number, qty: number, note = '', selected = 2): void {
     const { state, menu, clock } = this.services;
     const p = catalog.products[index];
-    const max = maxQty(state.wallet, p);
+    const factor = this.priceHere();
+    const max = maxQty(state.wallet, p, factor);
     const n = Math.min(Math.max(1, qty), Math.max(1, max));
-    const total = p.price * n;
-    const trial = checkout(state.wallet, catalog, p.id, n);
+    const trial = checkout(state.wallet, catalog, p.id, n, factor);
+    // El mismo total que cobra checkout (con la reputación del barrio, MAP-07).
+    const total = trial.total ?? Math.round(p.price * n * factor * 100) / 100;
     const have = 'item' in p.effect ? (state.wallet.inventory[p.effect.item] ?? 0) : 0;
-    const text = `${euros(p.price)} la unidad · ${productUse(p)}. En la bolsa llevas ${have}. Llevas ${euros(state.money)}.`;
+    const text = `${euros(this.priced(p.price))} la unidad · ${productUse(p)}. En la bolsa llevas ${have}. Llevas ${euros(state.money)}.`;
     menu.open(`${p.label}`, text, [
       { label: 'Menos', detail: `cantidad ${n}`, disabled: n <= 1 ? 'Menos de una no se puede.' : undefined },
       { label: 'Más', detail: max > n ? `hasta ${max}` : '', disabled: n >= max ? 'No llega el dinero para otra o no cabe en la bolsa.' : undefined },
@@ -211,7 +232,7 @@ export class Menus {
           this.openShop(title, catalog, shut, index);
           return;
         }
-        const result = checkout(state.wallet, catalog, p.id, n);
+        const result = checkout(state.wallet, catalog, p.id, n, factor);
         if (!result.ok) {
           this.openProductSheet(title, catalog, index, n, result.message);
           return;
@@ -219,6 +240,7 @@ export class Menus {
         state.as(`${n} × ${p.label}`, () => {
           state.wallet = result.wallet;
         });
+        this.reputationHere(REPUTATION_TRIGGERS['local-purchase'].delta, `buy:${state.day}:${catalog.id}`);
         clock.advanceMinutes(CHECKOUT_MINUTES);
         this.host.persist();
         this.openShop(title, catalog, result.message, index);
@@ -474,6 +496,8 @@ export class Menus {
       const out = work(contract, this.now(), choices[i]);
       menu.close();
       state.setJob(out.progress);
+      // MAP-07: el barrio donde se trabaja lo nota; un turno por día y trabajo.
+      state.addReputation(zoneOf(state.locationId), REPUTATION_TRIGGERS[out.late ? 'shift-late' : 'shift-done'].delta, `shift:${state.day}:${job.id}`);
       state.as(`Sueldo · ${job.employer}`, () => {
         state.money += out.money;
       });
@@ -1265,12 +1289,13 @@ export class Menus {
     const store = getStore(storeId);
     const current = state.appearanceOf('player');
     const lines = stockOf(storeId, state.wardrobe, current);
+    const factor = this.priceHere();
     const options: MenuOption[] = lines.map((l) => {
       const icon = garmentIcon(l.def);
       if (l.wearing) return { label: l.def.name, detail: 'la llevas', disabled: 'Ya la llevas puesta.', icon };
       if (l.owned) return { label: l.def.name, detail: 'tuya · ponértela', icon };
-      const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment);
-      return { label: l.def.name, detail: `${euros(l.price)}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
+      const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment, true, factor);
+      return { label: l.def.name, detail: `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
     });
     if (store.buysBack) options.push({ label: 'Vender ropa' });
     options.push({ label: 'Sólo miraba' });
@@ -1291,11 +1316,12 @@ export class Menus {
         return;
       }
       const buy = (): void => {
-        const result = buyGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), storeId, line.garment);
+        const result = buyGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), storeId, line.garment, true, factor);
         if (result.ok) {
           state.as(getGarment(line.garment).name, () => {
             state.wallet = result.wallet;
           });
+          this.reputationHere(REPUTATION_TRIGGERS['local-purchase'].delta, `buy:${state.day}:${storeId}`);
           state.wardrobe = result.wardrobe;
           state.paid = { ...state.paid, [line.garment]: result.paid };
           state.setAppearance('player', result.appearance);
@@ -1306,7 +1332,7 @@ export class Menus {
       };
       // Los accesorios se ven antes de pagar; en un puesto no hay probador.
       if (line.def.slot === 'glasses' || line.def.slot === 'cap' || line.def.slot === 'scarf') {
-        this.confirmLook(line.def.name, `${line.def.description} Va ${SLOT_LABEL[line.def.slot]} y sales con ello puesto. Llevas ${euros(state.money)}.`, wear(current, line.garment), 'Comprar', euros(line.price), buy, () => this.openStore(storeId, who, minutes, '', i));
+        this.confirmLook(line.def.name, `${line.def.description} Va ${SLOT_LABEL[line.def.slot]} y sales con ello puesto. Llevas ${euros(state.money)}.`, wear(current, line.garment), 'Comprar', euros(this.priced(line.price)), buy, () => this.openStore(storeId, who, minutes, '', i));
         return;
       }
       buy();
@@ -1371,7 +1397,7 @@ export class Menus {
     const lines = stockOf(rack.store, state.wardrobe, state.appearanceOf('player'), rack.categories);
     const options: MenuOption[] = lines.map((l) => ({
       label: l.def.name,
-      detail: l.owned ? 'tuya' : `${euros(l.price)}${l.def.unique ? ' · única' : ''}`,
+      detail: l.owned ? 'tuya' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`,
     }));
     options.push({ label: 'Cerrar' });
     menu.open(`${rack.name} · ${getStore(rack.store).name}`, `Llevas ${euros(state.money)}.`, options, (i) => {
@@ -1397,17 +1423,18 @@ export class Menus {
   private openGarment(rack: RackDef, garment: string, index: number, note = ''): void {
     const { state, menu, clock } = this.services;
     const def = getGarment(garment);
-    const price = getStore(rack.store).stock.find((l) => l.garment === garment)?.price ?? 0;
+    const factor = this.priceHere();
+    const price = this.priced(getStore(rack.store).stock.find((l) => l.garment === garment)?.price ?? 0);
     const current = state.appearanceOf('player');
     const owned = state.wardrobe.includes(garment);
-    const trial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false);
+    const trial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, factor);
     const title = `${def.name} · ${euros(price)}`;
     // Qué hueco ocupa y qué quita: lo de antes vuelve al armario, nunca se pierde.
     const before = (this.fitting ?? current)[def.slot];
     const swap = before && before !== garment ? `, en lugar de ${getGarment(before).name.toLowerCase()}` : !before ? ', en lugar de tu ropa de siempre' : '';
     const text = `${CATEGORIES[def.category].label}${def.unique ? ' · pieza única' : ''}. Va ${SLOT_LABEL[def.slot]}${swap}. ${def.description} Llevas ${euros(state.money)}.`;
     const buy = (): void => {
-      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false);
+      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, factor);
       if (!result.ok) {
         this.openGarment(rack, garment, index, result.message);
         return;
@@ -1415,6 +1442,7 @@ export class Menus {
       state.as(getGarment(garment).name, () => {
         state.wallet = result.wallet;
       });
+      this.reputationHere(REPUTATION_TRIGGERS['local-purchase'].delta, `buy:${state.day}:${rack.store}`);
       state.wardrobe = result.wardrobe;
       state.paid = { ...state.paid, [garment]: result.paid };
       // Si se la estaba probando, se queda puesta: ya es suya.
