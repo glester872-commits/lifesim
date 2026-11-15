@@ -131,7 +131,8 @@ import { Crowd, profileFor, type Agent, type Clock } from '../systems/Crowd';
 import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
 import { working as workingAct } from '../systems/StreetActs';
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
-import { closedLines, isOpen, placeForInterior, placeInfo, placeOfPoint, type PlaceInfo } from '../systems/Places';
+import { closedLines, isOpen, placeForInterior, placeInfo, placeOfPoint, REFUSED_LINE, type PlaceInfo } from '../systems/Places';
+import { canEnter, valueIn, zoneOf as reputationZone } from '../systems/Reputation';
 import { admit, heldSeat, mayStay, venueOf } from '../systems/Tickets';
 import { fixtureAt, nextMoment, stageAt, stateAt, timelineOf, type Timeline } from '../systems/MatchPlay';
 import { fanLine, fanMoment, kioskService, reactionTopic } from '../systems/Concourse';
@@ -4201,6 +4202,12 @@ export class WorldScene extends Phaser.Scene {
     if (closed) {
       const { day, hour, minute } = this.services.state;
       this.openDialogue(closed.name, closedLines(closed, day, hour, minute));
+      return;
+    }
+    // MAP-07: un local con `minReputation` (data/places.ts) no te atiende si tu reputación en su barrio no llega.
+    const repPlace = placeForInterior(portal.to.location);
+    if (repPlace && !canEnter(valueIn(this.services.state.reputation, reputationZone(portal.to.location)), repPlace.minReputation)) {
+      this.openDialogue(repPlace.name, [REFUSED_LINE]);
       return;
     }
     // Un recinto con entrada (data/stadium.ts): la puerta mira la entrada del partido de ahora (systems/Tickets). Sin

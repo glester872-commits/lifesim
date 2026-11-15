@@ -1682,6 +1682,20 @@ body.has-touch .dialogue__choices li {
   line-height: 1.35;
 }
 
+/* Reputación (MAP-07): cada motivo en su línea, entero. */
+.phone__row-text .phone__rep-why {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.phone__tone--amistoso {
+  color: var(--accent);
+}
+
+.phone__tone--hostil {
+  color: #ee8a7a;
+}
+
 .phone__row.is-unread .phone__row-text span {
   color: var(--white);
 }

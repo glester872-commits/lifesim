@@ -22,6 +22,8 @@ export interface PlaceDef {
   interior?: string;
   /** Personas a la vez: vecinos de un portal, aforo de un local. */
   capacity: number;
+  /** MAP-07: por debajo de esta reputación en su barrio (systems/Reputation.canEnter) no te atienden; sin ella, siempre. */
+  minReputation?: number;
   /**
    * [abre, cierra] en horas; si cierra antes de abrir, pasa de medianoche. Con
    * interior, fuera de horario la puerta está cerrada y no entra nadie.
@@ -129,7 +131,7 @@ export const PLACES: readonly PlaceDef[] = [
 
   // Ribera Norte: el barrio del canal. Vivienda moderna arriba, ocio, terrazas y deporte abajo.
   { id: 'res-ribera-2', name: 'Ribera 2', type: 'residence', tags: ['home'], building: 'ribera-res-2', capacity: 14 },
-  { id: 'bar-ribera', name: 'Bar Ribera', type: 'business', tags: ['food', 'social', 'nightlife', WORK], building: 'bar-door', anchors: ['RB_BAR_TERRACE_01', 'RB_BAR_TERRACE_02'], capacity: 16, hours: [11, 2] },
+  { id: 'bar-ribera', name: 'Bar Ribera', type: 'business', tags: ['food', 'social', 'nightlife', WORK], building: 'bar-door', anchors: ['RB_BAR_TERRACE_01', 'RB_BAR_TERRACE_02'], capacity: 16, minReputation: -70, hours: [11, 2] },
   {
     id: 'arcade', name: 'Salón Recreativo Nova', type: 'business', tags: ['leisure', 'social', 'game', WORK], building: 'ribera-arcade', capacity: 22, hours: [12, 24],
     why: 'Echar unas partidas: lucha, carreras, ritmo y pinzas, a unas monedas la partida. Sin premios en dinero.',

@@ -23,6 +23,7 @@ import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
 import { parseAgenda, startAgenda } from './Agenda.ts';
 import { parseMetroJourney } from './Transit.ts';
+import { parseReputation } from './Reputation.ts';
 import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
 
 /**
@@ -48,6 +49,7 @@ export function createInitialState(): GameStateData {
 
   return {
     metroJourney: null,
+    reputation: {},
     money: INITIAL_MONEY,
     energy: INITIAL_ENERGY,
     day: INITIAL_CLOCK.day,
@@ -354,6 +356,7 @@ function parseState(value: unknown): GameStateData | null {
 
   return {
     metroJourney: parseMetroJourney(s.metroJourney, located ? s.locationId as string : fresh.locationId),
+    reputation: parseReputation(s.reputation),
     // AUD-004: ni saldo negativo ni fracciones de céntimo, aunque el archivo los traiga.
     money: Math.max(0, cents(s.money)),
     energy: isNumber(s.energy) ? Math.min(100, Math.max(0, s.energy)) : INITIAL_ENERGY,
@@ -633,6 +636,7 @@ function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly st
  *   sin versión, 1 → 2 (Alpha-04): aparece `identity` (el nombre; sin él, el de por defecto) y el aspecto del
  *   jugador puede llevar skin/hairColor/eyes. Ningún campo de la 1 cambia de sentido.
  *   3 → 4 (LV-10): ids, tipo, origen y estado en el ledger.
+ *   4 → 5 (MAP-07): `reputation` por barrio; una v4 carga con {}.
  *
  * Una versión nueva añade aquí su paso; parseState sigue poniendo los valores seguros de lo que falte.
  */
@@ -643,6 +647,8 @@ function migrate(version: number, state: unknown): unknown {
   // 3 → 4 (LV-10): cada movimiento del ledger lleva movementId, type, source y status. Los de antes reciben
   // `legacy-<índice>`, 'other', 'legacy' y 'posted' (parseLedger, el mismo que lee una v4); no se pierde ninguno válido.
   if (version < 4 && isRecord(s)) s = { ...s, ledger: parseLedger(s.ledger) };
+  // 4 → 5 (MAP-07): aparece `reputation` (por barrio); sin ella, nadie te conoce todavía.
+  if (version < 5 && isRecord(s) && !('reputation' in s)) s = { ...s, reputation: {} };
   return s;
 }
 

@@ -47,7 +47,9 @@ import type { Facing } from './types/game';
 import { withAppearance } from './systems/Appearance';
 import { STREET_EVENTS } from './data/streetEvents';
 import { STORIES } from './data/saraStory';
-import { StreetEvent } from './systems/StreetEvents';
+import { setReputationSource, StreetEvent } from './systems/StreetEvents';
+import { valueIn, zoneOf } from './systems/Reputation';
+import { missedNotice } from './systems/Jobs';
 import { PROTESTS } from './data/protests';
 import { Protest } from './systems/Protest';
 import { eventId, type EventInfo } from './systems/WorldEvents';
@@ -99,6 +101,8 @@ const loaded = save.load();
 const initial = restore(loaded);
 
 const state = new GameState(initial);
+// MAP-07b: las peleas de calle (StreetEvents.planNight, y con ella AlleyDeals) pesan con la reputación del barrio.
+setReputationSource((loc) => valueIn(state.reputation, zoneOf(loc)));
 const dialogue = new DialogueSystem();
 const menu = new Menu(requireEl('#menu'));
 // Ni el móvil encima del mapa ni el mapa encima del móvil: primero se cierra uno.
@@ -208,6 +212,13 @@ const reviewAgenda = (): void => {
   const input = { now, job: s.job ?? null, study: s.study!, household: s.household!, phone: s.phone!, stories: s.stories ?? {}, tickets: s.tickets ?? [], parish: s.parish };
   const r = fresh ? review(s.agenda!, { ...input, position }, { now, job: input.job, study: input.study, household: input.household, money: s.money, wardrobe: s.wardrobe, social: s.social ?? {}, fitness: s.fitness! }) : { agenda: s.agenda!, due: [], missed: [], progress: [] };
   if (fresh) state.setAgenda(r.agenda);
+  // MAP-07b: las faltas se apuntan (y restan reputación) después de la revisión: missedBetween mira el contrato sin
+  // repasar, y un turno ya marcado como falta no saldría en «Te lo has perdido».
+  const job = fresh ? state.settleJob(now) : null;
+  const settled = !!job?.changed;
+  // Lo que dice el jefe de las faltas nuevas o del despido (antes, sólo al abrir el fichaje: Menus.reviewJob).
+  const boss = job?.progress ? missedNotice(job.progress, job.missed) : '';
+  const missed = boss ? [boss, ...r.missed] : r.missed;
 
   const lines = [
     ...r.due.map((c) => {
@@ -215,17 +226,17 @@ const reviewAgenda = (): void => {
       const label = marginLabel(c, now, hint);
       return `${label ? `${label[0].toUpperCase()}${label.slice(1)}` : 'Próximo'}: ${commitmentLine(c, now, hint)}.`;
     }),
-    ...r.missed,
+    ...missed,
     ...r.progress,
   ];
   if (lines.length) {
     // Pocos y juntos: tres frases como mucho; lo demás está en el móvil (Hoy).
-    const kinds = [r.due.length, r.missed.length, r.progress.length].filter(Boolean).length;
-    const title = kinds > 1 ? 'Avisos' : r.due.length ? 'Agenda' : r.missed.length ? 'Te lo has perdido' : 'Progreso';
+    const kinds = [r.due.length, missed.length, r.progress.length].filter(Boolean).length;
+    const title = kinds > 1 ? 'Avisos' : r.due.length ? 'Agenda' : missed.length ? 'Te lo has perdido' : 'Progreso';
     const text = lines.length > 3 ? `${lines.slice(0, 3).join(' ')} Y ${lines.length - 3} más en Hoy.` : lines.join(' ');
     phone.notice(title, text, 'today');
     services.save.save(state.snapshot);
-  }
+  } else if (settled) services.save.save(state.snapshot);
 
   const next = commitments(input).find((c) => c.kind !== 'gathering' && (!c.deadline || c.start - now < 24 * 60));
   // Sin nada con hora: lo primero que se puede hacer (data/opportunities.ts); el resto, en Hoy.
