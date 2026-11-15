@@ -134,6 +134,7 @@ export const CASCO_ANTIGUO: LocationDef = {
   id: 'casco-antiguo',
   name: 'Casco Antiguo',
   kind: 'exterior',
+  finish: 'hd04',
   ground: GROUND,
   buildings: BUILDINGS,
   props: PROPS,

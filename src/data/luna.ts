@@ -152,6 +152,7 @@ export const LUNA: LocationDef = {
   id: 'luna',
   name: 'Luna',
   kind: 'exterior',
+  finish: 'hd04',
   ground: GROUND,
   buildings: BUILDINGS,
   props: PROPS,

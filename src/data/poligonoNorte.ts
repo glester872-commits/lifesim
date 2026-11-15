@@ -122,6 +122,7 @@ export const POLIGONO_NORTE: LocationDef = {
   id: 'poligono-norte',
   name: 'Polígono Norte',
   kind: 'exterior',
+  finish: 'hd04',
   ground: GROUND,
   buildings: BUILDINGS,
   props: PROPS,
