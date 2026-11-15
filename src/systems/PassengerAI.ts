@@ -3,6 +3,7 @@ import type { RecoveryLevel } from './Recovery';
 import type { Facing, NpcLook, Vec2 } from '../types/game';
 import type { Walker } from '../entities/Walker';
 import type { TrainSystem } from './TrainSystem';
+import { tripWantsTrain, type Trip } from './MetroDemand.ts';
 import { weighted, type Archetype, type ArchetypeParams, type CrowdProfile, type StationMood } from './MetroDaily.ts';
 
 export type PassengerState =
@@ -55,6 +56,10 @@ export interface PassengerWorld {
   note(text: string): void;
   /** QA-04: diagnóstico de la vía (MetroSystem.trackDiag): un destino que caía en la vía y se ha corregido. */
   flagTrack(kind: 'invalid-destination', detail: string): void;
+  /** MOV-02: el andén de esta estación (data/transit STOPS), o null si no tiene. */
+  stopId(): string | null;
+  /** MOV-02: sentido del tren de ahora en su línea (MetroDemand.trainHeadingFor). */
+  trainHeading(): 1 | -1;
 }
 
 export const rand = (min: number, max: number): number => min + Math.random() * (max - min);
@@ -84,6 +89,8 @@ export class PassengerAI {
   state: PassengerState = 'OFFSTAGE';
   /** Bajó desde la calle delante del jugador (systems/Handoff): su ficha. */
   handoff?: string;
+  /** MOV-01: su viaje (systems/MetroDemand). Sin él, el comportamiento de siempre. */
+  trip?: Trip;
   /** Qué está haciendo dentro del estado; sólo para leerlo en el debug. */
   activity = '';
   archetype: Archetype = 'CALM';
@@ -324,7 +331,10 @@ export class PassengerAI {
     this.holdMs = 0;
 
     const priority = this.params.trainBoardingPriority;
-    this.willBoard = Math.random() < Math.min(0.95, profile.boardChance * (0.75 + 0.5 * priority));
+    // MOV-02: con viaje, sólo sube si el tren va hacia su siguiente parada; sin viaje, como antes.
+    const stopId = this.world.stopId();
+    const wants = this.trip && stopId ? tripWantsTrain(this.trip, stopId, this.world.trainHeading()) : true;
+    this.willBoard = wants && Math.random() < Math.min(0.95, profile.boardChance * (0.75 + 0.5 * priority));
 
     // Los despistados siguen con el móvil un poco más.
     this.hold(cfg.npcReactionDelay * this.reflex, () => {
@@ -376,6 +386,9 @@ export class PassengerAI {
     const { train } = this.world;
     if (this.decidedRun || !(train.state === 'DOORS_OPENING' || train.doorsOpen)) return;
     this.decidedRun = true;
+    // MOV-02: con viaje, sólo corre si este tren le sirve (mismo filtro que react/willBoard).
+    const stopId = this.world.stopId();
+    if (this.trip && stopId && !tripWantsTrain(this.trip, stopId, this.world.trainHeading())) return;
     if (!this.forceRun && Math.random() >= this.params.runningProbability) return;
 
     const { layout } = this.world;

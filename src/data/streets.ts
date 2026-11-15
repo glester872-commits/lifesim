@@ -807,7 +807,8 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
     bands: [[17, 20, 'LOW'], [20, 23, 'MEDIUM'], [23, 24, 'HIGH'], [0, 3, 'MEDIUM'], [3, 6, 'LOW']],
     weekday: [0, 0, 0, 0, 1, 2, 1],
     scale: 1.5,
-    maxWalkers: 24,
+    // MAP-EXP-01: la calle pasó de 816 a 1536 tiles; el tope es fijo (no sale de los points), así que sube con ella.
+    maxWalkers: 36,
     bursts: [{ point: 'LU_METRO_ENTRANCE', every: [[18, 24, 6]], size: [1, 3] }],
     trips: [
       { role: 'commuter', label: 'Vecino camino del metro', line: 'Cuatro paradas hasta Vallesco. Hoy duermo de pie.', weight: 2, hours: [7, 9.5], days: 'weekday', from: HOMES, to: TRANSIT },
@@ -820,7 +821,7 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'passer', label: 'Alguien de paso', line: 'Me he pasado de parada. Otra vez.', weight: 1, from: CITY, to: CITY },
       // La limpieza, cuando cierra el bar: lo que deja la noche, antes de que salga el primer tren.
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Vasos, colillas y alguna llave. Lo de cada sábado.', weight: 6, hours: [5, 8], from: CITY, to: CITY, via: ['LU_BAR_ENTRANCE', 'LU_CORRILLO_04', 'LU_METRO_ENTRANCE'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
-      patrol([20, 3], ['LU_METRO_WAIT_', 'LU_CORRILLO_'], 'Una vuelta por la calle y la boca de metro. Si están tranquilos, nosotros también.', { weight: 0.4 }),
+      patrol([20, 3], ['LU_METRO_WAIT_', 'LU_CORRILLO_', 'LU_PLAZUELA_WAIT_'], 'Una vuelta por la calle y la boca de metro. Si están tranquilos, nosotros también.', { weight: 0.4 }),
     ],
   },
 ];
