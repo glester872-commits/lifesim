@@ -764,6 +764,9 @@ export interface GameStateData {
   /** Precio realmente pagado por id de prenda. Sin registro (de inicio, regalada, partida antigua), no se revende. */
   paid?: Record<string, number>;
 
+  /** Tiques de objetos de la bolsa: precio pagado por unidad, la más antigua primero (CAS-05). */
+  paidItems?: Record<string, number[]>;
+
   /** Forma física del jugador. */
   fitness?: import('../systems/Fitness.ts').Fitness;
 

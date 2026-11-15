@@ -169,6 +169,8 @@ export interface RetailStoreDef {
   street?: true;
   /** Compra ropa usada con tique (systems/Retail.sellGarment): en la caja aparece «Vender ropa». */
   buysBack?: true;
+  /** CAS-05 · compra objetos con tique (systems/Retail.sellItem): id exacto o prefijo acabado en '*'. */
+  buysItems?: readonly string[];
 }
 
 export const STORES: readonly RetailStoreDef[] = [
@@ -226,7 +228,7 @@ export const STORES: readonly RetailStoreDef[] = [
     ],
   },
   {
-    id: 'vuelta', name: 'Segunda Vuelta', greeting: 'Al peso o por prenda, como prefieras.', thanks: 'Una prenda más que no acaba en el vertedero.', buysBack: true,
+    id: 'vuelta', name: 'Segunda Vuelta', greeting: 'Al peso o por prenda, como prefieras.', thanks: 'Una prenda más que no acaba en el vertedero.', buysBack: true, buysItems: ['rastro-*'],
     stock: [
       { garment: 'camisa-cuadros', price: 8 }, { garment: 'camiseta-basica', price: 4 }, { garment: 'rebeca-punto', price: 9 },
       { garment: 'vaquero-gastado', price: 10 }, { garment: 'pana-marron', price: 9 }, { garment: 'camiseta-grafica', price: 6 },

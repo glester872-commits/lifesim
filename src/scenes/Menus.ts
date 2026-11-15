@@ -26,7 +26,7 @@ import { dyeHair, haircut, haircutQuote, reworkTattoo, sleeveOf, tattoo, tattooA
 import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
 import type { HumanColors } from '../world/HumanArt';
-import { buyGarment, resaleValue, sellGarment, stockOf, takeOff, wear } from '../systems/Retail';
+import { buyGarment, buysItem, resaleValue, sellGarment, sellItem, stockOf, takeOff, wear } from '../systems/Retail';
 import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
 import { CATEGORIES, getGarment, getStore } from '../data/retail';
@@ -169,12 +169,24 @@ export class Menus {
           const shutNow = stall?.closed() ?? null;
           if (shutNow) return back(shutNow);
           if (rare(p) === 'sold') return back('Agotado: ya se ha vendido hoy.');
-          const result = buy(state.wallet, p, agreed === undefined ? 1 : agreed / p.price);
+          const f = agreed === undefined ? 1 : agreed / p.price;
+          const result = buy(state.wallet, p, f);
           if (result.ok) {
             state.as(p.label, () => {
               state.wallet = result.wallet;
             });
             if (rare(p) === 'available') state.rastro = markSold(state.rastro, state.day, p.id);
+            // CAS-05 · tique de lo comprado en el Rastro (lista o regateado; openHaggle paga por aquí): lo realmente cobrado.
+            // ponytail: regalar un objeto (Gifts) no quita su tique; la venta exige tener la unidad y consume el tique más
+            // antiguo (FIFO), así que como mucho se vende al precio de un tique anterior. Tique por unidad si eso molesta.
+            const itemId = 'item' in p.effect ? p.effect.item : undefined;
+            if (itemId?.startsWith('rastro-')) {
+              // El mismo redondeo que Commerce.checkout (cents(price × qty × factor), qty 1): lo realmente cobrado.
+              const charged: number = Math.round(p.price * f * 100) / 100;
+              const tiques = state.paidItems;
+              tiques[itemId] = [...(tiques[itemId] ?? []), charged];
+              state.paidItems = tiques;
+            }
             this.host.persist();
           }
           back(result.message);
@@ -1364,14 +1376,23 @@ export class Menus {
       return { label: l.def.name, detail: `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
     });
     if (store.buysBack) options.push({ label: 'Vender ropa' });
+    const sellClothesAt = store.buysBack ? lines.length : -1;
+    // CAS-05 · «Vender objetos» sólo si la tienda compra alguno de los que llevas.
+    const hasItems = this.sellableItems(storeId).length > 0;
+    const sellItemsAt = hasItems ? lines.length + (store.buysBack ? 1 : 0) : -1;
+    if (hasItems) options.push({ label: 'Vender objetos' });
     options.push({ label: 'Sólo miraba' });
     menu.open(`${store.name} · ${who}`, `${store.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
       if (i === options.length - 1) {
         menu.close();
         return;
       }
-      if (i === lines.length) {
+      if (i === sellClothesAt) {
         this.openSell(storeId, who, minutes);
+        return;
+      }
+      if (i === sellItemsAt) {
+        this.openSellItems(storeId, who, minutes);
         return;
       }
       const line = lines[i];
@@ -1448,6 +1469,59 @@ export class Menus {
         this.host.persist();
       }
       back(result.message);
+    }, () => back());
+  }
+
+  /** CAS-05 · objetos de la bolsa que esta tienda compra (RetailStoreDef.buysItems). */
+  private sellableItems(storeId: string): string[] {
+    const inv = this.services.state.wallet.inventory;
+    return Object.keys(inv).filter((id) => (inv[id] ?? 0) >= 1 && buysItem(storeId, id));
+  }
+
+  /** Vender objetos con tique (RetailStoreDef.buysItems): cada uno con lo que te dan por el tique más antiguo. */
+  private openSellItems(storeId: string, who: string, minutes: number, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    const ids = this.sellableItems(storeId);
+    const tiques = state.paidItems;
+    const options: MenuOption[] = ids.map((id) => {
+      const name = getItem(id).name;
+      const amount = resaleValue(tiques[id]?.[0]);
+      return amount > 0 ? { label: name, detail: `te dan ${euros(amount)}`, icon: itemIcon(id) } : { label: name, disabled: 'Sin tique no lo quieren.', icon: itemIcon(id) };
+    });
+    options.push({ label: 'Volver' });
+    const back = (): void => this.openStore(storeId, who, minutes);
+    menu.open(`Vender objetos · ${who}`, `${ids.length ? 'Te lo compro si traes el tique.' : 'No llevas nada que me interese.'} Llevas ${euros(state.money)}.`, options, (i) => {
+      if (i === ids.length) back();
+      else this.openSellItemConfirm(storeId, who, minutes, ids[i], i);
+    }, back, note, selected);
+  }
+
+  /** Antes de vender un objeto se ve lo que te dan. La regla y sus rechazos son de systems/Retail.sellItem. */
+  private openSellItemConfirm(storeId: string, who: string, minutes: number, itemId: string, index: number): void {
+    const { state, menu, clock } = this.services;
+    const name = getItem(itemId).name;
+    const amount = euros(resaleValue(state.paidItems[itemId]?.[0]));
+    const back = (note = ''): void => this.openSellItems(storeId, who, minutes, note, index);
+    menu.open(`${name} · te dan ${amount}`, 'Si lo vendes, sale de tu bolsa con su tique más antiguo.', [
+      { label: `VENDER · te dan ${amount}` },
+      { label: 'CANCELAR' },
+    ], (i) => {
+      if (i !== 0) {
+        back();
+        return;
+      }
+      const result = sellItem(state.wallet, state.paidItems, storeId, itemId);
+      if (!result.ok) {
+        back(result.message);
+        return;
+      }
+      state.as(`Venta: ${name}`, () => {
+        state.wallet = result.wallet;
+      });
+      state.paidItems = result.paidItems;
+      clock.advanceMinutes(5);
+      this.host.persist();
+      back(`Vendido por ${euros(result.amount)}.`);
     }, () => back());
   }
 

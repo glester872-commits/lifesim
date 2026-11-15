@@ -123,3 +123,38 @@ export function sellGarment(w: Wallet, wardrobe: readonly string[], current: App
     message: 'Anotado. La pone a la venta mañana.',
   };
 }
+
+/** ¿Esta tienda compra este objeto? `buysItems` admite ids exactos o prefijos acabados en '*'. */
+export function buysItem(storeId: string, itemId: string): boolean {
+  const accepts = STORES.find((s) => s.id === storeId)?.buysItems ?? [];
+  return accepts.some((p) => (p.endsWith('*') ? itemId.startsWith(p.slice(0, -1)) : itemId === p));
+}
+
+export type ItemSale =
+  | { ok: true; wallet: Wallet; paidItems: Record<string, number[]>; amount: number }
+  | { ok: false; message: string };
+
+/**
+ * CAS-05 · vender un objeto de la bolsa con tique. Sale una unidad y su tique
+ * más antiguo (FIFO); se paga resaleValue de ese tique. Pura: quien llama aplica.
+ */
+export function sellItem(w: Wallet, paidItems: Record<string, number[]>, storeId: string, itemId: string): ItemSale {
+  if (!buysItem(storeId, itemId)) return { ok: false, message: 'Aquí no compran eso.' };
+  const have = w.inventory[itemId] ?? 0;
+  if (have < 1) return { ok: false, message: 'No lo llevas.' };
+  const tiques = paidItems[itemId] ?? [];
+  const amount = resaleValue(tiques[0]);
+  if (amount <= 0) return { ok: false, message: 'Sin tique no lo quieren.' };
+  const inventory = { ...w.inventory };
+  if (have - 1 > 0) inventory[itemId] = have - 1;
+  else delete inventory[itemId];
+  const left = { ...paidItems };
+  if (tiques.length > 1) left[itemId] = tiques.slice(1);
+  else delete left[itemId];
+  return {
+    ok: true,
+    wallet: { money: Math.round((w.money + amount) * 100) / 100, inventory, cards: { ...w.cards } },
+    paidItems: left,
+    amount,
+  };
+}
