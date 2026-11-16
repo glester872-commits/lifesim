@@ -140,6 +140,7 @@ export type PropKind =
   // barbería y vinoteca
   | 'barber-chair'
   | 'wine-rack'
+  | 'bread-rack'
   // estudio de tatuaje y tiendas de la Calle del Carmen
   | 'tattoo-chair'
   | 'tattoo-cart'

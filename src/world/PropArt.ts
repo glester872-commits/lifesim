@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
-import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
+import { blob, glow, make, px, shade, sprinkle, type Ctx } from './paint';
 import { getVehicle } from '../data/vehicles';
 import { drawVehicle } from './VehicleArt';
 import { buildGymTextures } from './GymArt';
@@ -239,6 +239,65 @@ function drawWineRack(ctx: Ctx): void {
     }
   }
   px(ctx, PALETTE.woodLit, 1, 1, 14, 1);
+}
+
+const CRUST = '#c8873a';
+const CRUST_DARK = '#7a4a20';
+const CRUST_LIT = '#ebbb6a';
+const CRUST_RYE = '#8e5a2e';
+
+/**
+ * Estantería de panadería: madera de pared con tres baldas. Arriba, barras de
+ * pan de pie en un cesto de mimbre; en medio, hogazas redondas; abajo,
+ * bollería. Tres variantes por posición para que una pared de pan no se repita.
+ */
+function drawBreadRack(ctx: Ctx, v: number): void {
+  const hash = (i: number): number => (i * 7 + v * 13 + i * v * 5) % 11;
+  px(ctx, PALETTE.outline, 0, 0, 16, 32);
+  px(ctx, shade(PALETTE.woodDark, -0.18), 1, 1, 14, 30);
+  px(ctx, PALETTE.wood, 1, 1, 1, 30);
+  px(ctx, PALETTE.woodDark, 14, 1, 1, 30);
+  // Baldas: tabla con canto iluminado.
+  for (const y of [11, 21, 29]) {
+    px(ctx, PALETTE.wood, 1, y, 14, 2);
+    px(ctx, PALETTE.woodLit, 1, y, 14, 1);
+  }
+  // Barras de pie, inclinadas cada una a su lado, con dos cortes claros.
+  const leans = [[-1, 0, 1], [0, 1, -1, 1], [1, -1, 0]][v % 3];
+  const starts = [[4, 8, 11], [4, 6, 9, 11], [5, 8, 11]][v % 3];
+  leans.forEach((dx, i) => {
+    const bx = starts[i];
+    const top = 1 + (hash(i) % 2);
+    for (let y = 9; y >= top; y--) {
+      const x = bx + Math.round((dx * (9 - y)) / 4);
+      px(ctx, CRUST_DARK, x - 1, y, 3, 1);
+      px(ctx, CRUST, x, y, 1, 1);
+      if (y === top + 1 || y === top + 4) px(ctx, CRUST_LIT, x, y, 1, 1);
+    }
+  });
+  // Cesto de mimbre delante de las barras.
+  px(ctx, PALETTE.outline, 2, 6, 12, 5);
+  px(ctx, '#a8783e', 3, 7, 10, 3);
+  px(ctx, '#c49456', 3, 7, 10, 1);
+  px(ctx, '#7e5428', 3, 9, 10, 1);
+  // Hogazas redondas: contorno oscuro, corteza, brillo arriba a la izquierda y el corte.
+  for (let i = 0; i < 2; i++) {
+    const x = 2 + i * 6;
+    const tone = (hash(i + 3) % 3 === 0) ? CRUST_RYE : CRUST;
+    blob(ctx, CRUST_DARK, 16, [[x + 1, 5], [x, 7], [x, 7], [x, 7], [x + 1, 5]]);
+    blob(ctx, tone, 17, [[x + 1, 5], [x + 1, 5], [x + 1, 5]]);
+    px(ctx, shade(tone, 0.18), x + 1, 17, 2, 1);
+    px(ctx, shade(tone, -0.2), x + 2, 18 + (hash(i) % 2), 3, 1);
+  }
+  // Bollería pequeña: cuatro piezas de tamaño y tueste distintos.
+  for (let i = 0; i < 4; i++) {
+    const x = 2 + i * 3;
+    const tone = [CRUST_LIT, CRUST, shade(CRUST, 0.08)][hash(i + 7) % 3];
+    const tall = hash(i + 1) % 2;
+    px(ctx, CRUST_DARK, x, 26 - tall, 4, 3 + tall);
+    px(ctx, tone, x + 1, 27 - tall, 2, 1 + tall);
+    px(ctx, shade(tone, 0.15), x + 1, 27 - tall, 1, 1);
+  }
 }
 
 /** Botellero de pared: dos baldas con botellas de colores a contraluz. */
@@ -792,14 +851,23 @@ function drawEspresso(ctx: Ctx): void {
 }
 
 /** Vitrina de dulces: cristal sobre bandejas de colores. */
+/** Vitrina de bollería: peana de madera, interior con luz cálida y dos baldas de dulces de colores tras el cristal. */
 function drawPastryCase(ctx: Ctx): void {
-  px(ctx, shade(PALETTE.glass, 0.25), 1, 1, 14, 8);
-  px(ctx, '#bcd8e4', 1, 1, 14, 1);
-  for (let x = 2; x < 14; x += 3) {
-    px(ctx, PALETTE.amber, x, 4, 2, 2);
-    px(ctx, '#8c5a3a', x, 7, 2, 1);
-  }
-  px(ctx, PALETTE.metal, 1, 9, 14, 1);
+  px(ctx, '#7a4a2e', 1, 10, 14, 6);
+  px(ctx, '#9a6440', 1, 10, 14, 1);
+  px(ctx, '#5a3420', 1, 15, 14, 1);
+  px(ctx, PALETTE.metal, 1, 1, 14, 9);
+  px(ctx, '#f6e6c4', 2, 2, 12, 7);
+  px(ctx, '#d8bf94', 2, 5, 12, 1);
+  // Balda de arriba: cruasán, rosquilla rosa, napolitana de chocolate y otro cruasán.
+  const top = ['#d8923a', '#e88aa8', '#5a3424', '#d8923a'];
+  // Balda de abajo: tarta de frutos rojos, merengue, ensaimada y tarta de arándanos.
+  const low = ['#c0393f', '#f2ead8', '#e0a84a', '#7a3f9a'];
+  top.forEach((c, i) => { px(ctx, c, 2 + i * 3, 3, 2, 2); px(ctx, shade(c, -0.18), 2 + i * 3, 4, 2, 1); });
+  low.forEach((c, i) => { px(ctx, c, 2 + i * 3, 6, 2, 2); px(ctx, shade(c, -0.18), 2 + i * 3, 7, 2, 1); });
+  // El reflejo del cristal.
+  px(ctx, '#eef8fc', 2, 2, 3, 1);
+  px(ctx, '#eef8fc', 3, 6, 1, 1);
 }
 
 /** Vitrina de joyería: peana de madera oscura, cristal con su reflejo y relojes y anillos sobre terciopelo. */
@@ -1007,6 +1075,7 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-speaker', TILE, TILE * 2, drawSpeaker);
   make(scene, 'prop-bottles', TILE * 2, TILE, drawBottles);
   make(scene, 'prop-wine-rack', TILE, TILE * 2, drawWineRack);
+  for (let v = 0; v < 3; v++) make(scene, `prop-bread-rack-${v}`, TILE, TILE * 2, (ctx) => drawBreadRack(ctx, v));
   make(scene, 'prop-barber-chair', TILE, TILE * 2, drawBarberChair);
   make(scene, 'prop-tattoo-chair', TILE, TILE * 2, drawTattooChair);
   make(scene, 'prop-tattoo-cart', TILE, TILE * 2, drawTattooCart);

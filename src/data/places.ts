@@ -266,6 +266,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'cas-anticuario', name: 'Anticuario Ventura', type: 'business', tags: ['shop', WORK], building: 'cas-rastro-3', capacity: 4, hours: [10, 20], days: [0, 1, 2, 3, 4, 5], why: 'Libros, discos y pequeñas cosas de segunda mano, sin esperar al domingo.' },
   // CA-03 · Taller Biciclo (Campo Alto): de lunes a sábado; sólo venta.
   { id: 'ca-taller', name: 'Taller Biciclo', type: 'business', tags: ['shop', WORK], building: 'ca-taller', capacity: 4, hours: [10, 20], days: [0, 1, 2, 3, 4, 5], why: 'Timbres, luces y agua para la ruta; el taller de barrio de Campo Alto.' },
+  // CA-04 · Panadería Cuatro Hornos: de 7 a 14; el domingo, de 8 a 13.
+  { id: 'ca-panaderia', name: 'Panadería Cuatro Hornos', type: 'business', tags: ['shop', 'food', WORK], building: 'ca-panaderia', capacity: 5, hours: [7, 14], hoursByDay: { sunday: [8, 13] }, why: 'Pan, bollería y café de barrio, por la mañana; por la tarde, cerrado.' },
   { id: 'metro-casco-antiguo', name: 'Metro · Casco Antiguo', type: 'transit', tags: ['transit'], building: 'cas-metro', capacity: 40 },
   // Luna (data/luna.ts): tres portales de vecinos, el bar, la tienda de noche y la boca de metro.
   { id: 'res-lu-1', name: 'Calle de la Luna 2', type: 'residence', tags: ['home'], building: 'lu-res-1', capacity: 12 },

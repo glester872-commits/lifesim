@@ -13,7 +13,7 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from
  *   y 24–25 acera sur
  *   y 26–33 los bajos del sur: viviendas
  *
- * Los locales con puerta son el café y el Taller Biciclo (CA-03, data/campoAltoVenues.ts); las demás fachadas son de
+ * Los locales con puerta son el café, el Taller Biciclo (CA-03) y la Panadería Cuatro Hornos (CA-04, data/campoAltoVenues.ts); las demás fachadas son de
  * vecinos, sin `enter`.
  */
 const W = 48;
@@ -58,7 +58,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('ca-cafe', 'Café Campo Alto', 'cafe', [15, 2, 6, 7], 's', 17, { enter: { location: 'ca-cafe', spawn: 'entry' }, point: 'CA_CAFE_ENTRANCE' }),
   b('ca-res-3', 'Calle del Campo 12', 'res-modern', [21, 2, 8, 7], 's', 23, { point: 'CA_RES_3_ENTRANCE' }),
   b('ca-taller', 'Taller Biciclo', 'hardware', [29, 2, 7, 7], 's', 32, { enter: { location: 'ca-taller', spawn: 'entry' }, point: 'CA_TALLER_ENTRANCE' }),
-  b('ca-res-5', 'Calle del Campo 20', 'res-plaster', [36, 2, 6, 7], 's', 38),
+  b('ca-panaderia', 'Panadería Cuatro Hornos', 'bakery', [36, 2, 6, 7], 's', 38, { enter: { location: 'ca-panaderia', spawn: 'entry' }, point: 'CA_PANADERIA_ENTRANCE' }),
   b('ca-metro', 'Metro · Campo Alto', 'metro', [42, 5, 5, 4], 's', 44, { enter: { location: 'campo-alto-station', spawn: 'entry' }, point: 'CA_METRO_ENTRANCE' }),
   b('ca-res-6', 'Calle del Campo 3', 'res-plaster', [0, 26, 8, 8], 'n', 3),
   b('ca-res-7', 'Calle del Campo 7', 'res-brick', [8, 26, 9, 8], 'n', 12),
@@ -147,7 +147,7 @@ const LINKS: readonly Link[] = [
   // El paso de cebra y la bajada por el parque.
   ['ca-n23', 'ca-m23'], ['ca-m23', 'ca-park'], ['ca-park', 'ca-s23'],
   ['CA_RES_1_ENTRANCE', 'ca-n03'], ['CA_RES_2_ENTRANCE', 'ca-n11'], ['CA_RES_3_ENTRANCE', 'ca-n23'],
-  ['CA_CAFE_ENTRANCE', 'ca-n17'], ['CA_TALLER_ENTRANCE', 'ca-n32'], ['CA_METRO_ENTRANCE', 'ca-n44'],
+  ['CA_CAFE_ENTRANCE', 'ca-n17'], ['CA_TALLER_ENTRANCE', 'ca-n32'], ['CA_PANADERIA_ENTRANCE', 'ca-n38'], ['CA_METRO_ENTRANCE', 'ca-n44'],
   ['CA_PARK_01', 'ca-park'], ['CA_PARK_02', 'ca-park'], ['CA_PARK_03', 'ca-park'], ['CA_PARK_04', 'ca-park'],
   ['CA_METRO_WAIT_01', 'ca-n44'],
   // La pista (de la acera central a la sur) y la calistenia (del parque a la acera sur). Las barras, en fila como en
@@ -188,7 +188,7 @@ export const CAMPO_ALTO: LocationDef = {
   },
   inspects: [
     { tx: 47, ty: 9, name: 'Plano del barrio', lines: ['Campo Alto: la Calle del Campo, el parque y el Café Campo Alto. Línea 2 hacia Arena, Puerta Central y Vallesco.'] },
-    { tx: 40, ty: 14, name: 'Tablón', lines: ['Un cartel de papel: «Se busca portero para el sábado, en el parque». Sin teléfono, sólo un nombre: Lucho.'] },
+    { tx: 40, ty: 14, name: 'Tablón', lines: ['Un cartel de papel: «Se busca portero para el sábado, en el parque». Sin teléfono, sólo un nombre: Lucho.', 'Sábados de 10 a 13: penaltis en la pista del parque.', 'Taller Biciclo: de lunes a sábado, de 10 a 20.', 'Panadería Cuatro Hornos: pan recién hecho de 7 a 14; los domingos, de 8 a 13.'] },
     { tx: 12, ty: 19, name: 'Pista del barrio', lines: ['Pista de uso libre. Balón propio. Por favor, nada de bicis en la pista.', 'Sábados 10–13: penaltis con los del barrio.'] },
     { tx: 38, ty: 18, name: 'Calistenia', lines: ['Barras de dominadas y bancos. Calienta antes; respeta los turnos.'] },
   ],
