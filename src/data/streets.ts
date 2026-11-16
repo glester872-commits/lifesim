@@ -789,7 +789,7 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { service: 'waiter', place: 'cas-taberna', base: 'CAS_TABERNA_TERRACE_WAITER', serves: ['CAS_TABERNA_TERRACE_'], label: 'Camarero de La Lonja', line: '¿Qué os pongo? La tortilla está recién hecha.' },
     ],
     trips: [
-      { role: 'terrace', label: 'Alguien en la terraza de La Lonja', line: 'Una caña y una de bravas. Y luego ya veremos.', weight: 3, hours: [13, 23.5], from: HOMES_OR_CITY, to: { points: ['CAS_TABERNA_TERRACE_'] }, stay: [15, 40], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
+      { role: 'terrace', label: 'Alguien en la terraza de La Lonja', line: 'Una de bravas y un refresco. Y luego ya veremos.', weight: 3, hours: [13, 23.5], from: HOMES_OR_CITY, to: { points: ['CAS_TABERNA_TERRACE_'] }, stay: [15, 40], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
       // El domingo, entre la recogida del Rastro y la sobremesa (de 15 a 17), la terraza tira algo más.
       { role: 'terrace', label: 'Alguien de vuelta del Rastro', line: 'Me he llevado un tocadiscos. No sé si funciona.', weight: 4, hours: [15, 17], rhythms: ['sunday-day'], from: HOMES_OR_CITY, to: { points: ['CAS_TABERNA_TERRACE_'] }, stay: [15, 40], stayState: 'DRINK', group: [1, 2], bond: ['friends', 'couple'] },
       // La Sobremesa del Rastro (data/popups.ts): domingo de 17 a 20:30, la plaza y la terraza llenas.

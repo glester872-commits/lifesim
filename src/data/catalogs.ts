@@ -136,6 +136,12 @@ export const CATALOGS: readonly Catalog[] = [
     products: [item('tapa-tortilla', 'Pincho de tortilla', 2.5), item('tapa-bravas', 'Ración de bravas', 4.5), item('sandwich', 'Montadito', 3), item('cola', 'Refresco de cola', 2), item('water', 'Agua', 1.5)],
   },
   {
+    // CAS-06b · Anticuario Ventura (Casco Antiguo): lo corriente del Rastro, de lunes a sábado. Las rarezas, sólo en el Rastro.
+    id: 'cas-anticuario-mostrador',
+    greeting: 'Con calma. Todo lo que ve tiene su historia.',
+    products: [item('rastro-book', 'Libro de segunda mano', 4), item('rastro-vinyl', 'Disco de vinilo (LP)', 14), item('rastro-badge', 'Chapa de solapa', 2.5), item('rastro-keyring', 'Llavero antiguo', 4.5)],
+  },
+  {
     // Conecta (Cuatro Ríos): tienda de móviles que, como tantas, recarga la tarjeta de transporte y tiene nevera.
     id: 'conecta-counter',
     greeting: 'Recargas, fundas y reparaciones. ¿Qué necesitas?',
