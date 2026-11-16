@@ -85,6 +85,7 @@ export type PropKind =
   | 'produce'
   | 'menu-board'
   | 'hoop'
+  | 'futsal-goal'
   // interiores
   | 'wardrobe'
   | 'sofa'

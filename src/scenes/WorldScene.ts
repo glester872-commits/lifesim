@@ -42,6 +42,9 @@ import { atTable, seatAt, seatsIn, type Seat } from '../systems/Seating';
 import { STATIONS, getStation, type StationId } from '../data/stations';
 import { COURTS, type ShootingSpot } from '../data/courts';
 import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } from '../systems/Basketball';
+import { PITCHES } from '../data/futsal';
+import { FUTSAL, futsalWeek, isOpen as pitchOpen, PenaltySession, recordTanda, type Kick as PenaltyKick, type Pitch } from '../systems/Futsal';
+import { personFrame, personTexture, showPerson } from '../world/TextureFactory';
 import { KIND_OF, afterLine, practiceMma, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
 import { ACADEMIES, getAcademy } from '../data/academies';
 import { charge, NO_MEMBERSHIP, settlePlan } from '../systems/Academy';
@@ -233,7 +236,19 @@ type Interactable =
   | { kind: 'emergency'; x: number; y: number; view: EmergencyView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
-  | { kind: 'court'; x: number; y: number; name: string; point: string; spot: ShootingSpot };
+  | { kind: 'court'; x: number; y: number; name: string; point: string; spot: ShootingSpot }
+  | { kind: 'pitch'; x: number; y: number; name: string; point: string; pitch: Pitch };
+
+/** Lo que se dice de un penalti. */
+function kickCue(kick: PenaltyKick): string {
+  switch (kick.kind) {
+    case 'goal': return '¡Gol!';
+    case 'saved': return 'Parada del portero';
+    case 'post': return '¡Al palo!';
+    case 'wide': return 'Fuera';
+    case 'weak': return 'Flojo: la recoge el portero';
+  }
+}
 
 /** Lo que se dice de un tiro, sin más: dentro (limpio o rebotado) o fuera (y por dónde). */
 function shotCue(shot: Shot): string {
@@ -495,6 +510,25 @@ export class WorldScene extends Phaser.Scene {
    * de él (para la gente, `claimed`), aunque se corte antes. `releasing`: ya acabó y está bajando.
    */
   /** Tirando a canasta (systems/Basketball): una actividad propia, no un entrenamiento; sus cosas se crean al empezar y se destruyen al acabar. */
+  /** Tirando penaltis (systems/Futsal): como la canasta, sus cosas se crean al empezar y se destruyen al acabar. */
+  private pitch: {
+    point: string;
+    def: Pitch;
+    session: PenaltySession;
+    from: Vec2;
+    ball: Phaser.GameObjects.Image;
+    keeper: Phaser.GameObjects.Image;
+    /** El aspecto de gente de la calle que hace de portero (data/npcs.PASSENGER_LOOKS). */
+    look: string;
+    meter: Phaser.GameObjects.Graphics;
+    score: Phaser.GameObjects.Text;
+    releasing: boolean;
+    needRelease: boolean;
+    /** La tanda ya está guardada: no se cuenta dos veces. */
+    saved: boolean;
+    cue: { text: string; until: number } | null;
+    hintAt: number;
+  } | null = null;
   private court: {
     point: string;
     spot: ShootingSpot;
@@ -662,9 +696,12 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
+      // Ni la portería de los penaltis (systems/Futsal): su horario y su tanda, en data/futsal.ts.
+      const pitch = PITCHES[def.id]?.[id];
       // Una canasta no es una máquina del gimnasio: tirar tiene su propia actividad (systems/Basketball).
       const spot = COURTS[def.id]?.[id];
       if (spot) this.interactables.push({ kind: 'court', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, name: 'Canasta', point: id, spot });
+      else if (pitch) this.interactables.push({ kind: 'pitch', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, name: 'Portería', point: id, pitch });
       else if (p.use && KIND_OF[p.use]) this.interactables.push({ kind: 'station', x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE / 2, point: id, station: p.use as StationId, facing: p.facing ?? 'up' });
     }
     // Donde sentarse: los mismos asientos que usa la gente (bancos, sillas, sofás, el andén).
@@ -930,6 +967,8 @@ export class WorldScene extends Phaser.Scene {
       // Si se cambia de escena entrenando, lo hecho hasta ahora cuenta y el puesto se suelta.
       this.destroySpar();
       this.abortTraining();
+      this.savePitch();
+      this.destroyPitch();
       this.destroyCourt();
       this.services.hint.hide();
       this.scale.off(Phaser.Scale.Events.RESIZE, onResize);
@@ -1048,10 +1087,10 @@ export class WorldScene extends Phaser.Scene {
         const digit = DIGITS.findIndex((name) => this.pressedAny([name]));
         if (digit >= 0) phone.pick(digit);
       }
-    } else if (!menu.isOpen && !dialogue.isOpen && !this.court && !this.workout && !this.player.isBusyTraining && this.time.now >= this.readyAt && this.pressedAny(['phone'])) {
+    } else if (!menu.isOpen && !dialogue.isOpen && !this.court && !this.pitch && !this.workout && !this.player.isBusyTraining && this.time.now >= this.readyAt && this.pressedAny(['phone'])) {
       this.player.halt();
       phone.open();
-    } else if (!menu.isOpen && !dialogue.isOpen && !this.court && !this.workout && !this.player.isBusyTraining && !this.seatedOn && !this.player.isSeated && !this.leaving && this.time.now >= this.readyAt && this.pressedAny(['cancel', 'cancelAlt'])) {
+    } else if (!menu.isOpen && !dialogue.isOpen && !this.court && !this.pitch && !this.workout && !this.player.isBusyTraining && !this.seatedOn && !this.player.isSeated && !this.leaving && this.time.now >= this.readyAt && this.pressedAny(['cancel', 'cancelAlt'])) {
       // Esc (o Q) sin nada que cerrar ni de lo que levantarse: la pausa (ui/PauseMenu, la monta main.ts).
       this.player.halt();
       this.game.events.emit('lifesim:pause');
@@ -1219,6 +1258,10 @@ export class WorldScene extends Phaser.Scene {
     }
     if (this.court) {
       this.updateCourt(time, delta);
+      return;
+    }
+    if (this.pitch) {
+      this.updatePitch(time, delta);
       return;
     }
     if (this.player.isBusyTraining || this.workout) {
@@ -1410,6 +1453,7 @@ export class WorldScene extends Phaser.Scene {
       case 'seat': return 'Sentarse';
       case 'station': return 'Entrenar';
       case 'court': return 'Tirar a canasta';
+      case 'pitch': return this.pitchIsOpen(target.pitch) ? 'Chutar penaltis' : 'Mirar';
       case 'terminal': return 'Comprar';
       case 'rack': return 'Ver prenda';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
@@ -1467,6 +1511,7 @@ export class WorldScene extends Phaser.Scene {
     // El puesto de quien entrena es suyo: la gente del gimnasio no lo coge (y quien estuviera, ya se ha ido).
     if (this.workout) claimed.add(this.workout.point);
     if (this.court) claimed.add(this.court.point);
+    if (this.pitch) claimed.add(this.pitch.point);
     // El ring reservado para un combate (startSpar): ningún alumno coge sus puestos.
     if (this.ringHold && this.ringHold.location === this.services.state.locationId && (this.spar || this.ringHold.until >= this.absMinute())) for (const p of this.ringHold.points) claimed.add(p);
     // En un recinto con entrada, el asiento de la entrada del jugador (systems/Tickets): nadie de la grada lo coge.
@@ -2342,7 +2387,7 @@ export class WorldScene extends Phaser.Scene {
     const { state, dialogue, clock } = this.services;
     const a = getAcademy(style)!;
     const zone = a.spar;
-    if (!zone || state.locationId !== a.location || this.spar || this.workout || this.court || this.player.isBusyTraining) return;
+    if (!zone || state.locationId !== a.location || this.spar || this.workout || this.court || this.pitch || this.player.isBusyTraining) return;
     const fail = (message: string): void => { dialogue.start(a.name, [message]); };
     if (state.energy < 15 || state.fitness.fatigue >= 85) return fail('Descansa primero: hace falta energía 15 y cansancio menor de 85.');
     if (state.hour < a.hours[0] || state.hour >= a.hours[1]) return fail('La academia está cerrada.');
@@ -2485,7 +2530,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Si alguien tiene ese puesto: quien lo usa, quien va de camino, un personaje con nombre o el propio jugador. */
   private stationBusy(point: string): boolean {
-    return this.charactersOn.has(point) || this.workout?.point === point || this.court?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE') || (this.street?.isTaken(point) ?? false);
+    return this.charactersOn.has(point) || this.workout?.point === point || this.court?.point === point || this.pitch?.point === point || (this.crowd !== null && this.crowd.occupancy(point) !== 'FREE') || (this.street?.isTaken(point) ?? false);
   }
 
   /** Delante de una máquina del gimnasio: libre, se elige cuánto entrenar; ocupada, no. */
@@ -2945,6 +2990,163 @@ export class WorldScene extends Phaser.Scene {
     if (!keep) this.court = null;
   }
 
+  // ------------------------------------------------------------------ penaltis (systems/Futsal)
+
+  /** Si ahora se juega en esa portería: el día de la semana y la hora del reloj del juego. */
+  private pitchIsOpen(p: Pitch): boolean {
+    return pitchOpen(p, this.services.state.day, this.services.clock.minuteOfDay / 60);
+  }
+
+  /** Delante de la portería: fuera de horario se dice cuándo; ocupada o sin fuerzas, también; si no, empieza la tanda. */
+  private openPitch(target: Extract<Interactable, { kind: 'pitch' }>): void {
+    this.player.halt();
+    if (this.pitch || this.court || this.workout) return;
+    if (!this.pitchIsOpen(target.pitch)) {
+      this.services.dialogue.start('Portería', ['Los sábados de 10 a 13 bajan los del barrio a tirar penaltis. Ahora no hay nadie en la portería.']);
+      return;
+    }
+    if (this.stationBusy(target.point)) {
+      this.services.dialogue.start('Portería', ['Hay alguien tirando ahí. Espera un momento.']);
+      return;
+    }
+    if (this.services.state.energy < FUTSAL.minEnergy) {
+      this.services.dialogue.start('Portería', ['No tienes fuerzas ni para chutar. Descansa un rato.']);
+      return;
+    }
+    try {
+      this.startPitch(target);
+    } catch (error) {
+      console.error('[futsal] no se puede empezar:', error);
+      this.destroyPitch();
+      this.services.dialogue.start('Portería', ['No se encuentra el balón.']);
+    }
+  }
+
+  /** Reserva el sitio, va a él mirando a la portería y crea lo que se ve: el balón, el portero, el medidor y el marcador. */
+  private startPitch(target: Extract<Interactable, { kind: 'pitch' }>): void {
+    if (!this.textures.exists('fx-ball')) throw new Error('falta el dibujo del balón (fx-ball)');
+    const p = getLocation(this.services.state.locationId).points![target.point];
+    const feet = { x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE };
+    const g = target.pitch.goal;
+    // La boca de la portería (world/PropArt, drawFutsalGoal): los palos en x = 2 del tile, de 20 px de fondo,
+    // con su centro a 12 px del pie del tile base.
+    const geo = { feet, goalCenter: { x: g.tx * TILE + 2, y: (g.ty + 1) * TILE - 12 }, goalHalfHeight: 10 };
+    const session = new PenaltySession(geo, Math.random);
+    const look = PASSENGER_LOOKS[0].id;
+    showPerson(null, look);
+    const keeper = this.add.image(geo.goalCenter.x - 4, session.keeperY(), personTexture(look), personFrame(look, 'left')).setOrigin(0.5, 1);
+    const ball = this.add.image(feet.x, feet.y, 'fx-ball').setOrigin(0.5, 1).setVisible(false);
+    const meter = this.add.graphics().setDepth(LAYER.overhead);
+    const score = this.add.text(geo.goalCenter.x, geo.goalCenter.y - 34, '', { fontFamily: 'monospace', fontSize: '8px', color: '#f2ecdc', backgroundColor: '#10141cd9', padding: { x: 2, y: 1 } })
+      .setOrigin(0.5, 1).setDepth(LAYER.overhead).setResolution(4);
+    this.pitch = { point: target.point, def: target.pitch, session, from: { x: this.player.x, y: this.player.y }, ball, keeper, look, meter, score, releasing: false, needRelease: true, saved: false, cue: null, hintAt: 0 };
+    this.placeCharacters(0);
+    this.prompt.setVisible(false);
+    this.player.startTraining(feet.x, feet.y, 'right', 'basket', false, false);
+  }
+
+  /** Cada fotograma de la tanda: apuntar, cargar, chutar, el portero, el balón y el marcador. Esc, para acabar. */
+  private updatePitch(time: number, delta: number): void {
+    this.syncState();
+    const c = this.pitch;
+    if (!c || c.releasing || !this.player.isTraining) return;
+    this.services.input.setContext({ action: 'Chutar', back: true, busy: false });
+    if (this.pressedAny(['cancel', 'cancelAlt'])) {
+      this.finishPitch();
+      return;
+    }
+    let down = this.held('interact');
+    if (c.needRelease) {
+      if (down) down = false;
+      else c.needRelease = false;
+    }
+    const aim = this.held('up') || this.held('upAlt') ? -1 : this.held('down') || this.held('downAlt') ? 1 : 0;
+    for (const event of c.session.update(delta, { aim, down })) {
+      if (event.type === 'release') {
+        this.services.state.energy = Math.max(0, this.services.state.energy - FUTSAL.energyPerShot);
+        this.services.clock.advanceMinutes(FUTSAL.minutesPerShot);
+      } else if (event.type === 'result') {
+        c.cue = { text: kickCue(event.kick), until: time + 1_400 };
+      } else if (event.type === 'over') {
+        this.finishPitch();
+        return;
+      }
+    }
+    const { session } = c;
+    this.player.courtFrame(session.phase === 'charging' ? 3 : 0, 0);
+    const b = session.ball();
+    if (b) c.ball.setPosition(b.x, b.y).setDepth(b.y + 1).setVisible(true);
+    else c.ball.setVisible(false);
+    const ky = session.keeperY();
+    c.keeper.setTexture(personTexture(c.look), personFrame(c.look, 'left')).setY(ky).setDepth(ky);
+    this.drawPitchMeter(c);
+    c.score.setText(`${session.goals} / ${session.taken} · de ${FUTSAL.shots}`);
+    if (time - c.hintAt > 150) {
+      c.hintAt = time;
+      const live = c.cue && c.cue.until > time ? c.cue.text : session.phase === 'charging' ? 'Suelta para chutar' : 'Arriba/abajo apunta · mantén E para cargar';
+      this.services.hint.show(`Penaltis · ${session.goals}/${session.taken} de ${FUTSAL.shots} · ${live} · Esc terminar`);
+    }
+    if (session.phase === 'aim' && this.services.state.energy < FUTSAL.minEnergy) this.finishPitch();
+  }
+
+  /** La potencia sobre la cabeza y la marca de puntería en la boca de la portería. */
+  private drawPitchMeter(c: NonNullable<typeof this.pitch>): void {
+    const g = c.meter.clear();
+    const { phase, power, aim } = c.session;
+    if (phase !== 'aim' && phase !== 'charging') return;
+    const w = 28;
+    const x = this.player.x - w / 2;
+    const y = this.player.y - 40;
+    g.fillStyle(0x10141c, 0.85).fillRect(x - 1, y - 1, w + 2, 6);
+    g.fillStyle(0xf2ecdc, 1).fillRect(x, y + 1, power * w, 2);
+    // La marca de puntería, de palo a palo (la misma boca que en startPitch).
+    const ay = (c.def.goal.ty + 1) * TILE - 12 + aim * 10;
+    g.fillStyle(0xe05a47, 1).fillRect(c.keeper.x - 9, ay - 1, 4, 2);
+  }
+
+  /** Guarda la tanda una sola vez (si se chutó algo): el mejor de la semana y cuántas van. Sin dinero ni atributos. */
+  private savePitch(): void {
+    const c = this.pitch;
+    if (!c || c.saved || c.session.taken === 0) return;
+    c.saved = true;
+    const state = this.services.state;
+    state.fitness = { ...state.fitness, futsal: recordTanda(state.fitness.futsal, futsalWeek(state.day), c.session.goals) };
+    this.persist();
+  }
+
+  /** Acaba la tanda: se guarda, se va lo que se ve, el jugador vuelve y se dice cómo ha ido. */
+  private finishPitch(): void {
+    const c = this.pitch;
+    if (!c || c.releasing) return;
+    c.releasing = true;
+    this.savePitch();
+    const { goals, taken } = c.session;
+    c.session.cancel();
+    this.destroyPitch(true);
+    this.services.hint.hide();
+    this.player.stopTraining(c.from.x, c.from.y, () => {
+      this.pitch = null;
+      this.services.input.setContext({ action: null, back: false, busy: false });
+      const best = this.services.state.fitness.futsal?.best ?? goals;
+      if (taken > 0) this.services.dialogue.start('Portería', [`Has marcado ${goals} de ${taken}. Mejor de la semana: ${best}.`]);
+    });
+  }
+
+  /** Quita lo que se ve de la tanda; con `keep`, deja el registro (el jugador aún está volviendo). */
+  private destroyPitch(keep = false): void {
+    const c = this.pitch;
+    if (!c) return;
+    // Puede llegar dos veces (al acabar y al cambiar de escena mientras vuelve): la ropa se suelta una sola.
+    if (c.keeper.active) {
+      c.ball.destroy();
+      c.keeper.destroy();
+      showPerson(c.look, null);
+      c.meter.destroy();
+      c.score.destroy();
+    }
+    if (!keep) this.pitch = null;
+  }
+
   /** Si se corta de golpe (cambio de escena): se cuenta lo hecho y se suelta el puesto, sin transición. */
   private abortTraining(): void {
     const w = this.workout;
@@ -3214,6 +3416,7 @@ export class WorldScene extends Phaser.Scene {
       : target.kind === 'npc' ? target.def.name
       : target.kind === 'seat' ? `Sentarse · ${target.seat.def.name}`
       : target.kind === 'court' ? `Tirar a canasta · ${target.spot.label}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
+      : target.kind === 'pitch' ? (this.pitchIsOpen(target.pitch) ? 'Penaltis · sábados 10–13' : 'Penaltis · cerrado hasta el sábado a las 10')
       : target.kind === 'station' ? `Entrenar · ${STATIONS[target.station].name}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
       : '';
     if (toll) this.services.hint.show(toll);
@@ -3249,6 +3452,10 @@ export class WorldScene extends Phaser.Scene {
     }
     if (target.kind === 'court') {
       this.openCourt(target);
+      return;
+    }
+    if (target.kind === 'pitch') {
+      this.openPitch(target);
       return;
     }
     if (target.kind === 'portal') {

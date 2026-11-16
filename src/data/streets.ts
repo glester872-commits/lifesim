@@ -770,6 +770,9 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'coffee', label: 'Alguien que baja al café', line: 'Un cortado, y luego, el parque.', weight: 3, hours: [7.5, 20], from: HOMES, to: { tags: ['food'] } },
       { role: 'park-elders', label: 'Vecino en la plaza del parque', line: 'Aquí me siento todas las tardes. Hasta que me echen.', weight: 2, hours: [10, 20], from: HOMES, to: { points: ['CA_PARK_'] }, stay: [10, 30], stayState: 'PHONE', then: HOMES_OR_CITY, max: 3 },
       { role: 'passer-by', label: 'Alguien atajando por el barrio', line: 'Por aquí se llega antes. Si no te pierdes.', weight: 1, hours: [7, 22], from: CITY, to: CITY },
+      // CA-02: el fútbol del sábado (penaltis en la pista, data/futsal.ts) y, después, el café.
+      { role: 'futsal', label: 'Gente del fútbol del sábado', line: '¿Has visto a Lucho? Sin portero no empezamos.', weight: 3, rhythms: ['saturday-day'], hours: [9.75, 13], from: HOMES_OR_CITY, to: { points: ['CA_FUTSAL_WAIT_'] }, stay: [30, 60], stayState: 'TALK', group: [2, 3], max: 4, bond: ['friends'] },
+      { role: 'futsal-cafe', label: 'Los del fútbol en el café', line: 'Hoy hemos ganado. Más o menos.', weight: 3, rhythms: ['saturday-day'], hours: [13, 15.5], from: HOMES_OR_CITY, to: { points: ['CA_CAFE_MEET_'] }, stay: [20, 40], stayState: 'TALK', group: [2, 3], max: 4, bond: ['friends'] },
       // La limpieza viaria (carrito y escoba): la calle y la acera central, de madrugada.
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Tiques, latas y envoltorios. Lo de siempre en un barrio.', weight: 6, hours: [7.5, 9.5], from: CITY, to: CITY, via: ['ca-n23', 'ca-m23', 'ca-park', 'ca-s23'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
       patrol([9, 21], ['CA_METRO_WAIT_', 'CA_PARK_'], 'Una vuelta por el parque y la boca de metro. Tranquilo, de momento.', { weight: 0.4 }),

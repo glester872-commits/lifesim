@@ -31,7 +31,7 @@ export const INTERACTION = {
   tie: 1.5,
 } as const;
 
-export type InteractKind = 'portal' | 'npc' | 'terminal' | 'rack' | 'spot' | 'station' | 'court' | 'seat' | 'inspect' | 'event' | 'emergency';
+export type InteractKind = 'portal' | 'npc' | 'terminal' | 'rack' | 'spot' | 'station' | 'court' | 'pitch' | 'seat' | 'inspect' | 'event' | 'emergency';
 
 /** Quién gana en un empate: salir y entrar primero, luego personas, luego lo que se usa, luego sentarse, y lo que sólo se mira, lo último. */
 export const PRIORITY: Readonly<Record<InteractKind, number>> = {
@@ -42,6 +42,8 @@ export const PRIORITY: Readonly<Record<InteractKind, number>> = {
   spot: 4,
   station: 5,
   court: 6,
+  // La portería de los penaltis (systems/Futsal): justo detrás de la canasta: nunca empatan.
+  pitch: 6.5,
   seat: 7,
   inspect: 8,
   event: 9,

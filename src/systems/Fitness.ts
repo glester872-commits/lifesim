@@ -13,6 +13,7 @@ import { getAcademy } from '../data/academies.ts';
 import { getStation } from '../data/stations.ts';
 import { classSlot, covered, holdsClass, NO_MEMBERSHIP, parseMembership, type Membership } from './Academy.ts';
 import { parseTkd, type TkdProgress } from './Taekwondo.ts';
+import { parseFutsal, type FutsalRecord } from './Futsal.ts';
 import { parseEntries, parseRecords, type Entry, type FightRecord } from './Tournaments.ts';
 
 export type Intensity = 'soft' | 'normal' | 'hard';
@@ -31,6 +32,8 @@ export interface Fitness {
   fights?: Partial<Record<'taekwondo' | 'boxing' | 'mma', FightRecord>>;
   /** MMA: lo practicado por parejas en cada parte (puños, patadas, lucha), de 0 a 100, y sesiones hechas. */
   mma?: MmaProgress;
+  /** Penaltis del sábado en Campo Alto (systems/Futsal): el mejor de la semana y cuántas tandas. */
+  futsal?: FutsalRecord;
   /** Forma general, de 0 a 100. */
   fitness: number;
   /** Fuerza (pesas). */
@@ -224,6 +227,7 @@ export function train(f0: Fitness, station: string, intensity: Intensity, fracti
     ...(f.tournaments ? { tournaments: f.tournaments } : {}),
     ...(f.fights ? { fights: f.fights } : {}),
     ...(f.mma ? { mma: f.mma } : {}),
+    ...(f.futsal ? { futsal: f.futsal } : {}),
     fitness: round2(clamp(f.fitness + delta.fitness)),
     strength: round2(clamp(f.strength + delta.strength)),
     stamina: round2(clamp(f.stamina + delta.stamina)),
@@ -350,6 +354,7 @@ export function parseFitness(value: unknown): Fitness {
     ...(parseEntries(v.tournaments) ? { tournaments: parseEntries(v.tournaments) } : {}),
     ...(parseRecords(v.fights) ? { fights: parseRecords(v.fights) } : {}),
     ...parseMma(v.mma),
+    ...(parseFutsal(v.futsal) ? { futsal: parseFutsal(v.futsal)! } : {}),
     fitness: num(v.fitness, START_FITNESS.fitness),
     strength: num(v.strength, START_FITNESS.strength),
     stamina: num(v.stamina, START_FITNESS.stamina),
