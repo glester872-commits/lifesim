@@ -99,6 +99,7 @@ export function solidMask(loc: LocationDef, bodies = false): boolean[][] {
     for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) set(x, y, true);
     if (b.doorX !== undefined && b.front) set(b.doorX, doorRow(b), false);
   }
+  for (const landmark of loc.landmarks ?? []) for (const cell of landmark.solid) set(cell.tx, cell.ty, true);
   for (const p of loc.props) {
     if (PROPS[p.kind].overhead || PROPS[p.kind].flat) continue; // cuelga o está pintado: se pasa
     // Un poste o lo que tiene su caja al pie choca con esa caja estrecha, no con el tile (world/LocationBuilder).
@@ -190,6 +191,19 @@ export function validate(loc: LocationDef, opts: { portals?: boolean } = {}): vo
     }
   });
   validateBuildings(loc, width);
+  for (const landmark of loc.landmarks ?? []) {
+    if (![landmark.tx, landmark.ty, landmark.w, landmark.h].every(Number.isInteger) ||
+      landmark.tx < 0 || landmark.ty < 0 || landmark.w <= 0 || landmark.h <= 0 ||
+      landmark.tx + landmark.w > width || landmark.ty + landmark.h > loc.ground.length) {
+      throw new Error(`[${loc.id}] monumento ${landmark.kind} fuera del mapa`);
+    }
+    for (const { tx, ty } of landmark.solid) {
+      if (!Number.isInteger(tx) || !Number.isInteger(ty) || tx < landmark.tx || ty < landmark.ty ||
+        tx >= landmark.tx + landmark.w || ty >= landmark.ty + landmark.h) {
+        throw new Error(`[${loc.id}] colision de ${landmark.kind} fuera de su huella (${tx},${ty})`);
+      }
+    }
+  }
   // `portals: false`: un interior que aún no tiene puerta en ninguna calle (data/foodInteriors.ts) se valida sin su salida.
   for (const portal of opts.portals === false ? [] : loc.portals) {
     const target = BY_ID.get(portal.to.location);

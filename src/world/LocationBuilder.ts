@@ -11,6 +11,7 @@ import { DISTRICTS } from '../data/districts';
 import { bakeDetail } from './Detail';
 import { finishKey, finished } from './UrbanFinish';
 import { LightDepth } from './LightDepth';
+import { addLandmarks } from './LandmarkArt';
 
 /** Lado en px de la caja de colisión de un poste, al pie de su tile (PropDef.post). */
 const POST_BODY = 6;
@@ -291,6 +292,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   bakeKerbsAndShadows(scene, ground, def);
   // Lo que hace que la calle parezca usada y las casas habitadas (world/Detail): cortinas, bajantes, desgaste.
   bakeDetail(scene, ground, def, windows);
+  addLandmarks(scene, def.landmarks ?? [], glows);
 
   for (const placement of def.props) {
     const prop = PROPS[placement.kind];

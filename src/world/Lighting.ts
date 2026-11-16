@@ -485,7 +485,7 @@ export class Lighting {
       // Neón de la noche y rótulos del Carmen: fijos casi siempre y, de higos a brevas, un tartamudeo (tick). Con movimiento reducido, fijos.
       const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
       this.emissives.push({ img, place, flicker: flickers ? this.emissives.length + 1 : undefined });
-      if (!place) {
+      if (!place && g.cast !== false) {
         // La boca de metro, siempre encendida, alumbra la acera de delante.
         const src = scene.textures.get(g.key).getSourceImage();
         this.fixedSources.push({ x: g.x + src.width / 2, y: g.y + src.height, w: src.width * 1.8, h: src.height * 1.4, color: WARM, strength: 0.75 });

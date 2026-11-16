@@ -191,6 +191,9 @@ export const LOCATION_DISTRICT: Readonly<Record<string, string>> = {
   'campo-alto-station': 'campo-alto',
   'casco-antiguo': 'casco-antiguo',
   'casco-antiguo-station': 'casco-antiguo',
+  // Roma se visita desde Casco Antiguo sin añadir una parada a la red.
+  'roma-colosseo': 'casco-antiguo',
+  'roma-colosseo-acceso': 'casco-antiguo',
   luna: 'luna',
   'luna-station': 'luna',
   // El Polígono Norte (Alpha-09), la parada de después de Ribera Norte: su propio barrio, la nave y el aparcamiento.

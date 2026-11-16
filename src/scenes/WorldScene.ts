@@ -2068,7 +2068,8 @@ export class WorldScene extends Phaser.Scene {
     if (watching !== this.matchFramed) this.frameMatch(watching);
     else if (this.matchFramed) this.followBall();
     const near = this.nearestInteractable();
-    const target = watching && near?.kind !== 'npc' ? null : near;
+    // Sentado a una mesa con servicio, E es siempre la mesa: el camarero o quien pase al lado no la roba.
+    const target = this.dining || (watching && near?.kind !== 'npc') ? null : near;
     this.updatePrompt(target);
     if (!target) {
       // A la mesa, qué pasa con lo tuyo; viendo el partido, sus opciones; si no, sólo cómo levantarse.

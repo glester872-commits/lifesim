@@ -77,10 +77,11 @@ const BUILDINGS: readonly BuildingDef[] = [
   // Los bajos del Rastro, de espaldas al borde sur.
   b('cas-rastro-1', 'Calle del Rastro 1', 'res-brick', [0, 36, 6, 8], 'n', 3),
   b('cas-rastro-2', 'Calle del Rastro 3', 'res-plaster', [6, 36, 5, 8], 'n', 8),
-  b('cas-rastro-3', 'Antigüedades del Rastro', 'grocer', [11, 36, 6, 8], 'n', 14),
-  b('cas-rastro-4', 'Calle del Rastro 7', 'res-modern', [17, 36, 6, 8], 'n', 20),
+  // CAS-06b: el anticuario, con interior (data/cascoAntiguoVenues.ts); Discos y Encuadernación, sólo fachada.
+  b('cas-rastro-3', 'Anticuario Ventura', 'vintage', [11, 36, 6, 8], 'n', 14, { enter: { location: 'cas-anticuario', spawn: 'entry' }, point: 'CAS_ANTICUARIO_ENTRANCE' }),
+  b('cas-rastro-4', 'Discos del Casco', 'records', [17, 36, 6, 8], 'n', 20),
   b('cas-rastro-5', 'Calle del Rastro 9', 'res-brick', [23, 36, 5, 8], 'n', 25),
-  b('cas-rastro-6', 'Calle del Rastro 11', 'res-plaster', [28, 36, 6, 8], 'n', 31),
+  b('cas-rastro-6', 'Encuadernación y Restauración', 'print',[28, 36, 6, 8], 'n', 31),
   b('cas-rastro-7', 'Churrería del Rastro', 'bakery', [34, 36, 6, 8], 'n', 37),
   b('cas-rastro-8', 'Calle del Rastro 15', 'res-modern', [40, 36, 6, 8], 'n', 43),
   b('cas-rastro-9', 'Calle del Rastro 17', 'res-brick', [46, 36, 6, 8], 'n', 49),
@@ -164,6 +165,7 @@ const LINKS: readonly Link[] = [
   ['cas-m46', 'cas-plaza-e'], ['cas-plaza', 'cas-plaza-e'], ['cas-plaza-e', 'cas-s44'],
   ['CAS_RES_1_ENTRANCE', 'cas-n02'], ['CAS_RES_2_ENTRANCE', 'cas-n13'], ['CAS_RES_3_ENTRANCE', 'cas-n29'],
   ['CAS_FRUIT_ENTRANCE', 'cas-n18'], ['CAS_TABERNA_ENTRANCE', 'cas-n35'], ['CAS_METRO_ENTRANCE', 'cas-n40'],
+  ['CAS_ANTICUARIO_ENTRANCE', 'cas-r17'],
   ['CAS_PLAZA_01', 'cas-plaza'], ['CAS_PLAZA_02', 'cas-plaza'], ['CAS_PLAZA_03', 'cas-plaza'], ['CAS_PLAZA_04', 'cas-plaza'],
   ['CAS_PLAZA_05', 'cas-plaza'], ['CAS_PLAZA_06', 'cas-plaza'], ['CAS_PLAZA_07', 'cas-plaza'], ['CAS_PLAZA_08', 'cas-plaza'],
   ['CAS_METRO_WAIT_01', 'cas-n40'],
@@ -194,15 +196,18 @@ export const CASCO_ANTIGUO: LocationDef = {
   ground: GROUND,
   buildings: BUILDINGS,
   props: PROPS,
-  portals: [],
+  portals: [
+    { id: 'roma-passage', tx: 44, ty: 15, label: 'Roma · Metro Colosseo', to: { location: 'roma-colosseo-acceso', spawn: 'entry' } },
+  ],
   npcs: [],
-  spawns: {},
+  spawns: { 'roma-passage': { tx: 44, ty: 16, facing: 'down' } },
   points: POINTS,
   links: LINKS,
   // Identidad visual (data/districts.ts): ciudad densa de bajos comerciales; la boca, en zona de tránsito.
   district: 'dense',
   zones: [
     { profile: 'transit', tx: 38, ty: 0, w: 6, h: 12 },
+    { profile: 'vintage', tx: 11, ty: 36, w: 23, h: 8 }, // CAS-06b: los bajos de segunda mano de la Calle del Rastro (anticuario, discos, encuadernación)
   ],
   traffic: {
     lanes: [{ row: 11, dir: -1 }, { row: 13, dir: 1 }],
