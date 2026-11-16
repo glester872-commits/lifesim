@@ -8,7 +8,8 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from
  *   y 9–10  acera norte
  *   y 11–13 la calle: un carril por sentido y un paso de cebra
  *   y 14–15 acera central
- *   y 16–23 el parque: plaza de granito, árboles y bancos
+ *   y 16–23 el parque: plaza de granito, árboles y bancos; al oeste la pista del barrio (x 5–11, y 16–20) y al
+ *           este la calistenia (x 33–37, y 18–21), ambas entrenables (systems/Fitness)
  *   y 24–25 acera sur
  *   y 26–33 los bajos del sur: viviendas
  *
@@ -36,6 +37,8 @@ const GROUND = paint('g', [
   ['z', 22, 11, 3, 3],
   // La plaza del parque.
   ['P', 15, 17, 18, 6],
+  ['k', 5, 16, 7, 5], // la pista del barrio
+  ['m', 33, 18, 5, 4], // la calistenia: caucho
 ]);
 
 const b = (
@@ -83,9 +86,17 @@ const PROPS: readonly PropPlacement[] = [
   // Los parterres, a dos tiles del camino del parque (x 23): el carrito del operario de limpieza cabe al pasar.
   ...many('flower-bed', [[25, 18], [25, 21]]),
   ...many('planter-box', [[10, 14], [36, 14]]),
+  // La pista: dos canastas en la línea de arriba, y su cartel fuera de la pista.
+  at('hoop', 6, 17), at('hoop', 9, 17),
+  at('sign', 12, 19),
+  // La calistenia: dos barras de dominadas, dos bancos debajo (fuera del camino) y el cartel al lado.
+  at('pullup-bar', 34, 20), at('pullup-bar', 36, 20),
+  at('bench', 33, 23), at('bench', 37, 23),
+  at('sign', 38, 18),
 ];
 
 const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
+const use = (tx: number, ty: number, station: NonNullable<PointDef['use']>, facing: PointDef['facing']): PointDef => ({ tx, ty, kind: 'interact', facing, use: station });
 const pad = (x: number): string => String(x).padStart(2, '0');
 
 /** Puertas de la acera norte (nodo en la fila 10) y de la sur (nodo en la fila 24). */
@@ -107,6 +118,12 @@ const POINTS: Record<string, PointDef> = {
   CA_PARK_03: p(28, 19, 'meet', 'right'), CA_PARK_04: p(29, 19, 'meet', 'left'),
   // Quien espera a alguien a la boca de metro.
   CA_METRO_WAIT_01: p(41, 9, 'wait', 'right'),
+  // La pista: un tirador debajo de cada canasta. La calistenia: cuatro puestos debajo de las barras.
+  CA_HOOPS_01: use(6, 18, 'hoops', 'up'), CA_HOOPS_02: use(9, 18, 'hoops', 'up'),
+  ...Object.fromEntries([34, 35, 36, 37].map((x, i) => [`CA_PULLUP_${pad(i + 1)}`, use(x, 21, 'pullup', 'up')])),
+  'ca-court': p(8, 19, 'path'), 'ca-cali': p(35, 22, 'path'),
+  // Paso por la plaza hacia la calistenia, sin pisar el parterre.
+  'ca-cali-w': p(30, 20, 'path'),
 };
 
 type Link = readonly [string, string];
@@ -122,6 +139,11 @@ const LINKS: readonly Link[] = [
   ['CA_CAFE_ENTRANCE', 'ca-n17'], ['CA_METRO_ENTRANCE', 'ca-n44'],
   ['CA_PARK_01', 'ca-park'], ['CA_PARK_02', 'ca-park'], ['CA_PARK_03', 'ca-park'], ['CA_PARK_04', 'ca-park'],
   ['CA_METRO_WAIT_01', 'ca-n44'],
+  // La pista (de la acera central a la sur) y la calistenia (del parque a la acera sur). Las barras, en fila como en
+  // la Ribera: la línea recta de la 03/04 a 'ca-cali' rozaría el banco.
+  ['ca-m12', 'ca-court'], ['ca-court', 'ca-s12'], ['ca-court', 'CA_HOOPS_01'], ['ca-court', 'CA_HOOPS_02'],
+  ['ca-park', 'ca-cali-w'], ['ca-cali-w', 'ca-cali'], ['ca-cali', 'ca-s36'],
+  ...chain('CA_PULLUP_01', 'CA_PULLUP_02', 'CA_PULLUP_03', 'CA_PULLUP_04'), ['CA_PULLUP_02', 'ca-cali'],
 ];
 
 export const CAMPO_ALTO: LocationDef = {
@@ -152,6 +174,8 @@ export const CAMPO_ALTO: LocationDef = {
   inspects: [
     { tx: 47, ty: 9, name: 'Plano del barrio', lines: ['Campo Alto: la Calle del Campo, el parque y el Café Campo Alto. Línea 2 hacia Arena, Puerta Central y Vallesco.'] },
     { tx: 40, ty: 14, name: 'Tablón', lines: ['Un cartel de papel: «Se busca portero para el sábado, en el parque». Sin teléfono, sólo un nombre: Lucho.'] },
+    { tx: 12, ty: 19, name: 'Pista del barrio', lines: ['Pista de uso libre. Balón propio. Por favor, nada de bicis en la pista.'] },
+    { tx: 38, ty: 18, name: 'Calistenia', lines: ['Barras de dominadas y bancos. Calienta antes; respeta los turnos.'] },
   ],
   terminals: [
     { tx: 25, ty: 14, name: 'Máquina de bebidas', catalog: 'vending' },
@@ -159,5 +183,7 @@ export const CAMPO_ALTO: LocationDef = {
   areas: [
     { name: 'Calle del Campo', tx: 24, ty: 12 },
     { name: 'Parque', tx: 24, ty: 20 },
+    { name: 'Pista del barrio', tx: 8, ty: 18 },
+    { name: 'Calistenia', tx: 35, ty: 20 },
   ],
 };
