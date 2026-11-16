@@ -365,7 +365,39 @@ export function getNpc(id: string): NpcDef {
  * Uniformes del personal anónimo de los locales (data/population.ts los pide
  * por id en `look`): el camarero se distingue del cliente sin leer nada.
  */
-export const UNIFORM_LOOKS: readonly NpcLook[] = [
+/** La sombra de la ropa de un dependiente: su color, tres cuartos más oscuro. */
+const shade = (hex: string): string =>
+  '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.75).toString(16).padStart(2, '0')).join('');
+
+/**
+ * Quien atiende cada tienda (cashier() y clerkLook() en data/cuatroRiosVenues.ts los piden por el prefijo del local): cada caja con su
+ * cara, su pelo y la ropa de su casa, para que dos tiendas no tengan al mismo dependiente.
+ */
+type Clerk = [pre: string, cloth: string, skin: string, hair: string, hairStyle: NonNullable<NpcLook['hairStyle']>, trousers: string, extra?: Partial<NpcLook>];
+const CLERKS: readonly Clerk[] = [
+  ['ARDEPORTES', '#2f7a4a', '#d3a17c', '#2b2420', 'buzz', '#232329'],
+  ['AROFICIAL', '#8c2a2a', '#704c38', '#1c1a1e', 'afro', '#232329'],
+  ['CATALLER', '#3f5a6a', '#e3b692', '#8a5a32', 'short', '#33374a', { facialHair: 'beard', sleeves: '#e3b692' }],
+  ['CAPAN', '#f0e8da', '#b98462', '#3a2a22', 'bun', '#5b4b3a', { cap: '#f0e8da' }],
+  ['CASFRUTA', '#5a7a3f', '#96654a', '#9a9a9a', 'short', '#3f4b3a', { facialHair: 'moustache' }],
+  ['CASANT', '#6a4a32', '#f0caa8', '#b8b2a8', 'bald', '#2b2d33', { glasses: 'clear' }],
+  ['CRABIERTO', '#c0493f', '#a8714f', '#1d1816', 'ponytail', '#232329'],
+  ['CRFRUTA', '#d8b04a', '#5c3a26', '#141012', 'braids', '#2f4563'],
+  ['CRCONECTA', '#2f6f8a', '#f1c9a5', '#5a3a26', 'curly', '#33374a', { glasses: 'clear' }],
+  ['CRHILVANA', '#7a3f5a', '#e0ac85', '#a04a2a', 'long', '#232329', { earrings: '#e8c86a' }],
+  ['CRAMBAR', '#c08a3a', '#8d5a3b', '#2a2430', 'locs', '#1c1a20'],
+  ['LUABIERTO', '#3a3f5a', '#d4a282', '#3c2524', 'short', '#232329', { facialHair: 'stubble' }],
+  ['PCRECUERDOS', '#b8674a', '#ebbc96', '#c9a04e', 'bob', '#2f4563'],
+  ['PCMODA', '#2b2d33', '#704c38', '#141012', 'buzz', '#2b2d33', { sleeves: '#e6e2d8' }],
+  ['PCMONTON', '#e6dcc0', '#c68e6a', '#4a3b2f', 'ponytail', '#33374a'],
+  ['PCVELARDE', '#5a6a4a', '#f0caa8', '#6b4a2e', 'curly', '#5b4b3a', { earrings: '#c9ccd2' }],
+  ['SPORT', '#3f6f78', '#96654a', '#1c1a1e', 'short', '#232329'],
+  ['VLFERRANT', '#1c1a20', '#f1c9a5', '#b8915a', 'bun', '#1c1a20', { sleeves: '#1c1a20' }],
+  ['VLBRISA', '#e6e0d4', '#5c3a26', '#141012', 'long', '#1c1a20'],
+  ['VLORIOL', '#2a2f4a', '#d3a17c', '#2b2420', 'short', '#1c1a20', { facialHair: 'beard', glasses: 'clear' }],
+];
+
+const BASE_UNIFORMS: readonly NpcLook[] = [
   { id: 'uniforme-sala', cloth: '#efe9df', clothDark: '#c9c1b4', hair: '#2a2430', trousers: '#232329' },
   { id: 'uniforme-gym', cloth: '#b8423a', clothDark: '#8e3029', hair: '#4a3b2f', trousers: '#232329' },
   // Dobok de la Escuela de Taekwondo Vallesco, uno por cinturón (systems/Taekwondo BELTS, mismos colores): el jugador se
@@ -415,7 +447,34 @@ export const UNIFORM_LOOKS: readonly NpcLook[] = [
   { id: 'decathlon_employee_10', cloth: '#0a42aa', clothDark: '#023087', hair: '#b8b2a8', skin: '#f0c6a0', sleeves: '#e5e6ee', trousers: '#1c2230', badge: '#f4f4ef' },
   { id: 'decathlon_employee_11', cloth: '#0a42aa', clothDark: '#023087', hair: '#1d1816', skin: '#9c6646', sleeves: '#e5e6ee', trousers: '#5f7690', badge: '#f4f4ef', longHair: true },
   { id: 'uniforme-seguridad', cloth: '#ff8a2a', clothDark: '#d86a18', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20', reflective: '#e9ecd2' },
+  ...CLERKS.map(([pre, cloth, skin, hair, hairStyle, trousers, extra]): NpcLook => ({ id: `dependiente-${pre.toLowerCase()}`, cloth, clothDark: shade(cloth), skin, hair, hairStyle, trousers, ...extra })),
 ];
+
+/**
+ * Caras de quien lleva un uniforme compartido (camareros, cocina, reponedores, gimnasio, policía…): la ropa es la de la
+ * casa, la persona no. La 0 es el uniforme tal cual; staffLook() elige una por la identidad de cada trabajador.
+ */
+const STAFF_FACES: readonly Partial<NpcLook>[] = [
+  { skin: '#96654a', hair: '#1c1a1e', hairStyle: 'afro' },
+  { skin: '#f0caa8', hair: '#a04a2a', hairStyle: 'ponytail', earrings: '#e8c86a' },
+  { skin: '#d3a17c', hair: '#9a9a9a', hairStyle: 'short', facialHair: 'moustache', glasses: 'clear' },
+  { skin: '#5c3a26', hair: '#141012', hairStyle: 'braids' },
+  { skin: '#e3b692', hair: '#5a3a26', hairStyle: 'bun' },
+  { skin: '#b98462', hair: '#2b2420', hairStyle: 'buzz', facialHair: 'beard' },
+];
+/** Los uniformes que llevan muchos a la vez. Fuera: los que son de una sola persona (dobok, dj, tatuaje, Decathlon, dependientes). */
+const SHARED_UNIFORMS = new Set(['uniforme-sala', 'uniforme-noche', 'uniforme-gym', 'uniforme-boutique', 'uniforme-tienda', 'uniforme-archivo', 'uniforme-arcade', 'uniforme-super', 'uniforme-barbero', 'uniforme-hotel', 'uniforme-clinica', 'uniforme-vuelta', 'uniforme-policia', 'uniforme-bomberos', 'uniforme-seguridad', 'uniforme-limpieza', 'uniforme-mantenimiento', 'uniforme-reparto', 'uniforme-portero']);
+
+const STAFF_LOOKS: readonly NpcLook[] = BASE_UNIFORMS.filter((u) => SHARED_UNIFORMS.has(u.id))
+  .flatMap((u) => STAFF_FACES.map((face, i): NpcLook => ({ ...u, longHair: false, ...face, id: `${u.id}#${i + 1}` })));
+
+/** El aspecto de un trabajador anónimo con ese uniforme: el suyo propio si el uniforme es compartido. `seed`: su identidad. */
+export const UNIFORM_LOOKS: readonly NpcLook[] = [...BASE_UNIFORMS, ...STAFF_LOOKS];
+
+export function staffLook(uniform: string, seed: number): string {
+  const face = seed % (STAFF_FACES.length + 1);
+  return SHARED_UNIFORMS.has(uniform) && face > 0 ? `${uniform}#${face}` : uniform;
+}
 
 /**
  * Pasajeros anónimos de las estaciones. Sin nombre ni diálogo: son ambiente y

@@ -1,7 +1,7 @@
 import type { LocationDef, PointDef } from '../types/game.ts';
 import type { PopulationProfile, StaffRole, VisitorRole } from './population.ts';
 import { at, CAFE_RIO, many, p, RESTAURANT, room, TWO, WINE_BAR } from './interiors.ts';
-import { cashier, CR_PROFILES, GYM, shopRoom, type Shop } from './cuatroRiosVenues.ts';
+import { cashier, clerkLook, CR_PROFILES, GYM, shopRoom, type Shop } from './cuatroRiosVenues.ts';
 import { FOOD_INTERIORS } from './foodInteriors.ts';
 import { FOOD_VENUE_PROFILES } from './foodVenues.ts';
 
@@ -360,7 +360,7 @@ export const VL_PROFILES: readonly PopulationProfile[] = [
     place: 'vl-ferrant', bands: [[10.5, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 20.5, 'HIGH'], [20.5, 21, 'LOW']],
     weekday: LUXURY_WEEK, maxVisitors: 5,
     staff: [
-      cashier('VLFERRANT', 'Maison Ferrant', 'Si quiere, se lo arreglamos a medida. Tarda una semana.', 'uniforme-boutique', 'shop-ferrant'),
+      cashier('VLFERRANT', 'Maison Ferrant', 'Si quiere, se lo arreglamos a medida. Tarda una semana.', clerkLook('VLFERRANT'), 'shop-ferrant'),
       floorStaff('VLFERRANT', 'Asesora de Maison Ferrant', 'Ese corte le favorece. Pruébese también la talla de abajo.'),
     ],
     visitors: [
@@ -372,7 +372,7 @@ export const VL_PROFILES: readonly PopulationProfile[] = [
     place: 'vl-brisa', bands: [[10.5, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 20.5, 'HIGH']],
     weekday: LUXURY_WEEK, maxVisitors: 4,
     staff: [
-      cashier('VLBRISA', 'Atelier Brisa', 'La piel se ablanda con el uso. Los primeros días, paciencia.', 'uniforme-boutique', 'shop-brisa'),
+      cashier('VLBRISA', 'Atelier Brisa', 'La piel se ablanda con el uso. Los primeros días, paciencia.', clerkLook('VLBRISA'), 'shop-brisa'),
       floorStaff('VLBRISA', 'Zapatero de Atelier Brisa', '¿Qué número calza? Esta horma viene un poco justa.', 'MEDIUM'),
     ],
     visitors: [luxuryCustomer('VLBRISA', 'Quiero unos mocasines que no me hagan rozadura. Nunca lo consigo.', 1, { party: [1, 2] })],
@@ -381,7 +381,7 @@ export const VL_PROFILES: readonly PopulationProfile[] = [
     place: 'vl-oriol', bands: [[10.5, 13, 'LOW'], [13, 17, 'LOW'], [17, 20.5, 'MEDIUM']],
     weekday: LUXURY_WEEK, maxVisitors: 3,
     staff: [
-      cashier('VLORIOL', 'Oriol', 'Si es un regalo, se lo grabamos sin coste.', 'uniforme-boutique'),
+      cashier('VLORIOL', 'Oriol', 'Si es un regalo, se lo grabamos sin coste.', clerkLook('VLORIOL')),
       floorStaff('VLORIOL', 'Relojero', 'Este calibre lleva cuarenta años sin pararse. Sólo hay que darle cuerda.'),
     ],
     visitors: [

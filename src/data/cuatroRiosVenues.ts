@@ -264,7 +264,10 @@ export const customer = (pre: string, line: string, weight = 1, extra: Partial<V
   ...extra,
 });
 
-export const cashier = (pre: string, label: string, line: string, look = 'uniforme-tienda', offers?: StaffRole['offers']): StaffRole =>
+/** El dependiente propio de cada tienda (UNIFORM_LOOKS en data/npcs.ts), por el prefijo de sus puntos. */
+export const clerkLook = (pre: string): string => `dependiente-${pre.toLowerCase()}`;
+
+export const cashier = (pre: string, label: string, line: string, look = clerkLook(pre), offers?: StaffRole['offers']): StaffRole =>
   ({ service: 'cashier', label, line, look, points: [`${pre}_STAFF`], offers });
 
 const CHECK_IN: PlanStep = { state: 'CHECK_IN', points: ['CRGYM_RECEPTION'], minutes: [1, 2] };
@@ -312,13 +315,13 @@ export const CR_PROFILES: readonly PopulationProfile[] = [
   {
     place: 'cr-hilvana', bands: [[10, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 20, 'HIGH'], [20, 21, 'LOW']],
     weekday: [-1, 0, 0, 0, 1, 1, -4], maxVisitors: 6,
-    staff: [cashier('CRHILVANA', 'Hilvana', 'Si te lo pruebas, el probador es la cortina.', 'uniforme-tienda', 'shop-hilvana')],
+    staff: [cashier('CRHILVANA', 'Hilvana', 'Si te lo pruebas, el probador es la cortina.', clerkLook('CRHILVANA'), 'shop-hilvana')],
     visitors: [customer('CRHILVANA', 'Busco algo para una boda. No la mía.', 1, { party: [1, 2] })],
   },
   {
     place: 'cr-ambar', bands: [[10.5, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 20.5, 'HIGH'], [20.5, 21, 'LOW']],
     weekday: [0, 0, 0, 0, 1, 1, -4], maxVisitors: 6,
-    staff: [cashier('CRAMBAR', 'Ámbar', 'Esa talla viene grande. Mejor una menos.', 'uniforme-tienda', 'shop-ambar')],
+    staff: [cashier('CRAMBAR', 'Ámbar', 'Esa talla viene grande. Mejor una menos.', clerkLook('CRAMBAR'), 'shop-ambar')],
     visitors: [customer('CRAMBAR', 'El chándal para el fútbol del sábado.', 1, { party: [1, 2] })],
   },
   {

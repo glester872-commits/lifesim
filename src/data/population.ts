@@ -785,7 +785,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
     bands: [[10, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 21, 'HIGH']],
     weekday: [-1, 0, 0, 0, 1, 1, 0],
     maxVisitors: 6,
-    staff: [{ service: 'cashier', label: 'Ribera Sport', line: 'Las de correr, mejor media talla más.', look: 'uniforme-tienda', points: ['SPORT_STAFF'] }],
+    staff: [{ service: 'cashier', label: 'Ribera Sport', line: 'Las de correr, mejor media talla más.', look: 'dependiente-sport', points: ['SPORT_STAFF'] }],
     visitors: [
       {
         role: 'shopper', label: 'Cliente', line: 'Vengo a mirar zapatillas. Sólo a mirar.', weight: 1,

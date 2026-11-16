@@ -1,7 +1,7 @@
 import type { LocationDef } from '../types/game.ts';
 import type { PopulationProfile } from './population.ts';
 import { at, CAFE_RIO, many } from './interiors.ts';
-import { cashier, customer, shopRoom } from './cuatroRiosVenues.ts';
+import { cashier, clerkLook, customer, shopRoom } from './cuatroRiosVenues.ts';
 import { FOOD_INTERIORS } from './foodInteriors.ts';
 import { FOOD_VENUE_PROFILES } from './foodVenues.ts';
 import { rebased } from './velariaVenues.ts';
@@ -148,7 +148,7 @@ export const PC_PROFILES: readonly PopulationProfile[] = [
     // Abierto todos los días hasta tarde: el turismo no descansa en domingo.
     place: 'pc-recuerdos', bands: [[10, 12, 'MEDIUM'], [12, 17, 'HIGH'], [17, 21, 'VERY_HIGH'], [21, 22, 'MEDIUM']],
     weekday: [-1, -1, 0, 0, 1, 1, 1], maxVisitors: 6,
-    staff: [cashier('PCRECUERDOS', 'Recuerdos de la Puerta', 'La de la Rosa es la que más se lleva. La talla, siempre una más.', 'uniforme-tienda', 'shop-recuerdos')],
+    staff: [cashier('PCRECUERDOS', 'Recuerdos de la Puerta', 'La de la Rosa es la que más se lleva. La talla, siempre una más.', clerkLook('PCRECUERDOS'), 'shop-recuerdos')],
     visitors: [
       customer('PCRECUERDOS', 'Una para mi hermana, otra para mi madre y... bueno, otra para mí.', 2, { party: [1, 3] }),
       customer('PCRECUERDOS', '¿Tiene imanes que no sean de toros?', 1, { label: 'Turista', party: [2, 3] }),
@@ -157,14 +157,14 @@ export const PC_PROFILES: readonly PopulationProfile[] = [
   {
     place: 'pc-moda', bands: [[10, 13, 'MEDIUM'], [13, 17, 'HIGH'], [17, 21, 'VERY_HIGH'], [21, 22, 'MEDIUM']],
     weekday: [-1, 0, 0, 0, 1, 2, 0], maxVisitors: 6,
-    staff: [cashier('PCMODA', 'Moda Central', 'Si no te vale, tienes treinta días. Con tique.', 'uniforme-tienda', 'shop-central')],
+    staff: [cashier('PCMODA', 'Moda Central', 'Si no te vale, tienes treinta días. Con tique.', clerkLook('PCMODA'), 'shop-central')],
     visitors: [customer('PCMODA', 'Vengo a por unos vaqueros. Siempre vengo a por unos vaqueros.', 2, { party: [1, 2] })],
   },
   {
     // Montón siempre está lleno: lo barato se mira mucho y se compra deprisa.
     place: 'pc-monton', bands: [[9.5, 12, 'HIGH'], [12, 17, 'HIGH'], [17, 21, 'VERY_HIGH'], [21, 22, 'MEDIUM']],
     weekday: [0, 0, 0, 0, 1, 2, 0], maxVisitors: 8,
-    staff: [cashier('PCMONTON', 'Caja · Montón', 'Si es para cambiar, con la etiqueta puesta.', 'uniforme-tienda', 'shop-monton')],
+    staff: [cashier('PCMONTON', 'Caja · Montón', 'Si es para cambiar, con la etiqueta puesta.', clerkLook('PCMONTON'), 'shop-monton')],
     visitors: [
       customer('PCMONTON', 'Me llevo tres. Total, a cuatro euros.', 3, { party: [1, 3] }),
       customer('PCMONTON', '¿Esto en una talla menos? Da igual, me lo llevo.', 1, { label: 'Estudiante', party: [2, 3] }),
@@ -175,7 +175,7 @@ export const PC_PROFILES: readonly PopulationProfile[] = [
     place: 'pc-velarde', bands: [[10, 13, 'LOW'], [13, 17, 'MEDIUM'], [17, 21, 'HIGH'], [21, 22, 'LOW']],
     weekday: [-1, 0, 0, 0, 1, 2, 1], maxVisitors: 6,
     staff: [
-      cashier('PCVELARDE', 'Regalos · Velarde', '¿Se lo envuelvo? Es sin coste.', 'uniforme-tienda'),
+      cashier('PCVELARDE', 'Regalos · Velarde', '¿Se lo envuelvo? Es sin coste.', clerkLook('PCVELARDE')),
       { service: 'shop-worker', label: 'Hogar · Velarde', line: 'Se lo llevamos hoy mismo. Usted sólo dice dónde lo quiere.', look: 'uniforme-tienda', points: ['PCVELARDE_HOGAR_STAFF'] },
     ],
     visitors: [customer('PCVELARDE', 'Busco algo para mi madre. Algo que no sea otra colonia. Bueno, a ver las colonias.', 2, { party: [1, 2] })],
