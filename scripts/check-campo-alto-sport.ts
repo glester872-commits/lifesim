@@ -23,7 +23,8 @@ assert.ok(props.filter((p) => p.kind === 'pullup-bar' && cali(p)).length >= 2, '
 assert.ok(props.filter((p) => p.kind === 'bench' && cali(p)).length >= 2, 'menos de dos bancos en la calistenia');
 
 // Los árboles del parque siguen donde estaban.
-const TREES = [[3, 18], [8, 21], [4, 22], [12, 17], [36, 17], [40, 20], [44, 18], [38, 22], [45, 22]] as const;
+// El árbol de (8,21) tapaba el borde de la pista: se movió a (1,21), al borde oeste del parque.
+const TREES = [[3, 18], [1, 21], [4, 22], [12, 17], [36, 17], [40, 20], [44, 18], [38, 22], [45, 22]] as const;
 for (const [x, y] of TREES) assert.ok(props.some((p) => p.kind === 'tree' && p.tx === x && p.ty === y), `falta el árbol (${x},${y})`);
 
 // Sólo colisiona la fila base de cada prop (world/tiles.ts). Ancho: la barra ocupa dos tiles; el resto de los de aquí, uno.

@@ -80,8 +80,8 @@ const PROPS: readonly PropPlacement[] = [
   at('bike-rack', 19, 9),
   ...many('bin', [[26, 9], [34, 14]]),
   at('vending', 25, 14),
-  // El parque: árboles en los bordes, bancos mirando a la plaza y parterres.
-  ...many('tree', [[3, 18], [8, 21], [4, 22], [12, 17], [36, 17], [40, 20], [44, 18], [38, 22], [45, 22]]),
+  // El parque: árboles en los bordes (ninguno tapa la pista), bancos mirando a la plaza y parterres.
+  ...many('tree', [[3, 18], [1, 21], [4, 22], [12, 17], [36, 17], [40, 20], [44, 18], [38, 22], [45, 22]]),
   ...many('bench', [[17, 17], [20, 17], [27, 17], [30, 17], [17, 22], [30, 22]]),
   // Los parterres, a dos tiles del camino del parque (x 23): el carrito del operario de limpieza cabe al pasar.
   ...many('flower-bed', [[25, 18], [25, 21]]),
