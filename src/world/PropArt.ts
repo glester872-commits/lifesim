@@ -482,6 +482,31 @@ function drawHoop(ctx: Ctx): void {
   px(ctx, PALETTE.amber, 5, 9, 6, 2);
 }
 
+/**
+ * Portería de fútbol sala vista de lado, con la boca al oeste: el palo del fondo (arriba), el de delante (abajo) y el
+ * larguero que los une en x = 2; detrás, la red cayendo hacia el este. La malla lleva ruido determinista (sin
+ * cuadros alternos, que a zoom de juego se leen como lunares) y el marco de suelo cierra la red.
+ */
+function drawFutsalGoal(ctx: Ctx): void {
+  const net = shade(PALETTE.white, -0.35);
+  // La red: del larguero (arriba) hacia el marco de atrás (x 12), algo más baja cuanto más al fondo.
+  for (let x = 3; x <= 12; x++) {
+    const top = 2 + Math.floor((x - 3) * 0.6);
+    for (let y = top; y <= 30; y++) {
+      const h = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+      if ((x + y) % 3 === 0 || h % 11 === 0) px(ctx, net, x, y);
+    }
+  }
+  // El marco de suelo y el de atrás.
+  px(ctx, PALETTE.metal, 3, 10, 10, 1);
+  px(ctx, PALETTE.metal, 3, 30, 10, 1);
+  px(ctx, PALETTE.metal, 12, 8, 1, 23);
+  // Palos y larguero, blancos con su lado en sombra.
+  px(ctx, PALETTE.white, 2, 2, 1, 29);
+  px(ctx, shade(PALETTE.white, -0.2), 1, 2, 1, 9);
+  px(ctx, shade(PALETTE.white, -0.2), 1, 22, 1, 9);
+}
+
 // ------------------------------------------------------------- interiores
 
 function drawWardrobe(ctx: Ctx): void {
@@ -1010,6 +1035,7 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-produce', TILE, TILE, drawProduce);
   make(scene, 'prop-menu-board', TILE, TILE, drawMenuBoard);
   make(scene, 'prop-hoop', TILE, TILE * 2, drawHoop);
+  make(scene, 'prop-futsal-goal', TILE, TILE * 2, drawFutsalGoal);
 
   make(scene, 'prop-wardrobe', TILE, TILE * 2, drawWardrobe);
   make(scene, 'prop-sofa', TILE * 2, TILE, drawSofa);

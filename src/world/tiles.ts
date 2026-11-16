@@ -198,6 +198,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   produce: { key: 'prop-produce', tilesHigh: 1 },
   'menu-board': { key: 'prop-menu-board', tilesHigh: 1 },
   hoop: { key: 'prop-hoop', tilesHigh: 2, post: true },
+  // Portería de fútbol sala vista de lado (la boca al oeste): sólo choca su fila base, entera (es la red).
+  'futsal-goal': { key: 'prop-futsal-goal', tilesHigh: 2, shadow: [12, 3] },
   wardrobe: { key: 'prop-wardrobe', tilesHigh: 2 },
   sofa: { key: 'prop-sofa', tilesHigh: 1, tilesWide: 2, mount: true },
   // De espaldas a la cámara (el sofá mira al sur): de noche, la pantalla tiñe de frío la pared.

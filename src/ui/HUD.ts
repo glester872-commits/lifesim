@@ -112,7 +112,8 @@ export class HUD {
     const sky = `${weatherLabel(w)} ${Math.round(w.celsius)}°`;
     if (this.weatherEl.textContent !== sky) this.weatherEl.textContent = sky;
     this.moneyEl.textContent = money(cash);
-    this.energyEl.textContent = `⚡ ${energy}`;
+    // Redondeada: los gastos fraccionarios (0,6 por chute) dejan floats largos.
+    this.energyEl.textContent = `⚡ ${Math.round(energy)}`;
     const card = this.state.wallet.cards.transport;
     this.cardEl.textContent = card === undefined ? '' : `tarjeta · ${money(card)}`;
     this.cardEl.hidden = card === undefined;

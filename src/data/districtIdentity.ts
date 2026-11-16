@@ -49,7 +49,7 @@ export interface DistrictIdentity {
 export const ROLE_GROUPS: readonly (readonly [RegExp, RoleGroup])[] = [
   [/^(club|bar-night|bar-smoke|bar-door|rincon-night|rincon-smoke|rincon-vermut|night|carmen-prenight|gamer|popup-dj)/, 'nightlife'],
   [/^(carmen-(browse|outfit|hang|wait)|window-shopper|shopper|late-shop|sneaker|tattoo|piercing|popup-(market|art|queue)|kiosk|errands|bakery|stall-|ticket)/, 'retail'],
-  [/^(hoops|calisthenics|cali-|court-|gym|jogger|skate|fan-)/, 'sport'],
+  [/^(hoops|calisthenics|cali-|court-|gym|jogger|skate|fan-|futsal)/, 'sport'],
   [/^(commuter|metro-arrival|office|bus|returning|passer)/, 'commute'],
   [/^(terrace|brunch|coffee|diner|bar-terrace|rincon-breakfast|ice-cream)/, 'food'],
   [/^(tourist|hotel-|stadium-)/, 'tourism'],

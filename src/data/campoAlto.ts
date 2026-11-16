@@ -88,6 +88,9 @@ const PROPS: readonly PropPlacement[] = [
   ...many('planter-box', [[10, 14], [36, 14]]),
   // La pista: dos canastas en la línea de arriba, y su cartel fuera de la pista.
   at('hoop', 6, 17), at('hoop', 9, 17),
+  // La portería de los penaltis del sábado (data/futsal.ts), en el fondo este de la pista: dos tiles de alto
+  // (filas 17–18) y sólo choca su fila base (18), fuera de los caminos de la pista.
+  at('futsal-goal', 11, 18),
   at('sign', 12, 19),
   // La calistenia: dos barras de dominadas, dos bancos debajo (fuera del camino) y el cartel al lado.
   at('pullup-bar', 34, 20), at('pullup-bar', 36, 20),
@@ -124,6 +127,13 @@ const POINTS: Record<string, PointDef> = {
   'ca-court': p(8, 19, 'path'), 'ca-cali': p(35, 22, 'path'),
   // Paso por la plaza hacia la calistenia, sin pisar el parterre.
   'ca-cali-w': p(30, 20, 'path'),
+  // Los penaltis (data/futsal.ts): el punto de tiro mirando a la portería, sin `use` (no es un puesto del gimnasio).
+  CA_FUTSAL_SPOT: p(7, 19, 'interact', 'right'),
+  // Los del fútbol del sábado esperando junto a la pista: en el césped del oeste y en la banda sur.
+  CA_FUTSAL_WAIT_01: p(4, 19, 'wait', 'right'), CA_FUTSAL_WAIT_02: p(4, 20, 'wait', 'right'),
+  CA_FUTSAL_WAIT_03: p(6, 21, 'wait', 'up'), CA_FUTSAL_WAIT_04: p(10, 21, 'wait', 'up'),
+  // Después del partido, en la puerta del café.
+  CA_CAFE_MEET_01: p(15, 9, 'meet', 'right'), CA_CAFE_MEET_02: p(16, 9, 'meet', 'left'),
 };
 
 type Link = readonly [string, string];
@@ -142,6 +152,9 @@ const LINKS: readonly Link[] = [
   // La pista (de la acera central a la sur) y la calistenia (del parque a la acera sur). Las barras, en fila como en
   // la Ribera: la línea recta de la 03/04 a 'ca-cali' rozaría el banco.
   ['ca-m12', 'ca-court'], ['ca-court', 'ca-s12'], ['ca-court', 'CA_HOOPS_01'], ['ca-court', 'CA_HOOPS_02'],
+  ['ca-court', 'CA_FUTSAL_SPOT'],
+  ['CA_FUTSAL_WAIT_01', 'ca-court'], ['CA_FUTSAL_WAIT_02', 'ca-court'], ['CA_FUTSAL_WAIT_03', 'ca-court'], ['CA_FUTSAL_WAIT_04', 'ca-court'],
+  ['CA_CAFE_MEET_01', 'ca-n17'], ['CA_CAFE_MEET_02', 'ca-n17'],
   ['ca-park', 'ca-cali-w'], ['ca-cali-w', 'ca-cali'], ['ca-cali', 'ca-s36'],
   ...chain('CA_PULLUP_01', 'CA_PULLUP_02', 'CA_PULLUP_03', 'CA_PULLUP_04'), ['CA_PULLUP_02', 'ca-cali'],
 ];
@@ -174,7 +187,7 @@ export const CAMPO_ALTO: LocationDef = {
   inspects: [
     { tx: 47, ty: 9, name: 'Plano del barrio', lines: ['Campo Alto: la Calle del Campo, el parque y el Café Campo Alto. Línea 2 hacia Arena, Puerta Central y Vallesco.'] },
     { tx: 40, ty: 14, name: 'Tablón', lines: ['Un cartel de papel: «Se busca portero para el sábado, en el parque». Sin teléfono, sólo un nombre: Lucho.'] },
-    { tx: 12, ty: 19, name: 'Pista del barrio', lines: ['Pista de uso libre. Balón propio. Por favor, nada de bicis en la pista.'] },
+    { tx: 12, ty: 19, name: 'Pista del barrio', lines: ['Pista de uso libre. Balón propio. Por favor, nada de bicis en la pista.', 'Sábados 10–13: penaltis con los del barrio.'] },
     { tx: 38, ty: 18, name: 'Calistenia', lines: ['Barras de dominadas y bancos. Calienta antes; respeta los turnos.'] },
   ],
   terminals: [
