@@ -355,6 +355,17 @@ export const ZONES: readonly ZoneDef[] = [
     ambience: 'centre',
     tags: ['outdoor', 'social', 'metro'],
   },
+  {
+    id: 'cas-plaza-mercado', name: 'Plaza del Mercado', type: 'plaza', location: 'casco-antiguo', districtId: 'casco-antiguo',
+    rects: [{ tx: 2, ty: 16, w: 48, h: 8 }],
+    population: {
+      label: 'vecinos, compras del mercado, la terraza de La Lonja y, el domingo, el Rastro',
+      roles: { 'stall-browse': 1.2, tourist: 1.1, terrace: 1.1 },
+    },
+    activity: { bands: [[7, 10, 1], [10, 14, 1.1], [14, 17, 1], [17, 22, 1.1], [22, 24, 0.8], [0, 3, 0.5]], rest: 0.3, weekend: 1.1, outdoor: 0.5, variation: 0.1 },
+    ambience: 'dense',
+    tags: ['outdoor', 'social'],
+  },
   // Distrito Arena (data/arena.ts): la avenida de los bares, la explanada del estadio y la boca de metro. Un día normal,
   // poca gente; en día de partido, el barrio entero (DistrictIdentity.match) lo multiplica todo.
   {

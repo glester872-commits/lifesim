@@ -19,6 +19,7 @@ import { BASE_DRAFT, newGameState } from '../src/systems/CharacterCreator.ts';
 import { SaveSystem, type SaveStorage } from '../src/systems/SaveSystem.ts';
 import { pickTarget, tileAhead, type Candidate } from '../src/systems/Interaction.ts';
 import { TILE } from '../src/config/constants.ts';
+import { VENDOR_LOOKS } from '../src/data/vendorLooks.ts';
 
 const ID = 'casco-antiguo';
 const def = POPUPS.find((p) => p.id === 'gran-rastro')!;
@@ -159,4 +160,9 @@ assert.equal(pickTarget(near, [cand], { facing: 'up', ahead: tileAhead(tile, 'up
 const far = { x: near.x, y: near.y + 6 * TILE };
 assert.equal(pickTarget(far, [cand], { facing: 'up', ahead: tileAhead({ tx: tile.tx, ty: tile.ty + 6 }, 'up') }), null, 'se alcanza desde lejos');
 
-console.log(`check-gran-rastro-shop: ${vendors.length} vendedores (${vendors.map((x) => x.anchor.replace('casco.', '')).join(', ')}) · ${stalls.length - selling.length} de ambientación`);
+// ------------------------------------------------ nadie es igual: un look por vendedor (data/vendorLooks.ts)
+assert.ok(VENDOR_LOOKS.length >= vendors.length, `${VENDOR_LOOKS.length} looks para ${vendors.length} vendedores`);
+assert.equal(new Set(VENDOR_LOOKS.map((l) => JSON.stringify(l))).size, VENDOR_LOOKS.length, 'dos vendedores iguales');
+assert.equal(new Set(VENDOR_LOOKS.map((l) => l.cloth)).size, VENDOR_LOOKS.length, 'dos vendedores con la misma ropa');
+
+console.log(`check-gran-rastro-shop: ${vendors.length} vendedores · ${VENDOR_LOOKS.length} looks (${vendors.map((x) => x.anchor.replace('casco.', '')).join(', ')}) · ${stalls.length - selling.length} de ambientación`);
