@@ -1,6 +1,7 @@
 import type { LocationDef } from '../types/game.ts';
 import type { PopulationProfile } from './population.ts';
-import { CAFE_RIO } from './interiors.ts';
+import { CAFE_RIO, at, many } from './interiors.ts';
+import { cashier, customer, shopRoom } from './cuatroRiosVenues.ts';
 import { rebased } from './velariaVenues.ts';
 
 /** El Café Campo Alto: la planta del Café del Río (como el Café del Córner del Arena), con la barra de siempre. */
@@ -15,7 +16,19 @@ const CAFE: LocationDef = {
   inspects: [{ tx: 1, ty: 2, name: 'Pizarra', lines: ['«Café y tostada». Debajo: «Los sábados, tras el partido del parque, invita el que pierde».'] }],
 };
 
-export const CA_INTERIORS: readonly LocationDef[] = [CAFE];
+/**
+ * CA-03 · Taller Biciclo: la planta de tienda pequeña de Cuatro Ríos, como el Anticuario Ventura del Casco. Sólo vende
+ * accesorios y algo para la ruta; no hay mostrador de reparaciones ni bicis a la venta (no existe bici propia).
+ */
+const TALLER: LocationDef = shopRoom({
+  id: 'ca-taller', name: 'Taller Biciclo', building: 'ca-taller', street: 'campo-alto', pre: 'CATALLER', ambient: '#f2ead8', catalog: 'ca-taller-mostrador',
+  // Tres expositores de bicis (sólo colisiona su fila base), dos bicis en espera junto al mostrador, accesorios en la pared.
+  props: [...many('bike-stand', [[2, 4], [5, 4], [2, 7]]), ...many('bike', [[12, 5], [12, 7]]), ...many('wall-shelf', [[2, 1], [5, 1]]), ...many('display-table', [[8, 3], [9, 3]]), at('crates', 12, 3)],
+  browse: [[3, 5, 'up'], [6, 5, 'up'], [3, 8, 'up'], [8, 4, 'up']],
+  inspects: [{ tx: 6, ty: 2, name: 'Pizarra del taller', lines: ['Timbres, luces y agua para la ruta. Reparaciones, todavía no: el taller está en obras.', 'Las bicis de la exposición son del taller: de momento no se venden.'] }],
+});
+
+export const CA_INTERIORS: readonly LocationDef[] = [CAFE, TALLER];
 
 export const CA_PROFILES: readonly PopulationProfile[] = [
   {
@@ -35,5 +48,12 @@ export const CA_PROFILES: readonly PopulationProfile[] = [
         plan: [{ state: 'ORDER', points: ['CACAFE_COUNTER', 'CACAFE_QUEUE_'], minutes: [1, 2] }],
       },
     ],
+  },
+  {
+    // CA-03 · de lunes a sábado (data/places.ts); el domingo, cerrado y vacío.
+    place: 'ca-taller', bands: [[10, 13, 'LOW'], [13, 17, 'LOW'], [17, 20, 'MEDIUM']],
+    weekday: [0, 0, 0, 0, 0, 1, -2], maxVisitors: 4,
+    staff: [cashier('CATALLER', 'Taller Biciclo', 'Pasa, pasa. Hoy sólo vendo: las reparaciones, cuando acabe de ordenar el taller.')],
+    visitors: [customer('CATALLER', 'Un timbre, que el mío suena a lata.', 1)],
   },
 ];

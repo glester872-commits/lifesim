@@ -13,7 +13,8 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from
  *   y 24–25 acera sur
  *   y 26–33 los bajos del sur: viviendas
  *
- * El local con puerta es el café (data/campoAltoVenues.ts); las demás fachadas son de vecinos, sin `enter`.
+ * Los locales con puerta son el café y el Taller Biciclo (CA-03, data/campoAltoVenues.ts); las demás fachadas son de
+ * vecinos, sin `enter`.
  */
 const W = 48;
 const H = 34;
@@ -56,7 +57,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('ca-res-2', 'Calle del Campo 6', 'res-plaster', [8, 2, 7, 7], 's', 11, { point: 'CA_RES_2_ENTRANCE' }),
   b('ca-cafe', 'Café Campo Alto', 'cafe', [15, 2, 6, 7], 's', 17, { enter: { location: 'ca-cafe', spawn: 'entry' }, point: 'CA_CAFE_ENTRANCE' }),
   b('ca-res-3', 'Calle del Campo 12', 'res-modern', [21, 2, 8, 7], 's', 23, { point: 'CA_RES_3_ENTRANCE' }),
-  b('ca-res-4', 'Calle del Campo 16', 'res-brick', [29, 2, 7, 7], 's', 32),
+  b('ca-taller', 'Taller Biciclo', 'hardware', [29, 2, 7, 7], 's', 32, { enter: { location: 'ca-taller', spawn: 'entry' }, point: 'CA_TALLER_ENTRANCE' }),
   b('ca-res-5', 'Calle del Campo 20', 'res-plaster', [36, 2, 6, 7], 's', 38),
   b('ca-metro', 'Metro · Campo Alto', 'metro', [42, 5, 5, 4], 's', 44, { enter: { location: 'campo-alto-station', spawn: 'entry' }, point: 'CA_METRO_ENTRANCE' }),
   b('ca-res-6', 'Calle del Campo 3', 'res-plaster', [0, 26, 8, 8], 'n', 3),
@@ -146,7 +147,7 @@ const LINKS: readonly Link[] = [
   // El paso de cebra y la bajada por el parque.
   ['ca-n23', 'ca-m23'], ['ca-m23', 'ca-park'], ['ca-park', 'ca-s23'],
   ['CA_RES_1_ENTRANCE', 'ca-n03'], ['CA_RES_2_ENTRANCE', 'ca-n11'], ['CA_RES_3_ENTRANCE', 'ca-n23'],
-  ['CA_CAFE_ENTRANCE', 'ca-n17'], ['CA_METRO_ENTRANCE', 'ca-n44'],
+  ['CA_CAFE_ENTRANCE', 'ca-n17'], ['CA_TALLER_ENTRANCE', 'ca-n32'], ['CA_METRO_ENTRANCE', 'ca-n44'],
   ['CA_PARK_01', 'ca-park'], ['CA_PARK_02', 'ca-park'], ['CA_PARK_03', 'ca-park'], ['CA_PARK_04', 'ca-park'],
   ['CA_METRO_WAIT_01', 'ca-n44'],
   // La pista (de la acera central a la sur) y la calistenia (del parque a la acera sur). Las barras, en fila como en
@@ -176,6 +177,7 @@ export const CAMPO_ALTO: LocationDef = {
   district: 'residential',
   zones: [
     { profile: 'commercial', tx: 14, ty: 0, w: 8, h: 10 },
+    { profile: 'commercial', tx: 29, ty: 0, w: 7, h: 10 },
     { profile: 'transit', tx: 41, ty: 0, w: 7, h: 12 },
   ],
   traffic: {
