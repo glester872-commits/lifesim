@@ -47,6 +47,8 @@ interface Look {
    * carpintería. Los demás estilos, por ahora, con el acabado de siempre.
    */
   mat?: WallMat;
+  /** Las casas sueltas (no sólo las manzanas) sacan su tono de WALL_TONES de la semilla del edificio. */
+  toneEach?: boolean;
   /** Balcón corrido con barandilla de vidrio delante de la banda de cristal (vivienda moderna). */
   railing?: boolean;
 }
@@ -161,6 +163,9 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   salon: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: '#d9b8ae', shop: 'display', upper: 'balcony', lit: PALETTE.amber, door: 'glass', awning: ['#efe2c4', BRASS], sign: 'scissors' },
   // Portal noble de la Calle Marqués: sillería clara, balcones de forja y portal de madera.
   'res-noble': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#dccfb4', shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood' },
+  // Casco Antiguo (CAS-08): revoco viejo de ocre (cal teñida con el ámbar), balcones de forja y portal de madera. Cada
+  // casa lleva su tono (BuildingDef.tone, o su semilla): almagre, ocre, crema lavado o rosa viejo (WALL_TONES).
+  'res-historic': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: mix(PALETTE.wallLit, PALETTE.amberDim, 0.45), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood', mat: 'stucco', toneEach: true },
   // Puerta Central. Recuerdos: revoco amarillo de toda la vida, toldo rojo y gualda, el escaparate lleno y la banderita.
   // Distrito Arena. El estadio: hormigón claro, las puertas son persianas metálicas (los tornos están delante), banda
   // de cristal arriba y carteles del partido en los paños ciegos. Desde arriba, la grada y el césped (drawStadiumBowl).
@@ -1825,17 +1830,26 @@ function drawDeco(ctx: Ctx, deco: Deco): void {
  * o más anaranjado, piedra más fría, revoco salmón o gris). Sólo en los estilos
  * que forman manzana.
  */
-const WALL_TONES: Partial<Record<BuildingStyle, readonly [string, string]>> = {
+const WALL_TONES: Partial<Record<BuildingStyle, readonly [string, string, ...string[]]>> = {
   'res-brick': ['#94503c', '#b8704f'],
   'res-stone': ['#b5ab98', '#9da3a2'],
   'res-plaster': ['#d9a98a', '#d4cdb8'],
   backdrop: ['#bfa57f', '#d2c3a6'],
+  // Tono 0 almagre (revoco con tierra roja), 1 el ocre del estilo, 2 crema lavado por el sol, 3 rosa viejo; de la paleta.
+  'res-historic': [
+    mix(PALETTE.wall, PALETTE.brick, 0.6),
+    shade(mix(PALETTE.wallLit, PALETTE.white, 0.45), 0.02),
+    mix(PALETTE.wallLit, PALETTE.rug, 0.4),
+  ],
 };
+/** Tonos de pared de un estilo: el suyo (1) y sus parientes (0, 2, 3…). */
+const toneCount = (style: BuildingStyle): number => (WALL_TONES[style]?.length ?? 0) + 1;
 /** HD-04: material de la fachada entera de cada estilo de vecinos (sin él, la fachada por tiles de siempre). */
 const HD_MAT: Partial<Record<BuildingStyle, 'ashlar' | 'stucco' | 'brick'>> = {
   'res-stone': 'ashlar',
   'res-noble': 'ashlar',
   'res-plaster': 'stucco',
+  'res-historic': 'stucco',
   'res-brick': 'brick',
 };
 /** Las casas con fachada HD (la de la calle residencial o la de su estilo): world/Detail no les repinta alero ni imposta. */
@@ -1843,14 +1857,14 @@ export const hdFacade = (b: BuildingDef): boolean => !!b.finish || (b.front === 
 const SHUTTERS = ['#4f6f4a', '#3f5f78', '#6e5038', '#8a4a3a'] as const;
 const toned = (style: BuildingStyle, t: number): Look => {
   const alt = WALL_TONES[style];
-  return t === 1 || !alt ? LOOKS[style] : { ...LOOKS[style], wall: alt[t === 0 ? 0 : 1] };
+  return t === 1 || !alt ? LOOKS[style] : { ...LOOKS[style], wall: alt[t === 0 ? 0 : Math.min(t - 1, alt.length - 1)] };
 };
 /** Sufijo de la textura para el tono `t` (1, el del estilo, no lleva). */
 const tk = (t: number): string => (t === 1 ? '' : `-k${t}`);
 
 export function buildBuildingTextures(scene: Phaser.Scene): void {
   for (const style of STYLES) {
-    for (const t of WALL_TONES[style] ? [0, 1, 2] : [1]) {
+    for (const t of WALL_TONES[style] ? Array.from({ length: toneCount(style) }, (_, i) => i) : [1]) {
       const look = toned(style, t);
       const k = tk(t);
       for (let v = 0; v < 3; v++) {
@@ -1944,7 +1958,7 @@ interface RowHouse {
 function rowHouses(b: BuildingDef): RowHouse[] {
   const look = LOOKS[b.style];
   const seed = hash(b.id);
-  if (!WALL_TONES[b.style] || b.w < 10) return [{ x0: b.tx, w: b.w, tone: 1, roof: look, roofTone: seed % ROOF_TONES.length, ridge: 0.42, seed }];
+  if (!WALL_TONES[b.style] || b.w < 10) return [{ x0: b.tx, w: b.w, tone: WALL_TONES[b.style] && b.tone !== undefined ? b.tone % toneCount(b.style) : look.toneEach && WALL_TONES[b.style] ? seed % toneCount(b.style) : 1, roof: look, roofTone: seed % ROOF_TONES.length, ridge: 0.42, seed }];
   const out: RowHouse[] = [];
   let x = b.tx;
   let left = b.w;
@@ -2203,7 +2217,7 @@ export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: r
         // Contraventanas de cada casa: verde, azul pizarra, madera o almagre, siempre las mismas.
         const shutter = SHUTTERS[seg.seed % SHUTTERS.length];
         make(rt.scene, fKey, seg.w * TILE, rows * TILE, (ctx) =>
-          drawResidentialFacade(ctx, { bays: segBays, floors, wall, lit: look.lit, seed: seg.seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0), mat: hd, shutter, leaf: PALETTE.wood, flowers: false, balconies: b.style === 'res-noble' }),
+          drawResidentialFacade(ctx, { bays: segBays, floors, wall, lit: look.lit, seed: seg.seed, number: Number(/\d+/.exec(b.name)?.[0] ?? 0), mat: hd, shutter, leaf: PALETTE.wood, flowers: false, balconies: b.style === 'res-noble' || (b.style === 'res-historic' && (seg.seed >>> 3) % 2 === 0) }),
         );
         draw(fKey, seg.x0, b.ty + b.h - rows);
       }

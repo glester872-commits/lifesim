@@ -354,6 +354,8 @@ export type BuildingStyle =
   | 'clinic'
   | 'salon'
   | 'res-noble'
+  // Casco Antiguo (CAS-08): las casas viejas de la Calle Mayor, revoco ocre y almagre con balcón de forja.
+  | 'res-historic'
   // Puerta Central: la tienda de recuerdos.
   | 'souvenir'
   // Distrito Arena: el estadio (desde arriba, grada y césped) y la tienda oficial del club.
@@ -389,6 +391,8 @@ export interface BuildingDef {
   enter?: { location: string; spawn: string };
   /** Id del punto semántico generado delante de la puerta (p. ej. CAFE_ENTRANCE). */
   point?: string;
+  /** Tono de fachada fijo (índice en WALL_TONES de world/BuildingArt) en una casa suelta; sin él, el de su estilo o su semilla. */
+  tone?: number;
   /** Sin interior: lo que se lee al pulsar E en su puerta. */
   inspect?: readonly string[];
   /** Punto de estudio (data/study.ts) en su puerta: la ventanilla de un curso o el sitio de un encargo. Sin nada que hacer, se lee `inspect`. */
