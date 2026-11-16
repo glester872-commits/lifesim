@@ -15,6 +15,7 @@ import { CAMPO_ALTO } from './campoAlto.ts';
 import { CA_INTERIORS } from './campoAltoVenues.ts';
 import { CASCO_ANTIGUO } from './cascoAntiguo.ts';
 import { CAS_INTERIORS } from './cascoAntiguoVenues.ts';
+import { COLOSSEO, COLOSSEO_ACCESS } from './colosseo.ts';
 import { LUNA } from './luna.ts';
 import { LU_INTERIORS } from './lunaVenues.ts';
 import { DECATHLON_STORE } from './decathlon.ts';
@@ -720,6 +721,8 @@ export const LOCATIONS: readonly LocationDef[] = [
   CASCO_ANTIGUO,
   CASCO_ANTIGUO_STATION,
   ...CAS_INTERIORS,
+  COLOSSEO,
+  COLOSSEO_ACCESS,
   // Luna (data/luna.ts): la Calle de la Luna, su estación, la tienda y el bar.
   LUNA,
   LUNA_STATION,

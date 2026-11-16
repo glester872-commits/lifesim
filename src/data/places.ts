@@ -49,6 +49,7 @@ export interface PlaceDef {
 const WORK = 'work';
 
 export const PLACES: readonly PlaceDef[] = [
+  { id: 'roma-colosseo', name: 'Coliseo romano', type: 'public', tags: ['culture', 'outdoor'], anchors: ['ROMA_VIEW_NORTH'], capacity: 40 },
   // Viviendas: la tuya y los portales que pueden tener vecinos persistentes.
   { id: 'player-home', name: 'Tu piso · Olmo 7', type: 'home', tags: ['home'], building: 'home-door', capacity: 2, why: 'Dormir, cocinar, ducharse, ver la tele y cambiarse de ropa: recuperar energía sin gastar dinero.' },
   { id: 'res-mayor-3', name: 'Mayor 3', type: 'residence', tags: ['home'], building: 'res-mayor-3', capacity: 9 },

@@ -556,6 +556,16 @@ export interface PointDef {
   use?: string;
 }
 
+/** Monumento procedural en una huella de tiles; el relieve puede tener varias capas de dibujo. */
+export interface LandmarkDef {
+  kind: 'colosseum' | 'triumphal-arch' | 'roman-temple';
+  tx: number;
+  ty: number;
+  w: number;
+  h: number;
+  solid: readonly TilePoint[];
+}
+
 export interface LocationDef {
   id: string;
   name: string;
@@ -568,6 +578,7 @@ export interface LocationDef {
   spawns: Readonly<Record<string, SpawnDef>>;
   metro?: MetroDef;
   buildings?: readonly BuildingDef[];
+  landmarks?: readonly LandmarkDef[];
   /** Puntos con nombre, únicos en todo el mundo. */
   points?: Readonly<Record<string, PointDef>>;
   /** Grafo de peatones: tramos rectos y libres entre dos puntos. */

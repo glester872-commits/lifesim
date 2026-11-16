@@ -2,9 +2,10 @@
 // Importar LocationSystem ya valida cada localización; aquí se comprueba además
 // que todo lo que importa se alcanza a pie y que el grafo de peatones conecta.
 import assert from 'node:assert/strict';
-import { allLocations, isWalkable, ROADWAY } from '../src/systems/LocationSystem.ts';
+import { allLocations, getLocation, isWalkable, ROADWAY } from '../src/systems/LocationSystem.ts';
 import { findPoint, pointsOfKind, route, worldRoute } from '../src/systems/Navigation.ts';
 import { isOpen, placeInfo, placeOfPoint, placesOfType } from '../src/systems/Places.ts';
+import { COLOSSEUM_SHAPE } from '../src/data/colosseo.ts';
 import type { LocationDef, TilePoint } from '../src/types/game.ts';
 
 // Juego: PLAYER_SPEED 76 px/s, TILE 16 → 4,75 tiles/s; el reloj corre 2 min por segundo.
@@ -51,6 +52,23 @@ for (const loc of allLocations()) {
     else assert.ok([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => free.has(`${pt.tx + dx},${pt.ty + dy}`)), `[${loc.id}] no se llega a la máquina de ${id}`);
   }
 }
+
+// Roma: ida y vuelta por el vestíbulo y acceso continuo a la galería entre las dos puertas.
+const casco = getLocation('casco-antiguo');
+const colosseo = getLocation('roma-colosseo');
+const colosseoAccess = getLocation('roma-colosseo-acceso');
+assert.equal(casco.portals.find((portal) => portal.id === 'roma-passage')?.to.location, colosseoAccess.id);
+assert.deepEqual(colosseoAccess.portals.find((portal) => portal.id === 'casco')?.to, { location: casco.id, spawn: 'roma-passage' });
+assert.deepEqual(colosseoAccess.portals.find((portal) => portal.id === 'piazza')?.to, { location: colosseo.id, spawn: 'roma-metro' });
+assert.deepEqual(colosseo.portals.find((portal) => portal.id === 'roma-metro')?.to, { location: colosseoAccess.id, spawn: 'piazza' });
+const galleryRoute = route('ROMA_METRO_ENTRANCE', 'ROMA_EAST_GATE');
+const northGallery = colosseo.points!.ROMA_NORTH_VIEW;
+assert.ok(galleryRoute?.some(({ tx, ty }) => tx === northGallery.tx && ty === northGallery.ty), 'se llega a la galería desde la boca del metro');
+const monument = colosseo.landmarks!.find((landmark) => landmark.kind === 'colosseum')!;
+const center = { tx: monument.tx + COLOSSEUM_SHAPE.x, ty: monument.ty + COLOSSEUM_SHAPE.y };
+assert.ok(!isWalkable(colosseo, center.tx, center.ty), 'el centro del hipogeo está protegido');
+assert.ok(!isWalkable(colosseo, center.tx, Math.floor(center.ty - COLOSSEUM_SHAPE.ry)), 'el muro exterior norte tiene colisión');
+assert.ok(isWalkable(colosseo, center.tx, Math.floor(center.ty + COLOSSEUM_SHAPE.ry)), 'el muro exterior sur perdido deja paso');
 
 // El grafo del barrio conecta cada destino con cada borde.
 const destinations = [...pointsOfKind('entrance', 'district'), ...pointsOfKind('seat', 'district'), ...pointsOfKind('meet', 'district'), ...pointsOfKind('wait', 'district')];

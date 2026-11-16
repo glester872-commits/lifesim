@@ -2011,6 +2011,8 @@ export interface GlowSpot {
   key: string;
   x: number;
   y: number;
+  /** La textura ilumina la propia piedra sin proyectar un halo de boca de metro. */
+  cast?: false;
   /** Rótulo de un local: sólo brilla con el local abierto. Sin él, siempre (la boca de metro). */
   building?: string;
 }

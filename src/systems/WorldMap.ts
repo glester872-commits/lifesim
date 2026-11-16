@@ -139,6 +139,7 @@ export function worldMapFor(locationId: string): WorldMapData {
   const terrain = loc.ground.map((row, ty) => [...row].map((_, tx) => terrainOf(loc, tx, ty)));
   // Lo construido va encima del suelo que tapa.
   for (const b of loc.buildings ?? []) for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) terrain[y][x] = 'building';
+  for (const landmark of loc.landmarks ?? []) for (const { tx, ty } of landmark.solid) terrain[ty][tx] = 'building';
 
   const markers: MapMarker[] = [];
   for (const p of ALL_PLACES) {

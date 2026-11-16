@@ -194,9 +194,11 @@ export const CASCO_ANTIGUO: LocationDef = {
   ground: GROUND,
   buildings: BUILDINGS,
   props: PROPS,
-  portals: [],
+  portals: [
+    { id: 'roma-passage', tx: 44, ty: 15, label: 'Roma · Metro Colosseo', to: { location: 'roma-colosseo-acceso', spawn: 'entry' } },
+  ],
   npcs: [],
-  spawns: {},
+  spawns: { 'roma-passage': { tx: 44, ty: 16, facing: 'down' } },
   points: POINTS,
   links: LINKS,
   // Identidad visual (data/districts.ts): ciudad densa de bajos comerciales; la boca, en zona de tránsito.
