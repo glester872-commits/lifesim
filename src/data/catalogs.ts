@@ -142,6 +142,12 @@ export const CATALOGS: readonly Catalog[] = [
     products: [item('rastro-book', 'Libro de segunda mano', 4), item('rastro-vinyl', 'Disco de vinilo (LP)', 14), item('rastro-badge', 'Chapa de solapa', 2.5), item('rastro-keyring', 'Llavero antiguo', 4.5)],
   },
   {
+    // CA-03 · Taller Biciclo (Campo Alto): sólo venta de accesorios y algo para la ruta; las reparaciones, aún no.
+    id: 'ca-taller-mostrador',
+    greeting: 'Lo que ves es lo que hay. ¿Una luz, un timbre?',
+    products: [item('water', 'Agua', 1.2), item('energy-drink', 'Bebida energética', 2.3), item('chocolate', 'Chocolatina', 1.3), item('gift-bike-bell', 'Timbre de bici', 6), item('gift-bike-light', 'Luz de bici', 9)],
+  },
+  {
     // Conecta (Cuatro Ríos): tienda de móviles que, como tantas, recarga la tarjeta de transporte y tiene nevera.
     id: 'conecta-counter',
     greeting: 'Recargas, fundas y reparaciones. ¿Qué necesitas?',

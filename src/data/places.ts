@@ -264,6 +264,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'cas-taberna', name: 'Taberna La Lonja', type: 'business', tags: ['food', 'social', WORK], building: 'cas-cafe', anchors: ['CAS_TABERNA_TERRACE_01', 'CAS_TABERNA_TERRACE_02'], capacity: 12, hours: [12, 24], hoursByDay: { sunday: [13, 24] }, why: 'Tapas y una caña en la barra de la Calle Mayor; el domingo, después del Rastro.' },
   // CAS-06b: de lunes a sábado; el domingo el dueño está en el Rastro.
   { id: 'cas-anticuario', name: 'Anticuario Ventura', type: 'business', tags: ['shop', WORK], building: 'cas-rastro-3', capacity: 4, hours: [10, 20], days: [0, 1, 2, 3, 4, 5], why: 'Libros, discos y pequeñas cosas de segunda mano, sin esperar al domingo.' },
+  // CA-03 · Taller Biciclo (Campo Alto): de lunes a sábado; sólo venta.
+  { id: 'ca-taller', name: 'Taller Biciclo', type: 'business', tags: ['shop', WORK], building: 'ca-taller', capacity: 4, hours: [10, 20], days: [0, 1, 2, 3, 4, 5], why: 'Timbres, luces y agua para la ruta; el taller de barrio de Campo Alto.' },
   { id: 'metro-casco-antiguo', name: 'Metro · Casco Antiguo', type: 'transit', tags: ['transit'], building: 'cas-metro', capacity: 40 },
   // Luna (data/luna.ts): tres portales de vecinos, el bar, la tienda de noche y la boca de metro.
   { id: 'res-lu-1', name: 'Calle de la Luna 2', type: 'residence', tags: ['home'], building: 'lu-res-1', capacity: 12 },

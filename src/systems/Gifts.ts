@@ -22,6 +22,9 @@ export const GIFTS: Readonly<Record<string, Omit<SocialDelta, 'romance' | 'attra
   'gift-magnet': { friendship: 2, trust: 0, mood: 4, given: 'Le das el imán. «Para la nevera», dice, y se ríe.' },
   'gift-keyring': { friendship: 2, trust: 0, mood: 4, given: 'Le das el llavero y lo engancha en sus llaves en el momento.' },
   'gift-fan': { friendship: 3, trust: 0, mood: 6, given: 'Le das el abanico. Lo abre y se da aire, aunque no haga calor.' },
+  // CA-03 · del Taller Biciclo de Campo Alto: accesorios para la bici de otra persona.
+  'gift-bike-bell': { friendship: 2, trust: 0, mood: 4, given: 'Le das el timbre. Lo hace sonar dos veces, sin poder evitarlo.' },
+  'gift-bike-light': { friendship: 3, trust: 1, mood: 5, given: 'Le das la luz. «Para volver de noche», dice, y la guarda en la mochila.' },
   // CAS-03 · del Gran Rastro: lo que vale es haberlo encontrado.
   'rastro-vinyl': { friendship: 4, trust: 1, mood: 7, given: 'Le das el disco. Lee la contraportada entera antes de darte las gracias.' },
   'rastro-book': { friendship: 3, trust: 1, mood: 5, given: 'Le das el libro. Lo primero que hace es leer la dedicatoria.' },

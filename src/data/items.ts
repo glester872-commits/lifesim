@@ -50,6 +50,9 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'gift-magnet', name: 'Imán de la Puerta', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'La Rosa de los Vientos en resina, para la nevera de alguien.' },
   { id: 'gift-keyring', name: 'Llavero de la plaza', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Un reloj de la plaza en miniatura colgado de una anilla.' },
   { id: 'gift-fan', name: 'Abanico pintado', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 2, use: 'Varillas de madera y tela con flores. Para el verano de alguien.' },
+  // CA-03 · el Taller Biciclo de Campo Alto: accesorios que se regalan; no hay bici propia que equipar.
+  { id: 'gift-bike-bell', name: 'Timbre de bici', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Un timbre de latón con su tapa. Suena a bicicleta de barrio.' },
+  { id: 'gift-bike-light', name: 'Luz de bici', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Una luz de pilas para el manillar de alguien que sale de noche.' },
   // CAS-03 · los puestos del Gran Rastro (data/popups.ts vendors): segunda mano que se guarda o se regala (systems/Gifts.ts).
   { id: 'rastro-vinyl', name: 'Disco de vinilo', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Un LP de los ochenta con la funda gastada en las esquinas. Suena con su crepitar.' },
   { id: 'rastro-book', name: 'Libro de segunda mano', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Una novela con una dedicatoria a lápiz de alguien que no conoces.' },
