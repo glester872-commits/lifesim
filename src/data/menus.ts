@@ -487,6 +487,15 @@ const LONJA: ServiceMenu = {
     { id: 'cola', name: 'Refresco de cola', price: lonja('cola'), kind: 'drink', category: 'bebidas', prep: 1, duration: 10, energy: 6, dish: 'soda' },
     { id: 'water', name: 'Agua', price: lonja('water'), kind: 'drink', category: 'bebidas', prep: 1, duration: 10, energy: 3, dish: 'water' },
   ],
+  lines: {
+    greet: ['¿Qué os pongo?', '¿Qué va a ser? La tortilla está recién hecha.', 'Buenas, ¿algo de picar?'],
+    again: ['¿Otra ronda?', '¿Lo mismo?', '¿Algo más de picar?'],
+    confirm: ['Marchando.', 'Ahora mismo.', 'Va.'],
+    serve: ['Aquí tienes.', 'Que aproveche.'],
+    bill: ['La cuenta, cuando quieras.', 'Te la dejo aquí.'],
+    thanks: ['¡Gracias! Hasta la próxima.', 'Gracias, buenas noches.'],
+    later: ['Sin prisa.', 'Vale, luego vuelvo.'],
+  },
 };
 
 /** Las cartas de los locales de comida de la ciudad salen de sus arquetipos (data/foodVenues.ts), no se escriben a mano. */
