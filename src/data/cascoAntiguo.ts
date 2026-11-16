@@ -148,6 +148,20 @@ const POINTS: Record<string, PointDef> = {
   CAS_TABERNA_TERRACE_01: p(32, 19, 'seat', 'up'), CAS_TABERNA_TERRACE_02: p(36, 19, 'seat', 'up'),
   CAS_TABERNA_TERRACE_WAITER: p(34, 19, 'work', 'up'),
   'cas-terraza': p(34, 16, 'path'),
+  // CAS-07 · quien mira los diez puestos que venden del Gran Rastro (data/popups.ts 'gran-rastro'): un tile delante del
+  // mostrador (el puesto ocupa tx y tx+1 de su fila y mira al sur), mirándolo. Uno por puesto, así queda paso.
+  // stall.09 (44,14) se mira desde x 45: (44,15) es el pasaje de Roma.
+  CAS_RASTRO_BROWSE_01: p(7, 18, 'meet', 'up'), // plaza.market.01
+  CAS_RASTRO_BROWSE_02: p(41, 18, 'meet', 'up'), // plaza.market.04
+  CAS_RASTRO_BROWSE_03: p(31, 23, 'meet', 'up'), // plaza.market.10
+  CAS_RASTRO_BROWSE_04: p(48, 23, 'meet', 'up'), // plaza.market.13
+  CAS_RASTRO_BROWSE_05: p(12, 15, 'meet', 'up'), // calleMayor.stall.03
+  CAS_RASTRO_BROWSE_06: p(32, 15, 'meet', 'up'), // calleMayor.stall.07
+  CAS_RASTRO_BROWSE_07: p(45, 15, 'meet', 'up'), // calleMayor.stall.09
+  CAS_RASTRO_BROWSE_08: p(6, 35, 'meet', 'up'), // calleSecundaria.stall.02
+  CAS_RASTRO_BROWSE_09: p(27, 35, 'meet', 'up'), // calleSecundaria.stall.06
+  CAS_RASTRO_BROWSE_10: p(39, 35, 'meet', 'up'), // calleSecundaria.stall.10
+  CAS_ACT_GUITAR: p(14, 18, 'wait', 'down'), // CAS-07: músico del Rastro, en la plaza, fuera de puestos, paradas, protesta y limpieza ((14,19) es CAS_PLAZA_01)
 };
 
 type Link = readonly [string, string];
@@ -174,6 +188,12 @@ const LINKS: readonly Link[] = [
   // diagonal de (34,16) a una silla rozaría la mesa de encima (lineClear), por eso las sillas cuelgan del camarero.
   ['cas-m33', 'cas-terraza'], ['CAS_TABERNA_TERRACE_WAITER', 'cas-terraza'],
   ['CAS_TABERNA_TERRACE_01', 'CAS_TABERNA_TERRACE_WAITER'], ['CAS_TABERNA_TERRACE_02', 'CAS_TABERNA_TERRACE_WAITER'],
+  // CAS-07: cada sitio para mirar un puesto del Rastro, a su nodo de paso más cercano.
+  ['CAS_RASTRO_BROWSE_01', 'cas-plaza'], ['CAS_RASTRO_BROWSE_02', 'cas-plaza-e'], ['CAS_RASTRO_BROWSE_03', 'cas-s36'],
+  ['CAS_RASTRO_BROWSE_04', 'cas-s44'], ['CAS_RASTRO_BROWSE_05', 'cas-m10'], ['CAS_RASTRO_BROWSE_06', 'cas-m33'],
+  ['CAS_RASTRO_BROWSE_07', 'cas-m46'], ['CAS_RASTRO_BROWSE_08', 'cas-r17'], ['CAS_RASTRO_BROWSE_09', 'cas-r17'],
+  ['CAS_RASTRO_BROWSE_10', 'cas-r44'],
+  ['CAS_ACT_GUITAR', 'cas-plaza'],
 ];
 
 // Anclas del Gran Rastro, validadas en systems/LocationSystem: los puestos salen de 'market' y 'stall' (systems/PopUps.popUpStalls).

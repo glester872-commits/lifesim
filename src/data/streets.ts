@@ -808,6 +808,13 @@ export const STREET_PROFILES: readonly StreetProfile[] = [
       { role: 'passer-by', label: 'Alguien atajando por el casco', line: 'Por la plaza se llega antes. Si no te paras en cada escaparate.', weight: 1, hours: [7, 22], from: CITY, to: CITY },
       // La limpieza viaria (carrito y escoba): el paso de cebra y la bajada por la plaza, a primera hora.
       { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Cajas de fruta, papeles y vasos. Día de mercado, día de escoba.', weight: 6, hours: [7.5, 9.5], from: CITY, to: CITY, via: ['cas-n21', 'cas-m21', 'cas-plaza', 'cas-s21'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
+      // CAS-07 · el Gran Rastro (data/popups.ts): quien se para delante de un puesto que vende (CAS_RASTRO_BROWSE_, uno por
+      // puesto y reservado: como mucho dos personas en cada uno) mientras está abierto.
+      { role: 'stall-browse', label: 'Alguien mirando puestos del Rastro', line: '¿Y esto cuánto es? Pregunto por preguntar.', weight: 5, popup: 'gran-rastro', hours: [9.5, 14.5], from: HOMES_OR_CITY, to: { points: ['CAS_RASTRO_BROWSE_'] }, stay: [3, 9], stayState: 'BROWSE', then: HOMES_OR_CITY, group: [1, 2], bond: ['friends', 'couple'], pace: 'stroll', max: 4 },
+      { role: 'tourist', label: 'Turista de domingo en el Rastro', line: 'Dicen que aquí se encuentra de todo. De momento, un dedal.', weight: 3, popup: 'gran-rastro', hours: [9.5, 14.5], from: HOMES_OR_CITY, to: { points: ['CAS_RASTRO_BROWSE_'] }, stay: [3, 9], stayState: 'BROWSE', then: HOMES_OR_CITY, group: [1, 2], bond: ['tourists', 'couple'], pace: 'stroll', max: 4 },
+      { role: 'shopper', label: 'Vecina dando la vuelta al Rastro', line: 'Vengo todos los domingos. Comprar, compro poco.', weight: 4, popup: 'gran-rastro', hours: [9.5, 14.5], from: HOMES, to: { points: ['CAS_RASTRO_BROWSE_'] }, stay: [3, 9], stayState: 'BROWSE', then: HOMES_OR_CITY, group: [1, 2], bond: ['family', 'couple'], pace: 'stroll', max: 4 },
+      // CAS-07: la recogida del domingo por la tarde, con la basura de después del Rastro (popUpLitter, de 15 a 18).
+      { role: 'street-cleaner', ambient: true, label: 'Operario de limpieza', line: 'Domingo de Rastro: cartones, perchas y algún tornillo.', weight: 6, hours: [15, 17], rhythms: ['sunday-day'], from: CITY, to: CITY, via: ['cas-m10', 'cas-m21', 'cas-plaza', 'cas-plaza-e', 'cas-s44'], pace: 'stroll', uniform: 'uniforme-limpieza', sweep: true, pause: 0, max: 1 },
       patrol([9, 21], ['CAS_METRO_WAIT_', 'CAS_PLAZA_'], 'Una vuelta por la plaza y la boca de metro. Día de mercado, ojo a los bolsos.', { weight: 0.4 }),
     ],
   },

@@ -107,4 +107,6 @@ export const STREET_ACTS: readonly StreetAct[] = [
     id: 'pc-duo', location: 'puerta-central', kind: 'music', label: 'Dúo tocando en la plaza', line: 'Somos dos y una guitarra. La otra está en el taller.',
     pitch: ['PC_ACT_DUO_01', 'PC_ACT_DUO_02'], kit: [['guitar', 'case'], []], presence: 0.55, shifts: [[12.5, 16]], days: WEEKEND,
   },
+  // CAS-07 · el Rastro del domingo (data/popups.ts 'gran-rastro'): música sólo con el mercado.
+  { id: 'cas-guitarra-rastro', location: 'casco-antiguo', kind: 'music', label: 'Alguien tocando la guitarra en el Rastro', line: 'Rumba para los que regatean. Si os gusta, la funda está abierta.', pitch: ['CAS_ACT_GUITAR'], kit: [['guitar', 'case']], presence: 0.8, shifts: [[10, 14.5]], days: [6] },
 ];
