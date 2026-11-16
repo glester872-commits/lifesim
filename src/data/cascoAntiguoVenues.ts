@@ -16,7 +16,7 @@ const TABERNA: LocationDef = {
   portals: [{ id: 'exit', tx: 7, ty: 8, label: 'Salir a la Calle Mayor', to: { location: 'casco-antiguo', spawn: 'cas-cafe' } }],
   spawns: { entry: { tx: 7, ty: 7, facing: 'up' } },
   terminals: [{ tx: 3, ty: 4, name: 'Barra · Taberna La Lonja', catalog: 'cas-taberna-tapas' }],
-  inspects: [{ tx: 1, ty: 2, name: 'Pizarra', lines: ['«Tapas del día». Debajo, con otra tiza: «Domingo de Rastro: abrimos a la una, cuando recogen los puestos».'] }],
+  inspects: [{ tx: 1, ty: 2, name: 'Pizarra', lines: ['«Tapas del día». Debajo, con otra tiza: «Domingo de Rastro: abrimos a la una, con los puestos todavía en plena venta».'] }],
 };
 
 /** La frutería del mercado del Casco Antiguo: la planta de tienda pequeña de Cuatro Ríos, que sale a la Calle Mayor. */

@@ -21,6 +21,8 @@ import { PIECE_SIZE, pieceKey, vendorKey } from './PopUpArt';
 /** Por encima de la sombra de la hora: la luz de un evento no la apaga la noche. */
 const LIGHT_DEPTH = LAYER.glow;
 const DJ_COLORS = [0xff5ab0, 0x5ad8ff, 0xb07aff, 0xffd05a] as const;
+/** Ancho de un puesto de anclas en tiles, desde el ancla hacia la derecha (el mismo tx..tx+1 que `free`). */
+const STALL_TILES = 2;
 
 interface Piece {
   img: Phaser.GameObjects.Image;
@@ -36,6 +38,10 @@ interface Group {
   lights: Phaser.GameObjects.Image[];
   /** Puestos de anclas (`def.stalls`): cuántos se ven ahora, montando o recogiendo, en el orden de popUpStalls. */
   shown?: number;
+  /** Cuerpo de cada puesto de anclas, en el mismo orden; sólo está activo mientras el puesto se ve. */
+  stallBodies?: Phaser.GameObjects.Zone[];
+  /** Puestos ya a la vista cuyo cuerpo espera a que el jugador salga de encima (índice en stallBodies). */
+  pending?: Set<number>;
 }
 
 export class PopUpView {
@@ -47,9 +53,11 @@ export class PopUpView {
   private readonly vendors = new Map<string, Phaser.GameObjects.Image>();
   private current: string | null = null;
   private nextCheck = 0;
+  private readonly player: Phaser.GameObjects.GameObject;
 
   constructor(scene: Phaser.Scene, def: LocationDef, player: Phaser.GameObjects.GameObject, clock: () => PopUpClock, hour: () => number) {
     this.location = def.id;
+    this.player = player;
     this.clock = clock;
     this.hour = hour;
     for (const p of POPUPS) {
@@ -71,8 +79,9 @@ export class PopUpView {
         }
         return { img, shadow, body };
       });
-      // Gran Rastro: un puesto por ancla, dos tiles de ancho desde el ancla, sin cuerpo (es decorado, no corta el paso).
+      // Gran Rastro: un puesto por ancla, dos tiles de ancho desde el ancla; corta el paso mientras se ve (reveal()).
       const stalls = popUpStalls(p);
+      const stallBodies: Phaser.GameObjects.Zone[] = [];
       // Una tile lateral sirve si se puede pisar y ningún puesto del evento (tx, tx+1) la ocupa.
       const free = (tx: number, ty: number): boolean => isWalkable(def, tx, ty) && !stalls.some((o) => o.ty === ty && tx >= o.tx && tx <= o.tx + 1);
       for (const s of stalls) {
@@ -82,6 +91,11 @@ export class PopUpView {
         const img = scene.add.image(x, baseY, pieceKey(s.piece)).setOrigin(0.5, 1).setDepth(standing(baseY)).setVisible(false);
         const shadow = scene.add.image(x, baseY - 1, 'fx-shadow').setOrigin(0.5, 0.5).setDepth(standing(baseY) - 1).setScale(Math.max(1.4, w / 15), 1.2).setAlpha(0.8).setVisible(false);
         pieces.push({ img, shadow });
+        const zone = scene.add.zone(s.tx * TILE, s.ty * TILE, STALL_TILES * TILE, TILE).setOrigin(0, 0);
+        scene.physics.add.existing(zone, true);
+        scene.physics.add.collider(player, zone);
+        (zone.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+        stallBodies.push(zone);
         // Quien atiende, de pie al lado del mostrador (a la derecha; si ahí no cabe, a la izquierda), pegado al puesto
         // sin pisarlo y con los pies en su misma fila. Sin cuerpo: sólo se ve, no corta el paso.
         if (s.vendor) {
@@ -92,6 +106,10 @@ export class PopUpView {
         }
       }
       const group: Group = { def: p, pieces, lights: [], shown: p.stalls ? 0 : undefined };
+      if (p.stalls) {
+        group.stallBodies = stallBodies;
+        group.pending = new Set();
+      }
       if (p.glow === 'dj') {
         const booth = p.props.find((q) => q.piece === 'booth');
         if (booth) {
@@ -130,6 +148,8 @@ export class PopUpView {
         piece.shadow.setVisible(on);
         if (piece.body) (piece.body.body as Phaser.Physics.Arcade.StaticBody).enable = on;
       }
+      for (const z of g.stallBodies ?? []) (z.body as Phaser.Physics.Arcade.StaticBody).enable = false;
+      g.pending?.clear();
       g.booth?.setVisible(false);
       for (const l of g.lights) l.setVisible(false);
     }
@@ -140,11 +160,39 @@ export class PopUpView {
   private reveal(g: Group, k: number): void {
     const was = g.shown ?? 0;
     if (k === was) return;
+    // Las piezas de los puestos van detrás de las de `props`.
+    const offset = g.pieces.length - (g.stallBodies?.length ?? 0);
     for (let i = Math.min(k, was); i < Math.max(k, was); i++) {
-      g.pieces[i].img.setVisible(i < k);
-      g.pieces[i].shadow.setVisible(i < k);
+      const on = i < k;
+      g.pieces[offset + i].img.setVisible(on);
+      g.pieces[offset + i].shadow.setVisible(on);
+      const zone = g.stallBodies?.[i];
+      if (!zone) continue;
+      // Un puesto que se monta encima del jugador espera a que se aparte: nunca se le empuja ni se le teletransporta.
+      const blocked = on && this.overlapsPlayer(zone);
+      (zone.body as Phaser.Physics.Arcade.StaticBody).enable = on && !blocked;
+      if (blocked) g.pending?.add(i);
+      else g.pending?.delete(i);
     }
     g.shown = k;
+  }
+
+  /** Activa los puestos a la vista que esperaban a que el jugador saliera de encima. */
+  private retryPending(g: Group): void {
+    if (!g.pending?.size || !g.stallBodies) return;
+    for (const i of [...g.pending]) {
+      if (i >= (g.shown ?? 0)) g.pending.delete(i);
+      else if (!this.overlapsPlayer(g.stallBodies[i])) {
+        (g.stallBodies[i].body as Phaser.Physics.Arcade.StaticBody).enable = true;
+        g.pending.delete(i);
+      }
+    }
+  }
+
+  private overlapsPlayer(zone: Phaser.GameObjects.Zone): boolean {
+    const b = this.player.body as Phaser.Physics.Arcade.Body | null;
+    if (!b) return false;
+    return b.x < zone.x + zone.width && b.x + b.width > zone.x && b.y < zone.y + zone.height && b.y + b.height > zone.y;
   }
 
   /** Cada frame: ver si hay que cambiar de evento (una vez por segundo) y mover los focos del que está. */
@@ -156,7 +204,10 @@ export class PopUpView {
       const id = now?.def.id ?? null;
       if (id !== this.current) this.show(id);
       const shown = id ? this.groups.get(id) : undefined;
-      if (now && shown?.def.stalls) this.reveal(shown, piecesShown(now.progress, shown.pieces.length));
+      if (now && shown?.def.stalls) {
+        this.reveal(shown, piecesShown(now.progress, shown.stallBodies?.length ?? 0));
+        this.retryPending(shown);
+      }
       if (this.vendors.size) {
         const open = new Set(stallVendors(this.location, this.clock()).map((s) => s.id));
         for (const [sid, v] of this.vendors) v.setVisible(open.has(sid));
