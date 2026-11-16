@@ -27,6 +27,13 @@ export const CAS_INTERIORS: readonly LocationDef[] = [
     browse: [[3, 4, 'up'], [8, 4, 'up'], [4, 6, 'left']],
     inspects: [{ tx: 6, ty: 2, name: 'Pizarra del puesto', lines: ['Tomate de huerta, pera de agua, acelga, ajos tiernos y uva de mesa. «Lo que no se vende hoy, mañana va a la caja del euro».'] }],
   }),
+  // CAS-06b · Anticuario Ventura: la misma planta, con estanterías, una mesa expositora y cajas de discos y libros.
+  shopRoom({
+    id: 'cas-anticuario', name: 'Anticuario Ventura', building: 'cas-rastro-3', street: 'casco-antiguo', pre: 'CASANT', ambient: '#f6e2c0', catalog: 'cas-anticuario-mostrador',
+    props: [...many('shelf', [[2, 3], [3, 3], [4, 3]]), ...many('display-table', [[8, 3], [9, 3]]), ...many('crates', [[2, 6], [3, 6], [12, 3]])],
+    browse: [[3, 4, 'up'], [8, 4, 'up'], [4, 6, 'left']],
+    inspects: [{ tx: 6, ty: 2, name: 'Vitrina', lines: ['Relojes parados, un tintero y una nota: «De lunes a sábado. Los domingos estoy en el Rastro, pero sin prisa».'] }],
+  }),
   TABERNA,
 ];
 
@@ -36,6 +43,13 @@ export const CAS_PROFILES: readonly PopulationProfile[] = [
     weekday: [0, 0, 0, 0, 0, 1, -1], maxVisitors: 5,
     staff: [cashier('CASFRUTA', 'Frutas del Casco', 'Esto lo ha traído mi primo esta mañana del huerto. Huele, huele.')],
     visitors: [customer('CASFRUTA', 'Medio de tomates, que sean feos, que son los buenos.', 1, { party: [1, 2] })],
+  },
+  {
+    // De lunes a sábado (data/places.ts); el domingo, cerrado y vacío.
+    place: 'cas-anticuario', bands: [[10, 13, 'LOW'], [13, 17, 'LOW'], [17, 20, 'MEDIUM']],
+    weekday: [0, 0, 0, 0, 0, 1, -2], maxVisitors: 4,
+    staff: [cashier('CASANT', 'Anticuario Ventura', 'Mire sin prisa. Lo que no es antiguo, es de segunda mano; que no es lo mismo.')],
+    visitors: [customer('CASANT', 'Busco una novela que no me haya leído nadie.', 1)],
   },
   {
     // El perfil del Café Campo Alto, a horas de taberna: el vermú del domingo, después del Rastro, es lo más lleno.
