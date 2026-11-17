@@ -121,7 +121,7 @@ for (let s = 0; s < SEASONS; s++) {
 const at = (day: number, hour: number, minute = 0) => boardAt('campo-alto', 40, 14, { day, hour, minute });
 const board = at(3, 12);
 assert.deepEqual(board.league?.pages.map((p) => p.title), ['Jornada', 'Última jornada', 'Clasificación', 'Campeones']);
-assert.ok(board.league!.pages[0].lines.some((l) => /no hay inscripciones abiertas/.test(l)), 'el tablón no dice que no hay inscripciones');
+assert.ok(board.league!.pages[0].lines.some((l) => /Puedes apuntarte en este tablón/.test(l)), 'el tablón no dice que puedes apuntarte');
 assert.deepEqual(board.league!.pages[3].lines, ['Aún no hay campeones.']);
 const first = fixtures(def, 0)[0];
 const label = `${first.home} – ${first.away}`;

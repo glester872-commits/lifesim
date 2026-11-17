@@ -5,7 +5,7 @@ import { ARENA_CLUB, ARENA_MATCHES } from '../data/cityEvents.ts';
 import { PITCHES } from '../data/futsal.ts';
 import { isOpen as pitchOpen } from './Futsal.ts';
 import { LEAGUES, type LeagueDef } from '../data/campoAltoLeague.ts';
-import { fateOf, history, lastRound, nextFixtures, resultOf, seasonOf, standings, fixtures as leagueFixtures } from './League.ts';
+import { fateOf, history, lastRound, matchId, nextFixtures, resultOf, seasonOf, standings, fixtures as leagueFixtures, type LeagueState } from './League.ts';
 import { WEEK, WEEKDAY_LABEL, nightOwner, weekIndex } from './Calendar.ts';
 import { activePopUp, upcoming } from './PopUps.ts';
 import { matchNow, upcomingMatches } from './Match.ts';
@@ -48,7 +48,7 @@ export interface Board {
   title: string;
   intro: string;
   sections: BoardSection[];
-  /** La liga de vecinos del mapa (data/campoAltoLeague.ts, systems/League.ts), si la hay: sólo para mirarla. */
+  /** La liga de vecinos del mapa (data/campoAltoLeague.ts, systems/League.ts), si la hay; apuntarse va en scenes/Menus. */
   league?: { name: string; pages: { title: string; lines: string[] }[] };
 }
 
@@ -204,8 +204,9 @@ function eventEntries(location: string, districts: readonly string[], c: WorldCl
 const plain = ({ label, detail, note, state }: BoardEntry): BoardEntry => ({ label, detail, note, state });
 
 /** Las páginas de la liga en el tablón: jornada próxima o en curso, última jornada, clasificación y campeones. */
-function leaguePages(def: LeagueDef, c: WorldClock): NonNullable<Board['league']> {
+function leaguePages(def: LeagueDef, c: WorldClock, ls?: LeagueState): NonNullable<Board['league']> {
   const nowAbs = (c.day - 1) * 1440 + c.hour * 60 + c.minute;
+  const played = ls?.played;
   const of = `de ${def.rounds.length}`;
   const next = nextFixtures(def, nowAbs);
   const when = (day: number): string => (day - c.day > 6 ? `dentro de ${day - c.day} días, el ${WEEKDAY_LABEL[WEEK[weekIndex(day)]]}` : dayWord(day, c.day));
@@ -216,26 +217,39 @@ function leaguePages(def: LeagueDef, c: WorldClock): NonNullable<Board['league']
         `Temporada ${next[0].season + 1}, ${next[0].day === day ? `jornada ${next[0].round + 1} ${of}` : 'partidos aplazados por la lluvia'}: ${when(day)}, en la ${def.venue}.`,
         ...next.map((f) => {
           const x = fateOf(def, f, nowAbs);
-          const r = resultOf(def, f, nowAbs);
+          const r = resultOf(def, f, nowAbs, played);
           const live = !r && x.fate !== 'suspended' && x.day === day && nowAbs >= (day - 1) * 1440 + f.startMin;
           const why = x.fate === 'suspended' ? ' (suspendido por la lluvia)' : x.day !== day ? ' (aplazado por la lluvia)' : '';
           return `${hh(f.startMin / 60)} ${f.home} – ${f.away}${r ? ` (${r.hg} – ${r.ag})` : live ? ' (en juego)' : why}.`;
         }),
       ]
     : [];
-  const last = lastRound(def, nowAbs);
+  const last = lastRound(def, nowAbs, played);
   const lastDay = last.length ? fateOf(def, last[0].fixture, nowAbs).day : 0;
   const lastLines = last.length
     ? [`Temporada ${last[0].fixture.season + 1}, ${last[0].fixture.day === lastDay ? `jornada ${last[0].fixture.round + 1} ${of}` : 'partidos aplazados'}.`, ...last.map(({ result: r }) => `${r.home} ${r.hg} – ${r.ag} ${r.away}.`)]
     : ['Aún no se ha jugado ninguna jornada.'];
   const s = seasonOf(def, c.day);
   // Una fila por equipo; el paréntesis lleva espacios no separables ( ) para que no se parta al ajustar.
-  const table = standings(def, s, nowAbs).map((r, i) => `${i + 1}. ${r.team} — ${r.pts} ${r.pts === 1 ? 'pt' : 'pts'} (${r.pj} PJ, ${r.v}-${r.e}-${r.d}, ${r.gf}-${r.gc})`);
-  const champs = history(def, nowAbs).map((h) => `Temporada ${h.season + 1}: ${h.champion}.`);
+  const table = standings(def, s, nowAbs, played).map((r, i) => `${i + 1}. ${r.team} — ${r.pts} ${r.pts === 1 ? 'pt' : 'pts'} (${r.pj} PJ, ${r.v}-${r.e}-${r.d}, ${r.gf}-${r.gc})`);
+  const champs = history(def, nowAbs, played).map((h) => `Temporada ${h.season + 1}: ${h.champion}.`);
+  // Inscrito: tu equipo y su próximo partido por jugar (el de ahora, si no lo has jugado; los aplazados, en su día nuevo).
+  const mine = ls
+    ? [...leagueFixtures(def, s), ...leagueFixtures(def, s + 1)]
+        .filter((f) => (f.home === ls.team || f.away === ls.team) && !played?.[matchId(def, f)])
+        .map((f) => ({ f, x: fateOf(def, f, nowAbs) }))
+        .find(({ f, x }) => x.fate !== 'suspended' && nowAbs < (x.day - 1) * 1440 + f.endMin)
+    : undefined;
+  const ownLines = !ls
+    ? ['Puedes apuntarte en este tablón; juegas tú los tiros de tu equipo.']
+    : [
+        `Tu equipo: ${ls.team}.${mine ? ` Próximo partido: ${nowAbs >= (mine.x.day - 1) * 1440 + mine.f.startMin ? `ahora, hasta las ${hh(mine.f.endMin / 60)}` : `${when(mine.x.day)} a las ${hh(mine.f.startMin / 60)}`}, contra ${mine.f.home === ls.team ? mine.f.away : mine.f.home}.` : ''}`,
+        `Juegas con ${ls.team}: el ${WEEKDAY_LABEL[WEEK[def.weekday]]}, en la pista, a la hora de tu partido.`,
+      ];
   return {
     name: def.name,
     pages: [
-      { title: 'Jornada', lines: [...jornada, 'Liga de vecinos: se mira desde la banda; no hay inscripciones abiertas.'] },
+      { title: 'Jornada', lines: [...jornada, ...ownLines] },
       { title: 'Última jornada', lines: lastLines },
       { title: 'Clasificación', lines: [`Temporada ${s + 1}.`, ...table] },
       { title: 'Campeones', lines: champs.length ? champs : ['Aún no hay campeones.'] },
@@ -244,7 +258,7 @@ function leaguePages(def: LeagueDef, c: WorldClock): NonNullable<Board['league']
 }
 
 /** El tablón que está en ese tile, a esa hora. Puro: misma hora, mismo tablón. */
-export function boardAt(location: string, tx: number, ty: number, c: WorldClock): Board {
+export function boardAt(location: string, tx: number, ty: number, c: WorldClock, league?: LeagueState): Board {
   const districts = boardDistricts(location, tx, ty);
   const name = (id: string | undefined): string => districts.find((d) => d.id === id)?.name ?? '';
   // Con dos barrios en el mismo mapa, cada cosa dice de cuál es.
@@ -273,6 +287,6 @@ export function boardAt(location: string, tx: number, ty: number, c: WorldClock)
     title: `Tablón · ${here}`,
     intro: `${open === 1 ? 'Un local abierto' : `${open} locales abiertos`} ahora.${events.length ? '' : ' Sin eventos esta semana.'}`,
     sections,
-    ...(LEAGUES[location] ? { league: leaguePages(LEAGUES[location], c) } : {}),
+    ...(LEAGUES[location] ? { league: leaguePages(LEAGUES[location], c, league) } : {}),
   };
 }

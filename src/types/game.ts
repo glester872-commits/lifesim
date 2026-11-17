@@ -826,6 +826,8 @@ export interface GameStateData {
   rastro?: import('../systems/Rastro.ts').RastroLedger;
   /** CAS-09 · tu puesto en el Gran Rastro (systems/PlayerStall). Sin campo: sin reserva. */
   playerStall?: import('../systems/PlayerStall.ts').PlayerStallState;
+  /** CA-05b · tu equipo en la liga del barrio y los partidos que jugaste (systems/League). Sin campo: sin inscripción. */
+  league?: import('../systems/League.ts').LeagueState;
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */

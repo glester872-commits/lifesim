@@ -44,6 +44,8 @@ import { COURTS, type ShootingSpot } from '../data/courts';
 import { SHOOTING, ShootingSession, type BallState, type Geometry, type Shot } from '../systems/Basketball';
 import { PITCHES } from '../data/futsal';
 import { FUTSAL, futsalWeek, isOpen as pitchOpen, PenaltySession, recordTanda, type Kick as PenaltyKick, type Pitch } from '../systems/Futsal';
+import { LEAGUES, type LeagueDef } from '../data/campoAltoLeague';
+import { HALF_SHOTS, MATCH_SHOTS, matchId, playedResult, playerFixture, recordPlayed, rivalGoals, type Fixture as LeagueFixture } from '../systems/League';
 import { personFrame, personTexture, showPerson } from '../world/TextureFactory';
 import { KIND_OF, afterLine, practiceMma, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
 import { ACADEMIES, getAcademy } from '../data/academies';
@@ -241,6 +243,9 @@ type Interactable =
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
   | { kind: 'court'; x: number; y: number; name: string; point: string; spot: ShootingSpot }
   | { kind: 'pitch'; x: number; y: number; name: string; point: string; pitch: Pitch };
+
+/** CA-05b · el partido de liga que el jugador puede jugar ahora en la pista (systems/League playerFixture). */
+type LeagueMatch = { def: LeagueDef; fixture: LeagueFixture; team: string; rival: string };
 
 /** Lo que se dice de un penalti. */
 function kickCue(kick: PenaltyKick): string {
@@ -531,6 +536,8 @@ export class WorldScene extends Phaser.Scene {
     saved: boolean;
     cue: { text: string; until: number } | null;
     hintAt: number;
+    /** CA-05b · partido de liga (systems/League): de MATCH_SHOTS tiros; `against`, los goles del rival hasta ahora. */
+    league: (LeagueMatch & { against: number }) | null;
   } | null = null;
   private court: {
     point: string;
@@ -1458,7 +1465,7 @@ export class WorldScene extends Phaser.Scene {
       case 'seat': return 'Sentarse';
       case 'station': return 'Entrenar';
       case 'court': return 'Tirar a canasta';
-      case 'pitch': return this.pitchIsOpen(target.pitch) ? 'Chutar penaltis' : 'Mirar';
+      case 'pitch': return this.leagueMatchHere() ? 'Jugar el partido de la liga' : this.pitchIsOpen(target.pitch) ? 'Chutar penaltis' : 'Mirar';
       case 'terminal': return 'Comprar';
       case 'rack': return 'Ver prenda';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
@@ -3002,11 +3009,25 @@ export class WorldScene extends Phaser.Scene {
     return pitchOpen(p, this.services.state.day, this.services.clock.minuteOfDay / 60);
   }
 
-  /** Delante de la portería: fuera de horario se dice cuándo; ocupada o sin fuerzas, también; si no, empieza la tanda. */
+  /**
+   * CA-05b · el partido de liga de tu equipo que toca ahora aquí: la liga del sitio (LEAGUES), tu inscripción y
+   * playerFixture (en su ventana, no aplazado ni suspendido, no jugado aún). Si no, undefined.
+   */
+  private leagueMatchHere(): LeagueMatch | undefined {
+    const state = this.services.state;
+    const def = LEAGUES[state.locationId];
+    const ls = def ? state.league : undefined;
+    if (!def || !ls) return undefined;
+    const fixture = playerFixture(def, ls.team, (state.day - 1) * 1440 + this.services.clock.minuteOfDay, ls.played);
+    return fixture && { def, fixture, team: ls.team, rival: fixture.home === ls.team ? fixture.away : fixture.home };
+  }
+
+  /** Delante de la portería: fuera de horario se dice cuándo; ocupada o sin fuerzas, también; si no, empieza la tanda (o el partido de liga). */
   private openPitch(target: Extract<Interactable, { kind: 'pitch' }>): void {
     this.player.halt();
     if (this.pitch || this.court || this.workout) return;
-    if (!this.pitchIsOpen(target.pitch)) {
+    const league = this.leagueMatchHere();
+    if (!league && !this.pitchIsOpen(target.pitch)) {
       this.services.dialogue.start('Portería', ['Los sábados de 10 a 13 bajan los del barrio a tirar penaltis. Ahora no hay nadie en la portería.']);
       return;
     }
@@ -3019,7 +3040,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     try {
-      this.startPitch(target);
+      this.startPitch(target, league);
     } catch (error) {
       console.error('[futsal] no se puede empezar:', error);
       this.destroyPitch();
@@ -3028,7 +3049,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Reserva el sitio, va a él mirando a la portería y crea lo que se ve: el balón, el portero, el medidor y el marcador. */
-  private startPitch(target: Extract<Interactable, { kind: 'pitch' }>): void {
+  private startPitch(target: Extract<Interactable, { kind: 'pitch' }>, league?: LeagueMatch): void {
     if (!this.textures.exists('fx-ball')) throw new Error('falta el dibujo del balón (fx-ball)');
     const p = getLocation(this.services.state.locationId).points![target.point];
     const feet = { x: p.tx * TILE + TILE / 2, y: p.ty * TILE + TILE };
@@ -3036,7 +3057,7 @@ export class WorldScene extends Phaser.Scene {
     // La boca de la portería (world/PropArt, drawFutsalGoal): los palos en x = 2 del tile, de 20 px de fondo,
     // con su centro a 12 px del pie del tile base.
     const geo = { feet, goalCenter: { x: g.tx * TILE + 2, y: (g.ty + 1) * TILE - 12 }, goalHalfHeight: 10 };
-    const session = new PenaltySession(geo, Math.random);
+    const session = new PenaltySession(geo, Math.random, league ? MATCH_SHOTS : FUTSAL.shots);
     const look = PASSENGER_LOOKS[0].id;
     showPerson(null, look);
     const keeper = this.add.image(geo.goalCenter.x - 4, session.keeperY(), personTexture(look), personFrame(look, 'left')).setOrigin(0.5, 1);
@@ -3044,7 +3065,7 @@ export class WorldScene extends Phaser.Scene {
     const meter = this.add.graphics().setDepth(LAYER.overhead);
     const score = this.add.text(geo.goalCenter.x, geo.goalCenter.y - 34, '', { fontFamily: 'monospace', fontSize: '8px', color: '#f2ecdc', backgroundColor: '#10141cd9', padding: { x: 2, y: 1 } })
       .setOrigin(0.5, 1).setDepth(LAYER.overhead).setResolution(4);
-    this.pitch = { point: target.point, def: target.pitch, session, from: { x: this.player.x, y: this.player.y }, ball, keeper, look, meter, score, releasing: false, needRelease: true, saved: false, cue: null, hintAt: 0 };
+    this.pitch = { point: target.point, def: target.pitch, session, from: { x: this.player.x, y: this.player.y }, ball, keeper, look, meter, score, releasing: false, needRelease: true, saved: false, cue: null, hintAt: 0, league: league ? { ...league, against: 0 } : null };
     this.placeCharacters(0);
     this.prompt.setVisible(false);
     this.player.startTraining(feet.x, feet.y, 'right', 'basket', false, false);
@@ -3071,7 +3092,14 @@ export class WorldScene extends Phaser.Scene {
         this.services.state.energy = Math.max(0, this.services.state.energy - FUTSAL.energyPerShot);
         this.services.clock.advanceMinutes(FUTSAL.minutesPerShot);
       } else if (event.type === 'result') {
-        c.cue = { text: kickCue(event.kick), until: time + 1_400 };
+        // En liga, el rival responde a cada tiro tuyo con su secuencia determinista (rivalGoals por prefijos).
+        let text = kickCue(event.kick);
+        if (c.league) {
+          const against = rivalGoals(c.league.def, c.league.fixture, c.session.taken);
+          if (against > c.league.against) text += ` · Gol de ${c.league.rival}`;
+          c.league.against = against;
+        }
+        c.cue = { text, until: time + 1_400 };
       } else if (event.type === 'over') {
         this.finishPitch();
         return;
@@ -3085,11 +3113,17 @@ export class WorldScene extends Phaser.Scene {
     const ky = session.keeperY();
     c.keeper.setTexture(personTexture(c.look), personFrame(c.look, 'left')).setY(ky).setDepth(ky);
     this.drawPitchMeter(c);
-    c.score.setText(`${session.goals} / ${session.taken} · de ${FUTSAL.shots}`);
+    const lg = c.league;
+    // En liga: el tiro en curso (el que vuela, o el siguiente mientras se apunta) y su tiempo.
+    const shot = Math.min(session.shots, session.taken + (session.phase === 'flight' ? 0 : 1));
+    const half = shot <= HALF_SHOTS ? 'Primer tiempo' : 'Segundo tiempo';
+    c.score.setText(lg ? `${half} · Tiro ${shot} de ${session.shots}\n${lg.team} ${session.goals} – ${lg.against} ${lg.rival}` : `${session.goals} / ${session.taken} · de ${session.shots}`);
     if (time - c.hintAt > 150) {
       c.hintAt = time;
       const live = c.cue && c.cue.until > time ? c.cue.text : session.phase === 'charging' ? 'Suelta para chutar' : 'Arriba/abajo apunta · mantén E para cargar';
-      this.services.hint.show(`Penaltis · ${session.goals}/${session.taken} de ${FUTSAL.shots} · ${live} · Esc terminar`);
+      this.services.hint.show(lg
+        ? `Liga · ${half} · Tiro ${shot} de ${session.shots} · ${live} · Esc abandonar (no cuenta)`
+        : `Penaltis · ${session.goals}/${session.taken} de ${session.shots} · ${live} · Esc terminar`);
     }
     if (session.phase === 'aim' && this.services.state.energy < FUTSAL.minEnergy) this.finishPitch();
   }
@@ -3112,7 +3146,8 @@ export class WorldScene extends Phaser.Scene {
   /** Guarda la tanda una sola vez (si se chutó algo): el mejor de la semana y cuántas van. Sin dinero ni atributos. */
   private savePitch(): void {
     const c = this.pitch;
-    if (!c || c.saved || c.session.taken === 0) return;
+    // Un partido de liga no es una tanda: no toca la mejor marca (fitness.futsal); se apunta sólo en finishPitch.
+    if (!c || c.saved || c.session.taken === 0 || c.league) return;
     c.saved = true;
     const state = this.services.state;
     state.fitness = { ...state.fitness, futsal: recordTanda(state.fitness.futsal, futsalWeek(state.day), c.session.goals) };
@@ -3126,6 +3161,20 @@ export class WorldScene extends Phaser.Scene {
     c.releasing = true;
     this.savePitch();
     const { goals, taken } = c.session;
+    // CA-05b · el partido de liga cuenta sólo entero: con los MATCH_SHOTS tiros se apunta una vez (recordPlayed es
+    // idempotente por matchId); Esc o quedarse sin fuerzas antes, no se guarda nada.
+    const lg = c.league;
+    let leagueLine = '';
+    if (lg) {
+      const ls = this.services.state.league;
+      if (taken === MATCH_SHOTS && ls) {
+        const against = rivalGoals(lg.def, lg.fixture, MATCH_SHOTS);
+        this.services.state.league = recordPlayed(ls, matchId(lg.def, lg.fixture), playedResult(lg.fixture, lg.team, goals, against));
+        this.persist();
+        const verdict = goals > against ? 'Ganáis' : goals === against ? 'Empate' : 'Perdéis';
+        leagueLine = `Final: ${lg.team} ${goals} – ${against} ${lg.rival}. ${verdict}. Ya cuenta en la clasificación del tablón.`;
+      } else leagueLine = 'Partido sin terminar: no cuenta.';
+    }
     c.session.cancel();
     this.destroyPitch(true);
     this.services.hint.hide();
@@ -3133,7 +3182,8 @@ export class WorldScene extends Phaser.Scene {
       this.pitch = null;
       this.services.input.setContext({ action: null, back: false, busy: false });
       const best = this.services.state.fitness.futsal?.best ?? goals;
-      if (taken > 0) this.services.dialogue.start('Portería', [`Has marcado ${goals} de ${taken}. Mejor de la semana: ${best}.`]);
+      if (lg) this.services.dialogue.start('Liga del barrio', [leagueLine]);
+      else if (taken > 0) this.services.dialogue.start('Portería', [`Has marcado ${goals} de ${taken}. Mejor de la semana: ${best}.`]);
     });
   }
 
@@ -3424,7 +3474,7 @@ export class WorldScene extends Phaser.Scene {
       : target.kind === 'npc' ? target.def.name
       : target.kind === 'seat' ? `Sentarse · ${target.seat.def.name}`
       : target.kind === 'court' ? `Tirar a canasta · ${target.spot.label}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
-      : target.kind === 'pitch' ? (this.pitchIsOpen(target.pitch) ? 'Penaltis · sábados 10–13' : 'Penaltis · cerrado hasta el sábado a las 10')
+      : target.kind === 'pitch' ? ((lm) => (lm ? `Liga del barrio · ${lm.team} contra ${lm.rival}` : this.pitchIsOpen(target.pitch) ? 'Penaltis · sábados 10–13' : 'Penaltis · cerrado hasta el sábado a las 10'))(this.leagueMatchHere())
       : target.kind === 'station' ? `Entrenar · ${STATIONS[target.station].name}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
       : '';
     if (toll) this.services.hint.show(toll);

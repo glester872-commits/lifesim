@@ -33,6 +33,7 @@ import { CATEGORIES, getGarment, getStore } from '../data/retail';
 import { agreedPrice, haggle, HAGGLE_OFFERS, markHaggled, markSold, MOOD_BY_VENDOR, rareStatus } from '../systems/Rastro';
 import * as PlayerStall from '../systems/PlayerStall';
 import { PLAYER_STALL } from '../data/playerStall';
+import { LEAGUES, type LeagueDef } from '../data/campoAltoLeague';
 
 /** Un puesto que atiende a ratos; `rastro`, la clave de su catálogo o tienda en el Gran Rastro (CAS-04). */
 type Stall = { closed: () => string | null; rastro?: string };
@@ -1332,7 +1333,7 @@ export class Menus {
    */
   openBoard(location: string, tx: number, ty: number, section = -1, selected = 0, note = ''): void {
     const { state, menu } = this.services;
-    const board = boardAt(location, tx, ty, state);
+    const board = boardAt(location, tx, ty, state, state.league);
     const page = board.sections[section];
     if (!page) {
       const options: MenuOption[] = board.sections.map((s) => {
@@ -1348,6 +1349,9 @@ export class Menus {
       if (notice?.stallDesk) extra.push({ label: 'Puesto en el Rastro', run: (at) => this.openStallBoard('', () => this.openBoard(location, tx, ty, -1, at)) });
       const league = board.league;
       if (league) extra.push({ label: league.name, run: (at) => this.openLeague(league, () => this.openBoard(location, tx, ty, -1, at)) });
+      // CA-05b · apuntarse (no hay baja): sólo si este tablón tiene liga y aún no estás en ningún equipo.
+      const leagueDef = LEAGUES[location];
+      if (leagueDef && !state.league) extra.push({ label: 'Apuntarse a la liga', run: (at) => this.openLeagueSignup(leagueDef, () => this.openBoard(location, tx, ty, -1, at)) });
       options.push(...extra.map((e) => ({ label: e.label })), { label: 'Cerrar' });
       menu.open(board.title, board.intro, options, (i) => {
         if (i < board.sections.length) this.openBoard(location, tx, ty, i);
@@ -1375,7 +1379,23 @@ export class Menus {
     }, back, lines.length > 1 ? `${page + 1} de ${lines.length}` : '', 0, false, `${name} · Carteles · ${page}`);
   }
 
-  /** La liga del tablón (CA-05, sólo para mirarla), página a página; «Volver» o Esc regresan al índice. */
+  /** Elegir equipo de la liga (CA-05b): queda guardado y no hay baja. «Volver» o Esc regresan sin apuntarse. */
+  private openLeagueSignup(def: LeagueDef, back: () => void): void {
+    const { state, menu } = this.services;
+    const options: MenuOption[] = [...def.teams.map((t) => ({ label: t })), { label: 'Volver' }];
+    menu.open(`${def.name} · Apuntarse`, `Elige equipo. Juegas tú sus tiros en la ${def.venue}, a la hora de cada partido. No hay baja.`, options, (i) => {
+      const team = def.teams[i];
+      if (!team) {
+        back();
+        return;
+      }
+      state.league = { team, played: {} };
+      this.host.persist();
+      back();
+    }, back);
+  }
+
+  /** La liga del tablón (CA-05), página a página; «Volver» o Esc regresan al índice. */
   private openLeague(league: NonNullable<Board['league']>, back: () => void, page = 0): void {
     const { pages, name } = league;
     const more = page < pages.length - 1;
