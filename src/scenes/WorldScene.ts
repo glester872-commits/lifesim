@@ -166,6 +166,7 @@ import { WeatherView } from '../world/WeatherView';
 import { awayFanLook, characterLook, pregnantLook, umbrellaFor } from '../world/WeatherLooks';
 import { bumpOf, phaseOn, pregnancyLine } from '../systems/Pregnancy';
 import { hashSeed, seededRng, type Rng } from '../systems/MetroDaily';
+import { pickFitting } from '../systems/Retail';
 import { Atmosphere } from '../world/Atmosphere';
 import { StreetEventView } from '../world/StreetEventView';
 import { AlleyDealView } from '../world/AlleyDealView';
@@ -237,7 +238,7 @@ type Interactable =
   // `vendor`: el ancla de un puesto del rastro que vende (systems/PopUps.stallVendors, CAS-03); sólo mientras está en marcha.
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string; vendor?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef; vendor?: string }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; job?: string; lines?: readonly string[]; selfCheckout?: string }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; job?: string; lines?: readonly string[]; selfCheckout?: string; fitting?: { point: string; store: string; all: readonly string[] } }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'emergency'; x: number; y: number; view: EmergencyView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
@@ -559,6 +560,8 @@ export class WorldScene extends Phaser.Scene {
   /** El ring reservado para un combate (puestos de dentro), hasta `until` (minuto absoluto) o hasta acabar el combate. */
   private ringHold: { location: string; until: number; points: Set<string> } | null = null;
   private spar: { bout: Bout; selected: MoveId; view: SparringView | null; entry?: Entry; ready: boolean; from: Vec2; opponent: string; style: Style; last: number; hud: number; releasing: boolean } | null = null;
+  /** DEC-06 · el punto del probador en que está el jugador (va en `claimed`); null fuera. */
+  private fittingRoom: string | null = null;
   private workout: { point: string; station: StationId; intensity: Intensity; minutes: number; startMinute: number; from: Vec2; releasing: boolean; hintAt: number; mates: Set<string>; kicks?: KickState } | null = null;
   /** Un interactuable estable por persona del local: el indicador de E no se reinicia cada frame. */
   private crowdTargets = new WeakMap<Character, Interactable>();
@@ -706,6 +709,12 @@ export class WorldScene extends Phaser.Scene {
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
       this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, gathering: s.gathering, housing: s.housing, job: s.job, selfCheckout: s.selfCheckout });
+    }
+    // DEC-06 · cada probador, en el punto de delante de su cabina (data: LocationDef.fittings).
+    const fittingPoints = (def.fittings ?? []).map((f) => f.point);
+    for (const f of def.fittings ?? []) {
+      const pt = def.points?.[f.point];
+      if (pt) this.interactables.push({ kind: 'spot', x: pt.tx * TILE + TILE / 2, y: pt.ty * TILE + TILE / 2, name: f.name, activities: [], fitting: { point: f.point, store: f.store, all: fittingPoints } });
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
@@ -1523,6 +1532,8 @@ export class WorldScene extends Phaser.Scene {
     if (this.seatedOn && !this.seatedOn.seat.id.startsWith('metro:')) claimed.add(this.seatedOn.seat.id);
     // El puesto de quien entrena es suyo: la gente del gimnasio no lo coge (y quien estuviera, ya se ha ido).
     if (this.workout) claimed.add(this.workout.point);
+    // DEC-06 · la cabina del jugador mientras está en el probador.
+    if (this.fittingRoom) claimed.add(this.fittingRoom);
     if (this.court) claimed.add(this.court.point);
     if (this.pitch) claimed.add(this.pitch.point);
     // El ring reservado para un combate (startSpar): ningún alumno coge sus puestos.
@@ -3502,6 +3513,19 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  /** DEC-06 · Entra en esa cabina o en la libre más cercana (systems/Retail.pickFitting); todas ocupadas, se dice. */
+  private enterFitting(f: { point: string; store: string; all: readonly string[] }): void {
+    const point = pickFitting(f.point, f.all, (p) => (p === this.fittingRoom ? 'IN_USE' : this.crowd?.occupancy(p) ?? 'FREE'));
+    if (!point) {
+      this.openDialogue('Probadores', ['Están todos ocupados, espera un momento.']);
+      return;
+    }
+    this.fittingRoom = point;
+    this.menus.openFittingRoom(f.store, `Probador ${f.all.indexOf(point) + 1}`, () => {
+      this.fittingRoom = null;
+    });
+  }
+
   private interact(target: Interactable): void {
     if (target.kind === 'seat') {
       this.sitDown(target.seat);
@@ -3553,7 +3577,8 @@ export class WorldScene extends Phaser.Scene {
     if (target.kind === 'terminal') this.menus.openCatalog(target.name, target.catalog);
     else if (target.kind === 'rack') this.menus.openRack(target.rack);
     else if (target.kind === 'spot') {
-      if (target.wardrobe) this.menus.openWardrobe();
+      if (target.fitting) this.enterFitting(target.fitting);
+      else if (target.wardrobe) this.menus.openWardrobe();
       else if (target.selfCheckout) this.menus.openSelfCheckout(target.selfCheckout, target.name);
       else if (target.study) this.menus.openStudy(target.study, target.name, target.lines ?? []);
       else if (target.gathering) this.menus.openGathering(target.gathering, target.name);

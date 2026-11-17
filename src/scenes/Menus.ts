@@ -30,7 +30,7 @@ import { dyeHair, haircut, haircutQuote, reworkTattoo, sleeveOf, tattoo, tattooA
 import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
 import type { HumanColors } from '../world/HumanArt';
-import { buyGarment, buysItem, resaleOffer, resaleValue, sellGarment, sellItem, stockOf, takeOff, wear } from '../systems/Retail';
+import { buyGarment, buysItem, resaleOffer, resaleValue, sellGarment, sellItem, soldOutToday, stockOf, takeOff, wear } from '../systems/Retail';
 import { addLine, linesOf, payBasket, removeLine, total as basketTotal } from '../systems/Basket';
 import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
@@ -136,6 +136,64 @@ export class Menus {
     this.host = host;
     // PROBAR no cierra el menú (lo rehace y lo baja con peek): cerrarlo de verdad siempre acaba la prueba.
     services.menu.onClosed = () => this.endFitting();
+  }
+
+  /** DEC-06 · Al cerrar el menú del probador (endFitting), la Scene libera la cabina. */
+  private leaveRoom: (() => void) | null = null;
+
+  /**
+   * DEC-06 · Un probador de una tienda con cesta: probarse a la vez lo de la cesta y lo que no tienes y no está agotado
+   * (una prenda por hueco), y meter o sacar de la cesta lo último probado. No cobra: se paga en caja o en el autopago.
+   * Salir o Esc cierran el menú: endFitting devuelve tu ropa y `onLeave` libera la cabina.
+   */
+  openFittingRoom(storeId: string, name: string, onLeave: () => void, note = '', last?: string): void {
+    const { state, menu } = this.services;
+    this.leaveRoom = onLeave;
+    const stock = getStore(storeId).stock;
+    const current = state.appearanceOf('player');
+    const mine = (): string[] => linesOf(state.basket, storeId).map((l) => l.garment);
+    const garments = [...new Set([...mine(), ...stock.map((l) => l.garment)])]
+      .filter((g) => !state.wardrobe.includes(g) && !soldOutToday(storeId, g, state.day, state.wardrobe));
+    const priceOf = (g: string): number => this.priced(stock.find((l) => l.garment === g)?.price ?? 0);
+    const options: MenuOption[] = garments.map((g) => {
+      const def = getGarment(g);
+      const on = current[def.slot] === g;
+      return { label: def.name, detail: `${on ? 'puesta · ' : ''}${mine().includes(g) ? 'en la cesta' : euros(priceOf(g))}`, disabled: on ? 'Ya la llevas puesta.' : undefined, icon: garmentIcon(def) };
+    });
+    const lastIn = last !== undefined && mine().includes(last);
+    const add = last !== undefined && !lastIn ? addLine(state.basket, { store: storeId, garment: last, price: priceOf(last) }, state.wardrobe, state.day) : undefined;
+    const lastAt = options.length;
+    if (last !== undefined) {
+      const n = getGarment(last).name.toLowerCase();
+      options.push(lastIn ? { label: `Quitar ${n} de la cesta` } : { label: `Añadir ${n} a la cesta`, detail: euros(priceOf(last)), disabled: add?.ok ? undefined : add?.message });
+    }
+    const allAt = options.length;
+    options.push({ label: 'Quitarse todo', disabled: this.fitting ? undefined : 'Llevas tu ropa.' }, { label: 'Salir' });
+    const count = mine().length;
+    const text = `Pruébate varias a la vez, una por hueco. En la cesta: ${count} ${count === 1 ? 'prenda' : 'prendas'}. Se paga en caja o en el autopago.`;
+    menu.open(name, text, options, (i) => {
+      if (i < lastAt) {
+        const g = garments[i];
+        if (!this.fitting) this.fitting = current;
+        state.setAppearance('player', wear(state.appearanceOf('player'), g));
+        this.openFittingRoom(storeId, name, onLeave, `Te pones ${getGarment(g).name.toLowerCase()}.`, g);
+      } else if (last !== undefined && i === lastAt) {
+        let msg: string;
+        if (lastIn) {
+          state.basket = removeLine(state.basket, storeId, last);
+          msg = `${getGarment(last).name}, fuera de la cesta.`;
+        } else {
+          const r = addLine(state.basket, { store: storeId, garment: last, price: priceOf(last) }, state.wardrobe, state.day);
+          if (r.ok) state.basket = r.basket;
+          msg = r.message;
+        }
+        this.openFittingRoom(storeId, name, onLeave, msg, last);
+      } else if (i === allAt) {
+        this.restoreLook();
+        this.openFittingRoom(storeId, name, onLeave, 'Vuelves a tu ropa.');
+      } else menu.close();
+    }, () => menu.close(), note, 0, false, `fitting-room:${name}`);
+    menu.peek(this.fitting !== null);
   }
 
   // ------------------------------------------------------------- comprar
@@ -1538,8 +1596,9 @@ export class Menus {
       const icon = garmentIcon(l.def);
       if (l.wearing) return { label: l.def.name, detail: 'la llevas', disabled: 'Ya la llevas puesta.', icon };
       if (l.owned) return { label: l.def.name, detail: 'tuya · ponértela', icon };
-      const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment, true, factor);
-      return { label: l.def.name, detail: `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
+      const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment, true, factor, state.day);
+      const out = soldOutToday(storeId, l.garment, state.day, state.wardrobe);
+      return { label: l.def.name, detail: out ? 'Agotado' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
     });
     if (store.buysBack) options.push({ label: 'Vender ropa' });
     const sellClothesAt = store.buysBack ? lines.length : -1;
@@ -1579,7 +1638,7 @@ export class Menus {
         return;
       }
       const buy = (): void => {
-        const result = buyGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), storeId, line.garment, true, factor);
+        const result = buyGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), storeId, line.garment, true, factor, state.day);
         if (result.ok) {
           state.as(getGarment(line.garment).name, () => {
             state.wallet = result.wallet;
@@ -1891,7 +1950,7 @@ export class Menus {
     const lines = stockOf(rack.store, state.wardrobe, state.appearanceOf('player'), rack.categories).filter((l) => rare(l.garment) !== 'hidden');
     const options: MenuOption[] = lines.map((l) => ({
       label: l.def.name,
-      detail: l.owned ? 'tuya' : rare(l.garment) === 'sold' ? 'Agotado' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`,
+      detail: l.owned ? 'tuya' : rare(l.garment) === 'sold' || soldOutToday(rack.store, l.garment, state.day, state.wardrobe) ? 'Agotado' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`,
     }));
     options.push({ label: 'Cerrar' });
     menu.open(`${rack.name} · ${getStore(rack.store).name}`, `Llevas ${euros(state.money)}.`, options, (i) => {
@@ -1902,6 +1961,15 @@ export class Menus {
 
   /** Deja puesto lo de antes y cierra la prueba. */
   private endFitting(): void {
+    this.restoreLook();
+    // DEC-06 · acabar la prueba es también salir del probador: la cabina vuelve a quedar libre.
+    const leave = this.leaveRoom;
+    this.leaveRoom = null;
+    leave?.();
+  }
+
+  /** Vuelve a ponerte lo de antes de probar, sin salir de donde estés (el probador lo usa en «Quitarse todo»). */
+  private restoreLook(): void {
     if (!this.fitting) return;
     this.services.state.setAppearance('player', this.fitting);
     this.fitting = null;
@@ -1926,7 +1994,7 @@ export class Menus {
     const rare = rareStatus(rack.store, garment, state.day, state.rastro, stall?.rastro === rack.store);
     // Con un precio ya pactado hoy (CAS-04), lo que llega se mide contra ése.
     const pact = rare === 'available' && list > 0 ? agreedPrice(state.rastro, state.day, garment) : undefined;
-    const realTrial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, pact === undefined ? factor : pact / list);
+    const realTrial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, pact === undefined ? factor : pact / list, state.day);
     const trial = !owned && (rare === 'sold' || rare === 'hidden') ? { ok: false as const, message: 'Agotado.' } : realTrial;
     // DEC-03: la marca (ficticia) delante del nombre, sólo si la prenda la tiene.
     const title = `${def.brand ? `${def.brand} · ` : ''}${def.name} · ${euros(price)}`;
@@ -1952,7 +2020,7 @@ export class Menus {
         return;
       }
       const f = agreed === undefined ? factor : agreed / list;
-      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, f);
+      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, f, state.day);
       if (!result.ok) {
         this.openGarment(rack, garment, index, result.message, stall);
         return;
@@ -1990,7 +2058,7 @@ export class Menus {
     // DEC-04 · «A LA CESTA» sólo donde hay caja o autopago que la cobre (RetailStoreDef.basket); se paga allí.
     const cart = getStore(rack.store).basket && !stall;
     const line = { store: rack.store, garment, price };
-    const add = addLine(state.basket, line, state.wardrobe);
+    const add = addLine(state.basket, line, state.wardrobe, state.day);
     menu.open(title, text, [
       { label: 'PROBAR', disabled: wearing ? 'Ya la llevas puesta.' : undefined },
       { label: 'COMPRAR', detail: owned ? 'tuya' : euros(price), disabled: trial.ok ? undefined : trial.message },
@@ -2003,7 +2071,7 @@ export class Menus {
         this.openGarment(rack, garment, index, '', stall);
       } else if (i === 1) buy();
       else if (cart && i === 2) {
-        const r = addLine(state.basket, line, state.wardrobe);
+        const r = addLine(state.basket, line, state.wardrobe, state.day);
         if (r.ok) state.basket = r.basket;
         const mine = linesOf(state.basket, rack.store);
         this.openRack(rack, `${r.message} En la cesta: ${mine.length} ${mine.length === 1 ? 'prenda' : 'prendas'} · total ${euros(basketTotal(mine))}.`, index, stall);
@@ -2024,8 +2092,9 @@ export class Menus {
       return;
     }
     const factor = this.priceHere();
-    const trial = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, lines, factor);
-    const options: MenuOption[] = lines.map((l) => ({ label: `Quitar ${getGarment(l.garment).name.toLowerCase()}`, detail: euros(l.price), icon: garmentIcon(getGarment(l.garment)) }));
+    const trial = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, lines, factor, state.day);
+    // DEC-06 · una línea agotada hoy se ve como tal: quitarla deja pagar el resto.
+    const options: MenuOption[] = lines.map((l) => ({ label: `Quitar ${getGarment(l.garment).name.toLowerCase()}`, detail: soldOutToday(storeId, l.garment, state.day, state.wardrobe) ? `Agotado · ${euros(l.price)}` : euros(l.price), icon: garmentIcon(getGarment(l.garment)) }));
     options.push({ label: 'CONFIRMAR PAGO', detail: trial.ok ? euros(trial.charged) : '', disabled: trial.ok ? undefined : trial.message }, { label: 'CANCELAR' });
     const text = `${lines.length} ${lines.length === 1 ? 'prenda' : 'prendas'} · total ${euros(trial.ok ? trial.charged : basketTotal(lines))}. Llevas ${euros(state.money)}.`;
     menu.open(`Cesta · ${title}`, text, options, (i) => {
@@ -2039,7 +2108,7 @@ export class Menus {
         return;
       }
       // Se vuelve a calcular al pulsar: lo de la pantalla puede haber cambiado (todo o nada).
-      const r = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, linesOf(state.basket, storeId), this.priceHere());
+      const r = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, linesOf(state.basket, storeId), this.priceHere(), state.day);
       if (!r.ok) {
         this.openBasket(storeId, title, minutes, back, r.message);
         return;

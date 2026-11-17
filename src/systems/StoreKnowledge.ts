@@ -12,6 +12,7 @@ import { LINE_SECTIONS, SECTION_LINES, VOICED_SECTIONS, type HourBand, type Line
 import { placeInfo } from './Places.ts';
 import { hashSeed } from './MetroDaily.ts';
 import { euros } from './Commerce.ts';
+import { soldOutList } from './Retail.ts';
 
 /**
  * DEC-01 · Lo que sabe quien atiende en la sala de Decathlon: dónde está cada sección respecto a él (del plano, no de
@@ -145,13 +146,21 @@ export function openCheckouts(now: StoreNow): Checkout[] {
 }
 
 /** Lo que se vende de verdad (data/retail.ts `decathlon`), por nombre y con el precio de aquí. */
-export function stockText(factor = 1): string {
+export function stockText(factor = 1, day?: number): string {
+  const out = day === undefined ? [] : soldOutList('decathlon', day);
   const byName = new Map<string, number[]>();
   for (const line of getStore('decathlon').stock) {
+    if (out.includes(line.garment)) continue;
     const name = getGarment(line.garment).name;
     byName.set(name, [...(byName.get(name) ?? []), Math.round(line.price * factor * 100) / 100]);
   }
   return listEs([...byName].map(([name, prices]) => `${name.toLowerCase()} a ${prices.sort((a, b) => a - b).map((p) => euros(p)).join(' o ')}`));
+}
+
+/** DEC-06 · Lo agotado hoy, dicho tras la lista (vacío si no falta nada). Sin pedidos ni reservas: no existen. */
+export function soldOutText(day: number): string {
+  const out = soldOutList('decathlon', day).map((g) => getGarment(g).name.toLowerCase());
+  return out.length ? ` Hoy no tenemos ${listEs(out)}; mañana lo reponen.` : '';
 }
 
 const tillLabel = (cs: readonly Checkout[]): string => {
@@ -286,7 +295,10 @@ export function answer(q: StoreQuery, who: Asker, clock: Clock, priceFactor = 1)
     const resto = others.length > 0 ? ` Lo demás: ${describe(others)}.` : '';
     return reply('department', { cerca: nameIn(near, sectors), ir: go.ir, resto }, go.at);
   }
-  if (q.kind === 'stock') return reply('stock', { lista: stockText(priceFactor) });
+  if (q.kind === 'stock') {
+    const r = reply('stock', { lista: stockText(priceFactor, clock.day) });
+    return { ...r, text: r.text + soldOutText(clock.day) };
+  }
   if (q.kind === 'racks') {
     const racks = DECATHLON_STORE.racks ?? [];
     const spot = (r: TilePoint): Spot => ({ x: r.tx, y: r.ty });

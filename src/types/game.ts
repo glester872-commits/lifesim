@@ -606,6 +606,8 @@ export interface LocationDef {
   pitch?: { tx: number; ty: number; w: number; h: number };
   /** Percheros de una tienda de ropa donde se ve, se prueba y se compra. */
   racks?: readonly RackDef[];
+  /** DEC-06 · Probadores del jugador: E delante de su punto (`points`) abre «name» con la ropa de `store` (con `basket`). */
+  fittings?: readonly { point: string; store: string; name: string }[];
   /** Zona de skate de una calle: unos patinadores ruedan de un lado a otro de la franja `row`, de `tx0` a `tx1` (world/SkateParkView). */
   skate?: { tx0: number; tx1: number; row: number; riders?: number };
   traffic?: TrafficDef;

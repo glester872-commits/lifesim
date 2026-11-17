@@ -412,6 +412,8 @@ export const DECATHLON_STORE: LocationDef = {
   spawns: { entry: { ...EXIT, facing: 'up' } },
   npcs: [],
   racks: RACKS,
+  // DEC-06 · los probadores del jugador: los mismos puntos de los clientes, delante de cada cabina.
+  fittings: FITTINGS.map((_, i) => ({ point: `${P}_FITTING_${TWO(i)}`, store: 'decathlon', name: `Probador ${i + 1}` })),
   inspects: SECTORS.map((s): InspectDef => ({ tx: s.look.tx, ty: s.look.ty, name: s.name, lines: s.look.lines })),
   workplace: 'decathlon',
   // El fichaje (turnos con contrato y el turno suelto sin él: scenes/Menus.openJob) y el punto de información de la entrada.

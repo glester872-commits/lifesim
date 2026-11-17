@@ -122,3 +122,11 @@ eso es todo»; DEC-05 cubre esa estructura.
 medida) reescritas: 11 frases en `sectionLines.ts`. `check-section-lines` falla ahora si una variación contiene taller, repar,
 pinchaz, talla, €, precio, rutina, encarg o reserv. Tras la corrección: `tsc` 0, build OK, check-section-lines, check-store-knowledge y
 check-menu OK, cadena completa **146 de 146 OK** (276 s, 2565 líneas). Veredicto del evaluador: **PASS**.
+
+### Verificaciones cerradas después del commit
+
+| Sección | Estado | Consulta | Hora | Frase obtenida | Estado | Notas |
+| --- | --- | --- | --- | --- | --- | --- |
+| general (Reposición) | reponiendo | saludo | vie 11:00 | «Estoy reponiendo, pero dime, ¿qué buscas?» | PASS | navegador, E real con Reposición parada en su punto · `07-reposicion-reponiendo.png` |
+| cajas (Caja 2) | atendiendo | saludo | sáb 18:00 | «Enseguida te atiendo; acabo de cobrar aquí y voy.» | PASS | con un cliente pagando en su caja, hablando desde detrás del mostrador (52,45) · `08-caja-atendiendo.png` |
+| — | — | teléfono físico | — | — | PENDIENTE DEL USUARIO | servidor expuesto en la red local (`npm run dev -- --host`) |
