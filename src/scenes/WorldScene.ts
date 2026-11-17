@@ -129,6 +129,8 @@ import {
 import { offCamera, settleNamed, type StuckWatch } from '../systems/Recovery';
 import { pickTarget, tileAhead, wallBetween, type Candidate as PickCandidate } from '../systems/Interaction';
 import { stallVendors } from '../systems/PopUps';
+import { isOpen as isStallOpen } from '../systems/PlayerStall';
+import { PLAYER_STALL } from '../data/playerStall';
 import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Agent, type Clock } from '../systems/Crowd';
@@ -227,7 +229,8 @@ export interface WorldSceneData {
 type Interactable =
   | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
-  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string }
+  // `stallDesk`: el tablón donde se alquila tu puesto del Rastro; `own`: tu puesto, mientras el Rastro está en marcha (CAS-09).
+  | { kind: 'inspect'; x: number; y: number; name: string; lines: readonly string[]; board?: { tx: number; ty: number }; venue?: string; stallDesk?: string; own?: true }
   // `vendor`: el ancla de un puesto del rastro que vende (systems/PopUps.stallVendors, CAS-03); sólo mientras está en marcha.
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string; vendor?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef; vendor?: string }
@@ -665,7 +668,9 @@ export class WorldScene extends Phaser.Scene {
 
     // Cosas que se miran: carteles sueltos y las puertas de los locales sin interior.
     for (const item of def.inspects ?? []) {
-      this.interactables.push({ kind: 'inspect', x: item.tx * TILE + TILE / 2, y: item.ty * TILE + TILE / 2, name: item.name, lines: item.lines, venue: item.venue });
+      // Encima de un tablón del barrio (PropDef.board) lo sirve su menú (Menus.openBoard: «Carteles», puesto).
+      if (def.props.some((p) => p.tx === item.tx && p.ty === item.ty && PROPS[p.kind].board)) continue;
+      this.interactables.push({ kind: 'inspect', x: item.tx * TILE + TILE / 2, y: item.ty * TILE + TILE / 2, name: item.name, lines: item.lines, venue: item.venue, stallDesk: item.stallDesk });
     }
     // Las papeleras (PropDef.waste), de cualquier tipo: se miran como un cartel.
     for (const p of def.props) {
@@ -1457,7 +1462,7 @@ export class WorldScene extends Phaser.Scene {
       case 'terminal': return 'Comprar';
       case 'rack': return 'Ver prenda';
       case 'spot': return target.wardrobe ? 'Cambiarse' : 'Usar';
-      case 'inspect': return target.board || target.venue ? 'Consultar' : 'Mirar';
+      case 'inspect': return target.own ? 'Atender' : target.board || target.venue || target.stallDesk ? 'Consultar' : 'Mirar';
       case 'event': return 'Mirar';
       case 'emergency': return 'Mirar';
     }
@@ -3378,6 +3383,9 @@ export class WorldScene extends Phaser.Scene {
         ? { kind: 'rack', x, y, rack: { tx: s.tx, ty: s.ty, name: s.vendor.name, store: s.vendor.store }, vendor: s.id }
         : { kind: 'terminal', x, y, name: s.vendor.name, catalog: s.vendor.catalog, vendor: s.id };
     });
+    // CAS-09 · tu puesto, en su ancla y en el mismo sitio que los de los vendedores; sólo con reserva para hoy y el Rastro en marcha.
+    const own = loc.id === PLAYER_STALL.location && isStallOpen(this.services.state.playerStall, this.clockNow()) ? loc.stallAnchors?.find((a) => a.id === PLAYER_STALL.anchor) : undefined;
+    if (own) vendors.push({ kind: 'inspect', x: (own.tx + 1) * TILE, y: own.ty * TILE + TILE / 2, name: 'Tu puesto', lines: [], own: true });
     const cands = [...this.interactables, ...this.crowdInteractables(), ...events, ...vendors]
       // Un asiento ocupado no se ofrece; las puertas del tren, sólo con las puertas abiertas; un NPC oculto, no existe.
       .filter((item) => !(item.kind === 'seat' && this.seatTaken(item.seat)) && !(item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) && !(item.kind === 'npc' && !item.sprite.visible))
@@ -3535,6 +3543,8 @@ export class WorldScene extends Phaser.Scene {
     }
     else if (target.board) this.menus.openBoard(this.services.state.locationId, target.board.tx, target.board.ty);
     else if (target.venue) this.menus.openTickets(target.venue);
+    else if (target.own) this.menus.openPlayerStall();
+    else if (target.stallDesk) this.menus.openStallBoard();
     else this.openDialogue(target.name, target.lines);
   }
 

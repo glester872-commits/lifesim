@@ -2,7 +2,7 @@ import type Phaser from 'phaser';
 import type { Agent } from '../systems/Crowd';
 import { Character, activityAt } from '../entities/Character';
 import { atTable, seatAt } from '../systems/Seating';
-import { getNpc, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
+import { getNpc, PASSENGER_LOOKS, staffLook, UNIFORM_LOOKS } from '../data/npcs';
 import type { NpcDef, NpcLook } from '../types/game';
 import type { Weather } from '../systems/Weather';
 import { dressedLook, fanLook, gymLook, umbrellaFor } from './WeatherLooks';
@@ -330,7 +330,8 @@ function streetActivity(a: Agent): ReturnType<typeof activityAt> {
 function defOf(a: Agent, w: Weather, dressed?: { look: NpcLook; line: string }): NpcDef {
   if (a.npc) return getNpc(a.npc);
   if (dressed) return { ...dressed.look, name: a.label, lines: [dressed.line] };
-  const uniform = a.uniform ? UNIFORM_LOOKS.find((l) => l.id === a.uniform) : undefined;
+  // Cada trabajador con su cara (data/npcs staffLook): el uniforme compartido no clona a la persona.
+  const uniform = a.uniform ? UNIFORM_LOOKS.find((l) => l.id === staffLook(a.uniform!, a.look)) : undefined;
   const base = PASSENGER_LOOKS[a.look % PASSENGER_LOOKS.length];
   // Quien viene de la calle (systems/Handoff) trae su semilla de ropa: el mismo abrigo dentro que fuera.
   // Con la ropa de entrenar, la del gimnasio; de aficionado (día de partido), la camiseta del equipo y la bufanda.

@@ -3,10 +3,11 @@
 // los conjuntos casan con la moda de cada cual y nadie de la pelea ni con nombre cambia de ropa.
 import assert from 'node:assert/strict';
 import { FASHION_OUTFITS } from '../src/data/outfits.ts';
-import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../src/data/npcs.ts';
+import { NPC_DEFS, PASSENGER_LOOKS, staffLook, UNIFORM_LOOKS } from '../src/data/npcs.ts';
 import { FIGHTER_PROFILES } from '../src/data/streetEvents.ts';
 import { GENERATED_COUNT, GENERATED_PEOPLE, outfitSignature } from '../src/systems/Population.ts';
 import { outfitOf } from '../src/systems/People.ts';
+import { POPULATION_PROFILES } from '../src/data/population.ts';
 
 // Los 36, todos vestidos (world/HdCache hornea su ropa al aparecer, no al arrancar).
 const dressed = GENERATED_PEOPLE;
@@ -46,5 +47,24 @@ assert.ok(NPC_DEFS.every((n) => !n.outfit), 'un personaje con nombre ha cambiado
 const idx = (id: string): number => PASSENGER_LOOKS.findIndex((l) => l.id === id);
 assert.ok(dressed.every((g) => outfitOf(idx(g.look.id)).startsWith(`${g.look.outfit!.top}:`)), 'la firma de ropa no ve el corte');
 
+// Las cajas de las tiendas: cada una con su dependiente (data/npcs CLERKS), que exista y que no lo comparta otra tienda.
+const tills = POPULATION_PROFILES.flatMap((pr) => pr.staff.filter((r) => r.service === 'cashier' && r.look?.startsWith('dependiente-')).map((r) => ({ place: pr.place, look: r.look! })));
+for (const t of tills) assert.ok(UNIFORM_LOOKS.some((u) => u.id === t.look), `${t.place}: ${t.look} no existe`);
+assert.equal(new Set(tills.map((t) => t.look)).size, tills.length, 'dos tiendas con el mismo dependiente');
+assert.ok(tills.length >= 20, `sólo ${tills.length} cajas con dependiente propio`);
+assert.ok(!POPULATION_PROFILES.some((pr) => pr.staff.some((r) => r.service === 'cashier' && r.look === 'uniforme-tienda')), 'queda una caja con el dependiente genérico');
+const faces = new Set(tills.map((t) => { const u = UNIFORM_LOOKS.find((l) => l.id === t.look)!; return `${u.skin}/${u.hair}/${u.hairStyle}`; }));
+assert.equal(faces.size, tills.length, 'dos dependientes con la misma cara');
+
+// El personal anónimo con uniforme compartido: siete caras por uniforme, todas existen, y el de un solo dueño no cambia.
+const waiters = new Set(Array.from({ length: 14 }, (_, i) => staffLook('uniforme-sala', i)));
+assert.equal(waiters.size, 7, `uniforme de sala con ${waiters.size} caras`);
+for (const id of waiters) assert.ok(UNIFORM_LOOKS.some((u) => u.id === id), `${id} no existe`);
+assert.equal(new Set([...waiters].map((id) => UNIFORM_LOOKS.find((u) => u.id === id)!.skin ?? '-')).size, 7, 'dos caras de sala con la misma piel');
+assert.equal(staffLook('dobok-negro', 3), 'dobok-negro');
+assert.equal(staffLook('dependiente-capan', 3), 'dependiente-capan');
+assert.ok(UNIFORM_LOOKS.filter((u) => u.id.startsWith('uniforme-sala#')).every((u) => u.cloth === UNIFORM_LOOKS.find((b) => b.id === 'uniforme-sala')!.cloth), 'una cara de sala cambió de ropa');
+
 console.log(`vestidos ${dressed.length}: ${builds} complexiones, ${silhouettes} cuerpos (complexión/altura), ${hair} peinados, ${sets} conjuntos; catálogo ${catalog} conjuntos para ${Object.keys(FASHION_OUTFITS).length} modas`);
+console.log(`dependientes: ${tills.length} cajas, ${faces.size} caras distintas`);
 console.log('OK: variedad mínima, ropa coherente con la moda, sin tocar a quien pelea ni a los personajes con nombre.');

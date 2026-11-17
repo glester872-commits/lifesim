@@ -42,7 +42,8 @@ assert.ok(cafe.enter && hasLocation(cafe.enter.location), 'el café no tiene int
 const inside = getLocation(cafe.enter!.location);
 assert.ok(inside.spawns[cafe.enter!.spawn] && inside.portals.some((p) => p.to.location === ID && street.spawns[p.to.spawn]), 'el café no devuelve a la calle');
 // CA-03: el Taller Biciclo gana puerta (cambio de puertas especificado).
-assert.ok(street.buildings!.filter((b) => b.enter).length === 3, 'sólo el café, el taller y el metro llevan enter');
+// CA-04: la Panadería Cuatro Hornos gana puerta (cambio de puertas especificado).
+assert.ok(street.buildings!.filter((b) => b.enter).length === 4, 'sólo el café, el taller, la panadería y el metro llevan enter');
 const walk = tilePath(street, street.spawns[out.to.spawn], street.spawns[cafe.id]);
 assert.ok(walk && walk.length > 3, 'del metro a la puerta del café no se llega andando');
 

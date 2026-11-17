@@ -28,7 +28,16 @@ const TALLER: LocationDef = shopRoom({
   inspects: [{ tx: 6, ty: 2, name: 'Pizarra del taller', lines: ['Timbres, luces y agua para la ruta. Reparaciones, todavía no: el taller está en obras.', 'Las bicis de la exposición son del taller: de momento no se venden.'] }],
 });
 
-export const CA_INTERIORS: readonly LocationDef[] = [CAFE, TALLER];
+/** CA-04 · Panadería Cuatro Hornos: la planta de La Espiga (Cuatro Ríos), con su mostrador de barrio. */
+const PANADERIA: LocationDef = shopRoom({
+  id: 'ca-panaderia', name: 'Panadería Cuatro Hornos', building: 'ca-panaderia', street: 'campo-alto', pre: 'CAPAN', ambient: '#ffe9cc', catalog: 'ca-panaderia-mostrador',
+  // Una pared de pan (sólo colisiona la fila 2), dos vitrinas de bollería junto a la caja y la cafetera detrás.
+  props: [...many('bread-rack', [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2]]), ...many('pastry-case', [[8, 7], [9, 7]]), at('espresso', 12, 6), at('chalkboard', 9, 1), at('plant', 1, 8)],
+  browse: [[2, 3, 'up'], [4, 3, 'up'], [6, 3, 'up']],
+  inspects: [{ tx: 9, ty: 2, name: 'Pizarra', lines: ['Barra, hogaza y bollería. Abrimos a las siete y cerramos a las dos.'] }],
+});
+
+export const CA_INTERIORS: readonly LocationDef[] = [CAFE, TALLER, PANADERIA];
 
 export const CA_PROFILES: readonly PopulationProfile[] = [
   {
@@ -55,5 +64,15 @@ export const CA_PROFILES: readonly PopulationProfile[] = [
     weekday: [0, 0, 0, 0, 0, 1, -2], maxVisitors: 4,
     staff: [cashier('CATALLER', 'Taller Biciclo', 'Pasa, pasa. Hoy sólo vendo: las reparaciones, cuando acabe de ordenar el taller.')],
     visitors: [customer('CATALLER', 'Un timbre, que el mío suena a lata.', 1)],
+  },
+  {
+    // CA-04 · de 7 a 14 (el domingo, de 8 a 13; data/places.ts): la cola, a primera hora.
+    place: 'ca-panaderia', bands: [[7, 9.5, 'HIGH'], [9.5, 12, 'MEDIUM'], [12, 14, 'LOW']],
+    weekday: [0, 0, 0, 0, 0, 1, 0], maxVisitors: 5,
+    staff: [cashier('CAPAN', 'Cuatro Hornos', 'La de centeno sale a las ocho y media.')],
+    visitors: [
+      customer('CAPAN', 'Una barra y dos cruasanes, que vienen los nietos.', 2),
+      customer('CAPAN', 'Si queda de la trenza, me la guardas.', 1),
+    ],
   },
 ];

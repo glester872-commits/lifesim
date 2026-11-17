@@ -148,6 +148,12 @@ export const CATALOGS: readonly Catalog[] = [
     products: [item('water', 'Agua', 1.2), item('energy-drink', 'Bebida energética', 2.3), item('chocolate', 'Chocolatina', 1.3), item('gift-bike-bell', 'Timbre de bici', 6), item('gift-bike-light', 'Luz de bici', 9)],
   },
   {
+    // CA-04 · Panadería Cuatro Hornos (Campo Alto): pan y bollería de barrio, algo más barato que la barra del café.
+    id: 'ca-panaderia-mostrador',
+    greeting: '¿Qué te pongo? Hay barra recién sacada.',
+    products: [item('bread', 'Barra de pan', 1), item('croissant', 'Cruasán', 1.5), item('pastry', 'Napolitana de chocolate', 1.8), item('coffee', 'Café con leche', 1.6), item('sandwich', 'Sándwich', 3.2), item('water', 'Agua', 1.1)],
+  },
+  {
     // Conecta (Cuatro Ríos): tienda de móviles que, como tantas, recarga la tarjeta de transporte y tiene nevera.
     id: 'conecta-counter',
     greeting: 'Recargas, fundas y reparaciones. ¿Qué necesitas?',

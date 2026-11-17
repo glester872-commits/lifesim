@@ -41,7 +41,8 @@ const GROUND = paint('g', [
   ['P', 2, 16, 48, 8],
   // El Pasaje del Mercado y el Callejón de las Cestas bajan de la acera sur a la Calle del Rastro, peatonal.
   [',', 17, 26, 2, 8], [',', 44, 26, 2, 8],
-  [',', 0, 34, W, 2],
+  // CAS-08: la Calle del Rastro, adoquinada como la plaza.
+  ['P', 0, 34, W, 2],
 ]);
 
 const b = (
@@ -55,12 +56,14 @@ const b = (
 ): BuildingDef => ({ id, name, style, tx, ty, w, h, front, doorX, ...extra });
 
 const BUILDINGS: readonly BuildingDef[] = [
-  b('cas-res-1', 'Calle Mayor 2', 'res-brick', [0, 2, 6, 7], 's', 2, { point: 'CAS_RES_1_ENTRANCE' }),
+  // CAS-08: las cuatro casas viejas de la acera norte ('res-historic'), cada una con su revoco (tone, world/BuildingArt
+  // WALL_TONES): almagre, ocre, crema lavado y rosa viejo.
+  b('cas-res-1', 'Calle Mayor 2', 'res-historic', [0, 2, 6, 7], 's', 2, { point: 'CAS_RES_1_ENTRANCE', tone: 0 }),
   b('cas-horno', 'Horno de la Plaza', 'bakery', [6, 2, 5, 7], 's', 8),
-  b('cas-res-2', 'Calle Mayor 8', 'res-plaster', [11, 2, 5, 7], 's', 13, { point: 'CAS_RES_2_ENTRANCE' }),
+  b('cas-res-2', 'Calle Mayor 8', 'res-historic', [11, 2, 5, 7], 's', 13, { point: 'CAS_RES_2_ENTRANCE', tone: 1 }),
   b('cas-fruteria', 'Mercado · Frutas del Casco', 'fruit', [16, 2, 6, 7], 's', 18, { enter: { location: 'cas-fruteria', spawn: 'entry' }, point: 'CAS_FRUIT_ENTRANCE' }),
   b('cas-ultramarinos', 'Ultramarinos Mayor', 'grocer', [22, 2, 5, 7], 's', 24),
-  b('cas-res-3', 'Calle Mayor 16', 'res-modern', [27, 2, 6, 7], 's', 29, { point: 'CAS_RES_3_ENTRANCE' }),
+  b('cas-res-3', 'Calle Mayor 16', 'res-historic', [27, 2, 6, 7], 's', 29, { point: 'CAS_RES_3_ENTRANCE', tone: 2 }),
   // CAS-06: la taberna de tapas, con interior (data/cascoAntiguoVenues.ts); la puerta en x 35, fuera del Pasaje y de las columnas 19–23.
   b('cas-cafe', 'Taberna La Lonja', 'cafe', [33, 2, 5, 7], 's', 35, { enter: { location: 'cas-taberna', spawn: 'entry' }, point: 'CAS_TABERNA_ENTRANCE' }),
   b('cas-metro', 'Metro · Casco Antiguo', 'metro', [38, 5, 5, 4], 's', 40, { enter: { location: 'casco-antiguo-station', spawn: 'entry' }, point: 'CAS_METRO_ENTRANCE' }),
@@ -72,7 +75,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('cas-res-9', 'Calle Mayor 21', 'res-modern', [28, 26, 6, 8], 'n', 31),
   b('cas-res-10', 'Calle Mayor 25', 'res-brick', [34, 26, 5, 8], 'n', 36),
   b('cas-res-11', 'Calle Mayor 29', 'res-plaster', [39, 26, 5, 8], 'n', 41),
-  b('cas-res-12', 'Calle Mayor 20', 'res-modern', [45, 2, 6, 7], 's', 47),
+  b('cas-res-12', 'Calle Mayor 20', 'res-historic', [45, 2, 6, 7], 's', 47, { tone: 3 }),
   b('cas-res-13', 'Calle Mayor 33', 'res-plaster', [46, 26, 6, 8], 'n', 48),
   // Los bajos del Rastro, de espaldas al borde sur.
   b('cas-rastro-1', 'Calle del Rastro 1', 'res-brick', [0, 36, 6, 8], 'n', 3),
@@ -110,6 +113,8 @@ const PROPS: readonly PropPlacement[] = [
   ...many('chair-up', [[32, 19], [36, 19]]),
   // La Calle del Rastro: dos farolas en el lado norte, fuera del Pasaje y del Callejón.
   ...many('street-lamp', [[15, 34], [42, 34]]),
+  // CAS-08: la placa de la Calle Mayor, en su esquina oeste, delante de Calle Mayor 2 (su puerta, x 2; los nodos, en la fila 10).
+  at('street-sign', 0, 9),
 ];
 
 const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['facing']): PointDef => ({ tx, ty, kind, facing });
@@ -237,7 +242,13 @@ export const CASCO_ANTIGUO: LocationDef = {
   },
   inspects: [
     { tx: 43, ty: 9, name: 'Plano del barrio', lines: ['Casco Antiguo: la Calle Mayor, la Plaza del Mercado, la Calle del Rastro y la frutería del mercado. Línea 2 hacia Decathlon, Ribera y Vallesco.'] },
-    { tx: 36, ty: 14, name: 'Tablón', lines: ['Un cartel a mano: «Mercadillo de los domingos en la plaza. Se buscan puestos». Debajo, un teléfono a medio arrancar.'] },
+    // CAS-09: aquí se alquila el puesto propio del Rastro: el tablón de esta casilla ofrece «Puesto en el Rastro»
+    // (systems/PlayerStall.stallDeskAt → Menus.openStallBoard).
+    { tx: 36, ty: 14, name: 'Tablón', stallDesk: 'gran-rastro', lines: ['Un cartel a mano: «Mercadillo de los domingos en la plaza. Se buscan puestos». Debajo, un teléfono a medio arrancar.'] },
+    // CAS-08: la historia del barrio, sobre su prop.
+    { tx: 0, ty: 9, name: 'Placa de calle', lines: ['Azulejo de la esquina: «Calle Mayor». Debajo, más pequeño: «antes, de los Cesteros».', 'Un rótulo de 1868, de los que pintaron a mano cuando la calle se empedró.'] },
+    { tx: 4, ty: 17, name: 'El árbol del mercado', lines: ['Dicen que este olmo ya daba sombra a los puestos cuando el mercado era de lona y carro.', 'Cuando reformaron la plaza, lo dejaron en su sitio y movieron el banco.'] },
+    { tx: 16, ty: 25, name: 'Farol de gas', lines: ['Una de las pocas farolas que quedan del alumbrado de gas, ya con bombilla.', 'Alguien le ha pintado el número a mano: 7.'] },
   ],
   terminals: [
     { tx: 26, ty: 14, name: 'Máquina de bebidas', catalog: 'vending' },

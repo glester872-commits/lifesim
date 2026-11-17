@@ -31,6 +31,8 @@ import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
 import { CATEGORIES, getGarment, getStore } from '../data/retail';
 import { agreedPrice, haggle, HAGGLE_OFFERS, markHaggled, markSold, MOOD_BY_VENDOR, rareStatus } from '../systems/Rastro';
+import * as PlayerStall from '../systems/PlayerStall';
+import { PLAYER_STALL } from '../data/playerStall';
 
 /** Un puesto que atiende a ratos; `rastro`, la clave de su catálogo o tienda en el Gran Rastro (CAS-04). */
 type Stall = { closed: () => string | null; rastro?: string };
@@ -1338,10 +1340,17 @@ export class Menus {
         const detail = s.id === 'events' ? (s.entries.length ? `${s.entries.length}` : 'nada esta semana') : `${open} de ${s.entries.length} abiertos`;
         return { label: s.title, detail };
       });
-      options.push({ label: 'Cerrar' });
+      // El inspect de esta casilla (WorldScene no lo crea aparte): sus carteles y, si alquila puesto
+      // (InspectDef.stallDesk, CAS-09), una entrada que lleva al alquiler. Las dos vuelven a este índice.
+      const notice = PlayerStall.boardNoticeAt(location, tx, ty);
+      const extra: { label: string; run: (at: number) => void }[] = [];
+      if (notice?.lines.length) extra.push({ label: 'Carteles', run: (at) => this.openBoardNotices(notice.name, notice.lines, () => this.openBoard(location, tx, ty, -1, at)) });
+      if (notice?.stallDesk) extra.push({ label: 'Puesto en el Rastro', run: (at) => this.openStallBoard('', () => this.openBoard(location, tx, ty, -1, at)) });
+      options.push(...extra.map((e) => ({ label: e.label })), { label: 'Cerrar' });
       menu.open(board.title, board.intro, options, (i) => {
-        if (i === board.sections.length) menu.close();
-        else this.openBoard(location, tx, ty, i);
+        if (i < board.sections.length) this.openBoard(location, tx, ty, i);
+        else if (extra[i - board.sections.length]) extra[i - board.sections.length].run(i);
+        else menu.close();
       }, undefined, note, selected);
       return;
     }
@@ -1352,6 +1361,16 @@ export class Menus {
       if (i === page.entries.length) back();
       else this.openBoard(location, tx, ty, section, i, page.entries[i].note);
     }, back, note, selected);
+  }
+
+  /** Los carteles clavados en el tablón (InspectDef.lines), de uno en uno; «Volver» o Esc regresan al índice. */
+  private openBoardNotices(name: string, lines: readonly string[], back: () => void, page = 0): void {
+    const more = page < lines.length - 1;
+    const options: MenuOption[] = [...(more ? [{ label: 'Siguiente' }] : []), { label: 'Volver' }];
+    this.services.menu.open(`${name} · Carteles`, lines[page], options, (i) => {
+      if (more && i === 0) this.openBoardNotices(name, lines, back, page + 1);
+      else back();
+    }, back, lines.length > 1 ? `${page + 1} de ${lines.length}` : '', 0, false, `${name} · Carteles · ${page}`);
   }
 
   // ------------------------------------------------------------- ropa
@@ -1523,6 +1542,174 @@ export class Menus {
       this.host.persist();
       back(`Vendido por ${euros(result.amount)}.`);
     }, () => back());
+  }
+
+  // ------------------------------------------------------------- CAS-09 · tu puesto en el Rastro (systems/PlayerStall)
+
+  private stallClock(): { day: number; hour: number; minute: number } {
+    const { day, hour, minute } = this.services.state;
+    return { day, hour, minute };
+  }
+
+  /** Cierra el puesto si ya toca (y abona el reembolso) antes de enseñar nada. */
+  private settleStall(): void {
+    if (this.services.state.settlePlayerStall()) this.host.persist();
+  }
+
+  private stallSummary(stall: PlayerStall.PlayerStallState): string {
+    const s = PlayerStall.summary(stall);
+    const net = s.net < 0 ? `−${euros(-s.net)}` : euros(s.net);
+    return `Alquiler ${euros(s.fee)} · ${s.sold} vendido${s.sold === 1 ? '' : 's'} por ${euros(s.income)} · reembolso ${euros(s.refund)} · neto ${net}.`;
+  }
+
+  /** El Tablón del Casco Antiguo (InspectDef.stallDesk): reservar el puesto del domingo y, cerrado, sus cuentas. */
+  openStallBoard(note = '', back?: () => void): void {
+    const { state, menu } = this.services;
+    this.settleStall();
+    const stall = state.playerStall;
+    // Abierto desde el índice de un tablón (openBoard), «Volver» regresa a él; si no, cierra.
+    const close = back ?? ((): void => menu.close());
+    if (stall && !stall.closed) {
+      menu.open('Tablón · Gran Rastro', `Tu puesto: ${PlayerStall.sundayLabel(stall.day)}, plaza. De 9:00 a 15:00; se recoge hasta las 17:00.`, [{ label: 'Volver' }], close, close, note);
+      return;
+    }
+    const day = PlayerStall.nextRastroDay(state.day, state.hour);
+    const trial = PlayerStall.reserve(stall, state.money, this.stallClock());
+    const last = stall?.closed ? `Tu último puesto (${PlayerStall.sundayLabel(stall.day)}): ${this.stallSummary(stall)} ` : '';
+    const when = day === undefined ? 'No hay Rastro a la vista.' : `${PlayerStall.sundayLabel(day)[0].toUpperCase()}${PlayerStall.sundayLabel(day).slice(1)}, de 9:00 a 15:00 (se recoge hasta las 17:00).`;
+    menu.open(
+      'Tablón · Gran Rastro',
+      `${last}${when} Con lluvia fuerte no se monta y te devolvemos el alquiler. Si no vienes, no. Llevas ${euros(state.money)}.`,
+      [{ label: `Reservar puesto · ${euros(PLAYER_STALL.fee)}`, disabled: trial.ok ? undefined : trial.message }, { label: 'Volver' }],
+      (i) => {
+        if (i !== 0) return close();
+        const r = PlayerStall.reserve(state.playerStall, state.money, this.stallClock());
+        if (!r.ok) return this.openStallBoard(r.message, back);
+        state.applyPlayerStall(r.stall, { label: 'Puesto en el Rastro', delta: -r.stall.fee, type: 'bill', movementId: `ps-${r.stall.day}-fee` });
+        this.host.persist();
+        this.openStallBoard(`Reservado: ${PlayerStall.sundayLabel(r.stall.day)}.`, back);
+      },
+      close,
+      note,
+    );
+  }
+
+  /** Tu puesto en la plaza, mientras el Rastro está en marcha: poner a la venta, retirar y atender. */
+  openPlayerStall(note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    this.settleStall();
+    const close = (): void => menu.close();
+    const now = this.stallClock();
+    const current = state.playerStall;
+    if (!current || !PlayerStall.isOpen(current, now)) {
+      menu.open('Tu puesto', 'El Rastro no está en marcha: tu puesto está recogido.', [{ label: 'Volver' }], close, close);
+      return;
+    }
+    const opened = PlayerStall.markOpened(current, now);
+    if (opened.ok) {
+      state.playerStall = opened.stall;
+      this.host.persist();
+    }
+    const stall = state.playerStall!;
+    const inv = state.wallet.inventory;
+    const can = PlayerStall.listable(stall, inv);
+    const acts: { opt: MenuOption; run: () => void }[] = [];
+    if (can.length) {
+      const full = stall.listings.length >= PLAYER_STALL.maxListings ? `En la mesa caben ${PLAYER_STALL.maxListings} cosas.` : undefined;
+      acts.push({ opt: { label: 'Poner a la venta', disabled: full }, run: () => this.openStallList() });
+    }
+    if (stall.listings.length) acts.push({ opt: { label: 'Retirar' }, run: () => this.openStallWithdraw() });
+    // Sólo con algo en la mesa que aún llevas: sin eso nadie puede ofrecer nada (offerNow).
+    if (stall.listings.some((l) => (inv[l.itemId] ?? 0) >= 1)) acts.push({ opt: { label: 'Atender' }, run: () => this.openStallOffer() });
+    acts.push({ opt: { label: 'Volver' }, run: close });
+    const table = stall.listings.map((l) => `${getItem(l.itemId).name} (${euros(l.price)})`).join(', ');
+    const text = !can.length && !stall.listings.length
+      ? 'No llevas nada que se pueda vender aquí.'
+      : stall.listings.length ? `En la mesa: ${table}.` : 'La mesa está vacía.';
+    menu.open('Tu puesto', `${text} Llevas ${euros(state.money)}.`, acts.map((a) => a.opt), (i) => acts[i].run(), close, note, selected);
+  }
+
+  private openStallList(selected = 0): void {
+    const { state, menu } = this.services;
+    const stall = state.playerStall;
+    if (!stall) return this.openPlayerStall();
+    const inv = state.wallet.inventory;
+    const ids = PlayerStall.listable(stall, inv);
+    const options: MenuOption[] = ids.map((id) => ({ label: getItem(id).name, detail: `${PlayerStall.freeUnits(stall, inv, id)} sin poner`, icon: itemIcon(id) }));
+    options.push({ label: 'Volver' });
+    menu.open('Poner a la venta', 'Sigue en tu bolsa hasta que alguien lo compre.', options, (i) => {
+      if (i === ids.length) this.openPlayerStall();
+      else this.openStallPrice(ids[i], 10);
+    }, () => this.openPlayerStall(), '', selected);
+  }
+
+  private openStallPrice(itemId: string, price: number, selected = 4): void {
+    const { state, menu } = this.services;
+    const name = getItem(itemId).name;
+    const steps = [-5, -1, 1, 5];
+    const clamp = (p: number): number => Math.min(PLAYER_STALL.maxPrice, Math.max(PLAYER_STALL.minPrice, p));
+    const options: MenuOption[] = [
+      ...steps.map((d) => ({ label: `${d > 0 ? '+' : '−'}${Math.abs(d)} €`, disabled: clamp(price + d) === price ? `De ${PLAYER_STALL.minPrice} a ${PLAYER_STALL.maxPrice} €.` : undefined })),
+      { label: `Poner a la venta · ${euros(price)}` },
+      { label: 'Volver' },
+    ];
+    menu.open(`${name} · ${euros(price)}`, 'Quien pase ofrecerá algo menos. Tú decides si aceptas.', options, (i) => {
+      if (i < steps.length) return this.openStallPrice(itemId, clamp(price + steps[i]), i);
+      if (i > steps.length) return this.openStallList();
+      const r = PlayerStall.list(state.playerStall!, state.wallet.inventory, itemId, price);
+      if (!r.ok) return this.openPlayerStall(r.message);
+      state.playerStall = r.stall;
+      this.host.persist();
+      this.openPlayerStall(`${name}, a la venta por ${euros(price)}.`);
+    }, () => this.openStallList(), '', selected, false, 'stall-price');
+  }
+
+  private openStallWithdraw(): void {
+    const { state, menu } = this.services;
+    const stall = state.playerStall;
+    if (!stall) return this.openPlayerStall();
+    const options: MenuOption[] = stall.listings.map((l) => ({ label: getItem(l.itemId).name, detail: euros(l.price), icon: itemIcon(l.itemId) }));
+    options.push({ label: 'Volver' });
+    menu.open('Retirar de la mesa', 'Vuelve a quedarse sólo en tu bolsa.', options, (i) => {
+      if (i === stall.listings.length) return this.openPlayerStall();
+      const r = PlayerStall.withdraw(state.playerStall!, i);
+      if (r.ok) {
+        state.playerStall = r.stall;
+        this.host.persist();
+      }
+      this.openPlayerStall(r.ok ? 'Retirado.' : r.message);
+    }, () => this.openPlayerStall());
+  }
+
+  /** La oferta de esta media hora (systems/PlayerStall.offerNow): aceptarla cobra una vez; rechazarla no vuelve. */
+  private openStallOffer(): void {
+    const { state, menu, clock } = this.services;
+    const offer = PlayerStall.pitchNow(state.playerStall, state.wallet.inventory, state.paidItems, this.stallClock());
+    if (offer === 'overpriced') return this.openPlayerStall('Lo miran y siguen.');
+    if (!offer) return this.openPlayerStall('Nadie se para ahora. Vuelve en un rato.');
+    const name = getItem(offer.itemId).name;
+    const listed = state.playerStall!.listings.find((l) => l.itemId === offer.itemId);
+    menu.open('Tu puesto', `${offer.buyer} ofrece ${euros(offer.price)} por ${name}.${listed ? ` Lo tienes a ${euros(listed.price)}.` : ''}`, [{ label: 'ACEPTAR' }, { label: 'RECHAZAR' }], (i) => {
+      // La oferta sólo vale si sigue siendo la de ahora (el Rastro no ha cerrado ni ha cambiado la franja).
+      const still = PlayerStall.offerNow(state.playerStall, state.wallet.inventory, state.paidItems, this.stallClock());
+      if (!still || still.opId !== offer.opId) return this.openPlayerStall('Se ha ido sin esperar.');
+      if (i !== 0) {
+        const r = PlayerStall.decline(state.playerStall!, offer.opId);
+        if (r.ok) {
+          state.playerStall = r.stall;
+          this.host.persist();
+        }
+        return this.openPlayerStall('Le dices que no. Sigue mirando otros puestos.');
+      }
+      const r = PlayerStall.accept(state.playerStall!, state.wallet.inventory, state.paidItems, offer);
+      if (!r.ok) return this.openPlayerStall(r.message);
+      state.wallet = { ...state.wallet, inventory: r.inventory };
+      state.paidItems = r.paidItems;
+      state.applyPlayerStall(r.stall, { label: `Rastro: ${name}`, delta: r.amount, type: 'income', movementId: offer.opId });
+      clock.advanceMinutes(5);
+      this.host.persist();
+      this.openPlayerStall(`Vendido por ${euros(r.amount)}.`);
+    }, () => this.openPlayerStall());
   }
 
   /**

@@ -2,6 +2,8 @@
 import { POPUPS, type PopUpDef } from '../data/popups.ts';
 import { STREET_ACTS } from '../data/streetActs.ts';
 import { ARENA_CLUB, ARENA_MATCHES } from '../data/cityEvents.ts';
+import { PITCHES } from '../data/futsal.ts';
+import { isOpen as pitchOpen } from './Futsal.ts';
 import { WEEK, WEEKDAY_LABEL, nightOwner, weekIndex } from './Calendar.ts';
 import { activePopUp, upcoming } from './PopUps.ts';
 import { matchNow, upcomingMatches } from './Match.ts';
@@ -138,6 +140,20 @@ function eventEntries(location: string, districts: readonly string[], c: WorldCl
       if (phase === 'live') out.push({ label, detail: 'en juego', note, state: 'active', order: -2 });
       else if (phase === 'leaving' || phase === 'after' || mins < 0) out.push({ label, detail: 'terminado', note, state: 'ended', order: 1e6 + 1 });
       else out.push({ label, detail: `${dayWord(m.day, c.day)} ${hh(m.kickoff / 60)}`, note, state: m.day === c.day ? 'today' : 'later', order: mins });
+    }
+  }
+  // Las sesiones de pista (data/futsal.ts): abiertas según systems/Futsal, que no contempla la lluvia.
+  const now = c.hour + c.minute / 60;
+  for (const p of Object.values(PITCHES[location] ?? {})) {
+    const { weekday, from, to } = p.open;
+    const hours = `${hh(from)}–${hh(to)}`;
+    const note = prefixOf(districtAt(location, p.goal.tx, p.goal.ty)) + `${p.label}, ${WEEKDAY_LABEL[WEEK[weekday]]} ${hours}. Tanda de penaltis con los del barrio en la pista.`;
+    const today = weekIndex(c.day) === weekday;
+    if (pitchOpen(p, c.day, now)) out.push({ label: p.label, detail: `ahora · hasta ${hh(to)}`, note, state: 'active', order: -2 });
+    else if (today && now >= to) out.push({ label: p.label, detail: 'terminado', note: prefixOf(districtAt(location, p.goal.tx, p.goal.ty)) + `${p.label}: ya ha terminado por hoy.`, state: 'ended', order: 1e6 + 1 });
+    else {
+      const d = c.day + ((weekday - weekIndex(c.day) + 7) % 7);
+      out.push({ label: p.label, detail: `${dayWord(d, c.day)} ${hours}`, note, state: today ? 'today' : 'later', order: (d - c.day) * 1440 + (from - now) * 60 });
     }
   }
   // Quien actúa ahora en la calle (música, baile, estatua): sólo mientras está. Los vendedores de manta no se anuncian.

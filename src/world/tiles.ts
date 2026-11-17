@@ -268,6 +268,7 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   bottles: { key: 'prop-bottles', tilesHigh: 1, tilesWide: 2 },
   // Botellero de vinoteca: rombos de madera con botellas acostadas, del suelo al techo.
   'wine-rack': { key: 'prop-wine-rack', tilesHigh: 2 },
+  'bread-rack': { key: 'prop-bread-rack', tilesHigh: 2, variants: 3 },
   // Sillón de barbero: alguien se sienta encima.
   'barber-chair': { key: 'prop-barber-chair', tilesHigh: 2, mount: true },
   // Estudio de tatuaje y tiendas de la Calle del Carmen.

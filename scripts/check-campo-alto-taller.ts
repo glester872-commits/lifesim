@@ -95,9 +95,10 @@ for (const i of inside.inspects ?? []) {
   assert.ok(!/repar/i.test(`${i.name} ${i.lines.join(' ')}`), `${i.name} ofrece reparar`);
 }
 
-// (h) En el barrio, tres puertas con interior: el café, el taller y el metro.
+// (h) En el barrio, puertas con interior.
+// CA-04: café, taller, panadería y metro.
 const doors = street.buildings!.filter((b) => b.enter).length;
-assert.equal(doors, 3, `${doors} puertas con interior`);
+assert.equal(doors, 4,`${doors} puertas con interior`);
 
 // (i) Alguien atiende y alguien compra.
 assert.ok(POPULATION_PROFILES.some((p) => p.place === ID), 'el taller no tiene perfil de población');

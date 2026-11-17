@@ -140,6 +140,7 @@ export type PropKind =
   // barbería y vinoteca
   | 'barber-chair'
   | 'wine-rack'
+  | 'bread-rack'
   // estudio de tatuaje y tiendas de la Calle del Carmen
   | 'tattoo-chair'
   | 'tattoo-cart'
@@ -353,6 +354,8 @@ export type BuildingStyle =
   | 'clinic'
   | 'salon'
   | 'res-noble'
+  // Casco Antiguo (CAS-08): las casas viejas de la Calle Mayor, revoco ocre y almagre con balcón de forja.
+  | 'res-historic'
   // Puerta Central: la tienda de recuerdos.
   | 'souvenir'
   // Distrito Arena: el estadio (desde arriba, grada y césped) y la tienda oficial del club.
@@ -388,6 +391,8 @@ export interface BuildingDef {
   enter?: { location: string; spawn: string };
   /** Id del punto semántico generado delante de la puerta (p. ej. CAFE_ENTRANCE). */
   point?: string;
+  /** Tono de fachada fijo (índice en WALL_TONES de world/BuildingArt) en una casa suelta; sin él, el de su estilo o su semilla. */
+  tone?: number;
   /** Sin interior: lo que se lee al pulsar E en su puerta. */
   inspect?: readonly string[];
   /** Punto de estudio (data/study.ts) en su puerta: la ventanilla de un curso o el sitio de un encargo. Sin nada que hacer, se lee `inspect`. */
@@ -457,6 +462,8 @@ export interface InspectDef {
   lines: readonly string[];
   /** Taquilla de ese recinto (data/stadium.ts VENUES): con E se ve el partido, el precio y se compra la entrada. */
   venue?: string;
+  /** CAS-09 · id del pop-up (data/playerStall.ts): con E se alquila el puesto propio y se ven sus cuentas (Menus.openStallBoard). */
+  stallDesk?: string;
 }
 
 /**
@@ -817,6 +824,8 @@ export interface GameStateData {
   credit?: import('../systems/Credit.ts').CreditState;
   /** Rarezas del Gran Rastro vendidas en la jornada `edition` (systems/Rastro). Sin campo: ninguna. */
   rastro?: import('../systems/Rastro.ts').RastroLedger;
+  /** CAS-09 · tu puesto en el Gran Rastro (systems/PlayerStall). Sin campo: sin reserva. */
+  playerStall?: import('../systems/PlayerStall.ts').PlayerStallState;
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */

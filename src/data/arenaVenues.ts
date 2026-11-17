@@ -2,7 +2,7 @@ import type { LocationDef } from '../types/game.ts';
 import type { PopulationProfile, VisitorRole } from './population.ts';
 import type { OfferId } from './services.ts';
 import { at, CAFE_RIO, many } from './interiors.ts';
-import { cashier, customer, shopRoom } from './cuatroRiosVenues.ts';
+import { cashier, clerkLook, customer, shopRoom } from './cuatroRiosVenues.ts';
 import { FOOD_INTERIORS } from './foodInteriors.ts';
 import { FOOD_VENUE_PROFILES } from './foodVenues.ts';
 import { rebased } from './velariaVenues.ts';
@@ -102,7 +102,7 @@ export const AR_PROFILES: readonly PopulationProfile[] = [
   {
     place: 'ar-deportes', bands: [[10, 13, 'LOW'], [13, 17, 'LOW'], [17, 20.5, 'MEDIUM'], [20.5, 21, 'LOW']],
     weekday: [0, 0, 0, 0, 0, 1, -4], maxVisitors: 5,
-    staff: [cashier('ARDEPORTES', 'Deportes Arena', 'Las de tacos, para hierba natural. Las de multitaco, para todo lo demás.', 'uniforme-tienda', 'shop-deportes-arena')],
+    staff: [cashier('ARDEPORTES', 'Deportes Arena', 'Las de tacos, para hierba natural. Las de multitaco, para todo lo demás.', clerkLook('ARDEPORTES'), 'shop-deportes-arena')],
     visitors: [customer('ARDEPORTES', 'Unas espinilleras para el crío, que el sábado juega de central.', 1, { party: [1, 2] })],
     match: { 'build-up': 1, arrival: 1 },
     fans: 0.4,
@@ -111,7 +111,7 @@ export const AR_PROFILES: readonly PopulationProfile[] = [
     // La tienda oficial: tranquila entre semana; antes del partido, cola para la camiseta.
     place: 'ar-oficial', bands: [[10, 13, 'LOW'], [13, 17, 'LOW'], [17, 21, 'MEDIUM']],
     weekday: [0, 0, 0, 0, 0, 1, 0], maxVisitors: 7,
-    staff: [cashier('AROFICIAL', 'Tienda Oficial Halcones', 'La primera, la segunda o la de portero. Con nombre y número, diez euros más.', 'uniforme-tienda', 'shop-halcones')],
+    staff: [cashier('AROFICIAL', 'Tienda Oficial Halcones', 'La primera, la segunda o la de portero. Con nombre y número, diez euros más.', clerkLook('AROFICIAL'), 'shop-halcones')],
     visitors: [
       customer('AROFICIAL', 'La camiseta de este año, que la del año pasado ya da mala suerte.', 2, { party: [1, 3] }),
       customer('AROFICIAL', 'Una sudadera para mi sobrina. Su primer partido.', 1, { label: 'Aficionado', party: [2, 3] }),

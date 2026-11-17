@@ -19,6 +19,7 @@ import { parseJob } from './Jobs.ts';
 import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
 import { emptyCredit, parseCredit } from './Credit.ts';
 import { parseRastro } from './Rastro.ts';
+import { parsePlayerStall } from './PlayerStall.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
@@ -399,6 +400,8 @@ function parseState(value: unknown): GameStateData | null {
     ...(s.rastro === undefined ? {} : { rastro: parseRastro(s.rastro) }),
     // CAS-05 · sin tiques de objetos (partida anterior) carga sin la clave: nada se revende.
     ...(s.paidItems === undefined ? {} : { paidItems: parsePaidItems(s.paidItems) }),
+    // CAS-09 · sin puesto (partida anterior o dañado) carga sin la clave: sin reserva.
+    ...((stall) => (stall ? { playerStall: stall } : {}))(parsePlayerStall(s.playerStall)),
     // Una partida anterior a los estudios carga sin curso ni habilidades.
     study: parseStudy(s.study),
     // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.
