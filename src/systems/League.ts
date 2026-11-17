@@ -2,6 +2,7 @@
 import type { LeagueDef } from '../data/campoAltoLeague.ts';
 import { DAYS_PER_WEEK } from './Calendar.ts';
 import { hashSeed, seededRng } from './MetroDaily.ts';
+import { HEAVY_RAIN, weatherAt } from './Weather.ts';
 
 /**
  * CA-05 · La liga del barrio, OBSERVADA. Auditoría previa: CA-02 (systems/Futsal.ts, PenaltySession) es una tanda de
@@ -45,8 +46,39 @@ export interface Row {
   pts: number;
 }
 
-const endAbs = (f: Fixture): number => (f.day - 1) * 1440 + f.endMin;
 const dayOf = (nowAbs: number): number => Math.floor(nowAbs / 1440) + 1;
+const startAt = (f: Fixture, day: number): number => (day - 1) * 1440 + f.startMin;
+const endAt = (f: Fixture, day: number): number => (day - 1) * 1440 + f.endMin;
+/** Lluvia fuerte a la hora de empezar, con el mismo umbral que los pop-ups al aire libre (systems/PopUps). */
+const rainedOut = (f: Fixture, day: number): boolean => weatherAt(day, f.startMin / 60).rain > HEAVY_RAIN;
+
+/** El día de la semana de descanso de la temporada (el de la jornada, tras la última); undefined si no hay descanso. */
+export function restDay(def: LeagueDef, season: number): number | undefined {
+  if (def.seasonWeeks <= def.rounds.length) return undefined;
+  return (season * def.seasonWeeks + def.rounds.length) * DAYS_PER_WEEK + 1 + def.weekday;
+}
+
+export type Fate = 'scheduled' | 'postponed' | 'suspended';
+
+/**
+ * Lo que se sabe del partido a `nowAbs` y el día en que se juega (o se jugaba). Si a su hora llueve fuerte, se aplaza
+ * a la semana de descanso, mismo día y franja ('postponed', se juegue o no aún); si allí también llueve a la hora, o
+ * no hay descanso, 'suspended': no cuenta. Hasta la hora de inicio no se sabe nada (sigue 'scheduled'). Puro: weatherAt
+ * es función del día y la hora.
+ */
+export function fateOf(def: LeagueDef, f: Fixture, nowAbs: number): { fate: Fate; day: number } {
+  if (nowAbs < startAt(f, f.day) || !rainedOut(f, f.day)) return { fate: 'scheduled', day: f.day };
+  const replay = restDay(def, f.season);
+  if (replay === undefined) return { fate: 'suspended', day: f.day };
+  if (nowAbs >= startAt(f, replay) && rainedOut(f, replay)) return { fate: 'suspended', day: replay };
+  return { fate: 'postponed', day: replay };
+}
+
+/** Jugado o suspendido: ya no va a cambiar. */
+const settled = (def: LeagueDef, f: Fixture, nowAbs: number): boolean => {
+  const x = fateOf(def, f, nowAbs);
+  return x.fate === 'suspended' || nowAbs >= endAt(f, x.day);
+};
 
 /** Temporada del día `day`: bloques de `seasonWeeks` semanas desde el día 1 (temporada 0). */
 export function seasonOf(def: LeagueDef, day: number): number {
@@ -65,9 +97,10 @@ export function fixtures(def: LeagueDef, season: number): Fixture[] {
   });
 }
 
-/** El marcador, sólo si el partido ya ha terminado. Depende únicamente de la liga y de qué partido es. */
+/** El marcador, sólo si el partido ya ha terminado (en su día o en el aplazado). Depende sólo de la liga y del partido. */
 export function resultOf(def: LeagueDef, f: Fixture, nowAbs: number): Result | undefined {
-  if (nowAbs < endAbs(f)) return undefined;
+  const x = fateOf(def, f, nowAbs);
+  if (x.fate === 'suspended' || nowAbs < endAt(f, x.day)) return undefined;
   const rng = seededRng(hashSeed(def.id, f.season, f.round, f.match));
   const hg = Math.floor(rng() * (def.maxGoals + 1));
   const ag = Math.floor(rng() * (def.maxGoals + 1));
@@ -97,11 +130,11 @@ export function standings(def: LeagueDef, season: number, nowAbs: number): Row[]
     .sort((x, y) => y.pts - x.pts || y.dg - x.dg || y.gf - x.gf || x.team.localeCompare(y.team, 'es'));
 }
 
-/** El campeón, sólo cuando se ha jugado el último partido de la temporada. */
+/** El campeón, sólo cuando se han jugado (o suspendido) todos los partidos; sin ninguno jugado, no hay campeón. */
 export function champion(def: LeagueDef, season: number, nowAbs: number): string | undefined {
-  const all = fixtures(def, season);
-  const last = all.reduce((a, b) => (endAbs(b) > endAbs(a) ? b : a));
-  return resultOf(def, last, nowAbs) ? standings(def, season, nowAbs)[0].team : undefined;
+  if (!fixtures(def, season).every((f) => settled(def, f, nowAbs))) return undefined;
+  const top = standings(def, season, nowAbs)[0];
+  return top.pj ? top.team : undefined;
 }
 
 /** Las temporadas cerradas, la más reciente primero (máximo 5). */
@@ -114,30 +147,29 @@ export function history(def: LeagueDef, nowAbs: number): { season: number; champ
   return out;
 }
 
-/** Los partidos de la jornada en curso o, si no hay, de la siguiente (aunque haya una semana de descanso entre medias). */
+/**
+ * Los partidos del próximo día de liga con algo por jugar (la jornada en curso o la siguiente, aunque haya una semana
+ * de descanso entre medias, o los aplazados de la semana de descanso). Incluye los que tocaban ese día y la lluvia
+ * aplazó o suspendió, para que se lea por qué faltan.
+ */
 export function nextFixtures(def: LeagueDef, nowAbs: number): Fixture[] {
   const s = seasonOf(def, dayOf(nowAbs));
-  for (const season of [s, s + 1]) {
-    const all = fixtures(def, season);
-    for (let r = 0; r < def.rounds.length; r++) {
-      const round = all.filter((f) => f.round === r);
-      if (round.some((f) => nowAbs < endAbs(f))) return round;
-    }
-  }
-  return [];
+  const all = [...fixtures(def, s), ...fixtures(def, s + 1)];
+  const days = all.filter((f) => !settled(def, f, nowAbs)).map((f) => fateOf(def, f, nowAbs).day);
+  if (!days.length) return [];
+  const day = Math.min(...days);
+  return all.filter((f) => f.day === day || fateOf(def, f, nowAbs).day === day);
 }
 
-/** Los partidos ya jugados de la última jornada que tiene alguno, con su marcador. */
+/** Los partidos ya jugados del último día de liga que tiene alguno, con su marcador. */
 export function lastRound(def: LeagueDef, nowAbs: number): { fixture: Fixture; result: Result }[] {
   for (let season = seasonOf(def, dayOf(nowAbs)); season >= 0; season--) {
-    const all = fixtures(def, season);
-    for (let r = def.rounds.length - 1; r >= 0; r--) {
-      const played = all
-        .filter((f) => f.round === r)
-        .map((fixture) => ({ fixture, result: resultOf(def, fixture, nowAbs) }))
-        .filter((x): x is { fixture: Fixture; result: Result } => x.result !== undefined);
-      if (played.length) return played;
-    }
+    const played = fixtures(def, season)
+      .map((fixture) => ({ fixture, result: resultOf(def, fixture, nowAbs) }))
+      .filter((x): x is { fixture: Fixture; result: Result } => x.result !== undefined);
+    if (!played.length) continue;
+    const day = Math.max(...played.map((x) => fateOf(def, x.fixture, nowAbs).day));
+    return played.filter((x) => fateOf(def, x.fixture, nowAbs).day === day);
   }
   return [];
 }

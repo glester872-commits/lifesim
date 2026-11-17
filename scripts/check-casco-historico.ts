@@ -47,6 +47,20 @@ assert.ok(front, `la placa (${s.tx},${s.ty}) no está delante de ningún edifici
 assert.ok(front.style.startsWith('res-'), `la placa (${s.tx},${s.ty}) está delante de ${front.id}, que no es vivienda`);
 assert.notEqual(s.tx, front.doorX, `la placa (${s.tx},${s.ty}) tapa la puerta de ${front.id}`);
 
+// Y en todo el mundo (props escritos y los que ya trae puestos systems/Dressing): ningún 'street-sign' en la fila de
+// acera delante de un local (estilo que no empieza por 'res-'), dentro de su tramo x. Se listan todos los que fallen.
+const signClash: string[] = [];
+for (const l of allLocations()) {
+  for (const p of l.props ?? []) {
+    if (p.kind !== 'street-sign') continue;
+    for (const b of l.buildings ?? []) {
+      const row = doorRow(b) + (b.front === 'n' ? -1 : 1);
+      if (!b.style.startsWith('res-') && p.ty === row && p.tx >= b.tx && p.tx < b.tx + b.w) signClash.push(`${l.id}: (${p.tx},${p.ty}) delante de ${b.id} (${b.style})`);
+    }
+  }
+}
+assert.deepEqual(signClash, [], `letreros de calle delante de escaparates:\n${signClash.join('\n')}`);
+
 // 3) Los tres rincones: existen, fuera de puestos, puertas y points, y con una tile pisable al lado.
 const stalls = popUpStalls(POPUPS.find((p) => p.id === 'gran-rastro')!);
 const taken = new Set<string>();

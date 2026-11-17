@@ -5,7 +5,7 @@ import { ARENA_CLUB, ARENA_MATCHES } from '../data/cityEvents.ts';
 import { PITCHES } from '../data/futsal.ts';
 import { isOpen as pitchOpen } from './Futsal.ts';
 import { LEAGUES, type LeagueDef } from '../data/campoAltoLeague.ts';
-import { history, lastRound, nextFixtures, resultOf, seasonOf, standings, fixtures as leagueFixtures } from './League.ts';
+import { fateOf, history, lastRound, nextFixtures, resultOf, seasonOf, standings, fixtures as leagueFixtures } from './League.ts';
 import { WEEK, WEEKDAY_LABEL, nightOwner, weekIndex } from './Calendar.ts';
 import { activePopUp, upcoming } from './PopUps.ts';
 import { matchNow, upcomingMatches } from './Match.ts';
@@ -160,21 +160,36 @@ function eventEntries(location: string, districts: readonly string[], c: WorldCl
       out.push({ label: p.label, detail: `${dayWord(d, c.day)} ${hours}`, note, state: today ? 'today' : 'later', order: (d - c.day) * 1440 + (from - now) * 60 });
     }
   }
-  // La liga del barrio (CA-05): los partidos de los próximos siete días, con los mismos estados que las pistas.
+  // La liga del barrio (CA-05): los partidos de los próximos siete días, con los mismos estados que las pistas. Con
+  // lluvia fuerte a la hora de empezar, el día que tocaba dice «aplazado» y el partido sale otra vez en la semana de
+  // descanso; si allí también llueve, «suspendido» (systems/League fateOf).
   const league = LEAGUES[location];
   if (league) {
     const nowAbs = (c.day - 1) * 1440 + c.hour * 60 + c.minute;
     const s = seasonOf(league, c.day);
     const prefix = prefixOf(districtAt(location));
+    const inWeek = (day: number): boolean => day >= c.day && day <= c.day + 6;
     for (const f of [...leagueFixtures(league, s), ...leagueFixtures(league, s + 1)]) {
-      if (f.day < c.day || f.day > c.day + 6) continue;
       const label = `${f.home} – ${f.away}`;
       const note = prefix + `${league.venue}. ${league.name}, jornada ${f.round + 1} de ${league.rounds.length}. Resultado en la clasificación.`;
-      const start = (f.day - 1) * 1440 + f.startMin;
-      const end = (f.day - 1) * 1440 + f.endMin;
-      if (nowAbs >= start && nowAbs < end) out.push({ label, detail: `ahora · hasta ${hh(f.endMin / 60)}`, note, state: 'active', order: -2 });
-      else if (nowAbs >= end) out.push({ label, detail: 'terminado', note, state: 'ended', order: 1e6 + 1 });
-      else out.push({ label, detail: `${dayWord(f.day, c.day)} ${hh(f.startMin / 60)}`, note, state: f.day === c.day ? 'today' : 'later', order: start - nowAbs });
+      const { fate, day } = fateOf(league, f, nowAbs);
+      const rainedOff = (what: 'aplazado' | 'suspendido'): Ranked => ({
+        label,
+        detail: `${what} por la lluvia`,
+        note: prefix + `${league.name}: ${label}, ${what === 'aplazado' ? 'aplazado por la lluvia a la semana de descanso, a la misma hora' : 'suspendido por la lluvia; no cuenta en la clasificación'}.`,
+        state: 'cancelled',
+        order: 1e6,
+      });
+      const slot = (d: number): Ranked => {
+        const start = (d - 1) * 1440 + f.startMin;
+        const end = (d - 1) * 1440 + f.endMin;
+        if (nowAbs >= start && nowAbs < end) return { label, detail: `ahora · hasta ${hh(f.endMin / 60)}`, note, state: 'active', order: -2 };
+        if (nowAbs >= end) return { label, detail: 'terminado', note, state: 'ended', order: 1e6 + 1 };
+        return { label, detail: `${dayWord(d, c.day)} ${hh(f.startMin / 60)}`, note, state: d === c.day ? 'today' : 'later', order: start - nowAbs };
+      };
+      // El día que tocaba y, si se aplazó, el de la semana de descanso.
+      if (inWeek(f.day)) out.push(fate === 'scheduled' ? slot(f.day) : rainedOff(fate === 'suspended' && day === f.day ? 'suspendido' : 'aplazado'));
+      if (day !== f.day && inWeek(day)) out.push(fate === 'suspended' ? rainedOff('suspendido') : slot(day));
     }
   }
   // Quien actúa ahora en la calle (música, baile, estatua): sólo mientras está. Los vendedores de manta no se anuncian.
@@ -194,19 +209,24 @@ function leaguePages(def: LeagueDef, c: WorldClock): NonNullable<Board['league']
   const of = `de ${def.rounds.length}`;
   const next = nextFixtures(def, nowAbs);
   const when = (day: number): string => (day - c.day > 6 ? `dentro de ${day - c.day} días, el ${WEEKDAY_LABEL[WEEK[weekIndex(day)]]}` : dayWord(day, c.day));
+  // El día de liga que se muestra: el más temprano de lo que queda (los aplazados ya apuntan a la semana de descanso).
+  const day = Math.min(...next.map((f) => fateOf(def, f, nowAbs).day));
   const jornada = next.length
     ? [
-        `Temporada ${next[0].season + 1}, jornada ${next[0].round + 1} ${of}: ${when(next[0].day)}, en la ${def.venue}.`,
+        `Temporada ${next[0].season + 1}, ${next[0].day === day ? `jornada ${next[0].round + 1} ${of}` : 'partidos aplazados por la lluvia'}: ${when(day)}, en la ${def.venue}.`,
         ...next.map((f) => {
+          const x = fateOf(def, f, nowAbs);
           const r = resultOf(def, f, nowAbs);
-          const live = !r && nowAbs >= (f.day - 1) * 1440 + f.startMin;
-          return `${hh(f.startMin / 60)} ${f.home} – ${f.away}${r ? ` (${r.hg} – ${r.ag})` : live ? ' (en juego)' : ''}.`;
+          const live = !r && x.fate !== 'suspended' && x.day === day && nowAbs >= (day - 1) * 1440 + f.startMin;
+          const why = x.fate === 'suspended' ? ' (suspendido por la lluvia)' : x.day !== day ? ' (aplazado por la lluvia)' : '';
+          return `${hh(f.startMin / 60)} ${f.home} – ${f.away}${r ? ` (${r.hg} – ${r.ag})` : live ? ' (en juego)' : why}.`;
         }),
       ]
     : [];
   const last = lastRound(def, nowAbs);
+  const lastDay = last.length ? fateOf(def, last[0].fixture, nowAbs).day : 0;
   const lastLines = last.length
-    ? [`Temporada ${last[0].fixture.season + 1}, jornada ${last[0].fixture.round + 1} ${of}.`, ...last.map(({ result: r }) => `${r.home} ${r.hg} – ${r.ag} ${r.away}.`)]
+    ? [`Temporada ${last[0].fixture.season + 1}, ${last[0].fixture.day === lastDay ? `jornada ${last[0].fixture.round + 1} ${of}` : 'partidos aplazados'}.`, ...last.map(({ result: r }) => `${r.home} ${r.hg} – ${r.ag} ${r.away}.`)]
     : ['Aún no se ha jugado ninguna jornada.'];
   const s = seasonOf(def, c.day);
   // Una fila por equipo; el paréntesis lleva espacios no separables ( ) para que no se parta al ajustar.

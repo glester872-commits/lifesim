@@ -8,8 +8,13 @@ import { PITCHES } from '../src/data/futsal.ts';
 import { STREET_PROFILES } from '../src/data/streets.ts';
 import { boardAt } from '../src/systems/Boards.ts';
 import { rhythmAt, weekIndex } from '../src/systems/Calendar.ts';
-import { champion, fixtures, history, lastRound, nextFixtures, resultOf, seasonOf, standings, type Fixture } from '../src/systems/League.ts';
+import { champion, fateOf, fixtures, history, lastRound, nextFixtures, restDay, resultOf, seasonOf, standings, type Fixture } from '../src/systems/League.ts';
 import { isOpen, placeInfo } from '../src/systems/Places.ts';
+import { forceWeather, HEAVY_RAIN, weatherAt } from '../src/systems/Weather.ts';
+
+// (a)…(g), con la lluvia desactivada: el calendario de siempre, sin aplazamientos. La lluvia, en (h)…(k).
+const DRY = { rain: 0, cloud: 0, celsius: 20, wet: 0 };
+forceWeather(DRY);
 
 const def = LEAGUES['campo-alto'];
 assert.ok(def, 'Campo Alto no tiene liga');
@@ -129,5 +134,72 @@ assert.equal(entryOf(first.day, 12)?.detail, 'hoy 17:00');
 assert.deepEqual([entryOf(first.day, 17, 30)?.state, entryOf(first.day, 17, 30)?.detail], ['active', 'ahora · hasta 18:00']);
 assert.equal(entryOf(first.day, 19)?.state, 'ended');
 assert.equal(boardAt('ribera', 0, 0, { day: 3, hour: 12, minute: 0 }).league, undefined, 'la liga es del tablón de Campo Alto');
+
+// La lluvia fuerte a la hora de empezar aplaza el partido a la semana de descanso (mismo día y franja); si allí también
+// llueve, suspendido: 0 PJ, sin puntos. Las tablas sin lluvia, para comparar en (k).
+const drySnap = new Map<number, string>();
+for (let day = 1; day <= DAYS; day++) drySnap.set(day, JSON.stringify(standings(def, seasonOf(def, day), abs(day, 23 * 60))));
+const dryResult = (f: Fixture) => resultOf(def, f, abs(DAYS + 400));
+const rest0 = restDay(def, 0)!;
+assert.ok(rest0 !== undefined && weekIndex(rest0) === def.weekday && seasonOf(def, rest0) === 0, 'la semana de descanso no es de la temporada');
+assert.ok(fixtures(def, 0).every((f) => f.day < rest0), 'la semana de descanso no va tras la última jornada');
+const hhmm = (min: number): string => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+// (h) Lluvia fuerte forzada: a su hora el partido no cuenta y el tablón dice «aplazado por la lluvia».
+forceWeather({ rain: 0.9, cloud: 1, celsius: 12, wet: 0.9 });
+assert.equal(fateOf(def, first, abs(first.day, first.startMin) - 1).fate, 'scheduled', 'se aplaza antes de su hora');
+assert.deepEqual(fateOf(def, first, abs(first.day, 23 * 60)), { fate: 'postponed', day: rest0 });
+assert.equal(resultOf(def, first, abs(first.day, 23 * 60)), undefined, 'el aplazado tiene resultado');
+assert.ok(standings(def, 0, abs(first.day, 23 * 60)).every((r) => r.pj === 0 && r.pts === 0), 'el aplazado cuenta en la tabla');
+assert.deepEqual([entryOf(first.day, 17, 30)?.state, entryOf(first.day, 17, 30)?.detail], ['cancelled', 'aplazado por la lluvia']);
+assert.ok(at(first.day, 17, 30).league!.pages[0].lines.some((l) => l.includes(label) && l.includes('aplazado por la lluvia')), 'la página de la jornada no dice que se aplaza');
+// (j) Si en la semana de descanso también llueve a su hora: suspendido, sin puntos y sin campeón.
+assert.deepEqual([entryOf(rest0, 12)?.state, entryOf(rest0, 12)?.detail], ['today', `hoy ${hhmm(first.startMin)}`], 'el aplazado no se anuncia en la semana de descanso');
+assert.ok(at(rest0, 12).league!.pages[0].lines[0].includes('partidos aplazados por la lluvia'));
+assert.deepEqual(fateOf(def, first, abs(rest0, first.startMin)), { fate: 'suspended', day: rest0 });
+assert.deepEqual([entryOf(rest0, 17, 30)?.state, entryOf(rest0, 17, 30)?.detail], ['cancelled', 'suspendido por la lluvia']);
+assert.ok(standings(def, 0, abs(rest0, 23 * 60)).every((r) => r.pj === 0 && r.pts === 0), 'el suspendido cuenta en la tabla');
+assert.equal(champion(def, 0, abs(rest0, 23 * 60)), undefined, 'campeón sin ningún partido jugado');
+forceWeather(null);
+
+// (i) Con el tiempo de verdad: un partido con chaparrón a su hora y la semana de descanso seca se juega entonces,
+// con el mismo marcador que tendría en su día.
+const heavy = (f: Fixture, day: number): boolean => weatherAt(day, f.startMin / 60).rain > HEAVY_RAIN;
+let replayed: Fixture | undefined;
+for (let s = 0; s < 400 && !replayed; s++) replayed = fixtures(def, s).find((f) => heavy(f, f.day) && !heavy(f, restDay(def, s)!));
+assert.ok(replayed, 'ningún partido aplazado y jugado en 400 temporadas');
+const rest = restDay(def, replayed.season)!;
+assert.deepEqual(fateOf(def, replayed, abs(replayed.day, 23 * 60)), { fate: 'postponed', day: rest });
+assert.equal(resultOf(def, replayed, abs(replayed.day, 23 * 60)), undefined);
+assert.equal(resultOf(def, replayed, abs(rest, replayed.endMin) - 1), undefined, 'resultado antes de acabar el aplazado');
+forceWeather(DRY);
+const expected = dryResult(replayed);
+forceWeather(null);
+assert.deepEqual(resultOf(def, replayed, abs(rest, replayed.endMin)), expected, 'el aplazado no da el marcador del partido');
+const team = standings(def, replayed.season, abs(rest, 23 * 60)).find((r) => r.team === replayed!.home)!;
+assert.equal(team.pj, fixtures(def, replayed.season).filter((f) => (f.home === team.team || f.away === team.team) && resultOf(def, f, abs(rest, 23 * 60))).length);
+const replayEntry = boardAt('campo-alto', 40, 14, { day: rest, hour: 12, minute: 0 }).sections.find((s) => s.id === 'events')!.entries.find((e) => e.label === `${replayed!.home} – ${replayed!.away}`);
+assert.deepEqual([replayEntry?.state, replayEntry?.detail], ['today', `hoy ${hhmm(replayed.startMin)}`], 'el aplazado no sale en la semana de descanso');
+
+// (k) Con el tiempo de verdad: las temporadas sin chaparrón a la hora de ningún partido dan las tablas de siempre; en
+// todas, la tabla cuadra y el campeón no cambia al pasar los días.
+let drySeasons = 0;
+const realCrowned = new Map<number, string>();
+for (let s = 0; s < SEASONS; s++) {
+  const all = fixtures(def, s);
+  const wet = all.some((f) => heavy(f, f.day));
+  if (!wet) drySeasons++;
+  for (let day = s * def.seasonWeeks * 7 + 1; day <= Math.min(DAYS, (s + 1) * def.seasonWeeks * 7); day++) {
+    const now = abs(day, 23 * 60);
+    const rows = standings(def, s, now);
+    if (!wet) assert.equal(JSON.stringify(rows), drySnap.get(day), `t${s} día ${day}: sin lluvia, otra tabla`);
+    assert.equal(rows.reduce((n, r) => n + r.pj, 0), 2 * all.filter((f) => resultOf(def, f, now)).length, `t${s} día ${day}: ΣPJ con lluvia`);
+    for (const r of rows) assert.equal(r.pts, 3 * r.v + r.e);
+    const c = champion(def, s, now);
+    if (c && realCrowned.has(s)) assert.equal(realCrowned.get(s), c, `t${s}: el campeón cambió el día ${day}`);
+    else if (c) realCrowned.set(s, c);
+  }
+}
+assert.ok(drySeasons > 0, 'ninguna temporada sin lluvia para comparar');
 
 console.log(`check-league: ok (${SEASONS} temporadas en ${DAYS} días, ${draws} empates en 20, ${crowned.size} campeones estables)`);
