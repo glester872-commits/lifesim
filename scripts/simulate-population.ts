@@ -67,7 +67,7 @@ function run(placeId: string, start: Clock, minutes: number, seed = 1) {
   const s = crowd.summary;
   // Lo fijo del día: sin refuerzos por afluencia (minLevel) y sin quien no trabaja ese día (days, p. ej. fin de semana).
   const staffDay = weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
-  const required = profile.staff.filter((r) => !r.minLevel && staffOnShift(r, s.level, staffDay)).length;
+  const required = profile.staff.filter((r) => !r.minLevel && staffOnShift(r, s.level, staffDay, clock.hour + clock.minute / 60)).length;
   if (s.open) assert.ok(s.staff >= required, `${placeId}: falta personal a las ${hhmm(clock)}`);
   return { place, initial, final: s, clock, entered, left, maxDelta, states: crowd.agents.map((a) => a.state) };
 }

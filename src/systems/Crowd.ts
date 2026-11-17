@@ -6,7 +6,7 @@ import { POPULATION_PROFILES, type DrinkKind, type PlanStep, type PopulationProf
 import { PASSENGER_LOOKS } from '../data/npcs.ts';
 import type { Facing, LocationDef, TilePoint } from '../types/game.ts';
 import { between, dayFactor, hashSeed, seededRng, type Rng } from './MetroDaily.ts';
-import { weekIndex } from './Calendar.ts';
+import { dateOf, weekIndex } from './Calendar.ts';
 import { byPhase, matchPhase } from './Match.ts';
 import { outdoorAppeal, weatherAt } from './Weather.ts';
 import { isOpen, openingDay, workingAt, type PlaceInfo } from './Places.ts';
@@ -43,14 +43,37 @@ export function levelAt(place: PlaceInfo, profile: PopulationProfile, clock: Clo
   const band = profile.bands.find(([from, to]) => t >= from && t < to);
   const base = LEVELS.indexOf(band ? band[2] : 'VERY_LOW');
   // La madrugada del sábado cuenta como noche del viernes.
+  const day = openingDay(place, clock.day, clock.hour, clock.minute);
   // Día de partido (systems/Match): el bar del estadio se llena antes y después; sin partido, nada cambia.
-  const shifted = base + profile.weekday[weekIndex(openingDay(place, clock.day, clock.hour, clock.minute))] + byPhase(profile.match, clock);
+  // Demanda del calendario (rebajas, principio de mes): la del día de apertura.
+  const shifted = base + profile.weekday[weekIndex(day)] + byPhase(profile.match, clock) + demandAt(profile, { ...clock, day });
   return LEVELS[Math.max(0, Math.min(LEVELS.length - 1, shifted))];
 }
 
-export const staffOnShift = (role: StaffRole, level: Level | null, weekday: number): boolean =>
+/** Escalones que suman las reglas de demanda del perfil que se cumplen ese día a esa hora, recortados a [-1, 2]. Sin `demand`, 0. */
+export function demandAt(profile: PopulationProfile, clock: Clock): number {
+  if (!profile.demand) return 0;
+  const date = dateOf(clock.day);
+  const t = clock.hour + clock.minute / 60;
+  let sum = 0;
+  for (const r of profile.demand) {
+    if (r.months && !r.months.includes(date.month)) continue;
+    if (r.dom && (date.dom < r.dom[0] || date.dom > r.dom[1])) continue;
+    if (r.days && !r.days.includes(date.weekIndex)) continue;
+    if (r.from !== undefined && t < r.from) continue;
+    if (r.to !== undefined && t >= r.to) continue;
+    sum += r.shift;
+  }
+  return Math.max(-1, Math.min(2, sum));
+}
+
+/** ¿Trabaja ahora este puesto? Nivel, días y, con `t` (hora de reloj con decimales), su turno `hours`. */
+export const staffOnShift = (role: StaffRole, level: Level | null, weekday: number, t?: number): boolean =>
   level !== null && (!role.days || role.days.includes(weekday))
-  && (!role.minLevel || LEVELS.indexOf(level) >= LEVELS.indexOf(role.minLevel));
+  && (!role.minLevel || LEVELS.indexOf(level) >= LEVELS.indexOf(role.minLevel))
+  && (!role.hours || t === undefined || (t >= role.hours[0] && t < role.hours[1]));
+
+const clockHour = (clock: Clock): number => clock.hour + clock.minute / 60;
 
 /** Una plantilla con `{n}` (la caja) como regex: `{n}` captura un tramo sin `_`; `exact`, el id entero. */
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -66,7 +89,31 @@ export const laneOf = (pointId: string, prefixes: readonly string[]): string | u
   return undefined;
 };
 
-const staffDay = (place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
+/** DEC-04 · Estado de una caja, derivado de quien hay dentro: nada se guarda. */
+export type LaneState = 'cerrada' | 'ocupada' | 'abierta';
+
+/** Las cajas con cajero: el `{n}` de `profile.lane` en el puesto de cada empleado que no se va. */
+export const openLanesOf = (profile: PopulationProfile, agents: readonly Agent[]): string[] => {
+  const tpl = profile.lane;
+  if (!tpl) return [];
+  const re = laneRe(tpl, true);
+  return agents.flatMap((a) => (a.staffRole && !a.leaving && !a.leaveSoon
+    ? a.staffRole.points.flatMap((p) => re.exec(p)?.[1] ?? [])
+    : []));
+};
+
+/** Gente de la caja `n`: en su cola o pagando (o de camino a su plaza). */
+export const laneLoad = (agents: readonly Agent[], n: string): number =>
+  agents.filter((a) => !a.staffRole && !a.leaving && a.lane === n && a.point !== undefined).length;
+
+/** `till`: el punto de quien paga con `{n}` (`'DECAT_TILL_{n}'`). Ocupada: alguien ya está en él. */
+export const laneState = (agents: readonly Agent[], open: readonly string[], n: string, till: string): LaneState => {
+  if (!open.includes(n)) return 'cerrada';
+  const at = till.replace('{n}', n);
+  return agents.some((a) => !a.staffRole && a.point === at && a.path.length === 0) ? 'ocupada' : 'abierta';
+};
+
+export const staffDay =(place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
 
 /**
  * Visitantes que debería haber. Dentro del rango del nivel, el número sale de
@@ -79,7 +126,7 @@ export function targetAt(place: PlaceInfo, profile: PopulationProfile, clock: Cl
   const [lo, hi] = POPULATION.levels[level];
   const slot = Math.floor((clock.hour * 60 + clock.minute) / 30);
   const rng = seededRng(hashSeed('crowd', place.id, clock.day, slot));
-  const staff = profile.staff.filter((r) => staffOnShift(r, level, staffDay(place, clock))).length;
+  const staff = profile.staff.filter((r) => staffOnShift(r, level, staffDay(place, clock), clockHour(clock))).length;
   // Con mal tiempo, los sitios a cubierto (bares, tiendas, la discoteca) se llenan un poco más.
   const sheltered = place.tags.some((t) => t === 'food' || t === 'nightlife' || t === 'shop' || t === 'social');
   const shelter = sheltered ? 1 + Math.max(0, 1 - outdoorAppeal(weatherAt(clock.day, clock.hour + clock.minute / 60))) * 0.35 : 1;
@@ -333,7 +380,7 @@ export class Crowd {
     const far = (id: string): boolean => this.distance(this.pointAt(id), player) >= POPULATION.spawnClearance && this.seatOk(id);
 
     for (const role of this.profile.staff) {
-      if (!staffOnShift(role, level, staffDay(this.place, clock))) continue;
+      if (!staffOnShift(role, level, staffDay(this.place, clock), clockHour(clock))) continue;
       const point = this.freePoint(role.points, far);
       if (point) this.addStaff(role, point);
     }
@@ -463,9 +510,10 @@ export class Crowd {
     // Personal: el que toca entra por la puerta; el que ya no toca, se va.
     for (const role of this.profile.staff) {
       const here = this.agents.filter((a) => a.staffRole === role && !a.leaving);
-      const scheduled = staffOnShift(role, level, staffDay(this.place, clock));
+      const scheduled = staffOnShift(role, level, staffDay(this.place, clock), clockHour(clock));
       if (scheduled && here.length === 0 && doorClear) this.enterStaff(role);
-      if (!scheduled) for (const a of here) a.leaveSoon = true;
+      // Fin de turno con la tienda abierta. Cerrada, decide el bloque de cierre de abajo: el personal espera a los clientes.
+      if (!scheduled && level !== null) for (const a of here) a.leaveSoon = true;
     }
 
     const gathering = new Set(gatheringReservedLooks(this.now));
@@ -662,6 +710,7 @@ export class Crowd {
       return;
     }
     a.orderWaits = 0;
+    this.relane(a);
     // Antes de dejar una máquina, se incorpora, recoge y se baja: nadie sale andando de una postura tumbado.
     if (a.point && a.state !== 'FINISH' && this.stationOf(a.point)) {
       a.state = 'FINISH';
@@ -681,11 +730,12 @@ export class Crowd {
       return;
     }
     const step = a.plan[0];
-    // Con `{n}`, la caja que ya eligió; si cerró, como si no hubiera sitio (espera o se salta el paso).
-    const prefixes = this.expand(step.points, a.look, a.lane);
+    // Con `{n}`, la caja que ya eligió (si cerró, `relane` ya se la quitó); sin elegir, la abierta con menos gente.
+    const ok = (id: string): boolean => id !== a.point && this.seatOk(id, a);
+    const prefixes = this.expand(step.points, a.look, a.lane ?? this.pickLane(step.points, a.look, ok));
     // Su taquilla de antes, si sigue libre; si no, otra del mismo vestuario.
     const own = step.outfit === 'street' && a.locker && !this.seats.has(a.locker) && !this.claimed.has(a.locker) ? a.locker : undefined;
-    const point = own ?? this.freePoint(prefixes, (id) => id !== a.point && this.seatOk(id, a));
+    const point = own ?? this.freePoint(prefixes, ok);
     if (!point && !a.point) {
       // Acaba de entrar y no hay sitio: se da la vuelta en vez de quedarse en la puerta.
       this.leave(a);
@@ -745,14 +795,40 @@ export class Crowd {
     return out.flatMap((p) => (p.includes('{n}') ? lanes.map((n) => p.replace('{n}', n)) : [p]));
   }
 
-  /** Las cajas con cajero: el `{n}` de `profile.lane` en el puesto de cada empleado que no se va. */
   private openLanes(): string[] {
-    const tpl = this.profile.lane;
-    if (!tpl) return [];
-    const re = laneRe(tpl, true);
-    return this.agents.flatMap((a) => (a.staffRole && !a.leaving && !a.leaveSoon
-      ? a.staffRole.points.flatMap((p) => re.exec(p)?.[1] ?? [])
-      : []));
+    return openLanesOf(this.profile, this.agents);
+  }
+
+  /** DEC-04 · Sin caja aún: la abierta con menos gente que tenga plaza libre para este paso; empate, el azar de la sala. */
+  private pickLane(points: readonly string[], look: number, ok: (id: string) => boolean): string | undefined {
+    if (!points.some((p) => p.includes('{n}'))) return undefined;
+    const ranked = this.openLanes()
+      .map((n) => ({ n, load: laneLoad(this.agents, n), tie: this.rng() }))
+      .sort((x, y) => x.load - y.load || x.tie - y.tie);
+    return ranked.find(({ n }) => this.freePoints(this.expand(points, look, n), ok).length > 0)?.n;
+  }
+
+  /**
+   * DEC-04 · Su próximo paso va por caja (`{n}`) y su caja cerró con él en la cola: suelta la plaza, olvida la caja y
+   * vuelve a hacer cola (el paso de cola de antes) en otra abierta. Sin ninguna abierta, se va: nadie se salta el pago.
+   * Quien ya paga no llega aquí con un paso `{n}` pendiente: termina en su caja.
+   */
+  private relane(a: Agent): void {
+    const step = a.plan[0];
+    if (a.leaveSoon || !step || !step.points.some((p) => p.includes('{n}'))) return;
+    const open = this.openLanes();
+    if (open.length === 0) {
+      a.leaveSoon = true;
+      return;
+    }
+    if (a.lane === undefined || open.includes(a.lane)) return;
+    const prev = a.stepPoints;
+    const back = prev?.some((p) => p.includes('{n}'))
+      ? this.profile.visitors.flatMap((v) => v.plan).find((s) => s.points.join() === prev.join())
+      : undefined;
+    if (back && back !== step) a.plan.unshift(back);
+    this.release(a);
+    a.lane = undefined;
   }
 
   /** Ponerse lo que tocaba en el paso que acaba: la ropa de entrenar, o la de calle. */

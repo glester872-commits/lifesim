@@ -350,6 +350,8 @@ const LIGHTS: readonly PropPlacement[] = [
 
 const inRect = (r: Rect, x: number, y: number): boolean => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
 export const inAisle = (x: number, y: number): boolean => AISLES.some((a) => inRect(a.rect, x, y));
+/** DEC-01 · La sección que pisa ese tile, o ninguna (pasillo, cajas, muro). */
+export const sectorAt = (tx: number, ty: number): Sector | undefined => SECTORS.find((s) => inRect(s.rect, tx, ty));
 
 const QUEUE_TILES = new Set(CHECKOUTS.flatMap((c) => c.queue.map((q) => `${q.tx},${q.ty}`)));
 
@@ -389,6 +391,10 @@ const RACKS: readonly RackDef[] = [
   { tx: 10, ty: 2, name: 'Zapatillas', store: 'decathlon', categories: ['zapatillas'] },
   { tx: 20, ty: 5, name: 'Camisetas y sudaderas', store: 'decathlon', categories: ['camiseta', 'sudadera'] },
   { tx: 20, ty: 8, name: 'Pantalones de deporte', store: 'decathlon', categories: ['pantalon'] },
+  // DEC-03 · como los de arriba, de pie sobre un punto de mirar de su sección (check-economy): el centro de los cuatro
+  // percheros de Montaña hombre y delante de la mesa de Accesorios (57,16).
+  { tx: 40, ty: 6, name: 'Chaquetas de montaña', store: 'decathlon', categories: ['chaqueta'] },
+  { tx: 58, ty: 17, name: 'Gorras y gafas', store: 'decathlon', categories: ['gorro', 'gafas'] },
 ];
 
 export const DECATHLON_STORE: LocationDef = {
@@ -406,12 +412,17 @@ export const DECATHLON_STORE: LocationDef = {
   spawns: { entry: { ...EXIT, facing: 'up' } },
   npcs: [],
   racks: RACKS,
+  // DEC-06 · los probadores del jugador: los mismos puntos de los clientes, delante de cada cabina.
+  fittings: FITTINGS.map((_, i) => ({ point: `${P}_FITTING_${TWO(i)}`, store: 'decathlon', name: `Probador ${i + 1}` })),
   inspects: SECTORS.map((s): InspectDef => ({ tx: s.look.tx, ty: s.look.ty, name: s.name, lines: s.look.lines })),
   workplace: 'decathlon',
   // El fichaje (turnos con contrato y el turno suelto sin él: scenes/Menus.openJob) y el punto de información de la entrada.
   spots: [
     { tx: 72, ty: 41, name: 'Fichaje · sala de personal', activities: [], job: 'decathlon' },
     { tx: 66, ty: 40, name: 'Punto de información', activities: ['browse-decathlon'] },
+    // DEC-04 · el autopago: de pie a la izquierda de su máquina (que está bajo quien paga). No en su `till`, cola ni
+    // salida: ésos son de los clientes (check-decathlon j); la máquina se alcanza desde aquí y desde el `till`.
+    ...CHECKOUTS.filter((c) => c.kind === 'self').map((c, i) => ({ tx: c.till.tx - 1, ty: c.till.ty + 1, name: `Autopago ${i + 1}`, activities: [], selfCheckout: 'decathlon' })),
   ],
   points: {
     [`${P}_EXIT`]: p(EXIT.tx, EXIT.ty, 'exit', 'up'),
@@ -429,9 +440,14 @@ export const DECATHLON_STORE: LocationDef = {
 };
 
 /** Cada uno con su chaleco y su aspecto: nadie es igual al de al lado. */
-const floor = (look: string, label: string, line: string, sections: readonly string[], offers: StaffRole['offers'], days?: StaffRole['days']): StaffRole =>
-  ({ service: 'shop-worker', label, line, look, points: sectionPoints(sections), offers, days });
-const WEEKEND = [5, 6] as const;
+const floor = (look: string, label: string, line: string, sections: readonly string[], offers: StaffRole['offers'], days?: StaffRole['days'], hours?: StaffRole['hours']): StaffRole =>
+  ({ service: 'shop-worker', label, line, look, points: sectionPoints(sections), offers, days, hours });
+/** Refuerzo de sección: viernes y sábado. */
+const FRI_SAT = [4, 5] as const;
+/** Turnos (AFLUENCIA-DEC02), los mismos que los de caja en data/decathlonLayout.ts. */
+const OPENING = [9, 15.5] as const;
+const MIDDLE = [12, 18] as const;
+const CLOSING = [14.5, 21] as const;
 /** Cola y pago en la misma caja, y sólo en una con cajero (`lane` del perfil, systems/Crowd). */
 const PAY: readonly PlanStep[] = [
   { state: 'QUEUE', points: [`${P}_QUEUE_{n}_`], minutes: [1, 2] },
@@ -451,22 +467,28 @@ const TILL_STAFF: readonly StaffRole[] = STAFFED.map((c, i): StaffRole => ({
   points: [`${P}_STAFF_${i + 1}`],
   ...(c.open?.days ? { days: c.open.days } : {}),
   ...(c.open?.minLevel ? { minLevel: c.open.minLevel } : {}),
+  ...(c.open?.hours ? { hours: c.open.hours } : {}),
 }));
 
 export const DECATHLON_PROFILE: PopulationProfile = {
   place: 'decathlon-tienda',
   bands: [[9, 11, 'LOW'], [11, 14, 'MEDIUM'], [14, 17, 'LOW'], [17, 21, 'HIGH']],
-  weekday: [0, 0, 0, 0, 1, 2, 2],
+  // El sábado, el pico; el domingo abre (data/places.ts) un poco por debajo.
+  weekday: [0, 0, 0, 0, 1, 2, 1],
+  // Rebajas (enero y julio) y la tarde de principio de mes, con la nómina recién cobrada.
+  demand: [{ months: [1, 7], shift: 1 }, { dom: [1, 5], from: 17, to: 21, shift: 1 }],
   // Una nave de este tamaño se ve vacía con ocho: catorce, repartidos por los BROWSE de todas las secciones.
   maxVisitors: 14,
   lane: `${P}_STAFF_{n}`,
   staff: [
     ...TILL_STAFF,
-    floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana'),
-    floor('decathlon_employee_3', 'Sección de running', 'Pruébate el calzado con los calcetines que usas al correr.', ['running', 'calzado-mujer', 'calzado-hombre'], 'decathlon-running'),
-    floor('decathlon_employee_4', 'Sección de ciclismo', 'La medida de la cámara la pone en el neumático.', ['ciclismo', 'segunda-vida'], 'decathlon-ciclismo'),
-    { service: 'shop-worker', label: 'Reposición', line: 'Perdona, que paso con el carro.', look: 'decathlon_employee_5', points: [`${P}_BROWSE_`] },
-    floor('decathlon_employee_8', 'Sección de fitness', 'Una esterilla ocupa poco y se recoge en un minuto.', ['fitness-mat', 'fitness-mujer', 'fitness-hombre'], 'decathlon-fitness', WEEKEND),
+    floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana', undefined, MIDDLE),
+    floor('decathlon_employee_3', 'Sección de running', 'Pruébate el calzado con los calcetines que usas al correr.', ['running', 'calzado-mujer', 'calzado-hombre'], 'decathlon-running', undefined, OPENING),
+    floor('decathlon_employee_4', 'Sección de ciclismo', 'La medida de la cámara la pone en el neumático.', ['ciclismo', 'segunda-vida'], 'decathlon-ciclismo', undefined, CLOSING),
+    // Ronda por todas las secciones (sus puntos uno a uno: los mismos que el prefijo `${P}_BROWSE_`). Atiende lo general
+    // de la tienda (DEC-01, systems/StoreKnowledge), sin consejo de sección propio.
+    { service: 'shop-worker', label: 'Reposición', line: 'Perdona, que paso con el carro.', look: 'decathlon_employee_5', points: sectionPoints(SECTORS.map((s) => s.id)), offers: 'decathlon-tienda', hours: OPENING },
+    floor('decathlon_employee_8', 'Sección de fitness', 'Una esterilla ocupa poco y se recoge en un minuto.', ['fitness-mat', 'fitness-mujer', 'fitness-hombre'], 'decathlon-fitness', FRI_SAT, CLOSING),
   ],
   visitors: [
     laneCustomer('Venía a por calcetines y me llevo una tienda de campaña.', 2, { party: [1, 3] }),

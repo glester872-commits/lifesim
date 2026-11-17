@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { EventMemory, Facing, GameStateData, PlayerIdentity } from '../types/game';
 import type { Appearance } from '../data/appearance';
 import type { Wallet } from '../systems/Commerce';
+import type { BasketLine } from '../systems/Basket';
 import { START_FITNESS, type Fitness } from '../systems/Fitness';
 import { createSocialProfile, type SocialProfile, type SocialState } from '../systems/Social';
 import { createStory, type NamedStory, type StoryState } from '../systems/Story';
@@ -99,6 +100,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** Lo realmente pagado por cada prenda del armario. Sin registro, no se puede revender (systems/Retail). */
   private _paid:
     Record<string, number>;
+
+  /** DEC-04 · La cesta de las tiendas (systems/Basket). Sólo en memoria: snapshot no la guarda y recargar la vacía. */
+  private _basket: BasketLine[] = [];
 
   private _fitness:
     Fitness;
@@ -602,6 +606,14 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   set paid(prices: Record<string, number>) {
     this._paid = { ...prices };
+  }
+
+  get basket(): readonly BasketLine[] {
+    return this._basket.map((l) => ({ ...l }));
+  }
+
+  set basket(lines: readonly BasketLine[]) {
+    this._basket = lines.map((l) => ({ ...l }));
   }
 
   get paidItems(): Record<string, number[]> {

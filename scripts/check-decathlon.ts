@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { AISLES, DECATHLON_H, DECATHLON_PROFILE, DECATHLON_STORE, DECATHLON_W, SECTORS, inAisle, type Rect } from '../src/data/decathlon.ts';
 import { DECATHLON_LAYOUT } from '../src/data/decathlonLayout.ts';
-import { levelAt, staffOnShift } from '../src/systems/Crowd.ts';
+import { laneLoad, laneState, levelAt, openLanesOf, staffOnShift } from '../src/systems/Crowd.ts';
 import { weekIndex } from '../src/systems/Calendar.ts';
 import { LEVELS } from '../src/config/population.ts';
 import { getStore } from '../src/data/retail.ts';
@@ -170,7 +170,7 @@ const isCashier = (s: { service: string }): boolean => s.service === 'cashier';
 for (const [day, hour] of [[1, 12], [6, 12], [7, 12], [7, 22]]) {
   const clock = { day, hour, minute: 0 };
   const level = levelAt(shop, DECATHLON_PROFILE, clock);
-  const expected = DECATHLON_PROFILE.staff.filter((r) => staffOnShift(r, level, weekIndex(day)));
+  const expected = DECATHLON_PROFILE.staff.filter((r) => staffOnShift(r, level, weekIndex(day), hour));
   const crowd = new Crowd(loc, shop, DECATHLON_PROFILE);
   crowd.populate(clock, entry);
   const staff = crowd.agents.flatMap((a) => a.staffRole ? [a.staffRole] : []);
@@ -196,11 +196,12 @@ for (const r of loc.racks ?? []) assert.ok(getStore(r.store).stock.length > 0, `
 // DEC-02 · Turnos de caja: más cajas abiertas cuanta más gente; nunca las seis a afluencia media; ninguna con la tienda
 // cerrada. Días: 1 lunes, 3 miércoles, 6 sábado (systems/Calendar).
 const tills = (day: number, hour: number): number =>
-  DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, levelAt(shop, DECATHLON_PROFILE, { day, hour, minute: 0 }), weekIndex(day))).length;
+  DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, levelAt(shop, DECATHLON_PROFILE, { day, hour, minute: 0 }), weekIndex(day), hour)).length;
 const [monNoon, wedEve, satEve, satNoon] = [tills(1, 12), tills(3, 18), tills(6, 18), tills(6, 12)];
 assert.ok(monNoon >= 1 && monNoon <= wedEve && wedEve <= satEve, `cajas: lunes 12 h ${monNoon}, miércoles 18 h ${wedEve}, sábado 18 h ${satEve}`);
 assert.ok(satNoon > monNoon, `cajas: el sábado a mediodía (${satNoon}) no abre más que el lunes (${monNoon})`);
 for (let d = 0; d < 7; d++) {
+  // Sin hora a propósito (AFLUENCIA-DEC02): todos los turnos a la vez, el peor caso.
   const atMedium = DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, 'MEDIUM', d)).length;
   assert.ok(atMedium < STAFFED.length, `cajas: las ${STAFFED.length} abiertas a afluencia media (día ${d})`);
 }
@@ -253,6 +254,130 @@ for (const [day, hour] of [[1, 12], [6, 18]]) {
 }
 const noCashiers = runTills({ ...DECATHLON_PROFILE, staff: DECATHLON_PROFILE.staff.filter((s) => s.service !== 'cashier') }, 1, 12);
 assert.equal(noCashiers.queue + noCashiers.till, 0, 'sin cajeros, alguien hace cola o paga');
+// DEC-04 · Estado de caja, elección por carga, una persona por punto y cierre con cola (systems/Crowd: openLanesOf, laneLoad,
+// laneState, pickLane, relane). Todos van derechos a pagar: así hay colas de verdad.
+const laneSteps = DECATHLON_PROFILE.visitors.flatMap((v) => v.plan).filter((s) => s.points.some((p) => p.includes('{n}')));
+const QUEUE_TPL = laneSteps.find((s) => s.state === 'QUEUE')!.points[0];
+const TILL_TPL = laneSteps.find((s) => s.state === 'CHECKOUT')!.points[0];
+const rush: typeof DECATHLON_PROFILE = {
+  ...DECATHLON_PROFILE,
+  visitors: DECATHLON_PROFILE.visitors
+    .filter((v) => v.plan.some((s) => laneSteps.includes(s)))
+    .map((v) => ({ ...v, plan: v.plan.filter((s) => laneSteps.includes(s)) })),
+};
+const laneAt = (id: string | undefined): string | undefined => {
+  const m = id ? AT_TILL.exec(id) : null;
+  return m ? m[1] ?? m[2] : undefined;
+};
+/** Un tick de la cola: nadie comparte punto, y quien paga en la caja m hizo su última cola en la m. */
+// El jugador, lejos de la puerta y de las cajas: plantado en `entry` (a un tile de la puerta) no entra nadie nuevo
+// (Crowd: doorClear), y sin clientes que entren no hay nadie sin caja que tenga que elegir una.
+const away: TilePoint = { tx: 10, ty: 10 };
+const tickTills = (crowd: Crowd, clock: { day: number; hour: number; minute: number }, queuedIn: Map<number, string>, where: string): number => {
+  crowd.update(500, clock, away);
+  const held = new Map<string, number>();
+  let paying = 0;
+  for (const a of crowd.agents) {
+    if (!a.point) continue;
+    held.set(a.point, (held.get(a.point) ?? 0) + 1);
+    const n = laneAt(a.point);
+    if (a.staffRole || n === undefined) continue;
+    paying++;
+    if (a.point.startsWith(QUEUE_TPL.replace('{n}', n))) queuedIn.set(a.id, n);
+    else assert.ok(!queuedIn.has(a.id) || queuedIn.get(a.id) === n, `${where}: ${a.id} paga en la caja ${n} e hizo cola en la ${queuedIn.get(a.id)}`);
+  }
+  for (const [id, k] of held) assert.equal(k, 1, `${where}: ${k} personas en ${id}`);
+  return paying;
+};
+{
+  // Sábado 18 h: varias cajas abiertas (1, 3, 5, 6) y alguna cerrada (la 2 acaba a las 15:30; la 4, a las 18). Dos
+  // simulaciones: «saturada» (14 clientes para 12 plazas: siempre hay quien espera; prueba que nadie comparte punto) y
+  // «holgada» (6 clientes: sobra sitio antes de cada tick, así que cada elección de caja se puede juzgar). En la saturada
+  // las plazas se liberan y se cogen dentro del mismo tick, nunca hay una libre antes de él y (b) no se puede medir allí.
+  const clock = { day: 6, hour: 18, minute: 0 };
+  const seenStates = new Set<string>();
+  let peak = 0;
+  let choices = 0;
+  let uneven = 0;
+  let lightest = 0;
+  for (const profile of [rush, { ...rush, maxVisitors: 6 }]) {
+  const crowd = new Crowd(loc, shop, profile);
+  crowd.populate(clock, away);
+  const queuedIn = new Map<number, string>();
+  for (let t = 0; t < 2000; t++) {
+    const open = openLanesOf(profile, crowd.agents);
+    const before = new Map(crowd.agents.map((a) => [a.id, a.lane]));
+    const load = new Map(open.map((n) => [n, laneLoad(crowd.agents, n)]));
+    const roomy = open.filter((n) => Object.keys(loc.points!).some((id) => id.startsWith(QUEUE_TPL.replace('{n}', n)) && crowd.occupancy(id) === 'FREE'));
+    peak = Math.max(peak, tickTills(crowd, clock, queuedIn, `sábado 18 h, tick ${t}`));
+    // (b) Quien elige caja en este tick (no los acompañantes: van con quien lleva el grupo) coge la de menos gente.
+    const chosen = crowd.agents.filter((a) => !a.staffRole && !a.leader && a.lane !== undefined && before.has(a.id) && before.get(a.id) === undefined);
+    // Medido con la carga de antes del tick: alguien que acaba de pagar dentro del mismo tick puede igualar dos cajas, así
+    // que se exige en casi todas las elecciones, no en todas.
+    if (roomy.length > 0) {
+      const min = Math.min(...roomy.map((n) => load.get(n)!));
+      for (const a of chosen) {
+        choices++;
+        if (new Set(roomy.map((n) => load.get(n))).size === 1) continue;
+        uneven++;
+        if ((load.get(a.lane!) ?? 0) <= min + chosen.length - 1) lightest++;
+      }
+    }
+    // (a) Estado derivado contra lo que se ve: sin cajero, cerrada; alguien plantado en su caja, ocupada.
+    const now = openLanesOf(profile, crowd.agents);
+    for (const [i] of STAFFED.entries()) {
+      const n = String(i + 1);
+      const cashier = crowd.agents.some((a) => a.staffRole?.points.includes(`DECAT_STAFF_${n}`) && !a.leaving && !a.leaveSoon);
+      const atTill = crowd.agents.some((a) => !a.staffRole && a.point === TILL_TPL.replace('{n}', n) && a.path.length === 0);
+      const state = laneState(crowd.agents, now, n, TILL_TPL);
+      assert.equal(state, !cashier ? 'cerrada' : atTill ? 'ocupada' : 'abierta', `tick ${t}: caja ${n}`);
+      seenStates.add(state);
+    }
+  }
+  }
+  assert.deepEqual([...seenStates].sort(), ['abierta', 'cerrada', 'ocupada'], 'sábado 18 h: no se ven los tres estados de caja');
+  assert.ok(peak >= 5, `sábado 18 h: como mucho ${peak} personas en cola o pagando a la vez`);
+  assert.ok(choices > 0 && uneven > 0, `sábado 18 h: ${choices} elecciones de caja, ${uneven} con colas desiguales`);
+  assert.ok(lightest >= uneven * 0.9, `sábado 18 h: sólo ${lightest} de ${uneven} eligen la caja con menos gente`);
+}
+{
+  // (d) Lunes: la caja 2 cierra a las 15:30 con gente en cola y alguien pagando. El lunes a esa hora es LOW (2-4
+  // clientes para las cajas 1 y 2: repartidos por carga, puede no juntarse nunca cola y pago en la 2); con la demanda
+  // subida a HIGH (8-14) abren la 1, la 2 y la 3 (9 plazas) y la 2 se llena.
+  const before = { day: 1, hour: 15, minute: 20 };
+  const after = { day: 1, hour: 15, minute: 31 };
+  const busy = { ...rush, demand: [{ shift: 2 }] };
+  const crowd = new Crowd(loc, shop, busy);
+  crowd.populate(before, away);
+  const queuedIn = new Map<number, string>();
+  const TILL_2 = TILL_TPL.replace('{n}', '2');
+  const QUEUE_2 = QUEUE_TPL.replace('{n}', '2');
+  let ready = false;
+  for (let t = 0; t < 2000 && !ready; t++) {
+    tickTills(crowd, before, queuedIn, `lunes 15:20, tick ${t}`);
+    ready = crowd.agents.some((a) => a.point === TILL_2 && a.path.length === 0) && crowd.agents.some((a) => a.point?.startsWith(QUEUE_2));
+  }
+  assert.ok(ready, 'lunes 15:20: nunca hay cola y pago a la vez en la caja 2');
+  const payer = crowd.agents.find((a) => a.point === TILL_2)!;
+  // Quien ya iba a la caja 2 cuando el cajero se marcha (el primer tick de las 15:31) es lo que se reasigna.
+  tickTills(crowd, after, queuedIn, 'lunes 15:31, tick 0');
+  const queued = new Set(crowd.agents.filter((a) => a.lane === '2' || laneAt(a.point) === '2').map((a) => a.id));
+  for (let t = 1; t < 1200; t++) {
+    tickTills(crowd, after, queuedIn, `lunes 15:31, tick ${t}`);
+    if (crowd.agents.includes(payer)) {
+      assert.ok(payer.lane === '2' && (payer.leaving || payer.point === TILL_2), `quien pagaba en la caja 2 no terminó allí (${payer.point})`);
+    }
+    for (const a of crowd.agents) {
+      if (a.staffRole || a.id === payer.id || queued.has(a.id)) continue;
+      assert.ok(laneAt(a.point) !== '2', `tick ${t}: ${a.id} va a la caja 2 cerrada`);
+    }
+  }
+  assert.ok(!openLanesOf(busy, crowd.agents).includes('2'), 'la caja 2 sigue abierta a las 15:31');
+  for (const a of crowd.agents) {
+    if (a.staffRole || a.leaving) continue;
+    assert.ok(a.lane !== '2' && laneAt(a.point) !== '2', `${a.id} sigue en la caja 2 cerrada (${a.point})`);
+  }
+}
 
 // 8 · Las rutas de la gente (systems/Navigation): de la puerta a cada punto de la tienda y de vuelta.
 for (const id of Object.keys(loc.points ?? {})) {

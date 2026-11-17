@@ -2,6 +2,8 @@
 import type { Appearance } from '../data/appearance.ts';
 import { getGarment, getStore, STORES, type GarmentCategory, type GarmentDef, type StockLine } from '../data/retail.ts';
 import { euros, type Wallet } from './Commerce.ts';
+import { hashSeed, seededRng } from './MetroDaily.ts';
+import type { Occupancy } from '../data/stations.ts';
 
 /**
  * Tiendas de ropa: una sola regla para todas. Qué hay y a cuánto lo dice la
@@ -34,6 +36,44 @@ export function takeOff(current: Appearance, slot: GarmentDef['slot']): Appearan
   return out;
 }
 
+/** DEC-06 · El motivo de no vender lo agotado (ficha, caja, cesta y probador dicen lo mismo). */
+export const SOLD_OUT = 'Agotado hoy: mañana lo reponen.';
+
+/**
+ * DEC-06 · Lo agotado hoy en una tienda con cesta (data/retail.ts `basket`): de 0 a 2 prendas sorteadas por tienda y día
+ * (como systems/Rastro.weekStock), nunca más de la mitad del catálogo. Al día siguiente, otro sorteo, sin lo que se agotó ayer: lo agotado siempre vuelve al día siguiente. Lo que
+ * ya es tuyo no se cuenta (no se puede comprar igual). Las tiendas sin cesta, nada.
+ */
+export function soldOutList(storeId: string, day: number, wardrobe: readonly string[] = []): string[] {
+  if (!getStore(storeId).basket) return [];
+  // «Mañana lo reponen»: lo que salió agotado ayer (sorteo crudo, sin recursión) hoy está.
+  const yesterday = rawSoldOut(storeId, day - 1);
+  return rawSoldOut(storeId, day).filter((g) => !yesterday.includes(g) && !wardrobe.includes(g));
+}
+
+/** El sorteo del día sin más: 0–2 prendas distintas, nunca más de la mitad del catálogo. */
+function rawSoldOut(storeId: string, day: number): string[] {
+  const pool = [...new Set(getStore(storeId).stock.map((l) => l.garment))];
+  const rng = seededRng(hashSeed('sold-out', storeId, day));
+  const n = Math.min(Math.floor(rng() * 3), Math.floor(pool.length / 2));
+  const out: string[] = [];
+  while (out.length < n) {
+    const g = pool[Math.floor(rng() * pool.length)];
+    if (!out.includes(g)) out.push(g);
+  }
+  return out;
+}
+
+export function soldOutToday(storeId: string, garment: string, day: number, wardrobe: readonly string[] = []): boolean {
+  return soldOutList(storeId, day, wardrobe).includes(garment);
+}
+
+/** DEC-06 · La cabina en que entra quien pulsa E en `wanted`: ésa si está libre; si no, la libre más cercana en la fila; ninguna, undefined. */
+export function pickFitting(wanted: string, all: readonly string[], status: (point: string) => Occupancy): string | undefined {
+  const at = Math.max(0, all.indexOf(wanted));
+  return [...all].map((p, i) => ({ p, d: p === wanted ? -1 : Math.abs(i - at) })).sort((a, b) => a.d - b.d).find((c) => status(c.p) === 'FREE')?.p;
+}
+
 export interface StockView extends StockLine {
   def: GarmentDef;
   /** Ya es tuya: ponérsela no cuesta nada. */
@@ -60,13 +100,15 @@ export function stockOf(storeId: string, wardrobe: readonly string[], current: A
  * `equip` falso). Una pieza única que ya es tuya no se vuelve a vender, y
  * nada se cobra dos veces: lo que ya está en el armario se rechaza.
  */
-export function buyGarment(w: Wallet, wardrobe: readonly string[], current: Appearance, storeId: string, garment: string, equip = true, factor = 1): Purchase {
+export function buyGarment(w: Wallet, wardrobe: readonly string[], current: Appearance, storeId: string, garment: string, equip = true, factor = 1, day?: number): Purchase {
   const store = getStore(storeId);
   const line = store.stock.find((l) => l.garment === garment);
   const refuse = (message: string): Purchase => ({ ok: false, wallet: w, wardrobe, appearance: current, paid: 0, message });
   if (!line) return refuse('Eso no lo tenemos.');
   const def = getGarment(garment);
   if (wardrobe.includes(garment)) return refuse(def.unique ? 'Era la única y ya es tuya.' : 'Ya tienes una igual.');
+  // DEC-06 · sin día (check-economy, tiendas sin cesta) no hay agotados.
+  if (day !== undefined && soldOutToday(storeId, garment, day, wardrobe)) return refuse(SOLD_OUT);
   // MAP-07: el precio con la reputación del barrio (systems/Reputation.priceFactor); la reventa sale de `paid`.
   const price = Math.round(line.price * factor * 100) / 100;
   if (w.money + 1e-9 < price) return refuse(`No te llega: cuesta ${euros(price)}.`);

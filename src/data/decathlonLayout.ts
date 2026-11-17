@@ -25,8 +25,11 @@ export interface Checkout {
   readonly queue: readonly TilePoint[];
   /** Por dónde se va quien ya ha pagado, hacia el pasillo de salida. */
   readonly exit: TilePoint;
-  /** Cuándo está abierta: días (0 lunes, 6 domingo) y afluencia mínima (systems/Crowd.staffOnShift). Sin él, siempre. */
-  readonly open?: { readonly days?: readonly number[]; readonly minLevel?: Level };
+  /**
+   * Cuándo está abierta: días (0 lunes, 6 domingo), afluencia mínima y turno en horas [entra, sale) del cajero
+   * (systems/Crowd.staffOnShift). Sin él, siempre.
+   */
+  readonly open?: { readonly days?: readonly number[]; readonly minLevel?: Level; readonly hours?: readonly [number, number] };
 }
 export interface StoreLayout {
   readonly version: 1;
@@ -44,13 +47,17 @@ const t = (tx: number, ty: number): TilePoint => ({ tx, ty });
 /** Fila de quien paga en las cajas; la cola sube dos filas, la salida baja al pasillo. */
 const TILL_Y = 46;
 const WEEKEND = [4, 5, 6] as const;
+/** Turnos (AFLUENCIA-DEC02): apertura, intermedio y cierre. La caja 1 no lleva: cubre todo el horario. */
+const OPENING = [9, 15.5] as const;
+const MIDDLE = [12, 18] as const;
+const CLOSING = [14.5, 21] as const;
 const STAFFED_OPEN: readonly (Checkout['open'] | undefined)[] = [
   undefined,
-  { minLevel: 'LOW' },
-  { minLevel: 'MEDIUM' },
-  { minLevel: 'MEDIUM', days: WEEKEND },
-  { minLevel: 'HIGH', days: WEEKEND },
-  { minLevel: 'VERY_HIGH' },
+  { minLevel: 'LOW', hours: OPENING },
+  { minLevel: 'MEDIUM', hours: CLOSING },
+  { minLevel: 'MEDIUM', days: WEEKEND, hours: MIDDLE },
+  { minLevel: 'HIGH', days: WEEKEND, hours: CLOSING },
+  { minLevel: 'VERY_HIGH', hours: CLOSING },
 ];
 
 /** Seis cajas con cajero bajo natación, a la izquierda de la puerta: cliente (c), mostrador (c+1), cajero (c+2). */

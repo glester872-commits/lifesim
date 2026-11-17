@@ -65,6 +65,8 @@ export interface GarmentDef {
   unique?: boolean;
   /** Sólo gafas: cristal claro (graduadas o de pasta) u oscuro (de sol). `color` es la montura. */
   lens?: 'clear' | 'dark';
+  /** DEC-03 · marca ficticia del producto (nunca una real); se ve en la ficha delante del nombre. */
+  brand?: string;
 }
 
 type GarmentSeed = Omit<GarmentDef, 'slot'>;
@@ -143,6 +145,12 @@ const SEEDS: readonly GarmentSeed[] = [
   { id: 'gorra-halcones', name: 'Gorra de los Halcones', category: 'gorro', description: 'Turquesa con el halcón naranja bordado delante.', color: '#1f8f8a' },
   { id: 'bufanda-halcones', name: 'Bufanda de los Halcones', category: 'bufanda', description: 'Turquesa y naranja, de punto, con «HALCONES» en los extremos.', color: '#1f8f8a' },
   { id: 'bufanda-naranja', name: 'Bufanda naranja', category: 'bufanda', description: 'La de fuera de casa: naranja con flecos turquesa.', color: '#f08a24' },
+  // DEC-03 · Decathlon: marcas propias ficticias. Trazo, running y trail; Ondra, montaña y exterior.
+  { id: 'cortavientos-trazo', name: 'Chaqueta cortavientos', category: 'chaqueta', brand: 'Trazo', description: 'Pesa lo que un folio y se guarda en su propio bolsillo. Para el viento del canal, no para la lluvia.', color: '#e86a2c', dark: '#b8521f' },
+  { id: 'polar-ondra', name: 'Chaqueta polar de montaña', category: 'chaqueta', brand: 'Ondra', description: 'Forro polar verde bosque, cremallera entera y bolsillos donde caben unas manos frías.', color: '#3f6a5a', dark: '#2f5044' },
+  { id: 'zapatilla-trail-trazo', name: 'Zapatillas de trail', category: 'zapatillas', brand: 'Trazo', description: 'Taco profundo y puntera de goma. En la ciudad suenan un poco; en el monte, ni se notan.', color: '#4a7a8c' },
+  { id: 'gorra-running-trazo', name: 'Gorra de running', category: 'gorro', brand: 'Trazo', description: 'Blanca, de tela que se seca sola y visera blanda que se dobla en el bolsillo.', color: '#e9ecf2' },
+  { id: 'gafas-deporte-ondra', name: 'Gafas de sol deportivas', category: 'gafas', brand: 'Ondra', description: 'Montura envolvente azul y cristal oscuro. No se caen ni bajando un pedregal.', color: '#2f6fa8', lens: 'dark' },
 ];
 
 export const GARMENTS: readonly GarmentDef[] = SEEDS.map((g) => {
@@ -171,6 +179,8 @@ export interface RetailStoreDef {
   buysBack?: true;
   /** CAS-05 · compra objetos con tique (systems/Retail.sellItem): id exacto o prefijo acabado en '*'. */
   buysItems?: readonly string[];
+  /** DEC-04 · se coge en los percheros a la cesta y se paga junto en caja o en el autopago (systems/Basket). */
+  basket?: true;
 }
 
 export const STORES: readonly RetailStoreDef[] = [
@@ -289,8 +299,11 @@ export const STORES: readonly RetailStoreDef[] = [
   },
   // Decathlon (data/decathlon.ts, Alpha-08): lo técnico a precio de nave, en sus percheros de running y sportswear.
   {
-    id: 'decathlon', name: 'Decathlon', greeting: 'Hola. Los probadores están ahí al lado; si no es tu talla, te la busco.', thanks: 'Guarda el tique: tienes noventa días para devolverlo.',
-    stock: [{ garment: 'camiseta-tecnica', price: 7.99 }, { garment: 'sudadera-entreno', price: 14.99 }, { garment: 'pantalon-chandal', price: 12.99 }, { garment: 'chandal-gris', price: 9.99 }, { garment: 'zapatillas-futbol-sala', price: 24.99 }],
+    id: 'decathlon', name: 'Decathlon', greeting: 'Hola. Lo que ves en los percheros es lo que hay hoy; los probadores están al fondo, junto a Sportswear.', thanks: 'Guarda el tique: tienes noventa días para devolverlo.', basket: true,
+    stock: [{ garment: 'camiseta-tecnica', price: 7.99 }, { garment: 'sudadera-entreno', price: 14.99 }, { garment: 'pantalon-chandal', price: 12.99 }, { garment: 'chandal-gris', price: 9.99 }, { garment: 'zapatillas-futbol-sala', price: 24.99 },
+      // DEC-03 · Trazo y Ondra, las marcas de la casa.
+      { garment: 'cortavientos-trazo', price: 19.99 }, { garment: 'polar-ondra', price: 24.99 }, { garment: 'zapatilla-trail-trazo', price: 29.99 },
+      { garment: 'gorra-running-trazo', price: 6.99 }, { garment: 'gafas-deporte-ondra', price: 12.99 }],
   },
   // Puerta Central: la tienda de recuerdos y la cadena de moda de la calle.
   {

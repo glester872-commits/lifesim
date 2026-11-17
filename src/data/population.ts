@@ -71,6 +71,11 @@ export interface StaffRole {
   minLevel?: Level;
   /** Días de apertura en que trabaja este puesto (0 lunes, 6 domingo). */
   days?: readonly number[];
+  /**
+   * Su turno en horas de reloj [entra, sale), fin exclusivo, admite medias (14.5 = 14:30). Sin él, mientras el local
+   * esté abierto. Cada puesto es una persona: un turno partido o doble serían dos puestos.
+   */
+  hours?: readonly [number, number];
   /** Lo que ofrece si el jugador le habla, si no es lo de su oficio (la barra de la vinoteca sirve vino). */
   offers?: OfferId;
 }
@@ -78,7 +83,22 @@ export interface StaffRole {
 /** Qué se bebe y se ve en la mano o en la barra (world/TextureFactory: fx-glass-*). */
 export type DrinkKind = 'beer' | 'wine' | 'soft' | 'water';
 
+/**
+ * Demanda del calendario (systems/Crowd.demandAt): sube o baja `shift` niveles cuando se cumplen todas las condiciones
+ * que lleva. `months` 1-12; `dom` días del mes, inclusive; `days` 0 lunes … 6 domingo; `from`/`to` horas [desde, hasta).
+ */
+export interface DemandRule {
+  months?: readonly number[];
+  dom?: readonly [number, number];
+  days?: readonly number[];
+  from?: number;
+  to?: number;
+  shift: number;
+}
+
 export interface PopulationProfile {
+  /** Rebajas, principio de mes…: lo que suman sus reglas, recortado a [-1, 2], se añade al nivel. */
+  demand?: readonly DemandRule[];
   /**
    * Un local donde se bebe a la vista: lo que toma cada cliente al pasar de pedir (ORDER) a beber (DRINK), repartido por
    * su id y su ronda (más repeticiones = más probable). Lo lleva en la mano o sobre la barra hasta que pide otra o se va.

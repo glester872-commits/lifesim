@@ -21,12 +21,17 @@ import { getNpc } from '../data/npcs';
 import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
 import { absMinute } from '../systems/Handoff';
 import { FACTORY_HAIR_COLOR, HAIR_COLORS, HAIR_DYE, HAIRSTYLES, type Appearance } from '../data/appearance';
-import type { RackDef } from '../types/game';
+import type { Facing, RackDef, TilePoint } from '../types/game';
+import type { StaffRole } from '../data/population';
+import { STORE_CATEGORIES } from '../data/storeQueries';
+import { answer, line, sectionOfRole, STORE_ENTRY, tipFor, type Asker } from '../systems/StoreKnowledge';
+import type { StaffState } from '../data/sectionLines';
 import { dyeHair, haircut, haircutQuote, reworkTattoo, sleeveOf, tattoo, tattooAt, tattooWorks, visibleTattoos, withAppearance, type Restyle } from '../systems/Appearance';
 import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
 import type { HumanColors } from '../world/HumanArt';
-import { buyGarment, buysItem, resaleOffer, resaleValue, sellGarment, sellItem, stockOf, takeOff, wear } from '../systems/Retail';
+import { buyGarment, buysItem, resaleOffer, resaleValue, sellGarment, sellItem, soldOutToday, stockOf, takeOff, wear } from '../systems/Retail';
+import { addLine, linesOf, payBasket, removeLine, total as basketTotal } from '../systems/Basket';
 import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
 import { CATEGORIES, getGarment, getStore, RESALE_KINDS } from '../data/retail';
@@ -56,6 +61,8 @@ import { closedLines, isOpen, placeForInterior, placeInfo } from '../systems/Pla
 
 /** Lo que se tarda en pagar en la caja de una tienda con caja (Catalog.checkout), compres una cosa o diez. */
 const CHECKOUT_MINUTES = 2;
+/** DEC-04 · el autopago tarda más que la caja atendida (escanear y embolsar uno mismo). */
+const SELF_CHECKOUT_MINUTES = 8;
 
 /** Dónde va una prenda, dicho en la ficha antes de probarla o comprarla. */
 /** El dibujo de un producto de catálogo (ui/ItemIcons): el objeto que da o la tarjeta que recarga. */
@@ -65,6 +72,19 @@ const SLOT_LABEL = { top: 'arriba (torso y brazos)', bottom: 'abajo (piernas)', 
 import { UPGRADES, getHome, getUpgrade } from '../data/housing';
 import { buy, buyBlocker, installAll, installedIn, layout, move, moveBlocker, movePlans, moveSummary, optionsOf, quote as housingQuote, relocate, slotName, storedIn, type HousingState } from '../systems/Housing';
 import { owed, statusOf as billStatus, unpaid } from '../systems/Household';
+
+type AdviceOffer = Extract<ServiceOffer, { kind: 'advice' }>;
+
+/** DEC-01 · Quien atiende en sala: dónde está, su puesto y cómo se gira para indicar (lo pone la Scene). */
+export interface StoreStaff {
+  tile: TilePoint;
+  role?: StaffRole;
+  face?: (to: Facing) => void;
+  /** DEC-05 · cómo estaba al hablarle (systems/StoreKnowledge `staffState`); sin él, disponible. */
+  state?: StaffState;
+  /** El saludo de esta conversación, elegido una vez al abrirla (vuelve igual al volver atrás). */
+  greeting?: string;
+}
 
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
 export interface MenuHost {
@@ -100,6 +120,8 @@ let cameFrom: string | null = null;
 export class Menus {
   private readonly services: Services;
   private readonly host: MenuHost;
+  /** DEC-05 · el cajero de la caja abierta ahora (lo pone openOffer en cada visita; sin él, el saludo de la tienda). */
+  private till: StoreStaff | undefined;
   // La prueba de una prenda vive en GameState: así ningún guardado se queda con la prenda sin pagar.
   private get fitting(): Appearance | null {
     return this.services.state.fitting;
@@ -114,6 +136,64 @@ export class Menus {
     this.host = host;
     // PROBAR no cierra el menú (lo rehace y lo baja con peek): cerrarlo de verdad siempre acaba la prueba.
     services.menu.onClosed = () => this.endFitting();
+  }
+
+  /** DEC-06 · Al cerrar el menú del probador (endFitting), la Scene libera la cabina. */
+  private leaveRoom: (() => void) | null = null;
+
+  /**
+   * DEC-06 · Un probador de una tienda con cesta: probarse a la vez lo de la cesta y lo que no tienes y no está agotado
+   * (una prenda por hueco), y meter o sacar de la cesta lo último probado. No cobra: se paga en caja o en el autopago.
+   * Salir o Esc cierran el menú: endFitting devuelve tu ropa y `onLeave` libera la cabina.
+   */
+  openFittingRoom(storeId: string, name: string, onLeave: () => void, note = '', last?: string): void {
+    const { state, menu } = this.services;
+    this.leaveRoom = onLeave;
+    const stock = getStore(storeId).stock;
+    const current = state.appearanceOf('player');
+    const mine = (): string[] => linesOf(state.basket, storeId).map((l) => l.garment);
+    const garments = [...new Set([...mine(), ...stock.map((l) => l.garment)])]
+      .filter((g) => !state.wardrobe.includes(g) && !soldOutToday(storeId, g, state.day, state.wardrobe));
+    const priceOf = (g: string): number => this.priced(stock.find((l) => l.garment === g)?.price ?? 0);
+    const options: MenuOption[] = garments.map((g) => {
+      const def = getGarment(g);
+      const on = current[def.slot] === g;
+      return { label: def.name, detail: `${on ? 'puesta · ' : ''}${mine().includes(g) ? 'en la cesta' : euros(priceOf(g))}`, disabled: on ? 'Ya la llevas puesta.' : undefined, icon: garmentIcon(def) };
+    });
+    const lastIn = last !== undefined && mine().includes(last);
+    const add = last !== undefined && !lastIn ? addLine(state.basket, { store: storeId, garment: last, price: priceOf(last) }, state.wardrobe, state.day) : undefined;
+    const lastAt = options.length;
+    if (last !== undefined) {
+      const n = getGarment(last).name.toLowerCase();
+      options.push(lastIn ? { label: `Quitar ${n} de la cesta` } : { label: `Añadir ${n} a la cesta`, detail: euros(priceOf(last)), disabled: add?.ok ? undefined : add?.message });
+    }
+    const allAt = options.length;
+    options.push({ label: 'Quitarse todo', disabled: this.fitting ? undefined : 'Llevas tu ropa.' }, { label: 'Salir' });
+    const count = mine().length;
+    const text = `Pruébate varias a la vez, una por hueco. En la cesta: ${count} ${count === 1 ? 'prenda' : 'prendas'}. Se paga en caja o en el autopago.`;
+    menu.open(name, text, options, (i) => {
+      if (i < lastAt) {
+        const g = garments[i];
+        if (!this.fitting) this.fitting = current;
+        state.setAppearance('player', wear(state.appearanceOf('player'), g));
+        this.openFittingRoom(storeId, name, onLeave, `Te pones ${getGarment(g).name.toLowerCase()}.`, g);
+      } else if (last !== undefined && i === lastAt) {
+        let msg: string;
+        if (lastIn) {
+          state.basket = removeLine(state.basket, storeId, last);
+          msg = `${getGarment(last).name}, fuera de la cesta.`;
+        } else {
+          const r = addLine(state.basket, { store: storeId, garment: last, price: priceOf(last) }, state.wardrobe, state.day);
+          if (r.ok) state.basket = r.basket;
+          msg = r.message;
+        }
+        this.openFittingRoom(storeId, name, onLeave, msg, last);
+      } else if (i === allAt) {
+        this.restoreLook();
+        this.openFittingRoom(storeId, name, onLeave, 'Vuelves a tu ropa.');
+      } else menu.close();
+    }, () => menu.close(), note, 0, false, `fitting-room:${name}`);
+    menu.peek(this.fitting !== null);
   }
 
   // ------------------------------------------------------------- comprar
@@ -1028,8 +1108,15 @@ export class Menus {
    * actividades con su precio (la barra) o un cambio de aspecto (la barbera).
    * Lugar → servicio → esta interacción → la transacción → el estado.
    */
-  openOffer(id: OfferId, who: string, note = '', selected = 0, stall?: { closed: () => string | null }): void {
+  openOffer(id: OfferId, who: string, note = '', selected = 0, stall?: { closed: () => string | null }, staff?: StoreStaff): void {
     const offer = getOffer(id);
+    if (offer.kind === 'advice' && offer.store) {
+      // DEC-01 · atención de la tienda: categoría → pregunta, con respuestas del plano, los turnos y el género.
+      // DEC-05 · el saludo de su sección, por hora y por lo que estaba haciendo; sin frase, el de siempre.
+      const greeting = line(sectionOfRole(staff?.role), 'greeting', { staffKey: staff?.role?.label ?? who, state: staff?.state, clock: this.storeClock() }) ?? offer.greeting;
+      this.openStoreDesk(offer, who, { tile: STORE_ENTRY, ...staff, greeting });
+      return;
+    }
     if (offer.kind === 'catalog') {
       // CV-08A · una manta o una bandeja: el catálogo de siempre, «en vivo» y sólo mientras el puesto sigue montado.
       this.openCatalog(`${offer.title} · ${who}`, offer.catalog, note, selected, undefined, stall);
@@ -1044,6 +1131,11 @@ export class Menus {
       return;
     }
     if (offer.kind === 'retail') {
+      // DEC-05 · quien cobra, para su saludo y su despedida mientras dure esta visita a la caja.
+      const store = getStore(offer.store);
+      const cashierKey = staff?.role?.label ?? who;
+      const hello = store.basket && staff ? line(sectionOfRole(staff.role), 'greeting', { staffKey: cashierKey, state: staff.state, clock: this.storeClock() }) : undefined;
+      this.till = store.basket && staff ? { ...staff, greeting: hello } : undefined;
       this.openStore(offer.store, who, offer.minutes, note, selected);
       return;
     }
@@ -1106,6 +1198,74 @@ export class Menus {
         this.commitRestyle(done, 'Barbería', quote.minutes, who, [done.message], again);
       }, again);
     }, undefined, note, selected);
+  }
+
+  /** DEC-01 · Primer nivel: las categorías de data/storeQueries.ts y, si tiene sección propia, su consejo. */
+  private openStoreDesk(offer: AdviceOffer, who: string, staff: StoreStaff | undefined, selected = 0): void {
+    const { menu } = this.services;
+    const label = staff?.role?.label ?? who;
+    const advice = offer.questions.length > 0 ? (label.startsWith('Sección de ') ? label.replace('Sección de ', 'Consejo de ') : 'Su consejo') : null;
+    const cats = STORE_CATEGORIES;
+    menu.open(who, staff?.greeting ?? offer.greeting, [
+      ...cats.map((c) => ({ label: c.label })),
+      ...(advice ? [{ label: advice }] : []),
+      { label: 'Gracias, eso es todo' },
+    ], (i) => {
+      if (i < cats.length) this.openStoreQueries(offer, who, staff, i);
+      else if (advice && i === cats.length) this.openStoreAdvice(offer, who, staff, i, advice);
+      else this.storeFarewell(who, staff);
+    }, () => menu.close(), '', selected);
+  }
+
+  private storeClock(): { day: number; hour: number; minute: number } {
+    const { state } = this.services;
+    return { day: state.day, hour: state.hour, minute: state.minute };
+  }
+
+  /** DEC-05 · «Gracias, eso es todo» (o «Sólo miraba» en caja): cierra y se despide por la vía de diálogo; sin frase, cierra sin más. */
+  private storeFarewell(who: string, staff: StoreStaff | undefined): void {
+    const { menu, dialogue } = this.services;
+    const bye = line(sectionOfRole(staff?.role), 'farewell', { staffKey: staff?.role?.label ?? who, clock: this.storeClock() });
+    menu.close();
+    if (bye) dialogue.start(who, [bye]);
+  }
+
+  /** Segundo nivel: las preguntas de una categoría; la respuesta, debajo, y quien contesta se gira hacia donde indica. */
+  private openStoreQueries(offer: AdviceOffer, who: string, staff: StoreStaff | undefined, cat: number, note = '', selected = 0): void {
+    const { menu, state } = this.services;
+    const category = STORE_CATEGORIES[cat];
+    const asker: Asker = { key: staff?.role?.label ?? who, tile: staff?.tile ?? STORE_ENTRY, role: staff?.role };
+    menu.open(`${who} · ${category.label}`, '', [
+      ...category.queries.map((q) => ({ label: q.label })),
+      { label: 'Volver' },
+    ], (i) => {
+      const q = category.queries[i];
+      if (!q) {
+        this.openStoreDesk(offer, who, staff, cat);
+        return;
+      }
+      const clock = { day: state.day, hour: state.hour, minute: state.minute };
+      const reply = answer(q, asker, clock, this.priceHere());
+      if (reply.toward) staff?.face?.(reply.toward);
+      // DEC-05 · la coletilla de la sección por la que se pregunta (probadores, natación…), si la tiene.
+      const tip = tipFor(q, asker.key, clock);
+      this.openStoreQueries(offer, who, staff, cat, tip ? `${reply.text} ${tip}` : reply.text, i);
+    }, () => this.openStoreDesk(offer, who, staff, cat), note, selected);
+  }
+
+  /** El consejo propio de su sección (las preguntas de siempre de la offer), con vuelta a las categorías. */
+  private openStoreAdvice(offer: AdviceOffer, who: string, staff: StoreStaff | undefined, back: number, title: string, note = '', selected = 0): void {
+    const { menu } = this.services;
+    menu.open(`${who} · ${title}`, '', [
+      ...offer.questions.map(({ question }) => ({ label: question })),
+      { label: 'Volver' },
+    ], (i) => {
+      const topic = offer.questions[i];
+      // DEC-05 · el mismo consejo con otras palabras (data/sectionLines.ts); sin variantes, la respuesta de siempre.
+      const said = topic?.id ? line(sectionOfRole(staff?.role), 'advice', { staffKey: staff?.role?.label ?? who, ref: topic.id, clock: this.storeClock() }) : undefined;
+      if (topic) this.openStoreAdvice(offer, who, staff, back, title, said ?? topic.answer, i);
+      else this.openStoreDesk(offer, who, staff, back);
+    }, () => this.openStoreDesk(offer, who, staff, back), note, selected);
   }
 
   /** El tinte de la barbería: los colores de pelo de los datos, al mismo precio en todas (HAIR_DYE). `back`: la opción a la que se vuelve. */
@@ -1436,8 +1596,9 @@ export class Menus {
       const icon = garmentIcon(l.def);
       if (l.wearing) return { label: l.def.name, detail: 'la llevas', disabled: 'Ya la llevas puesta.', icon };
       if (l.owned) return { label: l.def.name, detail: 'tuya · ponértela', icon };
-      const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment, true, factor);
-      return { label: l.def.name, detail: `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
+      const trial = buyGarment(state.wallet, state.wardrobe, current, storeId, l.garment, true, factor, state.day);
+      const out = soldOutToday(storeId, l.garment, state.day, state.wardrobe);
+      return { label: l.def.name, detail: out ? 'Agotado' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`, disabled: trial.ok ? undefined : trial.message, icon };
     });
     if (store.buysBack) options.push({ label: 'Vender ropa' });
     const sellClothesAt = store.buysBack ? lines.length : -1;
@@ -1446,11 +1607,21 @@ export class Menus {
     const sellItemsAt = hasItems ? lines.length + (store.buysBack ? 1 : 0) : -1;
     if (hasItems) options.push({ label: 'Vender objetos' });
     options.push({ label: 'Sólo miraba' });
-    menu.open(`${store.name} · ${who}`, `${store.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
-      if (i === options.length - 1) {
-        menu.close();
+    // DEC-04 · con cesta de esta tienda, pagarla va lo primero; el resto de opciones se corre una.
+    const basket = store.basket ? linesOf(state.basket, storeId) : [];
+    const pay = basket.length > 0;
+    if (pay) options.unshift({ label: `Pagar la cesta (${basket.length} · ${euros(basketTotal(basket))})` });
+    menu.open(`${store.name} · ${who}`, `${this.till?.greeting ?? store.greeting} Llevas ${euros(state.money)}.`, options, (pick) => {
+      if (pick === options.length - 1) {
+        if (this.till) this.storeFarewell(who, this.till);
+        else menu.close();
         return;
       }
+      if (pay && pick === 0) {
+        this.openBasket(storeId, `${store.name} · ${who}`, minutes, (n) => this.openStore(storeId, who, minutes, n));
+        return;
+      }
+      const i = pay ? pick - 1 : pick;
       if (i === sellClothesAt) {
         this.openSell(storeId, who, minutes);
         return;
@@ -1463,11 +1634,11 @@ export class Menus {
       if (line.owned) {
         state.setAppearance('player', wear(current, line.garment));
         this.host.persist();
-        this.openStore(storeId, who, minutes, `Te pones ${line.def.name.toLowerCase()}.`, i);
+        this.openStore(storeId, who, minutes, `Te pones ${line.def.name.toLowerCase()}.`, pick);
         return;
       }
       const buy = (): void => {
-        const result = buyGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), storeId, line.garment, true, factor);
+        const result = buyGarment(state.wallet, state.wardrobe, state.appearanceOf('player'), storeId, line.garment, true, factor, state.day);
         if (result.ok) {
           state.as(getGarment(line.garment).name, () => {
             state.wallet = result.wallet;
@@ -1479,11 +1650,11 @@ export class Menus {
           clock.advanceMinutes(minutes);
           this.host.persist();
         }
-        this.openStore(storeId, who, minutes, result.message, i);
+        this.openStore(storeId, who, minutes, result.message, pick);
       };
       // Los accesorios se ven antes de pagar; en un puesto no hay probador.
       if (line.def.slot === 'glasses' || line.def.slot === 'cap' || line.def.slot === 'scarf') {
-        this.confirmLook(line.def.name, `${line.def.description} Va ${SLOT_LABEL[line.def.slot]} y sales con ello puesto. Llevas ${euros(state.money)}.`, wear(current, line.garment), 'Comprar', euros(this.priced(line.price)), buy, () => this.openStore(storeId, who, minutes, '', i));
+        this.confirmLook(line.def.name, `${line.def.description} Va ${SLOT_LABEL[line.def.slot]} y sales con ello puesto. Llevas ${euros(state.money)}.`, wear(current, line.garment), 'Comprar', euros(this.priced(line.price)), buy, () => this.openStore(storeId, who, minutes, '', pick));
         return;
       }
       buy();
@@ -1779,7 +1950,7 @@ export class Menus {
     const lines = stockOf(rack.store, state.wardrobe, state.appearanceOf('player'), rack.categories).filter((l) => rare(l.garment) !== 'hidden');
     const options: MenuOption[] = lines.map((l) => ({
       label: l.def.name,
-      detail: l.owned ? 'tuya' : rare(l.garment) === 'sold' ? 'Agotado' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`,
+      detail: l.owned ? 'tuya' : rare(l.garment) === 'sold' || soldOutToday(rack.store, l.garment, state.day, state.wardrobe) ? 'Agotado' : `${euros(this.priced(l.price))}${l.def.unique ? ' · única' : ''}`,
     }));
     options.push({ label: 'Cerrar' });
     menu.open(`${rack.name} · ${getStore(rack.store).name}`, `Llevas ${euros(state.money)}.`, options, (i) => {
@@ -1790,6 +1961,15 @@ export class Menus {
 
   /** Deja puesto lo de antes y cierra la prueba. */
   private endFitting(): void {
+    this.restoreLook();
+    // DEC-06 · acabar la prueba es también salir del probador: la cabina vuelve a quedar libre.
+    const leave = this.leaveRoom;
+    this.leaveRoom = null;
+    leave?.();
+  }
+
+  /** Vuelve a ponerte lo de antes de probar, sin salir de donde estés (el probador lo usa en «Quitarse todo»). */
+  private restoreLook(): void {
     if (!this.fitting) return;
     this.services.state.setAppearance('player', this.fitting);
     this.fitting = null;
@@ -1814,9 +1994,10 @@ export class Menus {
     const rare = rareStatus(rack.store, garment, state.day, state.rastro, stall?.rastro === rack.store);
     // Con un precio ya pactado hoy (CAS-04), lo que llega se mide contra ése.
     const pact = rare === 'available' && list > 0 ? agreedPrice(state.rastro, state.day, garment) : undefined;
-    const realTrial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, pact === undefined ? factor : pact / list);
+    const realTrial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, pact === undefined ? factor : pact / list, state.day);
     const trial = !owned && (rare === 'sold' || rare === 'hidden') ? { ok: false as const, message: 'Agotado.' } : realTrial;
-    const title = `${def.name} · ${euros(price)}`;
+    // DEC-03: la marca (ficticia) delante del nombre, sólo si la prenda la tiene.
+    const title = `${def.brand ? `${def.brand} · ` : ''}${def.name} · ${euros(price)}`;
     // Qué hueco ocupa y qué quita: lo de antes vuelve al armario, nunca se pierde.
     const before = (this.fitting ?? current)[def.slot];
     const swap = before && before !== garment ? `, en lugar de ${getGarment(before).name.toLowerCase()}` : !before ? ', en lugar de tu ropa de siempre' : '';
@@ -1839,7 +2020,7 @@ export class Menus {
         return;
       }
       const f = agreed === undefined ? factor : agreed / list;
-      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, f);
+      const result = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, f, state.day);
       if (!result.ok) {
         this.openGarment(rack, garment, index, result.message, stall);
         return;
@@ -1874,9 +2055,14 @@ export class Menus {
     }
     menu.peek(false);
     const wearing = current[def.slot] === garment;
+    // DEC-04 · «A LA CESTA» sólo donde hay caja o autopago que la cobre (RetailStoreDef.basket); se paga allí.
+    const cart = getStore(rack.store).basket && !stall;
+    const line = { store: rack.store, garment, price };
+    const add = addLine(state.basket, line, state.wardrobe, state.day);
     menu.open(title, text, [
       { label: 'PROBAR', disabled: wearing ? 'Ya la llevas puesta.' : undefined },
       { label: 'COMPRAR', detail: owned ? 'tuya' : euros(price), disabled: trial.ok ? undefined : trial.message },
+      ...(cart ? [{ label: 'A LA CESTA', detail: euros(price), disabled: add.ok ? undefined : add.message }] : []),
       { label: 'CANCELAR' },
     ], (i) => {
       if (i === 0) {
@@ -1884,8 +2070,71 @@ export class Menus {
         state.setAppearance('player', wear(current, garment));
         this.openGarment(rack, garment, index, '', stall);
       } else if (i === 1) buy();
-      else this.openRack(rack, '', index, stall);
+      else if (cart && i === 2) {
+        const r = addLine(state.basket, line, state.wardrobe, state.day);
+        if (r.ok) state.basket = r.basket;
+        const mine = linesOf(state.basket, rack.store);
+        this.openRack(rack, `${r.message} En la cesta: ${mine.length} ${mine.length === 1 ? 'prenda' : 'prendas'} · total ${euros(basketTotal(mine))}.`, index, stall);
+      } else this.openRack(rack, '', index, stall);
     }, () => this.openRack(rack, '', index, stall), note);
+  }
+
+  /**
+   * DEC-04 · La cesta de una tienda (systems/Basket) en su caja o en el autopago: cada línea con su precio (elegirla la
+   * quita), CONFIRMAR PAGO cobra todo o nada con payBasket y CANCELAR vuelve sin cobrar y con la cesta como estaba.
+   */
+  private openBasket(storeId: string, title: string, minutes: number, back: (note?: string) => void, note = ''): void {
+    this.endFitting();
+    const { state, menu, clock } = this.services;
+    const lines = linesOf(state.basket, storeId);
+    if (!lines.length) {
+      back('La cesta está vacía.');
+      return;
+    }
+    const factor = this.priceHere();
+    const trial = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, lines, factor, state.day);
+    // DEC-06 · una línea agotada hoy se ve como tal: quitarla deja pagar el resto.
+    const options: MenuOption[] = lines.map((l) => ({ label: `Quitar ${getGarment(l.garment).name.toLowerCase()}`, detail: soldOutToday(storeId, l.garment, state.day, state.wardrobe) ? `Agotado · ${euros(l.price)}` : euros(l.price), icon: garmentIcon(getGarment(l.garment)) }));
+    options.push({ label: 'CONFIRMAR PAGO', detail: trial.ok ? euros(trial.charged) : '', disabled: trial.ok ? undefined : trial.message }, { label: 'CANCELAR' });
+    const text = `${lines.length} ${lines.length === 1 ? 'prenda' : 'prendas'} · total ${euros(trial.ok ? trial.charged : basketTotal(lines))}. Llevas ${euros(state.money)}.`;
+    menu.open(`Cesta · ${title}`, text, options, (i) => {
+      if (i < lines.length) {
+        state.basket = removeLine(state.basket, storeId, lines[i].garment);
+        this.openBasket(storeId, title, minutes, back, `Quitas ${getGarment(lines[i].garment).name.toLowerCase()}.`);
+        return;
+      }
+      if (i > lines.length) {
+        back();
+        return;
+      }
+      // Se vuelve a calcular al pulsar: lo de la pantalla puede haber cambiado (todo o nada).
+      const r = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, linesOf(state.basket, storeId), this.priceHere(), state.day);
+      if (!r.ok) {
+        this.openBasket(storeId, title, minutes, back, r.message);
+        return;
+      }
+      state.as(`Cesta · ${getStore(storeId).name}`, () => {
+        state.wallet = r.wallet;
+      });
+      this.reputationHere(REPUTATION_TRIGGERS['local-purchase'].delta, `buy:${state.day}:${storeId}`);
+      state.wardrobe = r.wardrobe;
+      state.paid = r.paid;
+      state.basket = state.basket.filter((l) => l.store !== storeId);
+      clock.advanceMinutes(minutes);
+      this.host.persist();
+      back(`${r.message} Pagas ${euros(r.charged)}; guardado en tu armario.`);
+    }, () => back(), note);
+  }
+
+  /** DEC-04 · Una máquina de autopago (SpotDef.selfCheckout): paga la cesta de su tienda sin cajero, y tarda más. */
+  openSelfCheckout(storeId: string, name: string, note = ''): void {
+    this.endFitting();
+    const { state, menu } = this.services;
+    if (!linesOf(state.basket, storeId).length) {
+      menu.open(name, 'Escanea primero: coge la ropa en los percheros y añádela a la cesta.', [{ label: 'Cerrar' }], () => menu.close(), () => menu.close(), note);
+      return;
+    }
+    this.openBasket(storeId, name, SELF_CHECKOUT_MINUTES, (n) => this.openSelfCheckout(storeId, name, n ?? ''));
   }
 
   /**
