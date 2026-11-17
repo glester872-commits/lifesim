@@ -242,7 +242,9 @@ export const CASCO_ANTIGUO: LocationDef = {
   },
   inspects: [
     { tx: 43, ty: 9, name: 'Plano del barrio', lines: ['Casco Antiguo: la Calle Mayor, la Plaza del Mercado, la Calle del Rastro y la frutería del mercado. Línea 2 hacia Decathlon, Ribera y Vallesco.'] },
-    { tx: 36, ty: 14, name: 'Tablón', lines: ['Un cartel a mano: «Mercadillo de los domingos en la plaza. Se buscan puestos». Debajo, un teléfono a medio arrancar.'] },
+    // CAS-09: aquí se alquila el puesto propio del Rastro: el tablón de esta casilla ofrece «Puesto en el Rastro»
+    // (systems/PlayerStall.stallDeskAt → Menus.openStallBoard).
+    { tx: 36, ty: 14, name: 'Tablón', stallDesk: 'gran-rastro', lines: ['Un cartel a mano: «Mercadillo de los domingos en la plaza. Se buscan puestos». Debajo, un teléfono a medio arrancar.'] },
     // CAS-08: la historia del barrio, sobre su prop.
     { tx: 0, ty: 9, name: 'Placa de calle', lines: ['Azulejo de la esquina: «Calle Mayor». Debajo, más pequeño: «antes, de los Cesteros».', 'Un rótulo de 1868, de los que pintaron a mano cuando la calle se empedró.'] },
     { tx: 4, ty: 17, name: 'El árbol del mercado', lines: ['Dicen que este olmo ya daba sombra a los puestos cuando el mercado era de lona y carro.', 'Cuando reformaron la plaza, lo dejaron en su sitio y movieron el banco.'] },

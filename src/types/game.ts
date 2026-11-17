@@ -462,6 +462,8 @@ export interface InspectDef {
   lines: readonly string[];
   /** Taquilla de ese recinto (data/stadium.ts VENUES): con E se ve el partido, el precio y se compra la entrada. */
   venue?: string;
+  /** CAS-09 · id del pop-up (data/playerStall.ts): con E se alquila el puesto propio y se ven sus cuentas (Menus.openStallBoard). */
+  stallDesk?: string;
 }
 
 /**
@@ -822,6 +824,8 @@ export interface GameStateData {
   credit?: import('../systems/Credit.ts').CreditState;
   /** Rarezas del Gran Rastro vendidas en la jornada `edition` (systems/Rastro). Sin campo: ninguna. */
   rastro?: import('../systems/Rastro.ts').RastroLedger;
+  /** CAS-09 · tu puesto en el Gran Rastro (systems/PlayerStall). Sin campo: sin reserva. */
+  playerStall?: import('../systems/PlayerStall.ts').PlayerStallState;
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). Opcional: una partida anterior carga sin curso. */
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */

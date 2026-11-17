@@ -7,6 +7,7 @@ import { POPUPS } from '../src/data/popups.ts';
 import { STREET_EVENTS } from '../src/data/streetEvents.ts';
 import { CHARACTERS } from '../src/data/characters.ts';
 import { ARENA_CLUB } from '../src/data/cityEvents.ts';
+import { PITCHES } from '../src/data/futsal.ts';
 import { getNpc } from '../src/data/npcs.ts';
 import { INTERACT_RADIUS, TILE } from '../src/config/constants.ts';
 import { PROPS, TILES } from '../src/world/tiles.ts';
@@ -123,6 +124,21 @@ assert.equal(entry(at('arena', SAT, 19), rival.label)!.detail, 'en juego');
 const after = events(at('arena', SAT, 21, 30)).entries.filter((e) => e.label === rival.label);
 assert.deepEqual(after.map((e) => e.detail), ['miércoles 21:00', 'terminado']);
 assert.equal(entry(at('ribera', SAT, 19), rival.label), undefined, 'el partido es del tablón del Arena');
+
+// Los penaltis de la pista de Campo Alto (data/futsal.ts, sábados 10–13), en la sección de eventos de su tablón.
+const pitch = PITCHES['campo-alto'].CA_FUTSAL_SPOT;
+const TUE = 2;
+const penalties = (day: number, hour: number) => events(at('campo-alto', day, hour)).entries.find((e) => e.label === pitch.label);
+assert.equal(penalties(TUE, 12)?.detail, 'sábado 10:00–13:00', 'el martes, el tablón anuncia los penaltis del sábado');
+assert.equal(penalties(TUE, 12)!.state, 'later');
+assert.doesNotMatch(at('campo-alto', TUE, 12).intro, /Sin eventos/,'con penaltis, el tablón no dice que no hay eventos');
+assert.deepEqual([penalties(SAT, 11)?.state, penalties(SAT, 11)?.detail], ['active', 'ahora · hasta 13:00']);
+assert.equal(penalties(SAT, 9)?.detail, 'hoy 10:00–13:00');
+assert.deepEqual([penalties(SAT, 14)?.state, penalties(SAT, 14)?.detail], ['ended', 'terminado']);
+for (const loc of boards.keys()) {
+  if (loc === 'campo-alto') continue;
+  for (const day of [TUE, SAT]) assert.equal(entry(at(loc, day, 11), pitch.label), undefined, `${loc}: sin pista, sin penaltis`);
+}
 
 // Un barrio sin eventos: lo dice, y los locales siguen ahí.
 const quiet = events(ribera);

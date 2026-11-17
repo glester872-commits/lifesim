@@ -12,6 +12,7 @@ import type { JobProgress } from '../systems/Jobs';
 import { recordMovement, type HouseholdState, type Movement, type MovementType } from '../systems/Household';
 import { emptyCredit, pendingEntry, type CreditResult, type CreditState } from '../systems/Credit';
 import type { RastroLedger } from '../systems/Rastro';
+import { settle as settleStall, type PlayerStallState } from '../systems/PlayerStall';
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { emptyParish, type ParishState } from '../systems/Parish';
 import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
@@ -134,6 +135,8 @@ export class GameState extends Phaser.Events.EventEmitter {
   private _rastro: RastroLedger | undefined;
   /** CAS-05 · tiques de objetos de la bolsa, el más antiguo primero (systems/Retail.sellItem). */
   private _paidItems: Record<string, number[]>;
+  /** CAS-09 · tu puesto en el Gran Rastro (systems/PlayerStall). Sin reserva, undefined. */
+  private _playerStall: PlayerStallState | undefined;
 
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). */
   private _study: StudyState;
@@ -250,6 +253,7 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._credit = structuredClone(initial.credit ?? emptyCredit());
     this._rastro = initial.rastro === undefined ? undefined : structuredClone(initial.rastro);
     this._paidItems = structuredClone(initial.paidItems ?? {});
+    this._playerStall = initial.playerStall === undefined ? undefined : structuredClone(initial.playerStall);
 
     this._study = structuredClone(initial.study ?? emptyStudy());
 
@@ -604,6 +608,39 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._paidItems = structuredClone(t);
   }
 
+  get playerStall(): PlayerStallState | undefined {
+    return this._playerStall === undefined ? undefined : structuredClone(this._playerStall);
+  }
+
+  set playerStall(s: PlayerStallState | undefined) {
+    this._playerStall = s === undefined ? undefined : structuredClone(s);
+  }
+
+  /**
+   * CAS-09 · aplica una transición de systems/PlayerStall: el dinero (si lo hay) con su línea e id fijo y el puesto
+   * nuevo, juntos. Quien llama guarda justo después.
+   */
+  applyPlayerStall(next: PlayerStallState, money?: { label: string; delta: number; type: MovementType; movementId: string }): void {
+    if (money) {
+      this.as(money.label, () => {
+        this.money = Math.round((this._money + money.delta) * 100) / 100;
+      }, { type: money.type, source: 'player-stall', movementId: money.movementId });
+    }
+    this.playerStall = next;
+  }
+
+  /**
+   * CAS-09 · cierra el puesto si ya toca (systems/PlayerStall.settle) y abona el reembolso con id fijo. Devuelve el
+   * puesto recién cerrado, o undefined si no ha cambiado nada (repetirlo no abona dos veces). Quien llama guarda.
+   */
+  settlePlayerStall(): PlayerStallState | undefined {
+    const r = settleStall(this._playerStall, { day: this._day, hour: this._hour, minute: this._minute });
+    if (!r.ok) return undefined;
+    const refund = r.stall.closed?.refund ?? 0;
+    this.applyPlayerStall(r.stall, refund > 0 ? { label: 'Reembolso del puesto del Rastro', delta: refund, type: 'income', movementId: `ps-${r.stall.day}-refund` } : undefined);
+    return this.playerStall;
+  }
+
   get rastro(): RastroLedger | undefined {
     return this._rastro === undefined ? undefined : structuredClone(this._rastro);
   }
@@ -902,6 +939,7 @@ export class GameState extends Phaser.Events.EventEmitter {
 
       ...(this._rastro === undefined ? {} : { rastro: structuredClone(this._rastro) }),
       ...(Object.keys(this._paidItems).length === 0 ? {} : { paidItems: structuredClone(this._paidItems) }),
+      ...(this._playerStall === undefined ? {} : { playerStall: structuredClone(this._playerStall) }),
 
       study: structuredClone(this._study),
 

@@ -18,6 +18,7 @@ import { dateOf, dayOfDate, formatDate, onNewDay, SEASON_LABEL } from './systems
 import { announce, billOf, sync as syncBills } from './systems/Household';
 import { rentsOf } from './systems/Housing';
 import { birthNotice, resolve as resolvePregnancy } from './systems/Pregnancy';
+import { summary as stallSummary } from './systems/PlayerStall';
 import { getNpc } from './data/npcs';
 import { euros } from './systems/Commerce';
 import { handoffs } from './systems/Handoff';
@@ -192,6 +193,19 @@ const syncPregnancy = (): void => {
 };
 syncPregnancy();
 onNewDay(state, syncPregnancy);
+
+// CAS-09 · tu puesto del Rastro (systems/PlayerStall): se cierra al arrancar y en cada medianoche si ya pasó su domingo
+// (también al abrir el tablón o el puesto). Se guarda antes de avisar: recargar no repite el reembolso ni el aviso.
+const syncPlayerStall = (): void => {
+  const closed = state.settlePlayerStall();
+  if (!closed) return;
+  services.save.save(state.snapshot);
+  const s = stallSummary(closed);
+  const net = s.net < 0 ? `−${euros(-s.net)}` : euros(s.net);
+  phone.notice('Rastro', s.refund > 0 ? `Con la lluvia no se montó el Rastro: te devuelven ${euros(s.refund)} del puesto.` : `Tu puesto del Rastro: ${s.sold} vendido${s.sold === 1 ? '' : 's'}, neto ${net}.`);
+};
+syncPlayerStall();
+onNewDay(state, syncPlayerStall);
 
 // La agenda (systems/Agenda): en cada minuto de reloj, y una vez tras cada salto (dormir, trabajar, el metro), se
 // mira qué toca avisar, qué se ha perdido entre medias y qué progreso ha cambiado. Lo avisado se guarda en la
