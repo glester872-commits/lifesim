@@ -170,7 +170,7 @@ const isCashier = (s: { service: string }): boolean => s.service === 'cashier';
 for (const [day, hour] of [[1, 12], [6, 12], [7, 12], [7, 22]]) {
   const clock = { day, hour, minute: 0 };
   const level = levelAt(shop, DECATHLON_PROFILE, clock);
-  const expected = DECATHLON_PROFILE.staff.filter((r) => staffOnShift(r, level, weekIndex(day)));
+  const expected = DECATHLON_PROFILE.staff.filter((r) => staffOnShift(r, level, weekIndex(day), hour));
   const crowd = new Crowd(loc, shop, DECATHLON_PROFILE);
   crowd.populate(clock, entry);
   const staff = crowd.agents.flatMap((a) => a.staffRole ? [a.staffRole] : []);
@@ -196,11 +196,12 @@ for (const r of loc.racks ?? []) assert.ok(getStore(r.store).stock.length > 0, `
 // DEC-02 · Turnos de caja: más cajas abiertas cuanta más gente; nunca las seis a afluencia media; ninguna con la tienda
 // cerrada. Días: 1 lunes, 3 miércoles, 6 sábado (systems/Calendar).
 const tills = (day: number, hour: number): number =>
-  DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, levelAt(shop, DECATHLON_PROFILE, { day, hour, minute: 0 }), weekIndex(day))).length;
+  DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, levelAt(shop, DECATHLON_PROFILE, { day, hour, minute: 0 }), weekIndex(day), hour)).length;
 const [monNoon, wedEve, satEve, satNoon] = [tills(1, 12), tills(3, 18), tills(6, 18), tills(6, 12)];
 assert.ok(monNoon >= 1 && monNoon <= wedEve && wedEve <= satEve, `cajas: lunes 12 h ${monNoon}, miércoles 18 h ${wedEve}, sábado 18 h ${satEve}`);
 assert.ok(satNoon > monNoon, `cajas: el sábado a mediodía (${satNoon}) no abre más que el lunes (${monNoon})`);
 for (let d = 0; d < 7; d++) {
+  // Sin hora a propósito (AFLUENCIA-DEC02): todos los turnos a la vez, el peor caso.
   const atMedium = DECATHLON_PROFILE.staff.filter((r) => isCashier(r) && staffOnShift(r, 'MEDIUM', d)).length;
   assert.ok(atMedium < STAFFED.length, `cajas: las ${STAFFED.length} abiertas a afluencia media (día ${d})`);
 }

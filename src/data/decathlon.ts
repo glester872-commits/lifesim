@@ -431,9 +431,14 @@ export const DECATHLON_STORE: LocationDef = {
 };
 
 /** Cada uno con su chaleco y su aspecto: nadie es igual al de al lado. */
-const floor = (look: string, label: string, line: string, sections: readonly string[], offers: StaffRole['offers'], days?: StaffRole['days']): StaffRole =>
-  ({ service: 'shop-worker', label, line, look, points: sectionPoints(sections), offers, days });
-const WEEKEND = [5, 6] as const;
+const floor = (look: string, label: string, line: string, sections: readonly string[], offers: StaffRole['offers'], days?: StaffRole['days'], hours?: StaffRole['hours']): StaffRole =>
+  ({ service: 'shop-worker', label, line, look, points: sectionPoints(sections), offers, days, hours });
+/** Refuerzo de sección: viernes y sábado. */
+const FRI_SAT = [4, 5] as const;
+/** Turnos (AFLUENCIA-DEC02), los mismos que los de caja en data/decathlonLayout.ts. */
+const OPENING = [9, 15.5] as const;
+const MIDDLE = [12, 18] as const;
+const CLOSING = [14.5, 21] as const;
 /** Cola y pago en la misma caja, y sólo en una con cajero (`lane` del perfil, systems/Crowd). */
 const PAY: readonly PlanStep[] = [
   { state: 'QUEUE', points: [`${P}_QUEUE_{n}_`], minutes: [1, 2] },
@@ -453,24 +458,28 @@ const TILL_STAFF: readonly StaffRole[] = STAFFED.map((c, i): StaffRole => ({
   points: [`${P}_STAFF_${i + 1}`],
   ...(c.open?.days ? { days: c.open.days } : {}),
   ...(c.open?.minLevel ? { minLevel: c.open.minLevel } : {}),
+  ...(c.open?.hours ? { hours: c.open.hours } : {}),
 }));
 
 export const DECATHLON_PROFILE: PopulationProfile = {
   place: 'decathlon-tienda',
   bands: [[9, 11, 'LOW'], [11, 14, 'MEDIUM'], [14, 17, 'LOW'], [17, 21, 'HIGH']],
-  weekday: [0, 0, 0, 0, 1, 2, 2],
+  // El sábado, el pico; el domingo abre (data/places.ts) un poco por debajo.
+  weekday: [0, 0, 0, 0, 1, 2, 1],
+  // Rebajas (enero y julio) y la tarde de principio de mes, con la nómina recién cobrada.
+  demand: [{ months: [1, 7], shift: 1 }, { dom: [1, 5], from: 17, to: 21, shift: 1 }],
   // Una nave de este tamaño se ve vacía con ocho: catorce, repartidos por los BROWSE de todas las secciones.
   maxVisitors: 14,
   lane: `${P}_STAFF_{n}`,
   staff: [
     ...TILL_STAFF,
-    floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana'),
-    floor('decathlon_employee_3', 'Sección de running', 'Pruébate el calzado con los calcetines que usas al correr.', ['running', 'calzado-mujer', 'calzado-hombre'], 'decathlon-running'),
-    floor('decathlon_employee_4', 'Sección de ciclismo', 'La medida de la cámara la pone en el neumático.', ['ciclismo', 'segunda-vida'], 'decathlon-ciclismo'),
+    floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana', undefined, MIDDLE),
+    floor('decathlon_employee_3', 'Sección de running', 'Pruébate el calzado con los calcetines que usas al correr.', ['running', 'calzado-mujer', 'calzado-hombre'], 'decathlon-running', undefined, OPENING),
+    floor('decathlon_employee_4', 'Sección de ciclismo', 'La medida de la cámara la pone en el neumático.', ['ciclismo', 'segunda-vida'], 'decathlon-ciclismo', undefined, CLOSING),
     // Ronda por todas las secciones (sus puntos uno a uno: los mismos que el prefijo `${P}_BROWSE_`). Atiende lo general
     // de la tienda (DEC-01, systems/StoreKnowledge), sin consejo de sección propio.
-    { service: 'shop-worker', label: 'Reposición', line: 'Perdona, que paso con el carro.', look: 'decathlon_employee_5', points: sectionPoints(SECTORS.map((s) => s.id)), offers: 'decathlon-tienda' },
-    floor('decathlon_employee_8', 'Sección de fitness', 'Una esterilla ocupa poco y se recoge en un minuto.', ['fitness-mat', 'fitness-mujer', 'fitness-hombre'], 'decathlon-fitness', WEEKEND),
+    { service: 'shop-worker', label: 'Reposición', line: 'Perdona, que paso con el carro.', look: 'decathlon_employee_5', points: sectionPoints(SECTORS.map((s) => s.id)), offers: 'decathlon-tienda', hours: OPENING },
+    floor('decathlon_employee_8', 'Sección de fitness', 'Una esterilla ocupa poco y se recoge en un minuto.', ['fitness-mat', 'fitness-mujer', 'fitness-hombre'], 'decathlon-fitness', FRI_SAT, CLOSING),
   ],
   visitors: [
     laneCustomer('Venía a por calcetines y me llevo una tienda de campaña.', 2, { party: [1, 3] }),

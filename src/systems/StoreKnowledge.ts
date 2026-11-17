@@ -125,20 +125,22 @@ export function advisers(): StaffRole[] {
 
 export const adviserFor = (sectorId: string): StaffRole | undefined => advisers().find((r) => sectionsOf(r).includes(sectorId));
 
-export interface StoreNow { level: Level | null; weekday: number }
+/** `t`: hora de reloj con decimales, para los turnos `hours`; storeNow siempre la pone (sin ella, sólo días y nivel). */
+export interface StoreNow { level: Level | null; weekday: number; t?: number }
 
 export function storeNow(clock: Clock): StoreNow {
   const place = placeInfo(DECATHLON_PROFILE.place);
-  if (!place) return { level: null, weekday: 0 };
-  return { level: levelAt(place, DECATHLON_PROFILE, clock), weekday: staffDay(place, clock) };
+  const t = clock.hour + clock.minute / 60;
+  if (!place) return { level: null, weekday: 0, t };
+  return { level: levelAt(place, DECATHLON_PROFILE, clock), weekday: staffDay(place, clock), t };
 }
 
-export const onShift = (role: StaffRole, now: StoreNow): boolean => staffOnShift(role, now.level, now.weekday);
+export const onShift = (role: StaffRole, now: StoreNow): boolean => staffOnShift(role, now.level, now.weekday, now.t);
 
 /** Cajas con cajero que cobran ahora (su `open`, la misma regla que el turno del cajero). El autopago nunca. */
 export function openCheckouts(now: StoreNow): Checkout[] {
   return DECATHLON_LAYOUT.checkouts.filter((c) => c.kind === 'staffed'
-    && staffOnShift({ service: 'cashier', points: [], days: c.open?.days, minLevel: c.open?.minLevel }, now.level, now.weekday));
+    && staffOnShift({ service: 'cashier', points: [], days: c.open?.days, minLevel: c.open?.minLevel, hours: c.open?.hours }, now.level, now.weekday, now.t));
 }
 
 /** Lo que se vende de verdad (data/retail.ts `decathlon`), por nombre y con el precio de aquí. */
