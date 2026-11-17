@@ -20,6 +20,23 @@ const DAWN = 6 * 60;
 const WEEKS = 8;
 const sara = CHARACTERS.find((c) => c.npc === 'sara')!;
 const ada = CHARACTERS.find((c) => c.npc === 'ada')!;
+// Ángel viene de fuera: su «casa» es la boca de metro, y cada parada es un punto real abierto a su hora.
+const angel = CHARACTERS.find((c) => c.npc === 'angel')!;
+assert.equal(angel.home, 'METRO_ENTRANCE');
+for (const r of angel.routines) for (const s of r.stops) for (const p of [s.point, ...(s.alt ?? [])]) assert.ok(findPoint(p), `[angel/${r.id}] punto desconocido ${p}`);
+// Jeff (Velaria) y Kevin (Ribera Norte): su casa es un portal de su barrio y cada parada, un punto real de allí.
+const jeff = CHARACTERS.find((c) => c.npc === 'jeff')!;
+const kevin = CHARACTERS.find((c) => c.npc === 'kevin')!;
+assert.equal(jeff.home, 'VL_MQ_8_ENTRANCE');
+assert.equal(kevin.home, 'RB_RES_2_ENTRANCE');
+for (const [def, loc] of [[jeff, 'velaria'], [kevin, 'ribera']] as const) {
+  for (const r of def.routines) for (const s of r.stops) for (const p of [s.point, ...(s.alt ?? [])]) {
+    const at = findPoint(p);
+    assert.ok(at, `[${def.npc}/${r.id}] punto desconocido ${p}`);
+    const where = getLocation(at.location);
+    assert.ok(where.id === loc || where.kind === 'interior', `[${def.npc}/${r.id}] ${p} fuera de su barrio`);
+  }
+}
 const minutesOf = (hm: string): number => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3));
 const sinceDawn = (hm: string): number => (minutesOf(hm) - DAWN + DAY) % DAY;
 const outdoor = (point: string): boolean => {
@@ -50,7 +67,7 @@ function liveDay(def: CharacterDef, day: number): Whereabouts[] {
 
 const variety = new Map<string, Set<string>>();
 let rainyDays = 0;
-for (const def of [sara, ada]) {
+for (const def of [sara, ada, angel, jeff, kevin]) {
   for (let day = 1; day <= WEEKS * 7; day++) {
     const rainy = rainyDay(day);
     if (rainy && def === sara) rainyDays++;

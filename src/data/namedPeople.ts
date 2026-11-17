@@ -28,8 +28,8 @@ export interface NamedIdentity {
   fashion: Fashion;
   /** A qué se dedica, en una frase. */
   work: string;
-  /** Dónde vive o pasa el día: Vallesco, Ribera o fuera (pasajeros del metro). */
-  from: 'vallesco' | 'ribera' | 'fuera';
+  /** Dónde vive o pasa el día: Vallesco, Ribera, Velaria o fuera (pasajeros del metro). */
+  from: 'vallesco' | 'ribera' | 'velaria' | 'fuera';
 }
 
 const w = (age: number, extra: Omit<NamedIdentity, 'age' | 'gender' | 'pronouns'>): NamedIdentity => ({ age, gender: 'woman', pronouns: 'ella', ...extra });
@@ -56,10 +56,16 @@ export const NAMED_PEOPLE: Readonly<Record<string, NamedIdentity>> = {
   noa: w(32, { trans: false, presentation: 'feminine', orientation: 'heterosexual', interests: ['reading', 'cinema', 'food'], temperament: 'extrovertido', fashion: 'casual', work: 'maestra de primaria en un cole del centro', from: 'vallesco' }),
   amaia: w(37, { trans: false, presentation: 'androgynous', orientation: 'lesbian', interests: ['technology', 'reading', 'cycling'], temperament: 'reservado', fashion: 'casual', work: 'programadora en remoto', from: 'vallesco' }),
   yasmin: w(29, { trans: false, presentation: 'feminine', orientation: 'heterosexual', interests: ['music', 'fitness', 'cinema'], temperament: 'bromista', fashion: 'casual', work: 'enfermera en el hospital del centro', from: 'vallesco' }),
+  // Viene de fuera en metro y pasa el día en Vallesco (data/characters.ts). Identidad fijada por el usuario.
+  angel: m(26, { trans: false, presentation: 'masculine', orientation: 'heterosexual', interests: ['football', 'music'], temperament: 'extrovertido', fashion: 'streetwear', work: 'estudiante / creativo', from: 'fuera' }),
   // Ribera Norte.
   olmo: m(58, { trans: false, presentation: 'masculine', orientation: 'heterosexual', interests: ['food', 'football'], temperament: 'bromista', fashion: 'workwear', work: 'un puesto del mercado de Ribera', from: 'ribera' }),
   sira: w(36, { trans: false, presentation: 'feminine', orientation: 'asexual', interests: ['reading', 'photography', 'art'], temperament: 'reservado', fashion: 'vintage', work: 'archivo municipal', from: 'ribera' }),
   tere: w(63, { trans: false, presentation: 'feminine', orientation: 'heterosexual', interests: ['football', 'cinema'], temperament: 'bromista', fashion: 'casual', work: 'la barra del Bar Ribera', from: 'ribera' }),
+  // Ribera Norte, con rutina por el barrio (data/characters.ts). Identidad fijada por el usuario.
+  kevin: m(31, { trans: false, presentation: 'masculine', orientation: 'heterosexual', interests: ['football', 'fitness'], temperament: 'bromista', fashion: 'designer', work: 'creativo / lifestyle', from: 'ribera' }),
+  // Velaria, con rutina por el barrio (data/characters.ts). Identidad fijada por el usuario.
+  jeff: m(26, { trans: false, presentation: 'masculine', orientation: 'gay', interests: ['fitness', 'fashion'], temperament: 'tranquilo', fashion: 'sportswear', work: 'por definir', from: 'velaria' }),
   // Metro: seguridad y quien pasa por los andenes.
   marco: m(45, { trans: false, presentation: 'masculine', orientation: 'heterosexual', interests: ['fitness', 'football'], temperament: 'tranquilo', fashion: 'workwear', work: 'seguridad del metro', from: 'vallesco' }),
   rocio: w(31, { trans: false, presentation: 'feminine', orientation: 'bisexual', interests: ['music', 'travelling'], temperament: 'curioso', fashion: 'workwear', work: 'seguridad del metro', from: 'vallesco' }),

@@ -265,6 +265,34 @@ for (const [kind, k] of Object.entries(PLAN_KINDS)) assert.ok(placeInfo(k.place)
   assert.equal(after.news.length, 1);
 }
 
+// Ángel (amigo de fuera, design/characters/angel/): sin conocerle no sale; tras hablar, sale en la agenda y se guarda.
+{
+  assert.ok(!contactsOf({}, {}, createPhone()).some((c) => c.npc === 'angel'), 'Ángel en la agenda sin conocerle');
+  const store = new Map<string, string>();
+  const storage: SaveStorage = { read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) };
+  const save = new SaveSystem(storage);
+  const angel = prof({ encounters: 1 });
+  assert.ok(save.save({ ...createInitialState(), social: { angel } }));
+  const back = save.load()!;
+  assert.deepEqual(back.social!.angel, JSON.parse(JSON.stringify(angel)), 'la relación con Ángel vuelve igual');
+  const card = contactsOf(back.social!, {}, createPhone()).find((c) => c.npc === 'angel');
+  assert.ok(card && !card.canMessage, 'conocer a Ángel lo pone en la agenda, sin su número');
+}
+
+// Jeff y Kevin (design/characters/jeff/, design/characters/kevin/): el mismo mecanismo que Ángel.
+for (const id of ['jeff', 'kevin']) {
+  assert.ok(!contactsOf({}, {}, createPhone()).some((c) => c.npc === id), `${id} en la agenda sin conocerle`);
+  const store = new Map<string, string>();
+  const storage: SaveStorage = { read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) };
+  const save = new SaveSystem(storage);
+  const friend = prof({ encounters: 1 });
+  assert.ok(save.save({ ...createInitialState(), social: { [id]: friend } }));
+  const back = save.load()!;
+  assert.deepEqual(back.social![id], JSON.parse(JSON.stringify(friend)), `la relación con ${id} vuelve igual`);
+  const card = contactsOf(back.social!, {}, createPhone()).find((c) => c.npc === id);
+  assert.ok(card && !card.canMessage, `conocer a ${id} lo pone en la agenda, sin su número`);
+}
+
 // --------------------------------------------- J) partidas de antes y móviles rotos
 
 {

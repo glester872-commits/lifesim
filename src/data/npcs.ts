@@ -349,6 +349,53 @@ const DEFS: readonly NpcDef[] = [
     earrings: '#e8c86a',
     lines: ['¡Hola! Si me ves con cara de sueño, es el turno.'],
   },
+  {
+    // Ángel, 26: viene en metro al barrio (rutina en data/characters.ts). Hoja de diseño en design/characters/angel/.
+    // Camiseta blanca, gorra rosa, mochila negra y pantalón corto negro, como en la plantilla.
+    id: 'angel',
+    name: 'Ángel',
+    cloth: '#f2efe8',
+    clothDark: '#cfc8bc',
+    hair: '#3a2a20',
+    skin: '#d9a27c',
+    trousers: '#232329',
+    hairStyle: 'short',
+    cap: '#e8628e',
+    bag: '#232329',
+    lines: ['Dale, vamos viendo qué plan sale.'],
+  },
+  {
+    // Jeff, 26: vive en Velaria (rutina en data/characters.ts). Hoja de diseño en design/characters/jeff/.
+    // Camiseta de tirantes negra, gafas, pendientes, tatuaje en el brazo izquierdo y pantalón claro, como en la plantilla.
+    id: 'jeff',
+    name: 'Jeff',
+    cloth: '#1c1b20',
+    clothDark: '#121116',
+    hair: '#2e2018',
+    skin: '#c98a5e',
+    sleeves: '#c98a5e',
+    trousers: '#c8b48e',
+    hairStyle: 'curly',
+    glasses: 'clear',
+    earrings: '#d9d6cc',
+    ink: [{ spot: 'arm-l', color: '#3a2a22' }],
+    lines: ['¿Qué plan hay hoy?'],
+  },
+  {
+    // Kevin, 31: vive en Ribera Norte (rutina en data/characters.ts). Hoja de diseño en design/characters/kevin/.
+    // Sobrecamisa de cuadros crema y marrón (crema de fondo, marrón en la sombra), barba corta, pendiente y pantalón negro.
+    id: 'kevin',
+    name: 'Kevin',
+    cloth: '#ece4d4',
+    clothDark: '#7a4e30',
+    hair: '#1e1712',
+    skin: '#c68a62',
+    trousers: '#1f1f24',
+    hairStyle: 'short',
+    facialHair: 'beard',
+    earrings: '#d8d8d8',
+    lines: ['Dale, vamos a ver qué plan sale hoy.'],
+  },
 ];
 
 const BY_ID = new Map(DEFS.map((npc) => [npc.id, npc]));

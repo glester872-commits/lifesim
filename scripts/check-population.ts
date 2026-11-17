@@ -169,6 +169,20 @@ for (const id of Object.keys(NAMED_PEOPLE)) assert.ok(NPC_DEFS.some((n) => n.id 
 // Sus edades encajan con lo que ya se dice de ellos (data/characters.ts: Sara, 24; Ada, 21).
 assert.equal(NAMED_PEOPLE.sara.age, 24);
 assert.equal(NAMED_PEOPLE.ada.age, 21);
+// Ángel (design/characters/angel/): con nombre, con rutina y de fuera; nunca un pasajero anónimo.
+assert.equal(NAMED_PEOPLE.angel.age, 26);
+assert.equal(NAMED_PEOPLE.angel.from, 'fuera');
+assert.ok(CHARACTERS.some((c) => c.npc === 'angel'), 'Ángel sin rutina');
+assert.ok(!PASSENGER_LOOKS.some((l) => l.id === 'angel') && !AUTHORED_PASSENGERS.some((l) => l.id === 'angel'), 'Ángel entre los pasajeros anónimos');
+// Jeff (design/characters/jeff/) y Kevin (design/characters/kevin/): con nombre, con rutina y de su barrio.
+assert.equal(NAMED_PEOPLE.jeff.age, 26);
+assert.equal(NAMED_PEOPLE.jeff.from, 'velaria');
+assert.equal(NAMED_PEOPLE.kevin.age, 31);
+assert.equal(NAMED_PEOPLE.kevin.from, 'ribera');
+for (const id of ['jeff', 'kevin']) {
+  assert.ok(CHARACTERS.some((c) => c.npc === id), `${id} sin rutina`);
+  assert.ok(!PASSENGER_LOOKS.some((l) => l.id === id) && !AUTHORED_PASSENGERS.some((l) => l.id === id), `${id} entre los pasajeros anónimos`);
+}
 for (const p of Object.values(NAMED_PEOPLE)) for (const k of ['skin', 'hair', 'origin']) assert.ok(!(k in p), `identidad con nombre con ${k}`);
 const namedPartners = new Map<string, number>();
 for (const r of NAMED_RELATIONSHIPS) {

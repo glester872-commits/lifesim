@@ -99,6 +99,8 @@ const ADA_HOME = 'RES_OLMO_3_ENTRANCE';
 const NOA_HOME = 'RES_MAYOR_15_ENTRANCE';
 const AMAIA_HOME = 'RES_OLMO_11_ENTRANCE';
 const YASMIN_HOME = 'RES_AVENIDA_2_ENTRANCE';
+const JEFF_HOME = 'VL_MQ_8_ENTRANCE';
+const KEVIN_HOME = 'RB_RES_2_ENTRANCE';
 
 export const CHARACTERS: readonly CharacterDef[] = [
   {
@@ -880,5 +882,132 @@ export const CHARACTERS: readonly CharacterDef[] = [
       { id: 'postparto-casa-yasmin', days: ANY_DAY, weight: 1, stage: ['post'], stops: [inside('06:00', YASMIN_HOME)] },
     ],
   },
+  {
+    // Ángel, 26: estudiante / creativo; vive fuera y llega en metro (su «casa» es la boca de metro: fuera del barrio,
+    // como la facultad de Sara). Rutina de la plantilla (design/characters/angel/) con puntos que no pisan a Sara.
+    npc: 'angel',
+    speed: 2,
+    home: 'METRO_ENTRANCE',
+    routines: [
+      {
+        id: 'angel-semana',
+        days: WEEKDAYS,
+        weight: 3,
+        stops: angelDay('PARK_BENCH_01', 'PLAZA_BENCH_05'),
+      },
+      {
+        // El finde Sara se sienta en PARK_BENCH_01: él, en el otro banco libre del parque.
+        id: 'angel-finde',
+        days: WEEKEND,
+        weight: 2,
+        stops: angelDay('PARK_BENCH_04', 'PLAZA_BENCH_05'),
+      },
+      {
+        // «Parque / paseo»: algunos días el paseo de mediodía y el de la noche son por la plaza.
+        id: 'angel-paseo',
+        days: ANY_DAY,
+        weight: 1,
+        stops: angelDay('PLAZA_BENCH_01', 'PLAZA_BENCH_04'),
+      },
+    ],
+  },
+  {
+    // Jeff, 26: vive en Velaria (Calle Marqués 8) y hace el día allí. Rutina de la plantilla (design/characters/jeff/).
+    // Alma y la Vinoteca Marqués cierran los lunes: ese día come en el Café Aurelia y sale al bar del Gran Hotel.
+    npc: 'jeff',
+    speed: 2,
+    home: JEFF_HOME,
+    routines: [
+      {
+        id: 'jeff-semana',
+        days: on('tuesday', 'wednesday', 'thursday', 'friday'),
+        weight: 3,
+        stops: jeffDay('VL_PLAZA_BENCH_01', 'ALMA_TABLE_03', 'VLWINE_TABLE_01'),
+      },
+      {
+        id: 'jeff-finde',
+        days: WEEKEND,
+        weight: 2,
+        stops: jeffDay('VL_PLAZA_BENCH_03', 'ALMA_TABLE_05', 'VLWINE_STOOL_01'),
+      },
+      {
+        // Abierto todos los días: el café para comer y el bar del hotel (24 h) para las copas.
+        id: 'jeff-hotel',
+        days: ANY_DAY,
+        weight: 1,
+        stops: jeffDay('VL_PLAZA_BENCH_02', 'VLCAFE_TABLE_03', 'HOTEL_BAR_01'),
+      },
+    ],
+  },
+  {
+    // Kevin, 31: vive en Ribera Norte (Ribera 2) y hace el día allí. Rutina de la plantilla (design/characters/kevin/).
+    // Ribera no tiene tienda de moda ni gimnasio cubierto: la tienda es Ribera Sport (cierra el domingo) y el gym, la calistenia.
+    npc: 'kevin',
+    speed: 2,
+    home: KEVIN_HOME,
+    routines: [
+      {
+        id: 'kevin-semana',
+        days: on('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'),
+        weight: 3,
+        stops: kevinDay('RB_BENCH_03', 'SPORT_RACK_01', 'RB_VIEW_01'),
+      },
+      {
+        id: 'kevin-paseo',
+        days: on('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'),
+        weight: 1,
+        stops: kevinDay('RB_BENCH_06', 'SPORT_TABLE_01', 'RB_VIEW_03'),
+      },
+      {
+        // El domingo Ribera Sport cierra: la tarde, por el paseo.
+        id: 'kevin-domingo',
+        days: on('sunday'),
+        weight: 1,
+        stops: kevinDay('RB_BENCH_04', 'RB_BENCH_08', 'RB_VIEW_02'),
+      },
+    ],
+  },
 ];
+
+/** El día de Jeff según su plantilla, por Velaria: café, plaza, comida, gym, plaza con amigos, copas y a casa. */
+function jeffDay(noon: string, lunch: string, drinks: string): Stop[] {
+  const late = drinks === 'HOTEL_BAR_01' ? [] : [{ at: '00:30', point: 'HOTEL_BAR_01', alt: ['HOTEL_BAR_02'], lines: ['Hoy tengo ganas de salir.'], going: ['¿Conoces este sitio? Es brutal.'] }];
+  return [
+    { at: '10:00', point: 'VLCAFE_TABLE_01', alt: ['VLCAFE_TABLE_02'], lines: ['Hola, ¿qué haces por aquí?', '¿Qué plan hay hoy?'], going: ['¿Vamos a por un café?'] },
+    { at: '12:00', point: noon, lines: ['Vamos al centro, que hay buen plan.'], going: ['¿Qué plan hay hoy?'] },
+    { at: '14:00', point: lunch, lines: ['¿Conoces este sitio? Es brutal.'], going: ['Te escribo ahora y cuadramos.'] },
+    { at: '18:00', point: 'VLGYM_TREADMILL_01', alt: ['VLGYM_TREADMILL_02'], lines: ['Mañana gym, ¿te vienes?'], going: ['Después del gym estoy muerto.'] },
+    { at: '20:00', point: 'VL_PLAZA_MEET_01', lines: ['Después del gym estoy muerto.', 'Hoy tengo ganas de salir.'], going: ['Te escribo ahora y cuadramos.'] },
+    { at: '22:30', point: drinks, lines: ['Hoy tengo ganas de salir.', '¿Conoces este sitio? Es brutal.'], going: ['Vamos al centro, que hay buen plan.'] },
+    ...late,
+    inside('01:30', JEFF_HOME, 'Te escribo ahora y cuadramos.'),
+  ];
+}
+
+/** El día de Kevin según su plantilla, por Ribera Norte: café, paseo, comida, tienda, calistenia, paseo, bar y a casa. */
+function kevinDay(noon: string, shop: string, night: string): Stop[] {
+  return [
+    { at: '10:30', point: 'CAFE_RIO_TABLE_01', alt: ['CAFE_RIO_TABLE_02'], lines: ['Hola, ¿qué haces por aquí?'], going: ['Dale, vamos a ver qué plan sale hoy.'] },
+    { at: '12:00', point: noon, lines: ['Hoy estoy bastante tranquilo, la verdad.'], going: ['Si quieres, damos una vuelta.'] },
+    { at: '14:00', point: 'CASAMAR_TABLE_01', alt: ['CASAMAR_TABLE_02'], lines: ['Luego voy al gym, ¿te apuntas?'], going: ['Te escribo y cuadramos.'] },
+    { at: '16:00', point: shop, lines: ['Hoy estoy bastante tranquilo, la verdad.'], going: [shop.startsWith('SPORT_') ? 'Tengo que pasar por la tienda un momento.' : 'Si quieres, damos una vuelta.'] },
+    { at: '19:00', point: 'CALI_MAT_01', alt: ['PULLUP_01'], lines: ['Dale, vamos a ver qué plan sale hoy.'], going: ['Luego voy al gym, ¿te apuntas?'] },
+    { at: '21:00', point: night, lines: ['Si quieres, damos una vuelta.'], going: ['Dale, vamos a ver qué plan sale hoy.'] },
+    { at: '23:00', point: 'BAR_TABLE_01', alt: ['BAR_TABLE_03'], lines: ['Hola, ¿qué haces por aquí?', 'Dale, vamos a ver qué plan sale hoy.'], going: ['Te escribo y cuadramos.'] },
+    inside('00:30', KEVIN_HOME, 'Te escribo y cuadramos.'),
+  ];
+}
+
+/** El día de Ángel según su plantilla: llega en metro, cafetería, parque, comida, tienda, gym, paseo y vuelve en metro. */
+function angelDay(noon: string, night: string): Stop[] {
+  return [
+    { at: '10:30', point: 'CAFE_TABLE_06', alt: ['CAFE_TABLE_07'], lines: ['Hola, ¿qué tal todo?'], going: ['Estoy por el centro, ¿te sumas?'] },
+    { at: '12:00', point: noon,lines: ['Hoy estoy en modo tranquilo.'], going: ['Dale, vamos viendo qué plan sale.'] },
+    { at: '14:00', point: 'RESTAURANT_TABLE_07', alt: ['RESTAURANT_TABLE_15'], lines: ['Si quieres, nos vemos luego.'], going: ['Dale, vamos viendo qué plan sale.'] },
+    { at: '17:00', point: 'CLOTHING_STORE_RACK_04', lines: ['Después caigo al gym.'], going: ['Tengo que pasar por la tienda un momento.'] },
+    { at: '19:00', point: 'GYM_TREADMILL_03', alt: ['GYM_TREADMILL_04'], lines: ['Hoy estoy en modo tranquilo.'], going: ['Si quieres, nos vemos luego.'] },
+    { at: '21:00', point: night,lines: ['Estoy por el centro, ¿te sumas?'], going: ['Dale, vamos viendo qué plan sale.'] },
+    inside('23:00', 'METRO_ENTRANCE', 'Te escribo cuando llegue.'),
+  ];
+}
 
