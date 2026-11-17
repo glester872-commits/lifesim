@@ -418,6 +418,9 @@ export const DECATHLON_STORE: LocationDef = {
   spots: [
     { tx: 72, ty: 41, name: 'Fichaje · sala de personal', activities: [], job: 'decathlon' },
     { tx: 66, ty: 40, name: 'Punto de información', activities: ['browse-decathlon'] },
+    // DEC-04 · el autopago: de pie a la izquierda de su máquina (que está bajo quien paga). No en su `till`, cola ni
+    // salida: ésos son de los clientes (check-decathlon j); la máquina se alcanza desde aquí y desde el `till`.
+    ...CHECKOUTS.filter((c) => c.kind === 'self').map((c, i) => ({ tx: c.till.tx - 1, ty: c.till.ty + 1, name: `Autopago ${i + 1}`, activities: [], selfCheckout: 'decathlon' })),
   ],
   points: {
     [`${P}_EXIT`]: p(EXIT.tx, EXIT.ty, 'exit', 'up'),

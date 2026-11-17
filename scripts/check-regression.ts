@@ -163,7 +163,7 @@ for (const loc of allLocations()) {
   };
   for (const t of loc.terminals ?? []) (getCatalog(t.catalog), inside(t, t.name));
   for (const s of loc.spots ?? []) {
-    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)) || (s.gathering && getGathering(s.gathering)) || s.housing || (s.job && JOBS.some((j) => j.id === s.job)), `[${loc.id}] ${s.name} no hace nada`);
+    assert.ok(s.activities.length > 0 || s.wardrobe || (s.study && practiceAt(s.study)) || (s.gathering && getGathering(s.gathering)) || s.housing || (s.job && JOBS.some((j) => j.id === s.job)) || (s.selfCheckout && STORES.some((x) => x.id === s.selfCheckout && x.basket)), `[${loc.id}] ${s.name} no hace nada`);
     s.activities.forEach(getActivity);
     inside(s, s.name);
   }

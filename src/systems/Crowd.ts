@@ -89,7 +89,31 @@ export const laneOf = (pointId: string, prefixes: readonly string[]): string | u
   return undefined;
 };
 
-export const staffDay = (place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
+/** DEC-04 · Estado de una caja, derivado de quien hay dentro: nada se guarda. */
+export type LaneState = 'cerrada' | 'ocupada' | 'abierta';
+
+/** Las cajas con cajero: el `{n}` de `profile.lane` en el puesto de cada empleado que no se va. */
+export const openLanesOf = (profile: PopulationProfile, agents: readonly Agent[]): string[] => {
+  const tpl = profile.lane;
+  if (!tpl) return [];
+  const re = laneRe(tpl, true);
+  return agents.flatMap((a) => (a.staffRole && !a.leaving && !a.leaveSoon
+    ? a.staffRole.points.flatMap((p) => re.exec(p)?.[1] ?? [])
+    : []));
+};
+
+/** Gente de la caja `n`: en su cola o pagando (o de camino a su plaza). */
+export const laneLoad = (agents: readonly Agent[], n: string): number =>
+  agents.filter((a) => !a.staffRole && !a.leaving && a.lane === n && a.point !== undefined).length;
+
+/** `till`: el punto de quien paga con `{n}` (`'DECAT_TILL_{n}'`). Ocupada: alguien ya está en él. */
+export const laneState = (agents: readonly Agent[], open: readonly string[], n: string, till: string): LaneState => {
+  if (!open.includes(n)) return 'cerrada';
+  const at = till.replace('{n}', n);
+  return agents.some((a) => !a.staffRole && a.point === at && a.path.length === 0) ? 'ocupada' : 'abierta';
+};
+
+export const staffDay =(place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
 
 /**
  * Visitantes que debería haber. Dentro del rango del nivel, el número sale de
@@ -686,6 +710,7 @@ export class Crowd {
       return;
     }
     a.orderWaits = 0;
+    this.relane(a);
     // Antes de dejar una máquina, se incorpora, recoge y se baja: nadie sale andando de una postura tumbado.
     if (a.point && a.state !== 'FINISH' && this.stationOf(a.point)) {
       a.state = 'FINISH';
@@ -705,11 +730,12 @@ export class Crowd {
       return;
     }
     const step = a.plan[0];
-    // Con `{n}`, la caja que ya eligió; si cerró, como si no hubiera sitio (espera o se salta el paso).
-    const prefixes = this.expand(step.points, a.look, a.lane);
+    // Con `{n}`, la caja que ya eligió (si cerró, `relane` ya se la quitó); sin elegir, la abierta con menos gente.
+    const ok = (id: string): boolean => id !== a.point && this.seatOk(id, a);
+    const prefixes = this.expand(step.points, a.look, a.lane ?? this.pickLane(step.points, a.look, ok));
     // Su taquilla de antes, si sigue libre; si no, otra del mismo vestuario.
     const own = step.outfit === 'street' && a.locker && !this.seats.has(a.locker) && !this.claimed.has(a.locker) ? a.locker : undefined;
-    const point = own ?? this.freePoint(prefixes, (id) => id !== a.point && this.seatOk(id, a));
+    const point = own ?? this.freePoint(prefixes, ok);
     if (!point && !a.point) {
       // Acaba de entrar y no hay sitio: se da la vuelta en vez de quedarse en la puerta.
       this.leave(a);
@@ -769,14 +795,40 @@ export class Crowd {
     return out.flatMap((p) => (p.includes('{n}') ? lanes.map((n) => p.replace('{n}', n)) : [p]));
   }
 
-  /** Las cajas con cajero: el `{n}` de `profile.lane` en el puesto de cada empleado que no se va. */
   private openLanes(): string[] {
-    const tpl = this.profile.lane;
-    if (!tpl) return [];
-    const re = laneRe(tpl, true);
-    return this.agents.flatMap((a) => (a.staffRole && !a.leaving && !a.leaveSoon
-      ? a.staffRole.points.flatMap((p) => re.exec(p)?.[1] ?? [])
-      : []));
+    return openLanesOf(this.profile, this.agents);
+  }
+
+  /** DEC-04 · Sin caja aún: la abierta con menos gente que tenga plaza libre para este paso; empate, el azar de la sala. */
+  private pickLane(points: readonly string[], look: number, ok: (id: string) => boolean): string | undefined {
+    if (!points.some((p) => p.includes('{n}'))) return undefined;
+    const ranked = this.openLanes()
+      .map((n) => ({ n, load: laneLoad(this.agents, n), tie: this.rng() }))
+      .sort((x, y) => x.load - y.load || x.tie - y.tie);
+    return ranked.find(({ n }) => this.freePoints(this.expand(points, look, n), ok).length > 0)?.n;
+  }
+
+  /**
+   * DEC-04 · Su próximo paso va por caja (`{n}`) y su caja cerró con él en la cola: suelta la plaza, olvida la caja y
+   * vuelve a hacer cola (el paso de cola de antes) en otra abierta. Sin ninguna abierta, se va: nadie se salta el pago.
+   * Quien ya paga no llega aquí con un paso `{n}` pendiente: termina en su caja.
+   */
+  private relane(a: Agent): void {
+    const step = a.plan[0];
+    if (a.leaveSoon || !step || !step.points.some((p) => p.includes('{n}'))) return;
+    const open = this.openLanes();
+    if (open.length === 0) {
+      a.leaveSoon = true;
+      return;
+    }
+    if (a.lane === undefined || open.includes(a.lane)) return;
+    const prev = a.stepPoints;
+    const back = prev?.some((p) => p.includes('{n}'))
+      ? this.profile.visitors.flatMap((v) => v.plan).find((s) => s.points.join() === prev.join())
+      : undefined;
+    if (back && back !== step) a.plan.unshift(back);
+    this.release(a);
+    a.lane = undefined;
   }
 
   /** Ponerse lo que tocaba en el paso que acaba: la ropa de entrenar, o la de calle. */

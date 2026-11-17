@@ -236,7 +236,7 @@ type Interactable =
   // `vendor`: el ancla de un puesto del rastro que vende (systems/PopUps.stallVendors, CAS-03); sólo mientras está en marcha.
   | { kind: 'terminal'; x: number; y: number; name: string; catalog: string; place?: string; serves?: TerminalDef['serves']; staff?: string; vendor?: string }
   | { kind: 'rack'; x: number; y: number; rack: RackDef; vendor?: string }
-  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; job?: string; lines?: readonly string[] }
+  | { kind: 'spot'; x: number; y: number; name: string; activities: readonly string[]; wardrobe?: true; study?: string; gathering?: string; housing?: true | string; job?: string; lines?: readonly string[]; selfCheckout?: string }
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'emergency'; x: number; y: number; view: EmergencyView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
@@ -704,7 +704,7 @@ export class WorldScene extends Phaser.Scene {
     }
     // Donde se hace algo que lleva un rato: la cama, la cocina, una mesa.
     for (const s of def.spots ?? []) {
-      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, gathering: s.gathering, housing: s.housing, job: s.job });
+      this.interactables.push({ kind: 'spot', x: s.tx * TILE + TILE / 2, y: s.ty * TILE + TILE / 2, name: s.name, activities: s.activities, wardrobe: s.wardrobe, study: s.study, gathering: s.gathering, housing: s.housing, job: s.job, selfCheckout: s.selfCheckout });
     }
     // Donde entrenar: los mismos puestos que usa la gente del gimnasio (data/stations.ts), cada uno en su punto.
     for (const [id, p] of Object.entries(def.points ?? {})) {
@@ -3553,6 +3553,7 @@ export class WorldScene extends Phaser.Scene {
     else if (target.kind === 'rack') this.menus.openRack(target.rack);
     else if (target.kind === 'spot') {
       if (target.wardrobe) this.menus.openWardrobe();
+      else if (target.selfCheckout) this.menus.openSelfCheckout(target.selfCheckout, target.name);
       else if (target.study) this.menus.openStudy(target.study, target.name, target.lines ?? []);
       else if (target.gathering) this.menus.openGathering(target.gathering, target.name);
       else if (target.job) this.menus.openJob(target.job, target.name);

@@ -452,6 +452,8 @@ export interface SpotDef {
    * de casa (también recolocar lo puesto); un id de tienda ('velarde') vende sólo lo suyo (UpgradeDef.sold).
    */
   housing?: true | string;
+  /** DEC-04 · Autopago de una tienda con cesta (id en data/retail.ts, `basket`): paga la cesta sin cajero (Menus.openSelfCheckout). */
+  selfCheckout?: string;
 }
 
 /** Algo que se puede mirar con E: un cartel, una fuente, un escaparate. */

@@ -30,6 +30,7 @@ import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
 import type { HumanColors } from '../world/HumanArt';
 import { buyGarment, buysItem, resaleOffer, resaleValue, sellGarment, sellItem, stockOf, takeOff, wear } from '../systems/Retail';
+import { addLine, linesOf, payBasket, removeLine, total as basketTotal } from '../systems/Basket';
 import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
 import { CATEGORIES, getGarment, getStore, RESALE_KINDS } from '../data/retail';
@@ -59,6 +60,8 @@ import { closedLines, isOpen, placeForInterior, placeInfo } from '../systems/Pla
 
 /** Lo que se tarda en pagar en la caja de una tienda con caja (Catalog.checkout), compres una cosa o diez. */
 const CHECKOUT_MINUTES = 2;
+/** DEC-04 · el autopago tarda más que la caja atendida (escanear y embolsar uno mismo). */
+const SELF_CHECKOUT_MINUTES = 8;
 
 /** Dónde va una prenda, dicho en la ficha antes de probarla o comprarla. */
 /** El dibujo de un producto de catálogo (ui/ItemIcons): el objeto que da o la tarjeta que recarga. */
@@ -1513,11 +1516,20 @@ export class Menus {
     const sellItemsAt = hasItems ? lines.length + (store.buysBack ? 1 : 0) : -1;
     if (hasItems) options.push({ label: 'Vender objetos' });
     options.push({ label: 'Sólo miraba' });
-    menu.open(`${store.name} · ${who}`, `${store.greeting} Llevas ${euros(state.money)}.`, options, (i) => {
-      if (i === options.length - 1) {
+    // DEC-04 · con cesta de esta tienda, pagarla va lo primero; el resto de opciones se corre una.
+    const basket = store.basket ? linesOf(state.basket, storeId) : [];
+    const pay = basket.length > 0;
+    if (pay) options.unshift({ label: `Pagar la cesta (${basket.length} · ${euros(basketTotal(basket))})` });
+    menu.open(`${store.name} · ${who}`, `${store.greeting} Llevas ${euros(state.money)}.`, options, (pick) => {
+      if (pick === options.length - 1) {
         menu.close();
         return;
       }
+      if (pay && pick === 0) {
+        this.openBasket(storeId, `${store.name} · ${who}`, minutes, (n) => this.openStore(storeId, who, minutes, n));
+        return;
+      }
+      const i = pay ? pick - 1 : pick;
       if (i === sellClothesAt) {
         this.openSell(storeId, who, minutes);
         return;
@@ -1530,7 +1542,7 @@ export class Menus {
       if (line.owned) {
         state.setAppearance('player', wear(current, line.garment));
         this.host.persist();
-        this.openStore(storeId, who, minutes, `Te pones ${line.def.name.toLowerCase()}.`, i);
+        this.openStore(storeId, who, minutes, `Te pones ${line.def.name.toLowerCase()}.`, pick);
         return;
       }
       const buy = (): void => {
@@ -1546,11 +1558,11 @@ export class Menus {
           clock.advanceMinutes(minutes);
           this.host.persist();
         }
-        this.openStore(storeId, who, minutes, result.message, i);
+        this.openStore(storeId, who, minutes, result.message, pick);
       };
       // Los accesorios se ven antes de pagar; en un puesto no hay probador.
       if (line.def.slot === 'glasses' || line.def.slot === 'cap' || line.def.slot === 'scarf') {
-        this.confirmLook(line.def.name, `${line.def.description} Va ${SLOT_LABEL[line.def.slot]} y sales con ello puesto. Llevas ${euros(state.money)}.`, wear(current, line.garment), 'Comprar', euros(this.priced(line.price)), buy, () => this.openStore(storeId, who, minutes, '', i));
+        this.confirmLook(line.def.name, `${line.def.description} Va ${SLOT_LABEL[line.def.slot]} y sales con ello puesto. Llevas ${euros(state.money)}.`, wear(current, line.garment), 'Comprar', euros(this.priced(line.price)), buy, () => this.openStore(storeId, who, minutes, '', pick));
         return;
       }
       buy();
@@ -1942,9 +1954,14 @@ export class Menus {
     }
     menu.peek(false);
     const wearing = current[def.slot] === garment;
+    // DEC-04 · «A LA CESTA» sólo donde hay caja o autopago que la cobre (RetailStoreDef.basket); se paga allí.
+    const cart = getStore(rack.store).basket && !stall;
+    const line = { store: rack.store, garment, price };
+    const add = addLine(state.basket, line, state.wardrobe);
     menu.open(title, text, [
       { label: 'PROBAR', disabled: wearing ? 'Ya la llevas puesta.' : undefined },
       { label: 'COMPRAR', detail: owned ? 'tuya' : euros(price), disabled: trial.ok ? undefined : trial.message },
+      ...(cart ? [{ label: 'A LA CESTA', detail: euros(price), disabled: add.ok ? undefined : add.message }] : []),
       { label: 'CANCELAR' },
     ], (i) => {
       if (i === 0) {
@@ -1952,8 +1969,70 @@ export class Menus {
         state.setAppearance('player', wear(current, garment));
         this.openGarment(rack, garment, index, '', stall);
       } else if (i === 1) buy();
-      else this.openRack(rack, '', index, stall);
+      else if (cart && i === 2) {
+        const r = addLine(state.basket, line, state.wardrobe);
+        if (r.ok) state.basket = r.basket;
+        const mine = linesOf(state.basket, rack.store);
+        this.openRack(rack, `${r.message} En la cesta: ${mine.length} ${mine.length === 1 ? 'prenda' : 'prendas'} · total ${euros(basketTotal(mine))}.`, index, stall);
+      } else this.openRack(rack, '', index, stall);
     }, () => this.openRack(rack, '', index, stall), note);
+  }
+
+  /**
+   * DEC-04 · La cesta de una tienda (systems/Basket) en su caja o en el autopago: cada línea con su precio (elegirla la
+   * quita), CONFIRMAR PAGO cobra todo o nada con payBasket y CANCELAR vuelve sin cobrar y con la cesta como estaba.
+   */
+  private openBasket(storeId: string, title: string, minutes: number, back: (note?: string) => void, note = ''): void {
+    this.endFitting();
+    const { state, menu, clock } = this.services;
+    const lines = linesOf(state.basket, storeId);
+    if (!lines.length) {
+      back('La cesta está vacía.');
+      return;
+    }
+    const factor = this.priceHere();
+    const trial = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, lines, factor);
+    const options: MenuOption[] = lines.map((l) => ({ label: `Quitar ${getGarment(l.garment).name.toLowerCase()}`, detail: euros(l.price), icon: garmentIcon(getGarment(l.garment)) }));
+    options.push({ label: 'CONFIRMAR PAGO', detail: trial.ok ? euros(trial.charged) : '', disabled: trial.ok ? undefined : trial.message }, { label: 'CANCELAR' });
+    const text = `${lines.length} ${lines.length === 1 ? 'prenda' : 'prendas'} · total ${euros(trial.ok ? trial.charged : basketTotal(lines))}. Llevas ${euros(state.money)}.`;
+    menu.open(`Cesta · ${title}`, text, options, (i) => {
+      if (i < lines.length) {
+        state.basket = removeLine(state.basket, storeId, lines[i].garment);
+        this.openBasket(storeId, title, minutes, back, `Quitas ${getGarment(lines[i].garment).name.toLowerCase()}.`);
+        return;
+      }
+      if (i > lines.length) {
+        back();
+        return;
+      }
+      // Se vuelve a calcular al pulsar: lo de la pantalla puede haber cambiado (todo o nada).
+      const r = payBasket(state.wallet, state.wardrobe, state.appearanceOf('player'), state.paid, linesOf(state.basket, storeId), this.priceHere());
+      if (!r.ok) {
+        this.openBasket(storeId, title, minutes, back, r.message);
+        return;
+      }
+      state.as(`Cesta · ${getStore(storeId).name}`, () => {
+        state.wallet = r.wallet;
+      });
+      this.reputationHere(REPUTATION_TRIGGERS['local-purchase'].delta, `buy:${state.day}:${storeId}`);
+      state.wardrobe = r.wardrobe;
+      state.paid = r.paid;
+      state.basket = state.basket.filter((l) => l.store !== storeId);
+      clock.advanceMinutes(minutes);
+      this.host.persist();
+      back(`${r.message} Pagas ${euros(r.charged)}; guardado en tu armario.`);
+    }, () => back(), note);
+  }
+
+  /** DEC-04 · Una máquina de autopago (SpotDef.selfCheckout): paga la cesta de su tienda sin cajero, y tarda más. */
+  openSelfCheckout(storeId: string, name: string, note = ''): void {
+    this.endFitting();
+    const { state, menu } = this.services;
+    if (!linesOf(state.basket, storeId).length) {
+      menu.open(name, 'Escanea primero: coge la ropa en los percheros y añádela a la cesta.', [{ label: 'Cerrar' }], () => menu.close(), () => menu.close(), note);
+      return;
+    }
+    this.openBasket(storeId, name, SELF_CHECKOUT_MINUTES, (n) => this.openSelfCheckout(storeId, name, n ?? ''));
   }
 
   /**
