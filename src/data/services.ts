@@ -33,7 +33,7 @@ export type ServiceOffer =
    * Consejo de quien atiende en sala. Con `store`, además, la atención de la tienda (DEC-01, data/storeQueries.ts y
    * systems/StoreKnowledge.ts): categoría → pregunta, con respuestas sacadas del plano, los turnos y el género de verdad.
    */
-  | { kind: 'advice'; greeting: string; questions: readonly { question: string; answer: string }[]; store?: 'decathlon' }
+  | { kind: 'advice'; greeting: string; questions: readonly { question: string; answer: string; /** DEC-05: enlaza sus variantes (data/sectionLines.ts). */ id?: string }[]; store?: 'decathlon' }
   /**
    * La recepción de una comisaría (systems/Police): cómo está la zona ahora (la calle `street`, su hora y los robos que
    * constan) y, sólo si te han robado y no lo has denunciado, la denuncia.
@@ -59,31 +59,31 @@ export const SERVICE_OFFERS = {
   'decathlon-montana': {
     kind: 'advice', store: 'decathlon', greeting: '¿Paseo corto o ruta de todo el día?',
     questions: [
-      { question: '¿Qué mochila me conviene?', answer: 'Para una salida corta, con 15 o 20 litros suele bastar. Cuenta con sitio para agua, comida y una capa de abrigo.' },
-      { question: '¿Dónde están las mochilas?', answer: 'Al fondo, en la fila de montaña, hacia el extremo derecho. Están junto a camping.' },
-      { question: '¿Dónde puedo probarme la ropa?', answer: 'Los probadores están al fondo, entre Sportswear y Montaña junior.' },
+      { id: 'montana-mochila', question: '¿Qué mochila me conviene?', answer: 'Para una salida corta, con 15 o 20 litros suele bastar. Cuenta con sitio para agua, comida y una capa de abrigo.' },
+      { id: 'montana-mochilas-donde', question: '¿Dónde están las mochilas?', answer: 'Al fondo, en la fila de montaña, hacia el extremo derecho. Están junto a camping.' },
+      { id: 'montana-probar', question: '¿Dónde puedo probarme la ropa?', answer: 'Los probadores están al fondo, entre Sportswear y Montaña junior.' },
     ],
   },
   'decathlon-running': {
     kind: 'advice', store: 'decathlon', greeting: '¿Corres por asfalto o por caminos?',
     questions: [
-      { question: '¿Cómo sé si me queda bien la zapatilla?', answer: 'Pruébatela con los calcetines con los que corres. Deja espacio delante para los dedos y comprueba que el talón no se levante.' },
-      { question: '¿Dónde puedo comprar zapatillas?', answer: 'En el expositor del fondo de Running o en una caja atendida. Desde el expositor puedes ver cómo te quedan antes de comprar.' },
+      { id: 'running-zapatilla', question: '¿Cómo sé si me queda bien la zapatilla?', answer: 'Pruébatela con los calcetines con los que corres. Deja espacio delante para los dedos y comprueba que el talón no se levante.' },
+      { id: 'running-comprar', question: '¿Dónde puedo comprar zapatillas?', answer: 'En el expositor del fondo de Running o en una caja atendida. Desde el expositor puedes ver cómo te quedan antes de comprar.' },
     ],
   },
   'decathlon-ciclismo': {
     kind: 'advice', store: 'decathlon', greeting: 'Para elegir bici, empieza por el tipo de trayecto.',
     questions: [
-      { question: '¿Qué bici va mejor para la ciudad?', answer: 'Para trayectos por asfalto, una urbana te deja pedalear en una postura más erguida. Si sales por terreno suelto, mira una de montaña.' },
-      { question: '¿Cómo elijo una cámara de repuesto?', answer: 'Copia el diámetro y el ancho que aparecen en el lateral del neumático. Comprueba también qué tipo de válvula lleva.' },
-      { question: '¿Dónde está Segunda Vida?', answer: 'Al fondo del pasillo derecho, antes de la pared. Allí están las bicis revisadas de exposición.' },
+      { id: 'ciclismo-ciudad', question: '¿Qué bici va mejor para la ciudad?', answer: 'Para trayectos por asfalto, una urbana te deja pedalear en una postura más erguida. Si sales por terreno suelto, mira una de montaña.' },
+      { id: 'ciclismo-camara', question: '¿Cómo elijo una cámara de repuesto?', answer: 'Copia el diámetro y el ancho que aparecen en el lateral del neumático. Comprueba también qué tipo de válvula lleva.' },
+      { id: 'ciclismo-segunda-vida', question: '¿Dónde está Segunda Vida?', answer: 'Al fondo del pasillo derecho, antes de la pared. Allí están las bicis revisadas de exposición.' },
     ],
   },
   'decathlon-fitness': {
     kind: 'advice', store: 'decathlon', greeting: '¿Vas a entrenar en casa? Dime cuánto espacio tienes.',
     questions: [
-      { question: '¿Con qué equipo puedo empezar en casa?', answer: 'Con una esterilla y una banda ya puedes montar una rutina sencilla sin llenar el salón.' },
-      { question: '¿Dónde está la ropa de deporte?', answer: 'Camisetas, sudaderas y pantalones están en Sportswear, al fondo, junto a Running y los probadores.' },
+      { id: 'fitness-casa', question: '¿Con qué equipo puedo empezar en casa?', answer: 'Con una esterilla y una banda ya puedes montar una rutina sencilla sin llenar el salón.' },
+      { id: 'fitness-ropa', question: '¿Dónde está la ropa de deporte?', answer: 'Camisetas, sudaderas y pantalones están en Sportswear, al fondo, junto a Running y los probadores.' },
     ],
   },
   'shop-retales': { kind: 'retail', store: 'retales', minutes: 15 },

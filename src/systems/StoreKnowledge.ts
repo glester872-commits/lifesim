@@ -7,7 +7,8 @@ import { getOffer } from '../data/services.ts';
 import { getGarment, getStore } from '../data/retail.ts';
 import { STORE_REPLIES, type ReplyKey, type StoreQuery } from '../data/storeQueries.ts';
 import type { Level } from '../config/population.ts';
-import { levelAt, staffDay, staffOnShift, type Clock } from './Crowd.ts';
+import { levelAt, staffDay, staffOnShift, type Agent, type Clock } from './Crowd.ts';
+import { LINE_SECTIONS, SECTION_LINES, VOICED_SECTIONS, type HourBand, type LineKind, type LineSection, type SectionLine, type StaffState } from '../data/sectionLines.ts';
 import { placeInfo } from './Places.ts';
 import { hashSeed } from './MetroDaily.ts';
 import { euros } from './Commerce.ts';
@@ -162,19 +163,99 @@ const dist = (a: TilePoint, b: Spot): number => Math.hypot(b.x - a.tx, b.y - a.t
 const nearest = <T>(from: TilePoint, items: readonly T[], at: (t: T) => Spot): T =>
   items.reduce((best, t) => (dist(from, at(t)) < dist(from, at(best)) ? t : best));
 
-/** La última frase de cada colaborador en esta sesión: no se repite seguida. No se guarda. */
-const lastSaid = new Map<string, string>();
+/** Las dos últimas frases de cada colaborador en esta sesión (DEC-05): no se repiten. No se guarda. */
+const lastSaid = new Map<string, string[]>();
 
-/** Una de las tres maneras, por colaborador, pregunta y día; si es la que acaba de decir, la siguiente. */
+/** Una variante por colaborador, consulta y día, saltando las dos últimas que dijo; nunca la inmediata anterior. */
+function pick(staffKey: string, seed: string, day: number, variants: readonly string[]): string {
+  const recent = lastSaid.get(staffKey) ?? [];
+  const n = variants.length;
+  let i = Math.abs(hashSeed(staffKey, seed, day)) % n;
+  for (let k = 0; k < n && recent.includes(variants[i]); k++) i = (i + 1) % n;
+  if (n > 1 && variants[i] === recent[recent.length - 1]) i = (i + 1) % n;
+  lastSaid.set(staffKey, [...recent, variants[i]].slice(-2));
+  return variants[i];
+}
+
+/** Una de las tres maneras, por colaborador, pregunta y día; sin repetir lo último que dijo. */
 export function say(staffKey: string, queryId: string, day: number, key: ReplyKey, fill: Readonly<Record<string, string>>): string {
   const variants = STORE_REPLIES[key].map((t) => {
     const text = t.replace(/\{(\w+)\}/g, (_, k: string) => fill[k] ?? '');
     return text.charAt(0).toUpperCase() + text.slice(1);
   });
-  let i = Math.abs(hashSeed(staffKey, queryId, day)) % variants.length;
-  if (variants[i] === lastSaid.get(staffKey)) i = (i + 1) % variants.length;
-  lastSaid.set(staffKey, variants[i]);
-  return variants[i];
+  return pick(staffKey, queryId, day, variants);
+}
+
+/** DEC-05 · La sección por la que habla alguien de la tienda: su rol, no el tile donde esté. */
+export function sectionOfRole(role?: StaffRole): LineSection {
+  if (!role) return 'general';
+  if (role.service === 'cashier') return 'cajas';
+  const name = (role.label ?? '').replace('Sección de ', '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return (LINE_SECTIONS as readonly string[]).includes(name) ? (name as LineSection) : 'general';
+}
+
+/** Franjas de la tienda: mañana hasta las 14, tarde hasta las 19 y cierre después. */
+export const hourBand = (clock: Clock): HourBand => (clock.hour < 14 ? 'manana' : clock.hour < 19 ? 'tarde' : 'cierre');
+
+/** La caja `{n}` del puesto de un cajero (DECATHLON_PROFILE.lane) está 'ocupada': alguien parado en su caja pagando. */
+export function cashierBusy(role: StaffRole, agents: readonly Agent[]): boolean {
+  const [pre, post] = (DECATHLON_PROFILE.lane ?? '').split('{n}');
+  if (post === undefined) return false;
+  const n = role.points.find((p) => p.startsWith(pre) && p.endsWith(post))?.slice(pre.length, post ? -post.length : undefined);
+  const till = DECATHLON_LAYOUT.checkouts.find((c) => c.id === `caja-${n}`)?.till;
+  return !!till && agents.some((a) => !a.staffRole && !a.leaving && a.path.length === 0 && Math.round(a.x) === till.tx && Math.round(a.y) === till.ty);
+}
+
+/** El estado con que saluda (derivado, no guardado): de camino, cobrando, reponiendo o libre. */
+export function staffState(role: StaffRole | undefined, agent: Agent | undefined, agents: readonly Agent[]): StaffState {
+  if (!role || !agent) return 'disponible';
+  if (agent.moving || agent.path.length > 0) return 'desplazandose';
+  const section = sectionOfRole(role);
+  if (section === 'cajas') return cashierBusy(role, agents) ? 'atendiendo' : 'disponible';
+  if (section === 'general' && agent.point !== undefined && agent.timer > 0) return 'reponiendo';
+  return 'disponible';
+}
+
+export interface LineCtx { staffKey: string; ref?: string; state?: StaffState; clock: Clock }
+
+/** Las entradas que encajan, de la más concreta: un estado especial pesa más que la franja; «disponible» es el de siempre. */
+function bestOf(section: LineSection, kind: LineKind, ctx: LineCtx): readonly string[] {
+  const st = ctx.state ?? 'disponible';
+  const band = hourBand(ctx.clock);
+  const fit = SECTION_LINES.filter((e) => e.section === section && e.kind === kind && e.ref === ctx.ref
+    && (e.state === undefined || e.state === st) && (e.hours === undefined || e.hours === band));
+  const score = (e: SectionLine): number => (e.state && e.state !== 'disponible' ? 2 : 0) + (e.hours ? 1 : 0);
+  const top = Math.max(-1, ...fit.map(score));
+  return fit.filter((e) => score(e) === top).flatMap((e) => e.variations);
+}
+
+/** Una frase de la sección (exacta → sin estado o sin franja → `general`); undefined: el llamador dice la de antes. */
+export function line(section: LineSection, kind: LineKind, ctx: LineCtx): string | undefined {
+  const pool = bestOf(section, kind, ctx);
+  const variants = pool.length > 0 ? pool : bestOf('general', kind, ctx);
+  if (variants.length === 0) return undefined;
+  return pick(ctx.staffKey, `${kind}:${ctx.ref ?? ''}:${ctx.state ?? ''}:${hourBand(ctx.clock)}`, ctx.clock.day, variants);
+}
+
+/** La sección con coletilla de un sector: por su id (probadores, natación…) o por su familia (montaña, fitness). */
+function tipSectionOf(sectorId: string): LineSection | undefined {
+  const s = sectorById(sectorId);
+  const ids = LINE_SECTIONS as readonly string[];
+  if (!s) return undefined;
+  return ids.includes(s.id) ? (s.id as LineSection) : ids.includes(s.family) ? (s.family as LineSection) : undefined;
+}
+
+/** La coletilla tras «¿Dónde está…?» o «¿Dónde están los probadores?»: la de la primera sección consultada que la tenga. */
+export function tipFor(q: StoreQuery, staffKey: string, clock: Clock): string | undefined {
+  const ids = q.kind === 'fitting' ? ['probadores'] : q.kind === 'department' ? (DECATHLON_LAYOUT.departments.find((d) => d.id === q.ref)?.sectorIds ?? []) : [];
+  // Primero las secciones sin colaborador propio (colectivos, natación, probadores): las demás ya hablan por sí mismas.
+  const voiced = (s: LineSection | undefined): number => Number(s !== undefined && VOICED_SECTIONS.includes(s));
+  const sections = ids.map(tipSectionOf).sort((a, b) => voiced(a) - voiced(b));
+  for (const section of sections) {
+    const text = section && SECTION_LINES.some((e) => e.section === section && e.kind === 'tip') ? line(section, 'tip', { staffKey, clock }) : undefined;
+    if (text) return text;
+  }
+  return undefined;
 }
 
 export interface Asker {

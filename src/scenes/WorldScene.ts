@@ -136,6 +136,7 @@ import { PLAYER_STALL } from '../data/playerStall';
 import { recordTransitionError } from '../systems/VenueAudit';
 import { Character, activityAt } from '../entities/Character';
 import { Crowd, profileFor, type Agent, type Clock } from '../systems/Crowd';
+import { staffState } from '../systems/StoreKnowledge';
 import { crowdBudget, StreetLife, streetProfileFor, type Walker as StreetWalker } from '../systems/StreetLife';
 import { working as workingAct } from '../systems/StreetActs';
 import { chatLine, memoryKey, openingFor, thanksLine } from '../systems/StreetSurvival';
@@ -3568,17 +3569,20 @@ export class WorldScene extends Phaser.Scene {
       const survivor = this.survivorOf(target.sprite);
       const officer = this.officerOf(target.sprite);
       if (offer) {
+        const sprite = target.sprite;
+        // DEC-01 · el personal de sala contesta desde donde está y se gira hacia lo que indica (Menus.openStoreDesk).
+        const agent = sprite instanceof Character ? this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined) : undefined;
+        // DEC-05 · cómo estaba antes de pararse a hablar (startTalk lo detiene): de camino, cobrando, reponiendo o libre.
+        const staffNow = staffState(agent?.staffRole, agent, this.crowd?.agents ?? []);
         // Quien atiende se vuelve hacia el jugador mientras dura su menú (lo suelta el bucle al cerrarse).
         this.startTalk(target.sprite);
         this.offerTalk = true;
         // CV-08A · en una manta, el menú vale mientras el puesto siga montado: si recoge o se va, ya no cobra.
-        const sprite = target.sprite;
         const stall = this.vendorOf(sprite) ? { closed: (): string | null => (this.vendorOf(sprite) ? null : 'Está recogiendo: ya no vende.') } : undefined;
-        // DEC-01 · el personal de sala contesta desde donde está y se gira hacia lo que indica (Menus.openStoreDesk).
-        const agent = sprite instanceof Character ? this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined) : undefined;
         const staff = agent?.staffRole && sprite instanceof Character ? {
           tile: { tx: Math.round(agent.x), ty: Math.round(agent.y) },
           role: agent.staffRole,
+          state: staffNow,
           face: (to: Facing): void => {
             sprite.talkingTo = to;
             for (const view of this.crowdViews) view.sync(this.time.now);

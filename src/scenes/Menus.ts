@@ -24,7 +24,8 @@ import { FACTORY_HAIR_COLOR, HAIR_COLORS, HAIR_DYE, HAIRSTYLES, type Appearance 
 import type { Facing, RackDef, TilePoint } from '../types/game';
 import type { StaffRole } from '../data/population';
 import { STORE_CATEGORIES } from '../data/storeQueries';
-import { answer, STORE_ENTRY, type Asker } from '../systems/StoreKnowledge';
+import { answer, line, sectionOfRole, STORE_ENTRY, tipFor, type Asker } from '../systems/StoreKnowledge';
+import type { StaffState } from '../data/sectionLines';
 import { dyeHair, haircut, haircutQuote, reworkTattoo, sleeveOf, tattoo, tattooAt, tattooWorks, visibleTattoos, withAppearance, type Restyle } from '../systems/Appearance';
 import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
@@ -79,6 +80,10 @@ export interface StoreStaff {
   tile: TilePoint;
   role?: StaffRole;
   face?: (to: Facing) => void;
+  /** DEC-05 · cómo estaba al hablarle (systems/StoreKnowledge `staffState`); sin él, disponible. */
+  state?: StaffState;
+  /** El saludo de esta conversación, elegido una vez al abrirla (vuelve igual al volver atrás). */
+  greeting?: string;
 }
 
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
@@ -115,6 +120,8 @@ let cameFrom: string | null = null;
 export class Menus {
   private readonly services: Services;
   private readonly host: MenuHost;
+  /** DEC-05 · el cajero de la caja abierta ahora (lo pone openOffer en cada visita; sin él, el saludo de la tienda). */
+  private till: StoreStaff | undefined;
   // La prueba de una prenda vive en GameState: así ningún guardado se queda con la prenda sin pagar.
   private get fitting(): Appearance | null {
     return this.services.state.fitting;
@@ -1047,7 +1054,9 @@ export class Menus {
     const offer = getOffer(id);
     if (offer.kind === 'advice' && offer.store) {
       // DEC-01 · atención de la tienda: categoría → pregunta, con respuestas del plano, los turnos y el género.
-      this.openStoreDesk(offer, who, staff);
+      // DEC-05 · el saludo de su sección, por hora y por lo que estaba haciendo; sin frase, el de siempre.
+      const greeting = line(sectionOfRole(staff?.role), 'greeting', { staffKey: staff?.role?.label ?? who, state: staff?.state, clock: this.storeClock() }) ?? offer.greeting;
+      this.openStoreDesk(offer, who, { tile: STORE_ENTRY, ...staff, greeting });
       return;
     }
     if (offer.kind === 'catalog') {
@@ -1064,6 +1073,11 @@ export class Menus {
       return;
     }
     if (offer.kind === 'retail') {
+      // DEC-05 · quien cobra, para su saludo y su despedida mientras dure esta visita a la caja.
+      const store = getStore(offer.store);
+      const cashierKey = staff?.role?.label ?? who;
+      const hello = store.basket && staff ? line(sectionOfRole(staff.role), 'greeting', { staffKey: cashierKey, state: staff.state, clock: this.storeClock() }) : undefined;
+      this.till = store.basket && staff ? { ...staff, greeting: hello } : undefined;
       this.openStore(offer.store, who, offer.minutes, note, selected);
       return;
     }
@@ -1134,15 +1148,28 @@ export class Menus {
     const label = staff?.role?.label ?? who;
     const advice = offer.questions.length > 0 ? (label.startsWith('Sección de ') ? label.replace('Sección de ', 'Consejo de ') : 'Su consejo') : null;
     const cats = STORE_CATEGORIES;
-    menu.open(who, offer.greeting, [
+    menu.open(who, staff?.greeting ?? offer.greeting, [
       ...cats.map((c) => ({ label: c.label })),
       ...(advice ? [{ label: advice }] : []),
       { label: 'Gracias, eso es todo' },
     ], (i) => {
       if (i < cats.length) this.openStoreQueries(offer, who, staff, i);
       else if (advice && i === cats.length) this.openStoreAdvice(offer, who, staff, i, advice);
-      else menu.close();
+      else this.storeFarewell(who, staff);
     }, () => menu.close(), '', selected);
+  }
+
+  private storeClock(): { day: number; hour: number; minute: number } {
+    const { state } = this.services;
+    return { day: state.day, hour: state.hour, minute: state.minute };
+  }
+
+  /** DEC-05 · «Gracias, eso es todo» (o «Sólo miraba» en caja): cierra y se despide por la vía de diálogo; sin frase, cierra sin más. */
+  private storeFarewell(who: string, staff: StoreStaff | undefined): void {
+    const { menu, dialogue } = this.services;
+    const bye = line(sectionOfRole(staff?.role), 'farewell', { staffKey: staff?.role?.label ?? who, clock: this.storeClock() });
+    menu.close();
+    if (bye) dialogue.start(who, [bye]);
   }
 
   /** Segundo nivel: las preguntas de una categoría; la respuesta, debajo, y quien contesta se gira hacia donde indica. */
@@ -1159,9 +1186,12 @@ export class Menus {
         this.openStoreDesk(offer, who, staff, cat);
         return;
       }
-      const reply = answer(q, asker, { day: state.day, hour: state.hour, minute: state.minute }, this.priceHere());
+      const clock = { day: state.day, hour: state.hour, minute: state.minute };
+      const reply = answer(q, asker, clock, this.priceHere());
       if (reply.toward) staff?.face?.(reply.toward);
-      this.openStoreQueries(offer, who, staff, cat, reply.text, i);
+      // DEC-05 · la coletilla de la sección por la que se pregunta (probadores, natación…), si la tiene.
+      const tip = tipFor(q, asker.key, clock);
+      this.openStoreQueries(offer, who, staff, cat, tip ? `${reply.text} ${tip}` : reply.text, i);
     }, () => this.openStoreDesk(offer, who, staff, cat), note, selected);
   }
 
@@ -1173,7 +1203,9 @@ export class Menus {
       { label: 'Volver' },
     ], (i) => {
       const topic = offer.questions[i];
-      if (topic) this.openStoreAdvice(offer, who, staff, back, title, topic.answer, i);
+      // DEC-05 · el mismo consejo con otras palabras (data/sectionLines.ts); sin variantes, la respuesta de siempre.
+      const said = topic?.id ? line(sectionOfRole(staff?.role), 'advice', { staffKey: staff?.role?.label ?? who, ref: topic.id, clock: this.storeClock() }) : undefined;
+      if (topic) this.openStoreAdvice(offer, who, staff, back, title, said ?? topic.answer, i);
       else this.openStoreDesk(offer, who, staff, back);
     }, () => this.openStoreDesk(offer, who, staff, back), note, selected);
   }
@@ -1520,9 +1552,10 @@ export class Menus {
     const basket = store.basket ? linesOf(state.basket, storeId) : [];
     const pay = basket.length > 0;
     if (pay) options.unshift({ label: `Pagar la cesta (${basket.length} · ${euros(basketTotal(basket))})` });
-    menu.open(`${store.name} · ${who}`, `${store.greeting} Llevas ${euros(state.money)}.`, options, (pick) => {
+    menu.open(`${store.name} · ${who}`, `${this.till?.greeting ?? store.greeting} Llevas ${euros(state.money)}.`, options, (pick) => {
       if (pick === options.length - 1) {
-        menu.close();
+        if (this.till) this.storeFarewell(who, this.till);
+        else menu.close();
         return;
       }
       if (pay && pick === 0) {
