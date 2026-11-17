@@ -15,7 +15,7 @@ import { formatDate } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
-import { boardAt } from '../systems/Boards';
+import { boardAt, type Board } from '../systems/Boards';
 import { attend as attendGathering, getGathering, hhmm, joinBlocker, lastAttendance, occurrenceOn } from '../systems/Parish';
 import { getNpc } from '../data/npcs';
 import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
@@ -1346,6 +1346,8 @@ export class Menus {
       const extra: { label: string; run: (at: number) => void }[] = [];
       if (notice?.lines.length) extra.push({ label: 'Carteles', run: (at) => this.openBoardNotices(notice.name, notice.lines, () => this.openBoard(location, tx, ty, -1, at)) });
       if (notice?.stallDesk) extra.push({ label: 'Puesto en el Rastro', run: (at) => this.openStallBoard('', () => this.openBoard(location, tx, ty, -1, at)) });
+      const league = board.league;
+      if (league) extra.push({ label: league.name, run: (at) => this.openLeague(league, () => this.openBoard(location, tx, ty, -1, at)) });
       options.push(...extra.map((e) => ({ label: e.label })), { label: 'Cerrar' });
       menu.open(board.title, board.intro, options, (i) => {
         if (i < board.sections.length) this.openBoard(location, tx, ty, i);
@@ -1371,6 +1373,18 @@ export class Menus {
       if (more && i === 0) this.openBoardNotices(name, lines, back, page + 1);
       else back();
     }, back, lines.length > 1 ? `${page + 1} de ${lines.length}` : '', 0, false, `${name} · Carteles · ${page}`);
+  }
+
+  /** La liga del tablón (CA-05, sólo para mirarla), página a página; «Volver» o Esc regresan al índice. */
+  private openLeague(league: NonNullable<Board['league']>, back: () => void, page = 0): void {
+    const { pages, name } = league;
+    const more = page < pages.length - 1;
+    const options: MenuOption[] = [...(more ? [{ label: 'Siguiente' }] : []), { label: 'Volver' }];
+    // Una línea por fila: .menu__text respeta los saltos (white-space: pre-line).
+    this.services.menu.open(`${name} · ${pages[page].title}`, pages[page].lines.join('\n'), options, (i) => {
+      if (more && i === 0) this.openLeague(league, back, page + 1);
+      else back();
+    }, back, `${page + 1} de ${pages.length}`, 0, false, `${name} · ${page}`);
   }
 
   // ------------------------------------------------------------- ropa

@@ -4,6 +4,8 @@ import { STREET_ACTS } from '../data/streetActs.ts';
 import { ARENA_CLUB, ARENA_MATCHES } from '../data/cityEvents.ts';
 import { PITCHES } from '../data/futsal.ts';
 import { isOpen as pitchOpen } from './Futsal.ts';
+import { LEAGUES, type LeagueDef } from '../data/campoAltoLeague.ts';
+import { history, lastRound, nextFixtures, resultOf, seasonOf, standings, fixtures as leagueFixtures } from './League.ts';
 import { WEEK, WEEKDAY_LABEL, nightOwner, weekIndex } from './Calendar.ts';
 import { activePopUp, upcoming } from './PopUps.ts';
 import { matchNow, upcomingMatches } from './Match.ts';
@@ -46,6 +48,8 @@ export interface Board {
   title: string;
   intro: string;
   sections: BoardSection[];
+  /** La liga de vecinos del mapa (data/campoAltoLeague.ts, systems/League.ts), si la hay: sólo para mirarla. */
+  league?: { name: string; pages: { title: string; lines: string[] }[] };
 }
 
 type Ranked = BoardEntry & { order: number };
@@ -156,6 +160,23 @@ function eventEntries(location: string, districts: readonly string[], c: WorldCl
       out.push({ label: p.label, detail: `${dayWord(d, c.day)} ${hours}`, note, state: today ? 'today' : 'later', order: (d - c.day) * 1440 + (from - now) * 60 });
     }
   }
+  // La liga del barrio (CA-05): los partidos de los próximos siete días, con los mismos estados que las pistas.
+  const league = LEAGUES[location];
+  if (league) {
+    const nowAbs = (c.day - 1) * 1440 + c.hour * 60 + c.minute;
+    const s = seasonOf(league, c.day);
+    const prefix = prefixOf(districtAt(location));
+    for (const f of [...leagueFixtures(league, s), ...leagueFixtures(league, s + 1)]) {
+      if (f.day < c.day || f.day > c.day + 6) continue;
+      const label = `${f.home} – ${f.away}`;
+      const note = prefix + `${league.venue}. ${league.name}, jornada ${f.round + 1} de ${league.rounds.length}. Resultado en la clasificación.`;
+      const start = (f.day - 1) * 1440 + f.startMin;
+      const end = (f.day - 1) * 1440 + f.endMin;
+      if (nowAbs >= start && nowAbs < end) out.push({ label, detail: `ahora · hasta ${hh(f.endMin / 60)}`, note, state: 'active', order: -2 });
+      else if (nowAbs >= end) out.push({ label, detail: 'terminado', note, state: 'ended', order: 1e6 + 1 });
+      else out.push({ label, detail: `${dayWord(f.day, c.day)} ${hh(f.startMin / 60)}`, note, state: f.day === c.day ? 'today' : 'later', order: start - nowAbs });
+    }
+  }
   // Quien actúa ahora en la calle (música, baile, estatua): sólo mientras está. Los vendedores de manta no se anuncian.
   const weather = weatherAt(c.day, c.hour + c.minute / 60);
   for (const act of STREET_ACTS) {
@@ -166,6 +187,41 @@ function eventEntries(location: string, districts: readonly string[], c: WorldCl
 }
 
 const plain = ({ label, detail, note, state }: BoardEntry): BoardEntry => ({ label, detail, note, state });
+
+/** Las páginas de la liga en el tablón: jornada próxima o en curso, última jornada, clasificación y campeones. */
+function leaguePages(def: LeagueDef, c: WorldClock): NonNullable<Board['league']> {
+  const nowAbs = (c.day - 1) * 1440 + c.hour * 60 + c.minute;
+  const of = `de ${def.rounds.length}`;
+  const next = nextFixtures(def, nowAbs);
+  const when = (day: number): string => (day - c.day > 6 ? `dentro de ${day - c.day} días, el ${WEEKDAY_LABEL[WEEK[weekIndex(day)]]}` : dayWord(day, c.day));
+  const jornada = next.length
+    ? [
+        `Temporada ${next[0].season + 1}, jornada ${next[0].round + 1} ${of}: ${when(next[0].day)}, en la ${def.venue}.`,
+        ...next.map((f) => {
+          const r = resultOf(def, f, nowAbs);
+          const live = !r && nowAbs >= (f.day - 1) * 1440 + f.startMin;
+          return `${hh(f.startMin / 60)} ${f.home} – ${f.away}${r ? ` (${r.hg} – ${r.ag})` : live ? ' (en juego)' : ''}.`;
+        }),
+      ]
+    : [];
+  const last = lastRound(def, nowAbs);
+  const lastLines = last.length
+    ? [`Temporada ${last[0].fixture.season + 1}, jornada ${last[0].fixture.round + 1} ${of}.`, ...last.map(({ result: r }) => `${r.home} ${r.hg} – ${r.ag} ${r.away}.`)]
+    : ['Aún no se ha jugado ninguna jornada.'];
+  const s = seasonOf(def, c.day);
+  // Una fila por equipo; el paréntesis lleva espacios no separables ( ) para que no se parta al ajustar.
+  const table = standings(def, s, nowAbs).map((r, i) => `${i + 1}. ${r.team} — ${r.pts} ${r.pts === 1 ? 'pt' : 'pts'} (${r.pj} PJ, ${r.v}-${r.e}-${r.d}, ${r.gf}-${r.gc})`);
+  const champs = history(def, nowAbs).map((h) => `Temporada ${h.season + 1}: ${h.champion}.`);
+  return {
+    name: def.name,
+    pages: [
+      { title: 'Jornada', lines: [...jornada, 'Liga de vecinos: se mira desde la banda; no hay inscripciones abiertas.'] },
+      { title: 'Última jornada', lines: lastLines },
+      { title: 'Clasificación', lines: [`Temporada ${s + 1}.`, ...table] },
+      { title: 'Campeones', lines: champs.length ? champs : ['Aún no hay campeones.'] },
+    ],
+  };
+}
 
 /** El tablón que está en ese tile, a esa hora. Puro: misma hora, mismo tablón. */
 export function boardAt(location: string, tx: number, ty: number, c: WorldClock): Board {
@@ -197,5 +253,6 @@ export function boardAt(location: string, tx: number, ty: number, c: WorldClock)
     title: `Tablón · ${here}`,
     intro: `${open === 1 ? 'Un local abierto' : `${open} locales abiertos`} ahora.${events.length ? '' : ' Sin eventos esta semana.'}`,
     sections,
+    ...(LEAGUES[location] ? { league: leaguePages(LEAGUES[location], c) } : {}),
   };
 }

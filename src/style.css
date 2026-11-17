@@ -345,6 +345,8 @@ body.has-touch .hud__key {
   margin-top: 8px !important;
   font-size: 14px;
   line-height: 1.45;
+  /* CA-05: las páginas de la liga van una línea por fila ('\n'); el resto de textos no trae saltos. */
+  white-space: pre-line;
 }
 
 .menu__list {
