@@ -165,7 +165,7 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   'res-noble': { roof: PALETTE.roofB, roofLit: PALETTE.roofBLit, wall: '#dccfb4', shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood' },
   // Casco Antiguo (CAS-08): revoco viejo de ocre (cal teñida con el ámbar), balcones de forja y portal de madera. Cada
   // casa lleva su tono (BuildingDef.tone, o su semilla): almagre, ocre, crema lavado o rosa viejo (WALL_TONES).
-  'res-historic': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: mix(PALETTE.wallLit, PALETTE.amberDim, 0.45), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood', mat: 'stucco', toneEach: true },
+  'res-historic': { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: mix(PALETTE.wall, PALETTE.amber, 0.5), shop: 'windows', upper: 'balcony', lit: PALETTE.amber, door: 'wood', mat: 'stucco', toneEach: true },
   // Puerta Central. Recuerdos: revoco amarillo de toda la vida, toldo rojo y gualda, el escaparate lleno y la banderita.
   // Distrito Arena. El estadio: hormigón claro, las puertas son persianas metálicas (los tornos están delante), banda
   // de cristal arriba y carteles del partido en los paños ciegos. Desde arriba, la grada y el césped (drawStadiumBowl).
@@ -1836,8 +1836,9 @@ const WALL_TONES: Partial<Record<BuildingStyle, readonly [string, string, ...str
   'res-plaster': ['#d9a98a', '#d4cdb8'],
   backdrop: ['#bfa57f', '#d2c3a6'],
   // Tono 0 almagre (revoco con tierra roja), 1 el ocre del estilo, 2 crema lavado por el sol, 3 rosa viejo; de la paleta.
+  // El almagre, casi ladrillo (#b76e54), y el ocre, dorado (#ddb178): en la franja de planta baja se leen distintos.
   'res-historic': [
-    mix(PALETTE.wall, PALETTE.brick, 0.6),
+    mix(PALETTE.brickLit, PALETTE.wall, 0.12),
     shade(mix(PALETTE.wallLit, PALETTE.white, 0.45), 0.02),
     mix(PALETTE.wallLit, PALETTE.rug, 0.4),
   ],

@@ -315,6 +315,13 @@ export const STORES: readonly RetailStoreDef[] = [
   },
 ];
 
+/** ECO-01 · etiqueta corta de lo que se recompra con tique (la bolsa): el primer prefijo que encaja. */
+export const RESALE_KINDS: readonly (readonly [prefix: string, label: string])[] = [
+  ['rastro-vinyl', 'disco'],
+  ['rastro-book', 'libro'],
+  ['rastro-', 'coleccionable'],
+];
+
 const GARMENT_BY_ID = new Map(GARMENTS.map((g) => [g.id, g]));
 const STORE_BY_ID = new Map(STORES.map((s) => [s.id, s]));
 

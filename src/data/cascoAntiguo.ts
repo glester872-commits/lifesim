@@ -11,7 +11,7 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement, Stall
  *   y 16–23 la Plaza del Mercado: losa, bancos, mesas de terraza y pocos árboles
  *   y 24–25 acera sur
  *   y 26–33 los bajos del sur: viviendas, cortados por el Pasaje del Mercado (x 17–18) y el Callejón de las Cestas (x 44–45)
- *   y 34–35 la Calle del Rastro: peatonal, sin calzada
+ *   y 34–35 la Calle del Rastro: peatonal, sin calzada; en x 19–23 de la fila 34, el Rincón del Rastro (banco y macetas)
  *   y 36–43 los bajos del Rastro: viviendas, unas antigüedades y una churrería
  *
  * Los locales con puerta son la frutería y la Taberna La Lonja (data/cascoAntiguoVenues.ts); las demás fachadas, sin `enter`.
@@ -67,16 +67,17 @@ const BUILDINGS: readonly BuildingDef[] = [
   // CAS-06: la taberna de tapas, con interior (data/cascoAntiguoVenues.ts); la puerta en x 35, fuera del Pasaje y de las columnas 19–23.
   b('cas-cafe', 'Taberna La Lonja', 'cafe', [33, 2, 5, 7], 's', 35, { enter: { location: 'cas-taberna', spawn: 'entry' }, point: 'CAS_TABERNA_ENTRANCE' }),
   b('cas-metro', 'Metro · Casco Antiguo', 'metro', [38, 5, 5, 4], 's', 40, { enter: { location: 'casco-antiguo-station', spawn: 'entry' }, point: 'CAS_METRO_ENTRANCE' }),
-  b('cas-res-4', 'Calle Mayor 1', 'res-plaster', [0, 26, 6, 8], 'n', 3),
+  // CAS-08b: cuatro casas viejas de la acera sur, también 'res-historic', con tonos que no se repiten al lado.
+  b('cas-res-4', 'Calle Mayor 1', 'res-historic', [0, 26, 6, 8], 'n', 3, { tone: 2 }),
   b('cas-res-5', 'Calle Mayor 5', 'res-brick', [6, 26, 6, 8], 'n', 9),
   b('cas-res-6', 'Calle Mayor 9', 'res-modern', [12, 26, 5, 8], 'n', 14),
   b('cas-res-7', 'Calle Mayor 13', 'res-brick', [19, 26, 4, 8], 'n', 20),
-  b('cas-res-8', 'Calle Mayor 17', 'res-plaster', [23, 26, 5, 8], 'n', 25),
+  b('cas-res-8', 'Calle Mayor 17', 'res-historic', [23, 26, 5, 8], 'n', 25, { tone: 0 }),
   b('cas-res-9', 'Calle Mayor 21', 'res-modern', [28, 26, 6, 8], 'n', 31),
   b('cas-res-10', 'Calle Mayor 25', 'res-brick', [34, 26, 5, 8], 'n', 36),
-  b('cas-res-11', 'Calle Mayor 29', 'res-plaster', [39, 26, 5, 8], 'n', 41),
+  b('cas-res-11', 'Calle Mayor 29', 'res-historic', [39, 26, 5, 8], 'n', 41, { tone: 3 }),
   b('cas-res-12', 'Calle Mayor 20', 'res-historic', [45, 2, 6, 7], 's', 47, { tone: 3 }),
-  b('cas-res-13', 'Calle Mayor 33', 'res-plaster', [46, 26, 6, 8], 'n', 48),
+  b('cas-res-13', 'Calle Mayor 33', 'res-historic', [46, 26, 6, 8], 'n', 48, { tone: 1 }),
   // Los bajos del Rastro, de espaldas al borde sur.
   b('cas-rastro-1', 'Calle del Rastro 1', 'res-brick', [0, 36, 6, 8], 'n', 3),
   b('cas-rastro-2', 'Calle del Rastro 3', 'res-plaster', [6, 36, 5, 8], 'n', 8),
@@ -93,7 +94,7 @@ const BUILDINGS: readonly BuildingDef[] = [
 const at = (kind: PropKind, tx: number, ty: number): PropPlacement => ({ kind, tx, ty });
 const many = (kind: PropKind, cells: readonly (readonly [number, number])[]): PropPlacement[] => cells.map(([x, y]) => at(kind, x, y));
 
-// Las columnas 19–23 (paso de cebra y bajada por la plaza) quedan sin props: por ahí pasa el carrito de limpieza.
+// Las columnas 19–23 (paso de cebra y bajada por la plaza, filas 9–25) quedan sin props: por ahí pasa el carrito de limpieza.
 const PROPS: readonly PropPlacement[] = [
   // Delante de la boca de metro: el plano del barrio. El tablón, en la acera central, fuera del paso.
   at('metro-totem', 43, 9),
@@ -113,6 +114,9 @@ const PROPS: readonly PropPlacement[] = [
   ...many('chair-up', [[32, 19], [36, 19]]),
   // La Calle del Rastro: dos farolas en el lado norte, fuera del Pasaje y del Callejón.
   ...many('street-lamp', [[15, 34], [42, 34]]),
+  // CAS-08b: el Rincón del Rastro, en el hueco x 19–23 de la fila 34, entre el Pasaje y el ancla (24,34); la fila 35
+  // queda de paso. La maceta mide 2 tiles (world/tiles.ts): 19–20, banco 21, 22–23.
+  at('planter-box', 19, 34), at('bench', 21, 34), at('planter-box', 22, 34),
   // CAS-08: la placa de la Calle Mayor, en su esquina oeste, delante de Calle Mayor 2 (su puerta, x 2; los nodos, en la fila 10).
   at('street-sign', 0, 9),
 ];
@@ -249,6 +253,8 @@ export const CASCO_ANTIGUO: LocationDef = {
     { tx: 0, ty: 9, name: 'Placa de calle', lines: ['Azulejo de la esquina: «Calle Mayor». Debajo, más pequeño: «antes, de los Cesteros».', 'Un rótulo de 1868, de los que pintaron a mano cuando la calle se empedró.'] },
     { tx: 4, ty: 17, name: 'El árbol del mercado', lines: ['Dicen que este olmo ya daba sombra a los puestos cuando el mercado era de lona y carro.', 'Cuando reformaron la plaza, lo dejaron en su sitio y movieron el banco.'] },
     { tx: 16, ty: 25, name: 'Farol de gas', lines: ['Una de las pocas farolas que quedan del alumbrado de gas, ya con bombilla.', 'Alguien le ha pintado el número a mano: 7.'] },
+    // CAS-08b: sobre la maceta oeste del rincón (19–20), mirándola desde (20,35).
+    { tx: 20, ty: 34, name: 'Rincón del Rastro', lines: ['Un banco y dos macetas donde los feriantes de domingo dejan las cajas.', 'Dicen que aquí se pesaba el pan de los Cesteros, cuando la calle aún no tenía nombre.'] },
   ],
   terminals: [
     { tx: 26, ty: 14, name: 'Máquina de bebidas', catalog: 'vending' },

@@ -138,10 +138,12 @@ export type ItemSale =
  * CAS-05 · vender un objeto de la bolsa con tique. Sale una unidad y su tique
  * más antiguo (FIFO); se paga resaleValue de ese tique. Pura: quien llama aplica.
  */
-export function sellItem(w: Wallet, paidItems: Record<string, number[]>, storeId: string, itemId: string): ItemSale {
+export function sellItem(w: Wallet, paidItems: Record<string, number[]>, storeId: string, itemId: string, reserved = 0): ItemSale {
   if (!buysItem(storeId, itemId)) return { ok: false, message: 'Aquí no compran eso.' };
   const have = w.inventory[itemId] ?? 0;
   if (have < 1) return { ok: false, message: 'No lo llevas.' };
+  // ECO-01 · CAS-09 no aparta lo listado en tu puesto: la tienda deja al menos tantas unidades como listados.
+  if (have - reserved < 1) return { ok: false, message: 'Está en tu puesto del Rastro: retíralo primero.' };
   const tiques = paidItems[itemId] ?? [];
   const amount = resaleValue(tiques[0]);
   if (amount <= 0) return { ok: false, message: 'Sin tique no lo quieren.' };
@@ -157,4 +159,15 @@ export function sellItem(w: Wallet, paidItems: Record<string, number[]>, storeId
     paidItems: left,
     amount,
   };
+}
+
+/**
+ * ECO-01 · Quién compraría este objeto y por cuánto: la primera tienda con `buysItems` que lo acepta, con el tique
+ * más antiguo (el que consumiría sellItem) y el mismo importe. Sin comprador, undefined; sin tique, amount 0.
+ */
+export function resaleOffer(itemId: string, paidItems: Readonly<Record<string, readonly number[]>>): { store: string; storeId: string; paid?: number; amount: number } | undefined {
+  const store = STORES.find((s) => s.buysItems && buysItem(s.id, itemId));
+  if (!store) return undefined;
+  const paid = paidItems[itemId]?.[0];
+  return { store: store.name, storeId: store.id, ...(paid === undefined ? {} : { paid }), amount: resaleValue(paid) };
 }

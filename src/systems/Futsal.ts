@@ -112,10 +112,13 @@ export class PenaltySession {
   private keeperAt = 0;
   private readonly g: Geometry;
   private readonly rng: () => number;
+  /** Tiros de la sesión: la tanda del sábado (FUTSAL.shots) o un partido de liga (systems/League MATCH_SHOTS). */
+  readonly shots: number;
 
-  constructor(geometry: Geometry, rng: () => number) {
+  constructor(geometry: Geometry, rng: () => number, shots: number = FUTSAL.shots) {
     this.g = geometry;
     this.rng = rng;
+    this.shots = shots;
   }
 
   /** Cada frame: `aim` es arriba (−1), abajo (1) o nada; `down`, si se está pulsando el botón de chutar. */
@@ -158,7 +161,7 @@ export class PenaltySession {
       }
       if (this.t >= this.flightMs + FUTSAL.settleMs) {
         this.power = 0;
-        if (this.taken >= FUTSAL.shots) {
+        if (this.taken >= this.shots) {
           this.phase = 'done';
           out.push({ type: 'over' });
         } else {

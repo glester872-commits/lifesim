@@ -13,6 +13,7 @@ import { recordMovement, type HouseholdState, type Movement, type MovementType }
 import { emptyCredit, pendingEntry, type CreditResult, type CreditState } from '../systems/Credit';
 import type { RastroLedger } from '../systems/Rastro';
 import { settle as settleStall, type PlayerStallState } from '../systems/PlayerStall';
+import type { LeagueState } from '../systems/League';
 import { emptyStudy, type StudyState } from '../systems/Study';
 import { emptyParish, type ParishState } from '../systems/Parish';
 import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
@@ -137,6 +138,8 @@ export class GameState extends Phaser.Events.EventEmitter {
   private _paidItems: Record<string, number[]>;
   /** CAS-09 · tu puesto en el Gran Rastro (systems/PlayerStall). Sin reserva, undefined. */
   private _playerStall: PlayerStallState | undefined;
+  /** CA-05b · tu equipo en la liga del barrio (systems/League). Sin inscripción, undefined. */
+  private _league: LeagueState | undefined;
 
   /** Habilidades, curso, encargo y desbloqueos (systems/Study). */
   private _study: StudyState;
@@ -254,6 +257,7 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._rastro = initial.rastro === undefined ? undefined : structuredClone(initial.rastro);
     this._paidItems = structuredClone(initial.paidItems ?? {});
     this._playerStall = initial.playerStall === undefined ? undefined : structuredClone(initial.playerStall);
+    this._league = initial.league === undefined ? undefined : structuredClone(initial.league);
 
     this._study = structuredClone(initial.study ?? emptyStudy());
 
@@ -616,6 +620,14 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._playerStall = s === undefined ? undefined : structuredClone(s);
   }
 
+  get league(): LeagueState | undefined {
+    return this._league === undefined ? undefined : structuredClone(this._league);
+  }
+
+  set league(l: LeagueState | undefined) {
+    this._league = l === undefined ? undefined : structuredClone(l);
+  }
+
   /**
    * CAS-09 · aplica una transición de systems/PlayerStall: el dinero (si lo hay) con su línea e id fijo y el puesto
    * nuevo, juntos. Quien llama guarda justo después.
@@ -940,6 +952,7 @@ export class GameState extends Phaser.Events.EventEmitter {
       ...(this._rastro === undefined ? {} : { rastro: structuredClone(this._rastro) }),
       ...(Object.keys(this._paidItems).length === 0 ? {} : { paidItems: structuredClone(this._paidItems) }),
       ...(this._playerStall === undefined ? {} : { playerStall: structuredClone(this._playerStall) }),
+      ...(this._league === undefined ? {} : { league: structuredClone(this._league) }),
 
       study: structuredClone(this._study),
 

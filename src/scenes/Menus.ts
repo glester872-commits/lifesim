@@ -1,4 +1,4 @@
-import { getLocation } from '../systems/LocationSystem';
+import { allLocations, getLocation } from '../systems/LocationSystem';
 import type { Services } from '../services';
 import { getCatalog, type Catalog, type Product } from '../data/catalogs';
 import { garmentIcon, itemIcon } from '../ui/ItemIcons';
@@ -15,7 +15,7 @@ import { formatDate } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
-import { boardAt } from '../systems/Boards';
+import { boardAt, type Board } from '../systems/Boards';
 import { attend as attendGathering, getGathering, hhmm, joinBlocker, lastAttendance, occurrenceOn } from '../systems/Parish';
 import { getNpc } from '../data/npcs';
 import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
@@ -26,13 +26,14 @@ import { dyeHair, haircut, haircutQuote, reworkTattoo, sleeveOf, tattoo, tattooA
 import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
 import type { HumanColors } from '../world/HumanArt';
-import { buyGarment, buysItem, resaleValue, sellGarment, sellItem, stockOf, takeOff, wear } from '../systems/Retail';
+import { buyGarment, buysItem, resaleOffer, resaleValue, sellGarment, sellItem, stockOf, takeOff, wear } from '../systems/Retail';
 import { priceFactor, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
-import { CATEGORIES, getGarment, getStore } from '../data/retail';
+import { CATEGORIES, getGarment, getStore, RESALE_KINDS } from '../data/retail';
 import { agreedPrice, haggle, HAGGLE_OFFERS, markHaggled, markSold, MOOD_BY_VENDOR, rareStatus } from '../systems/Rastro';
 import * as PlayerStall from '../systems/PlayerStall';
 import { PLAYER_STALL } from '../data/playerStall';
+import { LEAGUES, type LeagueDef } from '../data/campoAltoLeague';
 
 /** Un puesto que atiende a ratos; `rastro`, la clave de su catálogo o tienda en el Gran Rastro (CAS-04). */
 type Stall = { closed: () => string | null; rastro?: string };
@@ -346,15 +347,26 @@ export class Menus {
     const { state, menu } = this.services;
     const wallet = state.wallet;
     const ids = Object.keys(wallet.inventory);
+    // ECO-01 · quién recompra lo de segunda mano (la primera tienda con oferta), con el barrio al que sale su local.
+    const buyer = ids.map((id) => resaleOffer(id, state.paidItems)).find((o) => o !== undefined);
     const options: MenuOption[] = ids.map((id) => {
       const item = getItem(id);
-      return { label: `${item.name} ×${wallet.inventory[id]}`, detail: item.energy ? `+${item.energy} ⚡` : '' };
+      // ECO-01 · si alguna tienda lo recompra (RetailStoreDef.buysItems): lo pagado → lo que dan (systems/Retail.resaleOffer).
+      const offer = resaleOffer(id, state.paidItems);
+      const kind = offer && RESALE_KINDS.find(([prefix]) => id.startsWith(prefix))?.[1];
+      const resale = !offer ? '' : offer.amount > 0 ? `${euros(offer.paid!)} → ${euros(offer.amount)}`
+        : offer.paid === undefined ? 'sin tique' : `${euros(offer.paid)} → no lo compran`;
+      const detail = [item.energy ? `+${item.energy} ⚡` : '', kind ?? '', resale].filter(Boolean).join(' · ');
+      return { label: `${item.name} ×${wallet.inventory[id]}`, detail };
     });
     for (const [card, balance] of Object.entries(wallet.cards)) {
       options.push({ label: getItem(card).name, detail: `saldo ${euros(balance)}`, disabled: 'Se usa sola al subir al tren.' });
     }
     options.push({ label: 'Cerrar' });
-    const text = options.length === 1 ? 'No llevas nada encima.' : 'Lo que llevas encima.';
+    const shop = buyer && allLocations().find((l) => l.racks?.some((r) => r.store === buyer.storeId));
+    const street = shop?.portals.find((p) => !p.train)?.to.location;
+    const resold = buyer ? ` Lo de segunda mano lo recompra ${buyer.store}${street ? ` (${getLocation(street).name})` : ''}, con tique.` : '';
+    const text = options.length === 1 ? 'No llevas nada encima.' : `Lo que llevas encima.${resold}`;
     menu.open('Bolsa', text, options, (i) => {
       if (i >= ids.length) {
         menu.close();
@@ -1332,7 +1344,7 @@ export class Menus {
    */
   openBoard(location: string, tx: number, ty: number, section = -1, selected = 0, note = ''): void {
     const { state, menu } = this.services;
-    const board = boardAt(location, tx, ty, state);
+    const board = boardAt(location, tx, ty, state, state.league);
     const page = board.sections[section];
     if (!page) {
       const options: MenuOption[] = board.sections.map((s) => {
@@ -1346,6 +1358,11 @@ export class Menus {
       const extra: { label: string; run: (at: number) => void }[] = [];
       if (notice?.lines.length) extra.push({ label: 'Carteles', run: (at) => this.openBoardNotices(notice.name, notice.lines, () => this.openBoard(location, tx, ty, -1, at)) });
       if (notice?.stallDesk) extra.push({ label: 'Puesto en el Rastro', run: (at) => this.openStallBoard('', () => this.openBoard(location, tx, ty, -1, at)) });
+      const league = board.league;
+      if (league) extra.push({ label: league.name, run: (at) => this.openLeague(league, () => this.openBoard(location, tx, ty, -1, at)) });
+      // CA-05b · apuntarse (no hay baja): sólo si este tablón tiene liga y aún no estás en ningún equipo.
+      const leagueDef = LEAGUES[location];
+      if (leagueDef && !state.league) extra.push({ label: 'Apuntarse a la liga', run: (at) => this.openLeagueSignup(leagueDef, () => this.openBoard(location, tx, ty, -1, at)) });
       options.push(...extra.map((e) => ({ label: e.label })), { label: 'Cerrar' });
       menu.open(board.title, board.intro, options, (i) => {
         if (i < board.sections.length) this.openBoard(location, tx, ty, i);
@@ -1371,6 +1388,34 @@ export class Menus {
       if (more && i === 0) this.openBoardNotices(name, lines, back, page + 1);
       else back();
     }, back, lines.length > 1 ? `${page + 1} de ${lines.length}` : '', 0, false, `${name} · Carteles · ${page}`);
+  }
+
+  /** Elegir equipo de la liga (CA-05b): queda guardado y no hay baja. «Volver» o Esc regresan sin apuntarse. */
+  private openLeagueSignup(def: LeagueDef, back: () => void): void {
+    const { state, menu } = this.services;
+    const options: MenuOption[] = [...def.teams.map((t) => ({ label: t })), { label: 'Volver' }];
+    menu.open(`${def.name} · Apuntarse`, `Elige equipo. Juegas tú sus tiros en la ${def.venue}, a la hora de cada partido. No hay baja.`, options, (i) => {
+      const team = def.teams[i];
+      if (!team) {
+        back();
+        return;
+      }
+      state.league = { team, played: {} };
+      this.host.persist();
+      back();
+    }, back);
+  }
+
+  /** La liga del tablón (CA-05), página a página; «Volver» o Esc regresan al índice. */
+  private openLeague(league: NonNullable<Board['league']>, back: () => void, page = 0): void {
+    const { pages, name } = league;
+    const more = page < pages.length - 1;
+    const options: MenuOption[] = [...(more ? [{ label: 'Siguiente' }] : []), { label: 'Volver' }];
+    // Una línea por fila: .menu__text respeta los saltos (white-space: pre-line).
+    this.services.menu.open(`${name} · ${pages[page].title}`, pages[page].lines.join('\n'), options, (i) => {
+      if (more && i === 0) this.openLeague(league, back, page + 1);
+      else back();
+    }, back, `${page + 1} de ${pages.length}`, 0, false, `${name} · ${page}`);
   }
 
   // ------------------------------------------------------------- ropa
@@ -1500,11 +1545,13 @@ export class Menus {
   /** Vender objetos con tique (RetailStoreDef.buysItems): cada uno con lo que te dan por el tique más antiguo. */
   private openSellItems(storeId: string, who: string, minutes: number, note = '', selected = 0): void {
     const { state, menu } = this.services;
+    this.settleStall();
     const ids = this.sellableItems(storeId);
     const tiques = state.paidItems;
     const options: MenuOption[] = ids.map((id) => {
       const name = getItem(id).name;
       const amount = resaleValue(tiques[id]?.[0]);
+      if ((state.wallet.inventory[id] ?? 0) - this.stallReserved(id) < 1) return { label: name, disabled: 'Está en tu puesto del Rastro: retíralo primero.', icon: itemIcon(id) };
       return amount > 0 ? { label: name, detail: `te dan ${euros(amount)}`, icon: itemIcon(id) } : { label: name, disabled: 'Sin tique no lo quieren.', icon: itemIcon(id) };
     });
     options.push({ label: 'Volver' });
@@ -1529,7 +1576,7 @@ export class Menus {
         back();
         return;
       }
-      const result = sellItem(state.wallet, state.paidItems, storeId, itemId);
+      const result = sellItem(state.wallet, state.paidItems, storeId, itemId, this.stallReserved(itemId));
       if (!result.ok) {
         back(result.message);
         return;
@@ -1549,6 +1596,12 @@ export class Menus {
   private stallClock(): { day: number; hour: number; minute: number } {
     const { day, hour, minute } = this.services.state;
     return { day, hour, minute };
+  }
+
+  /** ECO-01 · unidades de ese objeto listadas en tu puesto vigente (settle vacía las de uno cerrado). */
+  private stallReserved(itemId: string): number {
+    const stall = this.services.state.playerStall;
+    return stall && !stall.closed ? stall.listings.filter((l) => l.itemId === itemId).length : 0;
   }
 
   /** Cierra el puesto si ya toca (y abona el reembolso) antes de enseñar nada. */

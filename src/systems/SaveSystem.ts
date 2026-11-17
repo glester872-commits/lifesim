@@ -20,6 +20,7 @@ import { parseHousehold, parseLedger, startHousehold } from './Household.ts';
 import { emptyCredit, parseCredit } from './Credit.ts';
 import { parseRastro } from './Rastro.ts';
 import { parsePlayerStall } from './PlayerStall.ts';
+import { parseLeague } from './League.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
@@ -402,6 +403,7 @@ function parseState(value: unknown): GameStateData | null {
     ...(s.paidItems === undefined ? {} : { paidItems: parsePaidItems(s.paidItems) }),
     // CAS-09 · sin puesto (partida anterior o dañado) carga sin la clave: sin reserva.
     ...((stall) => (stall ? { playerStall: stall } : {}))(parsePlayerStall(s.playerStall)),
+    ...((l) => (l ? { league: l } : {}))(parseLeague(s.league)),
     // Una partida anterior a los estudios carga sin curso ni habilidades.
     study: parseStudy(s.study),
     // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.
