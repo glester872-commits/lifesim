@@ -19,8 +19,14 @@ hueco) y portal de madera. `BuildingDef.tone` es opcional y fija el tono por dat
 | cas-res-2 | Calle Mayor 8 | 1 | ocre |
 | cas-res-3 | Calle Mayor 16 | 2 | crema lavado |
 | cas-res-12 | Calle Mayor 20 | 3 | rosa viejo |
+| cas-res-4 | Calle Mayor 1 | 2 | crema lavado |
+| cas-res-8 | Calle Mayor 17 | 0 | almagre |
+| cas-res-11 | Calle Mayor 29 | 3 | rosa viejo |
+| cas-res-13 | Calle Mayor 33 | 1 | ocre |
 
-Son las cuatro fachadas norte de la Calle Mayor; conservan huellas, puertas y `points`.
+Las cuatro primeras son las fachadas norte de la Calle Mayor (`front: 's'`); las cuatro últimas (CAS-08b), casas de
+la acera sur (`front: 'n'`), que pintan su franja de calle con el muro y el material del estilo. Todas conservan
+huellas, puertas y `points`; dos casas pegadas de la misma acera no repiten tono.
 
 ## Calle del Rastro
 
@@ -36,12 +42,14 @@ Las filas 34–35 pasan de acera a adoquín `'P'` con cenefa de granito. Los pue
 | (0,9) | Placa de calle | street-sign en la esquina oeste, delante de Calle Mayor 2 y fuera de su puerta: azulejo «Calle Mayor», antes «de los Cesteros», rótulo de 1868 |
 | (4,17) | El árbol del mercado | árbol de la plaza |
 | (16,25) | Farol de gas | farola de la acera sur |
+| (20,34) | Rincón del Rastro | CAS-08b: maceta oeste del rincón de la Calle del Rastro (maceta 19–20, banco 21, maceta 22–23, fila 34); se mira desde (20,35); la fila 35 queda de paso |
 
 ## El check
 
 - `res-historic` sólo aparece en Casco.
-- Las 4 fachadas conservan `rect`/`doorX`/`front` y tienen tonos distintos.
-- Los 3 inspects no caen en anclas del Rastro, puertas ni `points`, y tienen casilla pisable al lado.
+- Las 8 fachadas conservan `rect`/`doorX`/`front`; las 4 del norte, tonos distintos; ninguna pareja adyacente repite tono.
+- El rincón: 1 banco y 2 macetas en la fila 34 (x 19–23) y ningún prop en la fila 35.
+- Los 4 inspects no caen en anclas del Rastro, puertas ni `points`, y tienen casilla pisable al lado.
 - La placa está delante de una vivienda y no en su puerta.
 - Filas 34–35 adoquinadas.
 
@@ -57,9 +65,7 @@ salían con el mismo tono; se corrigió en el segundo ciclo.
 ## Fuera (por prioridad)
 
 1. Más contraste entre Calle Mayor 2 y 8 (ajuste de `WALL_TONES`, sin tocar datos) y recaptura de Calle Mayor 20.
-2. Plazuela secundaria (segunda/tercera microzona).
-3. Fachada histórica en las casas del sur: con `front: 'n'` sólo se pinta la trasera; es un cambio mayor en
-   `BuildingArt`/`ResidentialArt`.
-4. Prueba en móvil real.
-5. Check que detecte letreros sobre escaparates.
-6. Azulejo de calle como prop de pared propio y adoquín en los pasajes.
+2. Balcones y rejas HD en las casas que miran al norte (`hdFacade` sólo se aplica a `front: 's'`).
+3. Prueba en móvil real.
+4. Check que detecte letreros sobre escaparates.
+5. Azulejo de calle como prop de pared propio y adoquín en los pasajes.

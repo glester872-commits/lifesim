@@ -1,7 +1,8 @@
 // CAS-08 · el Casco Antiguo con cara de casco: `npm run check`. Falla si el estilo 'res-historic' sale de su barrio, si
-// las cuatro casas viejas de la Calle Mayor cambian de sitio, puerta o fachada, si faltan los tres rincones con historia
-// (placa, árbol del mercado y farol de gas) o caen en un puesto del Gran Rastro, una puerta o un point, o se quedan sin
-// sitio pisable al lado, o si la Calle del Rastro deja de ser adoquín. Que los puestos no corten el paso lo vigila
+// las ocho casas viejas de la Calle Mayor (cuatro por acera) cambian de sitio, puerta o fachada, si faltan los cuatro
+// rincones con historia (placa, árbol del mercado, farol de gas y Rincón del Rastro) o caen en un puesto del Gran Rastro,
+// una puerta o un point, o se quedan sin sitio pisable al lado, o si la Calle del Rastro deja de ser adoquín o se llena
+// su fila de paso. Que los puestos no corten el paso lo vigila
 // scripts/check-gran-rastro-bloqueo.ts, que recorre el barrio entero (ya con la placa nueva).
 import assert from 'node:assert/strict';
 import { POPUPS } from '../src/data/popups.ts';
@@ -18,23 +19,41 @@ for (const l of allLocations()) {
   for (const b of l.buildings ?? []) if (b.style === 'res-historic') assert.equal(l.id, ID, `${b.id} es 'res-historic' fuera del Casco Antiguo (${l.id})`);
 }
 
-// 2) Las cuatro fachadas de la acera norte: mismo sitio, misma puerta, mirando a la calle.
-const FACADES: Record<string, readonly [number, number, number, number, number]> = {
+// 2) Las fachadas 'res-historic': mismo sitio, misma puerta y mirando a su calle. NORTE, las cuatro de la acera norte
+// (front 's', cuatro tonos distintos); SUR, las cuatro de la acera sur (CAS-08b, front 'n').
+type Facade = readonly [number, number, number, number, number];
+const NORTE: Record<string, Facade> = {
   'cas-res-1': [0, 2, 6, 7, 2],
   'cas-res-2': [11, 2, 5, 7, 13],
   'cas-res-3': [27, 2, 6, 7, 29],
   'cas-res-12': [45, 2, 6, 7, 47],
 };
-for (const [id, [tx, ty, w, h, doorX]] of Object.entries(FACADES)) {
-  const b = (loc.buildings ?? []).find((x) => x.id === id);
-  assert.ok(b, `falta ${id}`);
-  assert.equal(b.style, 'res-historic', `${id} no es 'res-historic'`);
-  assert.deepEqual([b.tx, b.ty, b.w, b.h, b.doorX, b.front], [tx, ty, w, h, doorX, 's'], `${id} cambió de rect, puerta o fachada`);
+const SUR: Record<string, Facade> = {
+  'cas-res-4': [0, 26, 6, 8, 3],
+  'cas-res-8': [23, 26, 5, 8, 25],
+  'cas-res-11': [39, 26, 5, 8, 41],
+  'cas-res-13': [46, 26, 6, 8, 48],
+};
+const facades = (set: Record<string, Facade>, side: 's' | 'n'): (number | undefined)[] =>
+  Object.entries(set).map(([id, [tx, ty, w, h, doorX]]) => {
+    const b = (loc.buildings ?? []).find((x) => x.id === id);
+    assert.ok(b, `falta ${id}`);
+    assert.equal(b.style, 'res-historic', `${id} no es 'res-historic'`);
+    assert.deepEqual([b.tx, b.ty, b.w, b.h, b.doorX, b.front], [tx, ty, w, h, doorX, side], `${id} cambió de rect, puerta o fachada`);
+    assert.ok(b.tone !== undefined, `${id} 'res-historic' sin tono`);
+    return b.tone;
+  });
+// Las del norte, cada una con su revoco: cuatro tonos fijos y distintos.
+const tones = facades(NORTE, 's');
+assert.equal(new Set(tones).size, tones.length, `fachadas 'res-historic' del norte con el mismo tono: ${tones.join(',')}`);
+facades(SUR, 'n');
+// Dos casas 'res-historic' pegadas en la misma acera no comparten tono.
+const hist = (loc.buildings ?? []).filter((x) => x.style === 'res-historic');
+for (const a of hist) {
+  for (const c of hist) {
+    if (a.front === c.front && a.ty === c.ty && a.tx + a.w === c.tx) assert.notEqual(a.tone, c.tone, `${a.id} y ${c.id}, adyacentes, con el mismo tono`);
+  }
 }
-// Cada una con su revoco: cuatro tonos fijos y distintos.
-const tones = Object.keys(FACADES).map((id) => (loc.buildings ?? []).find((x) => x.id === id)?.tone);
-assert.ok(tones.every((t) => t !== undefined), `alguna fachada 'res-historic' sin tono: ${tones.join(',')}`);
-assert.equal(new Set(tones).size, tones.length, `fachadas 'res-historic' con el mismo tono: ${tones.join(',')}`);
 
 // El letrero de la calle, delante de una vivienda (ni escaparates ni rótulos de local).
 // (La del inspect: systems/Dressing pone otras junto a los bolardos.)
@@ -69,7 +88,8 @@ for (const a of loc.stallAnchors ?? []) for (let dx = 0; dx < STALL_TILES; dx++)
 const doors = new Set((loc.buildings ?? []).map((b) => key(b.doorX, doorRow(b))));
 const points = new Set(Object.values(loc.points ?? {}).map((p) => key(p.tx, p.ty)));
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
-for (const name of ['Placa de calle', 'El árbol del mercado', 'Farol de gas']) {
+const INSPECTS = ['Placa de calle', 'El árbol del mercado', 'Farol de gas', 'Rincón del Rastro'];
+for (const name of INSPECTS) {
   const i = (loc.inspects ?? []).find((x) => x.name === name);
   assert.ok(i, `falta el inspect «${name}»`);
   const k = key(i.tx, i.ty);
@@ -82,4 +102,11 @@ for (const name of ['Placa de calle', 'El árbol del mercado', 'Farol de gas']) 
 // 4) La Calle del Rastro, adoquinada de punta a punta.
 for (const y of [34, 35]) assert.ok(/^P+$/.test(loc.ground[y]), `la fila ${y} de la Calle del Rastro no es toda 'P'`);
 
-console.log(`check-casco-historico: ${Object.keys(FACADES).length} fachadas 'res-historic' · 3 inspects · Calle del Rastro adoquinada`);
+// 5) El Rincón del Rastro (CAS-08b): un banco y dos macetas en la fila 34, x 19–23; la fila 35, sin props (es el paso).
+const rincon = (kind: string): number => (loc.props ?? []).filter((p) => p.kind === kind && p.ty === 34 && p.tx >= 19 && p.tx <= 23).length;
+assert.equal(rincon('bench'), 1, `el Rincón del Rastro no tiene exactamente 1 banco`);
+assert.equal(rincon('planter-box'), 2, `el Rincón del Rastro no tiene exactamente 2 macetas`);
+const row35 = (loc.props ?? []).filter((p) => p.ty === 35).map((p) => `${p.kind} (${p.tx},35)`);
+assert.deepEqual(row35, [], `props en la fila 35 de la Calle del Rastro: ${row35.join(', ')}`);
+
+console.log(`check-casco-historico: ${Object.keys(NORTE).length + Object.keys(SUR).length} fachadas 'res-historic' · ${INSPECTS.length} inspects · Calle del Rastro adoquinada con su rincón`);
