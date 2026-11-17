@@ -391,6 +391,10 @@ const RACKS: readonly RackDef[] = [
   { tx: 10, ty: 2, name: 'Zapatillas', store: 'decathlon', categories: ['zapatillas'] },
   { tx: 20, ty: 5, name: 'Camisetas y sudaderas', store: 'decathlon', categories: ['camiseta', 'sudadera'] },
   { tx: 20, ty: 8, name: 'Pantalones de deporte', store: 'decathlon', categories: ['pantalon'] },
+  // DEC-03 · como los de arriba, de pie sobre un punto de mirar de su sección (check-economy): el centro de los cuatro
+  // percheros de Montaña hombre y delante de la mesa de Accesorios (57,16).
+  { tx: 40, ty: 6, name: 'Chaquetas de montaña', store: 'decathlon', categories: ['chaqueta'] },
+  { tx: 58, ty: 17, name: 'Gorras y gafas', store: 'decathlon', categories: ['gorro', 'gafas'] },
 ];
 
 export const DECATHLON_STORE: LocationDef = {

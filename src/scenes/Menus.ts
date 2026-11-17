@@ -1883,7 +1883,8 @@ export class Menus {
     const pact = rare === 'available' && list > 0 ? agreedPrice(state.rastro, state.day, garment) : undefined;
     const realTrial = buyGarment(state.wallet, state.wardrobe, current, rack.store, garment, false, pact === undefined ? factor : pact / list);
     const trial = !owned && (rare === 'sold' || rare === 'hidden') ? { ok: false as const, message: 'Agotado.' } : realTrial;
-    const title = `${def.name} · ${euros(price)}`;
+    // DEC-03: la marca (ficticia) delante del nombre, sólo si la prenda la tiene.
+    const title = `${def.brand ? `${def.brand} · ` : ''}${def.name} · ${euros(price)}`;
     // Qué hueco ocupa y qué quita: lo de antes vuelve al armario, nunca se pierde.
     const before = (this.fitting ?? current)[def.slot];
     const swap = before && before !== garment ? `, en lugar de ${getGarment(before).name.toLowerCase()}` : !before ? ', en lugar de tu ropa de siempre' : '';
