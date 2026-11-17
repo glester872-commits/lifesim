@@ -76,6 +76,10 @@ export function withAppearance(base: HumanColors, changes: Appearance | undefine
     // La manga nueva manda: lo que quede de brazo por debajo, piel.
     out.sleeves = undefined;
     out.sleeveLen = SLEEVE_PX[top.sleeve ?? 'long'];
+    // El estampado, los cuadros y la capa de debajo eran de la camisa de antes.
+    out.print = undefined;
+    out.plaid = undefined;
+    out.innerLayer = undefined;
   }
   if (changes.bottom) {
     out.trousers = getGarment(changes.bottom).color;

@@ -66,6 +66,12 @@ export interface HumanColors {
   bump?: NpcLook['bump'];
   /** Qué prenda es cada cosa (data/outfits.ts): con él, world/Garments la pinta como ropa a 28 × 42. */
   outfit?: import('../data/outfits').Outfit;
+  /** Cadena, reloj o pulsera, capa de debajo, estampado y cuadros (NpcLook): sin ellos, ni un píxel distinto. */
+  chain?: string;
+  watch?: NpcLook['watch'];
+  innerLayer?: string;
+  print?: string;
+  plaid?: string;
 }
 
 /**
@@ -113,6 +119,19 @@ function arm(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, w:
   if (fore && covered < len - 1) px(ctx, fore, x, y + len - 2, 1, 1);
   const hand = side === 'r' ? inkAt(c, 'hand-r') : undefined;
   if (hand) px(ctx, hand, x, y + len, 1, 1);
+  // La muñeca, justo encima de la mano: de frente sube por el antebrazo; de perfil, a lo ancho.
+  wrist(ctx, c, side, x, y + len - 1, w >= 2 ? x + 1 : x, w >= 2 ? y + len - 1 : y + len - 2);
+}
+
+/**
+ * Reloj o pulsera (NpcLook.watch) si va en ese lado: `(x, y)` es el píxel de la muñeca junto a la mano (la esfera,
+ * más clara) y `(sx, sy)` el de al lado (la correa). La pulsera, sin esfera: su color y su sombra.
+ */
+function wrist(ctx: Ctx, c: HumanColors, side: 'r' | 'l', x: number, y: number, sx: number, sy: number): void {
+  const w = c.watch;
+  if (!w || (w.side ?? 'l') !== side) return;
+  px(ctx, w.bracelet ? w.color : tone(w.color, 0.5), x, y, 1, 1);
+  px(ctx, w.bracelet ? shade(w.color, -0.2) : w.color, sx, sy, 1, 1);
 }
 
 /**
@@ -525,10 +544,13 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   const armR = 11 + b - stepR + stepL;
   const sleeveDark = c.sleeves ? shade(c.sleeves, -0.08) : c.clothDark;
   const skinDark = shade(c.skin, -0.08);
+  // Dónde cuelga el brazo izquierdo entero (x y fila del hombro), si cuelga: el bolso lo tapa a la altura de la cadera.
+  let leftHangs: readonly [number, number] | null = null;
   if (toMouth(pose)) {
     // Comiendo: sólo el brazo que no sube (el que sube se pinta encima del tronco, al final).
     if (back) arm(ctx, c, 'l', 3, armL, 1, 5, sleeve, c.skin);
     else arm(ctx, c, 'l', 12, armR, 1, 5, sleeveDark, skinDark);
+    leftHangs = back ? [3, armL] : [12, armR];
   } else if (pose === 13 || pose === 14) {
     // En la bici: los brazos, cortos y hacia dentro, van al manillar.
     arm(ctx, c, back ? 'l' : 'r', 3, armL, 1, 3, sleeve, c.skin);
@@ -599,6 +621,7 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     // De frente, el brazo derecho queda a la izquierda de la imagen; de espaldas, al revés.
     arm(ctx, c, back ? 'l' : 'r', 3, armL, 1, 5, sleeve, c.skin);
     arm(ctx, c, back ? 'r' : 'l', 12, armR, 1, 5, sleeveDark, shade(c.skin, -0.08));
+    leftHangs = back ? [3, armL] : [12, armR];
   }
 
   // Tronco: hombros, luz a la izquierda, cintura oscura.
@@ -650,6 +673,18 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   } else if (b < 3) {
     // De espaldas: la columna, un surco suave en la tela.
     px(ctx, tone(c.cloth, -0.08), 8, 12 + b, 1, 3);
+  }
+  // Dos líneas, en la luz y en la sombra (separación 5 y 1 a los cantos), bajo la canesú lisa.
+  if (c.plaid) plaid(ctx, c, c.plaid, [5, 10], 10, 12 + b);
+  if (c.print && !back) {
+    // Un motivo de 3 × 3 en el pecho, del lado de la sombra (la bandolera cruza el otro): una punta de flecha.
+    for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [2, 1], [0, 2], [2, 2]]) if (11 + b + dy < 16) px(ctx, c.print, 8 + dx, 11 + b + dy, 1, 1);
+  }
+  if (c.innerLayer && !back) {
+    // La camisa abierta: la capa de debajo asoma por el centro, del escote hasta casi la cintura.
+    const rows = Math.max(1, 14 - 10 - b);
+    px(ctx, c.innerLayer, 7, 10 + b, 2, rows);
+    px(ctx, tone(c.innerLayer, 0.1), 7, 10 + b, 1, rows);
   }
   if (b < 3) px(ctx, tone(c.trousers, -0.34), 5, 17, 6, 1);
   if (!seated(pose) && pose !== 13 && pose !== 14) {
@@ -708,6 +743,18 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
       px(ctx, c.hood, 11, 3 + b, 1, 5);
     }
   }
+  // Cuello alto de la capa de debajo, bajo la barbilla (también de espaldas), y la cadena por encima, en U.
+  if (c.innerLayer) {
+    // El cuello vuelto, más ancho que el cuello (de 6 a 9) y con su lado de sombra: se lee bajo la barba.
+    px(ctx, c.innerLayer, 6, 9 + b, 4, 1);
+    px(ctx, tone(c.innerLayer, -0.12), 9, 9 + b, 1, 1);
+  }
+  if (c.chain && !back) {
+    px(ctx, c.chain, 6, 10 + b, 1, 1);
+    px(ctx, c.chain, 9, 10 + b, 1, 1);
+    px(ctx, tone(c.chain, 0.2), 7, 11 + b, 1, 1);
+    px(ctx, shade(c.chain, -0.12), 8, 11 + b, 1, 1);
+  }
   if (c.scarf) {
     // Bufanda: dos vueltas al cuello, con una punta que cuelga por delante.
     px(ctx, c.scarf, 5, 9 + b, 6, 2);
@@ -724,6 +771,13 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     for (let i = 0; i < 5; i++) px(ctx, shade(c.bag, -0.2), x(i), 10 + b + i, 1, 1);
     px(ctx, c.bag, back ? 3 : 10, 14, 3, 3);
     px(ctx, shade(c.bag, -0.2), back ? 3 : 10, 16, 3, 1);
+    // El bolso cae sobre la mano izquierda (de frente y de espaldas): con reloj en esa muñeca, la mano va delante
+    // del bolso y el reloj se ve. Sin reloj, como siempre.
+    if (leftHangs && c.watch && (c.watch.side ?? 'l') === 'l') {
+      const [x, y] = leftHangs;
+      px(ctx, back ? c.skin : skinDark, x, y + 5, 1, 1);
+      wrist(ctx, c, 'l', x, y + 4, x, y + 3);
+    }
   }
   if (onPhone(pose) && !back) {
     // Antebrazos hacia dentro y el móvil entre las manos, de canto: se ve su dorso.
@@ -732,11 +786,14 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, c.skin, 6, 13 + b, 1, 2);
     px(ctx, shade(c.skin, -0.08), 9, 13 + b, 1, 2);
     px(ctx, PALETTE.ink, 7, 12 + b, 2, 3);
+    wrist(ctx, c, 'r', 5, 13 + b, 4, 13 + b);
+    wrist(ctx, c, 'l', 10, 13 + b, 11, 13 + b);
   }
   if (pose === 35 && !back) {
     // Hablando: el antebrazo cruza hacia el centro y la mano abierta queda delante del pecho, por encima de la cintura.
     px(ctx, c.sleeves ? shade(c.sleeves, -0.08) : c.clothDark, 10, 13 + b, 2, 1);
     px(ctx, shade(c.skin, -0.08), 9, 11 + b, 1, 2);
+    wrist(ctx, c, 'l', 10, 13 + b, 11, 13 + b);
   }
   if (pose === 6) {
     // La barra por encima de la cabeza, con un disco a cada lado.
@@ -750,6 +807,9 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, sleeve, hand, 10 + b, 1, 3);
     // El antebrazo cruza por delante del pecho: en el tono oscuro de la manga, para que se lea sobre el tronco.
     px(ctx, sleeveDark, back ? 11 : 4, 9 + b, 2, 1);
+    // El reloj sube con la mano: de frente, la del brazo derecho; de espaldas, también (el que sube asoma a la derecha).
+    if (back) wrist(ctx, c, 'r', 11, 9 + b, 12, 9 + b);
+    else wrist(ctx, c, 'r', 5, 9 + b, 4, 9 + b);
     if (!back) {
       px(ctx, c.skin, 6, 8 + b, 1, 2);
       if (pose === 26) px(ctx, PALETTE.metalLit, 6, 6 + b, 1, 2);
@@ -776,6 +836,16 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     plate(ctx, 0, 6);
     plate(ctx, 14, 6);
   }
+}
+
+/**
+ * Cuadros (NpcLook.plaid): a 16 px, sólo líneas finas verticales en `xs` (a distancias distintas, sin cruces), de
+ * la fila `top` a la cintura. Las horizontales se leían como una valla. Su tono es una mezcla de la tela y del cuadro,
+ * no el cuadro puro; desde `shadowFrom`, en la sombra.
+ */
+function plaid(ctx: Ctx, c: HumanColors, color: string, xs: readonly number[], shadowFrom: number, top: number): void {
+  const line = blend(c.cloth, color, 0.55);
+  for (const x of xs) for (let y = top; y < 16; y++) px(ctx, x >= shadowFrom ? tone(line, -0.18) : line, x, y, 1, 1);
 }
 
 /** Mancuerna en la mano: la empuñadura en `x` y un disco oscuro a cada lado. */
@@ -1054,6 +1124,8 @@ function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): vo
   }
   px(ctx, shade(c.cloth, 0.16), 5, 10 + b, 4, 1);
   px(ctx, shade(c.cloth, -0.1), 10, 11 + b, 1, 5 - Math.min(b, 4));
+  // De perfil, una línea en x 6, desde el hombro: el brazo de cada paso tapa otra columna, nunca toda.
+  if (c.plaid) plaid(ctx, c, c.plaid, [6], 10, 10 + b);
   if (b < 3) px(ctx, shade(c.trousers, -0.32), 5, 17, 6, 1);
   if (!seated(pose)) px(ctx, shade(c.shoes, 0.3), kick ? 7 : step || running(pose) ? 12 : 10, 22, 1, 1);
   if (c.bump) belly(ctx, c, c.bump, 11 + b);
@@ -1148,6 +1220,15 @@ function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): vo
     px(ctx, c.bag, 3, 13, 3, 3);
     px(ctx, shade(c.bag, -0.2), 3, 15, 3, 1);
   }
+  // De perfil: el cuello alto y el borde de la camisa abierta por delante; la cadena cae del cuello al pecho.
+  if (c.innerLayer) {
+    px(ctx, c.innerLayer, 7, 9 + b, 2, 1);
+    px(ctx, c.innerLayer, 10, 10 + b, 1, 1);
+  }
+  if (c.chain) {
+    px(ctx, c.chain, 9, 10 + b, 1, 1);
+    px(ctx, tone(c.chain, 0.2), 10, 11 + b, 1, 1);
+  }
 
   // Brazo cercano, por encima del tronco, al contrario que la pierna delantera.
   const sleeve = c.sleeves ?? c.clothDark;
@@ -1157,6 +1238,7 @@ function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): vo
     px(ctx, sleeve, 9, 10 + b, 2, 2);
     px(ctx, c.skin, 11, 8 + b, 1, 2);
     if (pose === 26) px(ctx, PALETTE.metalLit, 12, 7 + b, 1, 1);
+    wrist(ctx, c, near, 10, 10 + b, 10, 11 + b);
   } else if (pose === 34) {
     // Foto: el brazo estirado hacia delante a la altura de los ojos y el móvil de canto.
     px(ctx, sleeve, 7, 10 + b, 2, 2);
@@ -1170,6 +1252,7 @@ function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): vo
     px(ctx, c.skin, 11, 11 + b, 1, 2);
     px(ctx, PALETTE.ink, 12, 9 + b, 1, 4);
     px(ctx, PALETTE.glassLit, 11, 10 + b, 1, 1);
+    wrist(ctx, c, near, 10, 12 + b, 10, 13 + b);
     // Ojo bajado: sólo su mitad de abajo.
     px(ctx, c.skin, 10, 5 + b, 1, 1);
   } else if (pose === 6) {
@@ -1219,6 +1302,7 @@ function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): vo
     px(ctx, sleeve, 7, 11 + b, 2, 3);
     px(ctx, sleeve, 9, 13 + b, 2, 1);
     px(ctx, c.skin, 11, 11 + b, 1, 3);
+    wrist(ctx, c, near, 10, 13 + b, 9, 13 + b);
   } else if (pose === 9) {
     // Golpe: el brazo estirado hacia delante a la altura del hombro.
     px(ctx, sleeve, 8, 10 + b, 5, 2);

@@ -33,7 +33,8 @@ export function markerColors(c: HumanColors): HumanColors {
   const bare = c.sleeves !== undefined && c.sleeves === c.skin;
   return { ...c, cloth: '#e00000', clothDark: '#b00000', sleeves: bare ? '#e0e000' : '#e000e0', trousers: '#0000e0', shoes: '#00e000', skin: '#e0e000', spots: undefined,
     // Todo lo demás, gris: un gorro rojo o un pelo cobrizo no son la camiseta.
-    ...Object.fromEntries((['hair', 'eyes', 'cap', 'bag', 'scarf', 'hood', 'earrings', 'headphones', 'stripe', 'belt'] as const).filter((k) => c[k]).map((k) => [k, NEUTRAL])),
+    ...Object.fromEntries((['hair', 'eyes', 'cap', 'bag', 'scarf', 'hood', 'earrings', 'headphones', 'stripe', 'belt', 'chain', 'innerLayer', 'print', 'plaid'] as const).filter((k) => c[k]).map((k) => [k, NEUTRAL])),
+    watch: c.watch && { ...c.watch, color: NEUTRAL },
     ink: c.ink?.map((i) => ({ ...i, color: NEUTRAL })) };
 }
 

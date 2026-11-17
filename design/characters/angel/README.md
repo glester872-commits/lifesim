@@ -14,6 +14,8 @@ Plantilla: `angel.jpeg`. Es sólo una referencia de diseño y el juego no la car
 | trousers | `#232329` | Pantalón corto negro del outfit casual. |
 | hair / hairStyle | `#3a2a20` / `short` | Castaño oscuro, corto bajo la gorra. |
 | skin | `#d9a27c` | Tono cálido claro, de los anaranjados de la paleta. |
+| print | `#1c1b20` | Estampado negro de la camiseta: un motivo de 3 × 3 en el pecho, sólo de frente. |
+| watch | `#232329`, muñeca izquierda | Reloj negro con la esfera más clara. |
 
 **Identidad** (`src/data/namedPeople.ts`). Datos fijados por el usuario:
 
@@ -47,8 +49,7 @@ Tiene tres rutinas: `angel-semana`, `angel-finde` y `angel-paseo`.
 
 ## Pendiente
 
-- Estampado negro de la camiseta.
-- Reloj, gafas, auriculares, móvil y llaves como objetos visibles.
+- Gafas, auriculares, móvil y llaves como objetos visibles.
 - Outfits alternativos: hoodie, streetwear, gym y noche.
 - Retrato y expresiones de diálogo.
 - Voz propia en el chat (`NAMED_VOICES`) y frases por relación: necesitarían texto que la plantilla no da.

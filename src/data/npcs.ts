@@ -362,6 +362,8 @@ const DEFS: readonly NpcDef[] = [
     hairStyle: 'short',
     cap: '#e8628e',
     bag: '#232329',
+    print: '#1c1b20',
+    watch: { color: '#232329', side: 'l' },
     lines: ['Dale, vamos viendo qué plan sale.'],
   },
   {
@@ -379,15 +381,20 @@ const DEFS: readonly NpcDef[] = [
     glasses: 'clear',
     earrings: '#d9d6cc',
     ink: [{ spot: 'arm-l', color: '#3a2a22' }],
+    chain: '#cfd2d8',
+    watch: { color: '#d9d6cc', side: 'r', bracelet: true },
     lines: ['¿Qué plan hay hoy?'],
   },
   {
     // Kevin, 31: vive en Ribera Norte (rutina en data/characters.ts). Hoja de diseño en design/characters/kevin/.
-    // Sobrecamisa de cuadros crema y marrón (crema de fondo, marrón en la sombra), barba corta, pendiente y pantalón negro.
+    // Sobrecamisa abierta de cuadros marrones sobre crema, cuello alto beige debajo, cadena, barba corta, pendiente y pantalón negro.
     id: 'kevin',
     name: 'Kevin',
     cloth: '#ece4d4',
-    clothDark: '#7a4e30',
+    clothDark: '#c9bfae',
+    plaid: '#7a4e30',
+    innerLayer: '#b08a5e',
+    chain: '#d8d8d8',
     hair: '#1e1712',
     skin: '#c68a62',
     trousers: '#1f1f24',

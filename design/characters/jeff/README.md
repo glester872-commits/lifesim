@@ -15,6 +15,8 @@ Plantilla: `jeff.jpeg`. Es sólo una referencia de diseño y el juego no la carg
 | glasses | `clear` | Gafas de montura oscura. |
 | earrings | `#d9d6cc` | Pendientes de aro plateados. |
 | ink | `arm-l`, `#3a2a22` | El tatuaje del brazo izquierdo. |
+| chain | `#cfd2d8` | Cadena plateada; de espaldas no se ve. |
+| watch | `#d9d6cc`, muñeca derecha, `bracelet` | Pulsera plateada, sin esfera (el tatuaje queda en el otro brazo). |
 
 **Identidad** (`src/data/namedPeople.ts`). Datos fijados por el usuario:
 
@@ -50,7 +52,7 @@ Tiene tres rutinas: `jeff-semana` (martes a viernes), `jeff-finde` (sábado y do
 
 ## Pendiente
 
-- Cadena, pulsera, móvil y mochila como objetos visibles. NpcLook no tiene campo para ellos.
+- Móvil y mochila como objetos visibles. NpcLook no tiene campo para ellos.
 - Outfits alternativos: gym, salida, invierno y verano.
 - Retrato y expresiones de diálogo.
 - Ocupación concreta. La plantilla dice «por definir».

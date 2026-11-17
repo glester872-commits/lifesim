@@ -736,6 +736,16 @@ export interface NpcLook {
   cane?: boolean;
   /** Embarazo (systems/Pregnancy): 1–3, cuánto se nota el vientre. */
   bump?: 1 | 2 | 3;
+  /** Cadena al cuello, por encima de la ropa: se ve de frente y de perfil, de espaldas no. */
+  chain?: string;
+  /** Reloj en la muñeca de ese lado (sin lado, la izquierda): la correa y un píxel de esfera más claro; `bracelet`, pulsera sin esfera. */
+  watch?: { color: string; side?: 'l' | 'r'; bracelet?: boolean };
+  /** Capa de debajo de una camisa abierta: el cuello alto bajo la barbilla y una franja central de 2 px. */
+  innerLayer?: string;
+  /** Estampado: un solo motivo de 3 × 3 en el pecho; de espaldas no se ve. */
+  print?: string;
+  /** Cuadros de la camisa: dos líneas verticales y dos horizontales de 1 px, con otro tono en el cruce. */
+  plaid?: string;
 }
 
 export interface NpcDef extends NpcLook {

@@ -30,6 +30,9 @@ function hash(text: string): number {
   return h >>> 0;
 }
 
+/** Lo que va sobre la camisa de siempre (o es la camisa): con abrigo o con la sudadera de la capucha, no se ve. */
+const UNDER_COAT = { chain: undefined, watch: undefined, print: undefined, plaid: undefined, innerLayer: undefined } as const;
+
 /** Una versión de una cara: la misma persona, con otra ropa encima. */
 function variant(base: NpcLook, layer: Layer): NpcLook {
   const c = colorsOf(base);
@@ -39,11 +42,12 @@ function variant(base: NpcLook, layer: Layer): NpcLook {
   const same: NpcLook = { ...base, id: `${base.id}~${layer}`, skin: c.skin, trousers: c.trousers, shoes: c.shoes, hairStyle: c.hairStyle };
   if (layer === 'coat') {
     const coat = COATS[h % COATS.length];
-    return { ...same, cloth: coat, clothDark: shade(coat, -0.1), sleeves: undefined, sleeveLen: undefined, outfit: same.outfit && { ...same.outfit, top: 'coat', topMat: undefined, inner: '#2b2d33' }, scarf: (h >>> 5) & 1 ? SCARVES[(h >>> 3) % SCARVES.length] : undefined };
+    return { ...same, ...UNDER_COAT, cloth: coat, clothDark: shade(coat, -0.1), sleeves: undefined, sleeveLen: undefined, outfit: same.outfit && { ...same.outfit, top: 'coat', topMat: undefined, inner: '#2b2d33' }, scarf: (h >>> 5) & 1 ? SCARVES[(h >>> 3) % SCARVES.length] : undefined };
   }
-  if (layer === 'light') return { ...same, cap: undefined, sleeves: undefined, sleeveLen: (h >>> 2) & 1 ? 2 : 0, outfit: same.outfit && { ...same.outfit, top: 'tee', topMat: undefined } };
+  // En verano, sin la capa de debajo: la camisa (o la camiseta) sola.
+  if (layer === 'light') return { ...same, innerLayer: undefined, cap: undefined, sleeves: undefined, sleeveLen: (h >>> 2) & 1 ? 2 : 0, outfit: same.outfit && { ...same.outfit, top: 'tee', topMat: undefined } };
   const hoodie = COATS[(h >>> 7) % COATS.length];
-  return { ...same, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, outfit: same.outfit && { ...same.outfit, top: 'hoodie', topMat: undefined }, cap: undefined, hood: base.headscarf ?? shade(hoodie, 0.04), earrings: undefined };
+  return { ...same, ...UNDER_COAT, cloth: hoodie, clothDark: shade(hoodie, -0.1), sleeves: undefined, sleeveLen: undefined, outfit: same.outfit && { ...same.outfit, top: 'hoodie', topMat: undefined }, cap: undefined, hood: base.headscarf ?? shade(hoodie, 0.04), earrings: undefined };
 }
 
 // Ropa de entrenar (vestuario del gimnasio): camisetas, tirantes, pantalón corto o largo y zapatillas, en varios

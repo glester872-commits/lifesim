@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { PALETTE, PLAYER_BODY, PLAYER_SPEED, SAVE_VERSION } from '../src/config/constants.ts';
 import { FACTORY_HAIR_COLOR, HAIR_DYE, HAIR_EXTRA_MINUTES, HAIR_EXTRA_PRICE, HAIRSTYLES, type Appearance } from '../src/data/appearance.ts';
-import { UNIFORM_LOOKS } from '../src/data/npcs.ts';
+import { getNpc, NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../src/data/npcs.ts';
 import { GARMENTS, getGarment } from '../src/data/retail.ts';
 import { dyeHair, haircut, haircutQuote, lookChange, reworkTattoo, tattooAt, tattooWorks, visibleTattoos, withAppearance, withUniform } from '../src/systems/Appearance.ts';
 import type { Wallet } from '../src/systems/Commerce.ts';
@@ -15,7 +15,7 @@ import { MemoryStorage, slotSave } from '../src/systems/SaveSlots.ts';
 import { createInitialState, inspectRaw, restore, SaveSystem } from '../src/systems/SaveSystem.ts';
 import type { Facing } from '../src/types/game.ts';
 import { partOf } from '../src/world/Garments.ts';
-import { drawHuman, type HumanColors } from '../src/world/HumanArt.ts';
+import { colorsOf, drawHuman, type HumanColors, type Pose } from '../src/world/HumanArt.ts';
 import type { Ctx } from '../src/world/paint.ts';
 
 const W = 16;
@@ -34,7 +34,7 @@ let outside = 0;
 let writes = 0;
 
 /** Contexto falso de 16 × 24 RGBA con lo que usa drawHuman en la pose 0; cuenta lo que se pinte fuera del lienzo. */
-function render(facing: Facing, colors: HumanColors): Uint8ClampedArray {
+function render(facing: Facing, colors: HumanColors, pose: Pose = 0): Uint8ClampedArray {
   const data = new Uint8ClampedArray(W * H * 4);
   let t = { tx: 0, ty: 0, sx: 1, sy: 1 };
   const stack: (typeof t)[] = [];
@@ -83,7 +83,7 @@ function render(facing: Facing, colors: HumanColors): Uint8ClampedArray {
     getImageData: (_x: number, _y: number, width: number, height: number) => ({ data: data.slice(), width, height }),
     putImageData: (img: { data: Uint8ClampedArray }): void => data.set(img.data),
   };
-  drawHuman(ctx as unknown as Ctx, facing, 0, colors);
+  drawHuman(ctx as unknown as Ctx, facing, pose, colors);
   return data;
 }
 
@@ -442,6 +442,53 @@ for (const version of [1, 2]) {
   const plain = (facing: Facing, changes: Appearance): Uint8ClampedArray => render(facing, dressed(changes));
   assert.equal(lookChange(plain('up', { hair: 'short' }), plain('up', { hair: 'short', glasses: NEGRAS }), FLOORS), 'none', 'gafas de espaldas');
   assert.notEqual(lookChange(plain('down', { hair: 'short' }), plain('down', { hair: 'short', cap: GORRA }), FLOORS), 'none', 'gorra de frente');
+}
+
+// 20. Cadena, reloj o pulsera, capa de debajo, estampado y cuadros (NpcLook, world/HumanArt).
+{
+  const FIELDS = ['chain', 'watch', 'innerLayer', 'print', 'plaid'] as const;
+  type Field = (typeof FIELDS)[number];
+  const POSES_CHECKED: readonly Pose[] = [0, 1, 2];
+  // (a) Quien no los lleva: con los campos a undefined, el mismo dibujo en las cuatro direcciones y al andar.
+  const plainLooks = [...NPC_DEFS, ...PASSENGER_LOOKS, ...UNIFORM_LOOKS].filter((l) => FIELDS.every((k) => l[k] === undefined));
+  assert.ok(plainLooks.length > 50, 'casi nadie sin los campos nuevos');
+  for (const l of plainLooks) {
+    const c = colorsOf(l);
+    const unset: HumanColors = { ...c, chain: undefined, watch: undefined, innerLayer: undefined, print: undefined, plaid: undefined };
+    for (const facing of FACINGS) for (const pose of POSES_CHECKED) assert.equal(diff(render(facing, c, pose), render(facing, unset, pose)), 0, `${l.id}: cambia sin campos nuevos en ${facing}/${pose}`);
+  }
+  // (b) Ángel, Jeff y Kevin: cada campo cambia lo suyo donde se ve y nada donde no (la cadena y el estampado, de
+  // espaldas no; el reloj, de perfil sólo del lado de su muñeca; el estampado sólo de frente).
+  const without = (c: HumanColors, k: Field): HumanColors => {
+    const out = { ...c };
+    delete out[k];
+    return out;
+  };
+  const shows = (c: HumanColors, k: Field, facing: Facing): boolean => {
+    if (k === 'chain') return facing !== 'up';
+    if (k === 'print') return facing === 'down';
+    if (k === 'watch') return facing === 'down' || facing === 'up' || (c.watch?.side ?? 'l') === (facing === 'right' ? 'r' : 'l');
+    return true;
+  };
+  const expected: Record<string, readonly Field[]> = { angel: ['print', 'watch'], jeff: ['chain', 'watch'], kevin: ['plaid', 'innerLayer', 'chain'] };
+  for (const [id, fields] of Object.entries(expected)) {
+    const c = colorsOf(getNpc(id));
+    for (const k of fields) {
+      assert.ok(c[k] !== undefined, `${id} sin ${k}`);
+      for (const facing of FACINGS) {
+        const n = diff(render(facing, without(c, k)), render(facing, c));
+        if (!shows(c, k, facing)) {
+          assert.equal(n, 0, `${id}/${k}: se ve en ${facing} y no debería`);
+          continue;
+        }
+        const max = 14;
+        assert.ok(n >= 2 && n <= max, `${id}/${k}: ${n} píxeles cambiados en ${facing} (2–${max})`);
+        for (const pose of [1, 2] as const) assert.ok(diff(render(facing, without(c, k), pose), render(facing, c, pose)) > 0, `${id}/${k}: no se ve al andar en ${facing}/${pose}`);
+      }
+    }
+  }
+  // (c) Los personajes con nombre siguen sin outfit.
+  for (const l of NPC_DEFS) assert.equal(l.outfit, undefined, `${l.id} lleva outfit`);
 }
 
 console.log('check-avatar: ok');
