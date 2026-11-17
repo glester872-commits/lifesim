@@ -2034,6 +2034,8 @@ export class WorldScene extends Phaser.Scene {
       if (named) named.heldAt ??= this.absMinute() - named.lag;
       if (agent) {
         agent.talking = true;
+        // Quieto ya, no en el próximo tick (Crowd.advance): con el menú abierto no hay tick y `moving` quedaba en true.
+        agent.moving = false;
         // Se vuelve ya: con un menú abierto el mundo no se mueve y, sin esto, seguiría de espaldas hasta cerrarlo.
         for (const view of this.crowdViews) view.sync(this.time.now);
       }
@@ -3571,7 +3573,17 @@ export class WorldScene extends Phaser.Scene {
         // CV-08A · en una manta, el menú vale mientras el puesto siga montado: si recoge o se va, ya no cobra.
         const sprite = target.sprite;
         const stall = this.vendorOf(sprite) ? { closed: (): string | null => (this.vendorOf(sprite) ? null : 'Está recogiendo: ya no vende.') } : undefined;
-        this.menus.openOffer(offer, target.def.name, '', 0, stall);
+        // DEC-01 · el personal de sala contesta desde donde está y se gira hacia lo que indica (Menus.openStoreDesk).
+        const agent = sprite instanceof Character ? this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined) : undefined;
+        const staff = agent?.staffRole && sprite instanceof Character ? {
+          tile: { tx: Math.round(agent.x), ty: Math.round(agent.y) },
+          role: agent.staffRole,
+          face: (to: Facing): void => {
+            sprite.talkingTo = to;
+            for (const view of this.crowdViews) view.sync(this.time.now);
+          },
+        } : undefined;
+        this.menus.openOffer(offer, target.def.name, '', 0, stall, staff);
       }
       else if (officer) {
         // Un agente de patrulla: saludo, cómo está la calle ahora y el robo de hoy si lo hay (systems/Police). No charla.

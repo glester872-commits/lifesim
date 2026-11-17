@@ -21,7 +21,10 @@ import { getNpc } from '../data/npcs';
 import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
 import { absMinute } from '../systems/Handoff';
 import { FACTORY_HAIR_COLOR, HAIR_COLORS, HAIR_DYE, HAIRSTYLES, type Appearance } from '../data/appearance';
-import type { RackDef } from '../types/game';
+import type { Facing, RackDef, TilePoint } from '../types/game';
+import type { StaffRole } from '../data/population';
+import { STORE_CATEGORIES } from '../data/storeQueries';
+import { answer, STORE_ENTRY, type Asker } from '../systems/StoreKnowledge';
 import { dyeHair, haircut, haircutQuote, reworkTattoo, sleeveOf, tattoo, tattooAt, tattooWorks, visibleTattoos, withAppearance, type Restyle } from '../systems/Appearance';
 import { buildOf } from '../systems/Fitness';
 import { avatarPreview } from '../world/AvatarPreview';
@@ -65,6 +68,15 @@ const SLOT_LABEL = { top: 'arriba (torso y brazos)', bottom: 'abajo (piernas)', 
 import { UPGRADES, getHome, getUpgrade } from '../data/housing';
 import { buy, buyBlocker, installAll, installedIn, layout, move, moveBlocker, movePlans, moveSummary, optionsOf, quote as housingQuote, relocate, slotName, storedIn, type HousingState } from '../systems/Housing';
 import { owed, statusOf as billStatus, unpaid } from '../systems/Household';
+
+type AdviceOffer = Extract<ServiceOffer, { kind: 'advice' }>;
+
+/** DEC-01 · Quien atiende en sala: dónde está, su puesto y cómo se gira para indicar (lo pone la Scene). */
+export interface StoreStaff {
+  tile: TilePoint;
+  role?: StaffRole;
+  face?: (to: Facing) => void;
+}
 
 /** Lo que Menus necesita de la Scene: guardar y viajar a una estación. */
 export interface MenuHost {
@@ -1028,8 +1040,13 @@ export class Menus {
    * actividades con su precio (la barra) o un cambio de aspecto (la barbera).
    * Lugar → servicio → esta interacción → la transacción → el estado.
    */
-  openOffer(id: OfferId, who: string, note = '', selected = 0, stall?: { closed: () => string | null }): void {
+  openOffer(id: OfferId, who: string, note = '', selected = 0, stall?: { closed: () => string | null }, staff?: StoreStaff): void {
     const offer = getOffer(id);
+    if (offer.kind === 'advice' && offer.store) {
+      // DEC-01 · atención de la tienda: categoría → pregunta, con respuestas del plano, los turnos y el género.
+      this.openStoreDesk(offer, who, staff);
+      return;
+    }
     if (offer.kind === 'catalog') {
       // CV-08A · una manta o una bandeja: el catálogo de siempre, «en vivo» y sólo mientras el puesto sigue montado.
       this.openCatalog(`${offer.title} · ${who}`, offer.catalog, note, selected, undefined, stall);
@@ -1106,6 +1123,56 @@ export class Menus {
         this.commitRestyle(done, 'Barbería', quote.minutes, who, [done.message], again);
       }, again);
     }, undefined, note, selected);
+  }
+
+  /** DEC-01 · Primer nivel: las categorías de data/storeQueries.ts y, si tiene sección propia, su consejo. */
+  private openStoreDesk(offer: AdviceOffer, who: string, staff: StoreStaff | undefined, selected = 0): void {
+    const { menu } = this.services;
+    const label = staff?.role?.label ?? who;
+    const advice = offer.questions.length > 0 ? (label.startsWith('Sección de ') ? label.replace('Sección de ', 'Consejo de ') : 'Su consejo') : null;
+    const cats = STORE_CATEGORIES;
+    menu.open(who, offer.greeting, [
+      ...cats.map((c) => ({ label: c.label })),
+      ...(advice ? [{ label: advice }] : []),
+      { label: 'Gracias, eso es todo' },
+    ], (i) => {
+      if (i < cats.length) this.openStoreQueries(offer, who, staff, i);
+      else if (advice && i === cats.length) this.openStoreAdvice(offer, who, staff, i, advice);
+      else menu.close();
+    }, () => menu.close(), '', selected);
+  }
+
+  /** Segundo nivel: las preguntas de una categoría; la respuesta, debajo, y quien contesta se gira hacia donde indica. */
+  private openStoreQueries(offer: AdviceOffer, who: string, staff: StoreStaff | undefined, cat: number, note = '', selected = 0): void {
+    const { menu, state } = this.services;
+    const category = STORE_CATEGORIES[cat];
+    const asker: Asker = { key: staff?.role?.label ?? who, tile: staff?.tile ?? STORE_ENTRY, role: staff?.role };
+    menu.open(`${who} · ${category.label}`, '', [
+      ...category.queries.map((q) => ({ label: q.label })),
+      { label: 'Volver' },
+    ], (i) => {
+      const q = category.queries[i];
+      if (!q) {
+        this.openStoreDesk(offer, who, staff, cat);
+        return;
+      }
+      const reply = answer(q, asker, { day: state.day, hour: state.hour, minute: state.minute }, this.priceHere());
+      if (reply.toward) staff?.face?.(reply.toward);
+      this.openStoreQueries(offer, who, staff, cat, reply.text, i);
+    }, () => this.openStoreDesk(offer, who, staff, cat), note, selected);
+  }
+
+  /** El consejo propio de su sección (las preguntas de siempre de la offer), con vuelta a las categorías. */
+  private openStoreAdvice(offer: AdviceOffer, who: string, staff: StoreStaff | undefined, back: number, title: string, note = '', selected = 0): void {
+    const { menu } = this.services;
+    menu.open(`${who} · ${title}`, '', [
+      ...offer.questions.map(({ question }) => ({ label: question })),
+      { label: 'Volver' },
+    ], (i) => {
+      const topic = offer.questions[i];
+      if (topic) this.openStoreAdvice(offer, who, staff, back, title, topic.answer, i);
+      else this.openStoreDesk(offer, who, staff, back);
+    }, () => this.openStoreDesk(offer, who, staff, back), note, selected);
   }
 
   /** El tinte de la barbería: los colores de pelo de los datos, al mismo precio en todas (HAIR_DYE). `back`: la opción a la que se vuelve. */

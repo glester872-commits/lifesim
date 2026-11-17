@@ -66,7 +66,7 @@ export const laneOf = (pointId: string, prefixes: readonly string[]): string | u
   return undefined;
 };
 
-const staffDay = (place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
+export const staffDay = (place: PlaceInfo, clock: Clock): number => weekIndex(openingDay(place, clock.day, clock.hour, clock.minute));
 
 /**
  * Visitantes que debería haber. Dentro del rango del nivel, el número sale de

@@ -350,6 +350,8 @@ const LIGHTS: readonly PropPlacement[] = [
 
 const inRect = (r: Rect, x: number, y: number): boolean => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
 export const inAisle = (x: number, y: number): boolean => AISLES.some((a) => inRect(a.rect, x, y));
+/** DEC-01 · La sección que pisa ese tile, o ninguna (pasillo, cajas, muro). */
+export const sectorAt = (tx: number, ty: number): Sector | undefined => SECTORS.find((s) => inRect(s.rect, tx, ty));
 
 const QUEUE_TILES = new Set(CHECKOUTS.flatMap((c) => c.queue.map((q) => `${q.tx},${q.ty}`)));
 
@@ -465,7 +467,9 @@ export const DECATHLON_PROFILE: PopulationProfile = {
     floor('decathlon_employee_2', 'Sección de montaña', 'Para rutas cortas, cuanto menos cargues, mejor.', ['montana-jr', 'montana-mujer', 'montana-hombre', 'mochilas'], 'decathlon-montana'),
     floor('decathlon_employee_3', 'Sección de running', 'Pruébate el calzado con los calcetines que usas al correr.', ['running', 'calzado-mujer', 'calzado-hombre'], 'decathlon-running'),
     floor('decathlon_employee_4', 'Sección de ciclismo', 'La medida de la cámara la pone en el neumático.', ['ciclismo', 'segunda-vida'], 'decathlon-ciclismo'),
-    { service: 'shop-worker', label: 'Reposición', line: 'Perdona, que paso con el carro.', look: 'decathlon_employee_5', points: [`${P}_BROWSE_`] },
+    // Ronda por todas las secciones (sus puntos uno a uno: los mismos que el prefijo `${P}_BROWSE_`). Atiende lo general
+    // de la tienda (DEC-01, systems/StoreKnowledge), sin consejo de sección propio.
+    { service: 'shop-worker', label: 'Reposición', line: 'Perdona, que paso con el carro.', look: 'decathlon_employee_5', points: sectionPoints(SECTORS.map((s) => s.id)), offers: 'decathlon-tienda' },
     floor('decathlon_employee_8', 'Sección de fitness', 'Una esterilla ocupa poco y se recoge en un minuto.', ['fitness-mat', 'fitness-mujer', 'fitness-hombre'], 'decathlon-fitness', WEEKEND),
   ],
   visitors: [

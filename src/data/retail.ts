@@ -289,7 +289,7 @@ export const STORES: readonly RetailStoreDef[] = [
   },
   // Decathlon (data/decathlon.ts, Alpha-08): lo técnico a precio de nave, en sus percheros de running y sportswear.
   {
-    id: 'decathlon', name: 'Decathlon', greeting: 'Hola. Los probadores están ahí al lado; si no es tu talla, te la busco.', thanks: 'Guarda el tique: tienes noventa días para devolverlo.',
+    id: 'decathlon', name: 'Decathlon', greeting: 'Hola. Lo que ves en los percheros es lo que hay; los probadores están al fondo, junto a Sportswear.', thanks: 'Guarda el tique: tienes noventa días para devolverlo.',
     stock: [{ garment: 'camiseta-tecnica', price: 7.99 }, { garment: 'sudadera-entreno', price: 14.99 }, { garment: 'pantalon-chandal', price: 12.99 }, { garment: 'chandal-gris', price: 9.99 }, { garment: 'zapatillas-futbol-sala', price: 24.99 }],
   },
   // Puerta Central: la tienda de recuerdos y la cadena de moda de la calle.
