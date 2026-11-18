@@ -22,14 +22,16 @@ export class Train {
   private readonly lights: Phaser.GameObjects.Image[] = [];
   private lastOpenness = -1;
 
-  constructor(scene: Phaser.Scene, top: number, mapWidth: number, depth: number) {
+  /** `lineId`: la línea del andén (data/transit: stationLine); su número va en el panel de la cabina delantera. */
+  constructor(scene: Phaser.Scene, top: number, mapWidth: number, depth: number, lineId: string) {
     this.root = scene.add.container(0, top).setDepth(depth).setVisible(false);
 
     for (let car = 0; car < TRAIN_CARS; car++) {
-      const cab = car === 0 || car === TRAIN_CARS - 1;
-      const image = scene.add.image(car * CAR_W, 0, cab ? 'train-car-cab' : 'train-car').setOrigin(0, 0);
-      // El coche de cola lleva la cabina al otro lado.
-      if (car === TRAIN_CARS - 1) image.setFlipX(true);
+      const tail = car === TRAIN_CARS - 1;
+      // El tren entra por la derecha: el coche 0 es la cabina delantera; la de cola, espejada y con el panel apagado.
+      const key = car === 0 ? `train-car-cab-${lineId}` : tail ? 'train-car-cab' : 'train-car';
+      const image = scene.add.image(car * CAR_W, 0, key).setOrigin(0, 0);
+      if (tail) image.setFlipX(true);
       this.root.add(image);
     }
 

@@ -45,7 +45,7 @@ import { SecurityAI } from './SecurityAI';
 import { absMinute, FRESH_MINUTES, handoffs } from './Handoff';
 import { identityOf } from './Zones';
 import { LOCATION_DISTRICT } from '../data/districtIdentity';
-import { STOPS } from '../data/transit';
+import { stationLine, STOPS } from '../data/transit';
 import { balancedDepartures, orderAlighting, phaseOf, trainHeadingFor, tripFitsPhase, tripFor, tripsAt, type Trip, type TripWant } from './MetroDemand';
 import { weatherAt } from './Weather';
 import { dressedLook } from '../world/WeatherLooks';
@@ -282,6 +282,7 @@ export class MetroSystem {
       top,
       mapWidth,
       top + TILE * 3,
+      stationLine(stationId).id,
     );
 
     const edgeY =

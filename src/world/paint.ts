@@ -140,6 +140,9 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   U: ['X...X', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
   V: ['X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.X.X.', '..X..'],
   '.': ['.....', '.....', '.....', '.....', '.....', '.....', '..X..'],
+  // MET-02: los números de línea del panel de destino del tren (data/transit.ts: LINES).
+  '2': ['.XXX.', 'X...X', '....X', '...X.', '..X..', '.X...', 'XXXXX'],
+  '3': ['XXXX.', '....X', '....X', '.XXX.', '....X', '....X', 'XXXX.'],
 };
 
 /** Ancho del hueco de un espacio, sin contar la separación. */

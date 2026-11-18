@@ -2,15 +2,22 @@
 // enfría, la luz se calienta) sin romper el orden de claridad, y la limpieza de huérfanos quita el ruido sin tocar las
 // líneas de un píxel, las esquinas ni los bordes. Y el acabado sólo se enciende donde los datos lo piden.
 import assert from 'node:assert/strict';
-import { canSpell, despeckle, MATERIAL_RAMPS, materialTone, missingGlyphs, ramp, shade } from '../src/world/paint.ts';
+import { canSpell, despeckle, MATERIAL_RAMPS, materialTone, missingGlyphs, ramp, shade, wordWidth } from '../src/world/paint.ts';
 import { LOCATIONS } from '../src/data/locations.ts';
-import { STATION_SIGNS } from '../src/data/transit.ts';
+import { LINES, STATION_SIGNS } from '../src/data/transit.ts';
 
 // MET-01: cada placa de andén se escribe entera con la fuente de rótulos (world/paint.ts: GLYPHS); una letra sin glifo
 // desaparecería del nombre.
 for (const { name } of STATION_SIGNS) {
   const upper = name.toUpperCase();
   assert.ok(canSpell(upper), `placa «${name}»: falta el glifo ${missingGlyphs(upper).map((c) => `«${c}»`).join(', ')} en GLYPHS`);
+}
+
+// MET-02: el panel de destino de la cabina escribe el id de cada línea tal cual (world/TextureFactory: drawCar), y cabe
+// en el panel (13 px de hueco, letras a 1 px).
+for (const { id } of LINES) {
+  assert.ok(canSpell(id), `panel del tren «${id}»: falta el glifo ${missingGlyphs(id).map((c) => `«${c}»`).join(', ')} en GLYPHS`);
+  assert.ok(wordWidth(id, 1) <= 12, `panel del tren «${id}»: ${wordWidth(id, 1)} px, no cabe en el panel de la cabina`);
 }
 
 const rgb = (hex: string): [number, number, number] => {

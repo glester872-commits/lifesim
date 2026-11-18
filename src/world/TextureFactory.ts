@@ -3,7 +3,7 @@ import { PALETTE, TILE } from '../config/constants';
 import { FACINGS, type Facing, type NpcLook } from '../types/game';
 import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import { blob, drawWord, make, px, shade, sprinkle, wordWidth, type Ctx } from './paint';
-import { STATION_SIGNS } from '../data/transit.ts';
+import { LINES, STATION_SIGNS } from '../data/transit.ts';
 import { TILES } from './tiles.ts';
 import { buildBuildingTextures } from './BuildingArt';
 import { buildBoxingTextures } from './BoxingArt';
@@ -424,62 +424,125 @@ export const DOOR_LEAF_W = 6;
 export const DOOR_TOP = 17;
 export const DOOR_H = 28;
 
-const TRAIN_BODY = shade(PALETTE.metalLit, 0.12);
+/** MET-02: carrocería blanco roto (el gris claro de los muros interiores), franja azul oscuro con filete claro. */
+const TRAIN_BODY = PALETTE.wallFace;
+const TRAIN_STRIPE = shade(PALETTE.metroBlue, -0.3);
+const TRAIN_NOSE = shade(PALETTE.metal, -0.18);
+const TRAIN_RED = shade(PALETTE.brickLit, 0.15);
+/** Filas del costado (coordenadas del coche): filete claro y franja azul de 4 px en la mitad baja. */
+const STRIPE_TRIM = 36;
+const STRIPE_TOP = 37;
+const STRIPE_H = 4;
 
 /**
  * Coche visto en 3/4 como las fachadas: techo arriba y costado hacia el andén.
- * Los huecos de puerta son negros; las hojas son sprites aparte que se deslizan.
+ * Los huecos de puerta son negros con marco; las hojas son sprites aparte que se deslizan.
+ * `cab`: morro oscuro a la izquierda (la cola se espeja). `panel`: texto ámbar del panel de destino
+ * (la línea) y faro encendido; sin él es la cola: panel apagado (nunca texto al revés al espejarla), faro
+ * apagado y pilotos rojos.
  */
-function drawCar(ctx: Ctx, cab: boolean): void {
+function drawCar(ctx: Ctx, cab: boolean, panel = ''): void {
+  // Techo: gris con luz arriba, rejillas de ventilación y sombra sobre el costado.
   px(ctx, PALETTE.metal, 0, 1, CAR_W, 13);
   px(ctx, PALETTE.metalLit, 0, 1, CAR_W, 1);
-  px(ctx, shade(PALETTE.metal, -0.06), 0, 7, CAR_W, 1);
-  for (let x = 10; x < CAR_W - 8; x += 22) px(ctx, shade(PALETTE.metal, -0.1), x, 3, 8, 3);
-  px(ctx, shade(PALETTE.metal, -0.18), 0, 14, CAR_W, 1);
-
-  px(ctx, TRAIN_BODY, 0, 15, CAR_W, 31);
-  px(ctx, shade(TRAIN_BODY, 0.06), 0, 15, CAR_W, 1);
-  px(ctx, PALETTE.glassLit, 0, 38, CAR_W, 2);
-  px(ctx, shade(PALETTE.glassLit, -0.25), 0, 40, CAR_W, 1);
-
-  const windows: [number, number][] = [
-    [4, 12],
-    [34, 28],
-    [82, 10],
-  ];
-  for (const [x, w] of windows) {
-    px(ctx, PALETTE.glass, x, 19, w, 11);
-    px(ctx, shade(PALETTE.glass, 0.1), x, 19, w, 1);
-    px(ctx, shade(PALETTE.glassLit, -0.35), x + 2, 21, 2, 6);
+  px(ctx, shade(PALETTE.metal, 0.06), 0, 2, CAR_W, 3);
+  for (let x = 16; x < CAR_W - 12; x += 26) {
+    px(ctx, PALETTE.metalLit, x, 4, 14, 1);
+    px(ctx, shade(PALETTE.metal, -0.2), x, 5, 14, 5);
+    for (let y = 6; y < 10; y += 2) px(ctx, shade(PALETTE.metal, -0.38), x + 1, y, 12, 1);
   }
+  px(ctx, shade(PALETTE.metal, -0.14), 0, 12, CAR_W, 1);
+  px(ctx, shade(PALETTE.metal, -0.3), 0, 13, CAR_W, 2);
 
-  for (const cx of DOOR_CENTERS) {
-    px(ctx, PALETTE.ink, cx - DOOR_LEAF_W, DOOR_TOP, DOOR_LEAF_W * 2, DOOR_H);
-    px(ctx, shade(PALETTE.amberDim, -0.2), cx - DOOR_LEAF_W, DOOR_TOP + DOOR_H - 2, DOOR_LEAF_W * 2, 1);
+  // Costado por bandas: luz alta, cuerpo, filete, franja y faldón en sombra.
+  px(ctx, TRAIN_BODY, 0, 15, CAR_W, 31);
+  px(ctx, shade(TRAIN_BODY, 0.06), 0, 15, CAR_W, 2);
+  px(ctx, shade(TRAIN_BODY, -0.06), 0, 32, CAR_W, 4);
+  px(ctx, PALETTE.white, 0, STRIPE_TRIM, CAR_W, 1);
+  px(ctx, TRAIN_STRIPE, 0, STRIPE_TOP, CAR_W, STRIPE_H);
+  px(ctx, shade(TRAIN_BODY, -0.12), 0, 41, CAR_W, 5);
+  px(ctx, shade(TRAIN_BODY, -0.24), 0, 45, CAR_W, 1);
+
+  // Ventanas oscuras corridas entre puertas, con marco y un reflejo diagonal de 1 px.
+  // En la cabina, el tramo entre el morro y la primera puerta queda en carrocería (una ventana de 3 px no se lee).
+  const windows: [number, number][] = [...(cab ? [] : [[4, 11] as [number, number]]), [33, 30], [81, 11]];
+  for (const [x, w] of windows) {
+    px(ctx, shade(TRAIN_BODY, -0.22), x - 1, 18, w + 2, 14);
+    px(ctx, PALETTE.night, x, 19, w, 12);
+    px(ctx, PALETTE.ink, x, 19, w, 1);
+    for (const start of [x + 2, x + Math.round(w * 0.6)]) {
+      for (let i = 0; i < 9; i++) {
+        const sx = start + i;
+        if (sx < x + w) px(ctx, PALETTE.glass, sx, 29 - i, 1, 1);
+      }
+    }
   }
 
   if (cab) {
-    px(ctx, shade(PALETTE.metal, -0.2), 0, 1, 5, 13);
-    px(ctx, PALETTE.glass, 0, 17, 3, 14);
-    px(ctx, PALETTE.amber, 0, 41, 2, 2);
+    // Morro de 10 px: techo y frontal más oscuros, canto de luz en la junta con el costado.
+    px(ctx, shade(TRAIN_NOSE, 0.1), 0, 1, 10, 13);
+    px(ctx, TRAIN_NOSE, 0, 15, 10, 31);
+    px(ctx, shade(TRAIN_NOSE, 0.18), 9, 15, 1, 31);
+    // Parabrisas inclinado: el borde delantero retrocede hacia arriba.
+    for (let r = 0; r < 15; r++) {
+      const xs = 1 + Math.floor((14 - r) / 4);
+      px(ctx, PALETTE.night, xs, 17 + r, 9 - xs, 1);
+      px(ctx, PALETTE.ink, xs, 17 + r, 1, 1);
+    }
+    for (let i = 0; i < 6; i++) px(ctx, shade(PALETTE.glassLit, -0.2), 6 - i, 19 + i, 2, 1);
+    // La franja da la vuelta al morro, más oscura.
+    px(ctx, shade(TRAIN_STRIPE, -0.15), 0, STRIPE_TOP, 9, STRIPE_H);
+    if (panel) {
+      // Cabeza: faro bajo blanco-ámbar y piloto rojo, 2×2 cada uno.
+      px(ctx, PALETTE.white, 1, 42, 2, 1);
+      px(ctx, PALETTE.amber, 1, 43, 2, 1);
+      px(ctx, TRAIN_RED, 5, 42, 2, 2);
+    } else {
+      // Cola (sin panel, se espeja): faro apagado y dos pilotos rojos de 2×2.
+      px(ctx, shade(PALETTE.amberDim, -0.35), 1, 42, 2, 2);
+      px(ctx, TRAIN_RED, 5, 42, 2, 2);
+      px(ctx, TRAIN_RED, 1, 33, 2, 2);
+    }
+    // Panel de destino sobre el parabrisas: marco oscuro y la línea en ámbar.
+    px(ctx, PALETTE.ink, 0, 3, 15, 11);
+    px(ctx, shade(PALETTE.ink, 0.12), 1, 4, 13, 9);
+    if (panel) drawWord(ctx, panel, 2, 5, PALETTE.amber, 1);
   } else {
-    px(ctx, PALETTE.ink, 0, 15, 1, 31);
+    // Fuelle: junta oscura de 2 px en cada extremo del coche intermedio.
+    px(ctx, PALETTE.ink, 0, 13, 2, 33);
+    px(ctx, PALETTE.ink, CAR_W - 2, 13, 2, 33);
+  }
+
+  // Huecos de puerta con marco y umbral.
+  for (const cx of DOOR_CENTERS) {
+    px(ctx, shade(TRAIN_BODY, -0.3), cx - DOOR_LEAF_W - 1, DOOR_TOP - 1, DOOR_LEAF_W * 2 + 2, DOOR_H + 1);
+    // Interior tenue tras las hojas: fondo gris oscuro, suelo y una barra vertical clara.
+    px(ctx, shade(PALETTE.night, 0.18), cx - DOOR_LEAF_W, DOOR_TOP, DOOR_LEAF_W * 2, DOOR_H);
+    px(ctx, shade(PALETTE.metal, -0.35), cx - DOOR_LEAF_W, DOOR_TOP + DOOR_H - 5, DOOR_LEAF_W * 2, 3);
+    px(ctx, shade(PALETTE.metalLit, -0.1), cx - 3, DOOR_TOP + 1, 1, DOOR_H - 6);
+    px(ctx, shade(PALETTE.amberDim, -0.2), cx - DOOR_LEAF_W, DOOR_TOP + DOOR_H - 2, DOOR_LEAF_W * 2, 1);
   }
 
   px(ctx, PALETTE.ink, 0, 46, CAR_W, 2);
-  sprinkle(ctx, shade(TRAIN_BODY, -0.05), CAR_W, 12, 311, 16);
 }
 
+/** Hoja de puerta: clara, ventanilla oscura con marco y la franja a la altura de la del coche. */
 function drawDoorLeaf(ctx: Ctx): void {
-  px(ctx, shade(TRAIN_BODY, -0.04), 0, 0, DOOR_LEAF_W, DOOR_H);
-  px(ctx, PALETTE.glass, 1, 3, DOOR_LEAF_W - 2, 10);
-  px(ctx, PALETTE.glassLit, 0, 21, DOOR_LEAF_W, 2);
-  px(ctx, shade(TRAIN_BODY, -0.15), 0, 0, 1, DOOR_H);
+  px(ctx, shade(TRAIN_BODY, 0.03), 0, 0, DOOR_LEAF_W, DOOR_H);
+  px(ctx, shade(TRAIN_BODY, -0.12), 0, DOOR_H - 4, DOOR_LEAF_W, 4);
+  px(ctx, shade(TRAIN_BODY, -0.22), 1, 2, DOOR_LEAF_W - 2, 12);
+  px(ctx, PALETTE.night, 2, 3, DOOR_LEAF_W - 3, 10);
+  px(ctx, PALETTE.glass, 3, 4, 1, 3);
+  px(ctx, PALETTE.white, 0, STRIPE_TRIM - DOOR_TOP, DOOR_LEAF_W, 1);
+  px(ctx, TRAIN_STRIPE, 0, STRIPE_TOP - DOOR_TOP, DOOR_LEAF_W, STRIPE_H);
+  px(ctx, shade(TRAIN_BODY, -0.3), 0, 0, 1, DOOR_H);
+  px(ctx, shade(TRAIN_BODY, -0.18), DOOR_LEAF_W - 1, 0, 1, DOOR_H);
 }
 
 function drawDoorLight(ctx: Ctx): void {
-  px(ctx, PALETTE.amber, 0, 0, 6, 2);
-  px(ctx, shade(PALETTE.amber, 0.2), 1, 0, 4, 1);
+  px(ctx, shade(PALETTE.amber, -0.1), 0, 0, 6, 2);
+  px(ctx, shade(PALETTE.amber, 0.25), 1, 0, 4, 1);
+  px(ctx, PALETTE.white, 2, 0, 2, 1);
 }
 
 // ------------------------------------------------------------- personajes
@@ -898,7 +961,9 @@ export function buildTextures(scene: Phaser.Scene): void {
   }
 
   make(scene, 'prop-turnstile', TILE, TILE, drawTurnstile);
+  // MET-02: la cola (espejada) lleva el panel apagado; la cabina delantera, una variante por línea con su id.
   make(scene, 'train-car-cab', CAR_W, CAR_H, (ctx) => drawCar(ctx, true));
+  for (const line of LINES) make(scene, `train-car-cab-${line.id}`, CAR_W, CAR_H, (ctx) => drawCar(ctx, true, line.id));
   make(scene, 'train-car', CAR_W, CAR_H, (ctx) => drawCar(ctx, false));
   make(scene, 'train-door-leaf', DOOR_LEAF_W, DOOR_H, drawDoorLeaf);
   make(scene, 'train-door-light', 6, 2, drawDoorLight);
