@@ -1,5 +1,6 @@
 import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
+import { stationLine, stationSign } from './transit.ts';
 import { VALLESCO } from './vallesco.ts';
 import { STUDIO } from './studio.ts';
 import { RIBERA } from './ribera.ts';
@@ -280,29 +281,36 @@ function platform(
     kind: 'interior',
     // Tubo fluorescente de andén: blanco frío y funcional, nada que ver con la luz de una casa o de un bar.
     ambient: '#dbe7f2',
+    // MET-01: `w` y `p`, el muro alicatado y la baldosa del andén (world/Surfaces); misma solidez que W y t. El muro
+    // toma el char de su línea (data/transit.ts: LINES.wall), que trae el color de la cenefa.
     ground: [
-      'WWWWWWWWWWWWWWWWWWWWWW',
-      'WWWWWWWWWWWWWWWWWWWWWW',
+      'wwwwwwwwwwwwwwwwwwwwww',
+      'wwwwwwwwwwwwwwwwwwwwww',
       'RRRRRRRRRRRRRRRRRRRRRR',
       'RRRRRRRRRRRRRRRRRRRRRR',
       'RRRRRRRRRRRRRRRRRRRRRR',
-      'WyyyyyyyyyyyyyyyyyyyyW',
-      'WttttttttttttttttttttW',
-      'WttttttttttttttttttttW',
-      'WttttttttttttttttttttW',
-      'WttttttttttttttttttttW',
-      'WWWWWWWWttttttWWWWWWWW',
-      'WWWWWWttttttttttWWWWWW',
-      'WWWWWWttttttttttWWWWWW',
-      'WWWWWWWWWWWDWWWWWWWWWW',
-      'WWWWWWWWWWWWWWWWWWWWWW',
-    ],
+      'wyyyyyyyyyyyyyyyyyyyyw',
+      'wppppppppppppppppppppw',
+      'wppppppppppppppppppppw',
+      'wppppppppppppppppppppw',
+      'wppppppppppppppppppppw',
+      'wwwwwwwwppppppwwwwwwww',
+      'wwwwwwppppppppppwwwwww',
+      'wwwwwwppppppppppwwwwww',
+      'wwwwwwwwwwwDwwwwwwwwww',
+      'wwwwwwwwwwwwwwwwwwwwww',
+    ].map((row) => row.split('w').join(stationLine(id).wall)),
     props: [
       { kind: 'line-map', tx: 2, ty: 1 },
       { kind: 'poster', tx: 6, ty: 1 },
-      { kind: 'metro-sign', tx: 9, ty: 1 },
+      // La placa dice la parada (data/transit.ts: STOPS); seis tiles, entre los dos anuncios.
+      { kind: 'metro-sign', tx: 7, ty: 1, variant: stationSign(id) },
       { kind: 'poster', tx: 13, ty: 1 },
       { kind: 'line-map', tx: 16, ty: 1 },
+      // Pilares en las dos esquinas del andén, contra el muro lateral y junto a los postes de señal: rincones sin paso,
+      // fuera de puertas del tren, puntos de espera, asientos, rondas y tornos.
+      { kind: 'metro-pillar', tx: 1, ty: 9 },
+      { kind: 'metro-pillar', tx: 20, ty: 9 },
       { kind: 'sign', tx: 2, ty: 9 },
       { kind: 'bench', tx: 4, ty: 9 },
       { kind: 'bench', tx: 5, ty: 9 },

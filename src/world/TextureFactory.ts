@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import { FACINGS, type Facing, type NpcLook } from '../types/game';
 import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
-import { blob, drawWord, make, px, shade, sprinkle, type Ctx } from './paint';
+import { blob, drawWord, make, px, shade, sprinkle, wordWidth, type Ctx } from './paint';
+import { STATION_SIGNS } from '../data/transit.ts';
+import { TILES } from './tiles.ts';
 import { buildBuildingTextures } from './BuildingArt';
 import { buildBoxingTextures } from './BoxingArt';
 import { buildDojangTextures } from './DojangArt';
@@ -112,14 +114,20 @@ function drawRail(ctx: Ctx, variant: number): void {
   px(ctx, shade(PALETTE.metal, -0.1), 0, 12, TILE, 1);
 }
 
-/** Borde de anden: franja tactil ambar del lado de la via. */
+/**
+ * Borde de andén (MET-01): canto de 1 px, franja amarilla de seguridad de 3 px y, tras 1 px de suelo, la banda táctil
+ * oscura de botones; el resto, la baldosa del andén (world/Surfaces: metroFloor). Se pisa entero.
+ */
 function drawPlatformEdge(ctx: Ctx): void {
-  px(ctx, PALETTE.tile, 0, 0, TILE, TILE);
-  px(ctx, shade(PALETTE.tile, -0.12), 0, 0, TILE, 2);
-  px(ctx, PALETTE.amberDim, 0, 2, TILE, 3);
-  for (let x = 1; x < TILE; x += 3) px(ctx, shade(PALETTE.amberDim, 0.12), x, 3, 1, 1);
-  px(ctx, shade(PALETTE.tile, -0.06), 0, 9, TILE, 1);
-  sprinkle(ctx, PALETTE.tileLit, TILE, TILE, 63, 5);
+  const floor = shade(PALETTE.stoneLit, 0.04);
+  px(ctx, floor, 0, 0, TILE, TILE);
+  px(ctx, shade(PALETTE.stone, -0.25), 0, 0, TILE, 1);
+  px(ctx, PALETTE.floorTape, 0, 1, TILE, 3);
+  px(ctx, shade(PALETTE.floorTape, 0.08), 0, 1, TILE, 1);
+  px(ctx, PALETTE.metal, 0, 5, TILE, 2);
+  for (let x = 0; x < TILE; x += 2) px(ctx, shade(PALETTE.metal, 0.14), x + ((x >> 1) & 1), 5 + ((x >> 1) & 1), 1, 1);
+  px(ctx, shade(floor, -0.06), 0, 7, TILE, 1);
+  sprinkle(ctx, shade(floor, -0.04), TILE, 8, 63, 4);
 }
 
 /** Quiosco de metro: panel oscuro con el disco de la red. */
@@ -132,14 +140,50 @@ function drawMetro(ctx: Ctx, variant: number): void {
 }
 
 
-/** Rótulo de 3x1 tiles: la boca de metro tiene que decir qué es. */
-function drawMetroSign(ctx: Ctx): void {
-  const w = TILE * 3;
-  px(ctx, PALETTE.ink, 0, 1, w, 14);
-  px(ctx, shade(PALETTE.night, 0.05), 1, 2, w - 2, 12);
-  px(ctx, PALETTE.amberDim, 1, 2, w - 2, 1);
-  px(ctx, PALETTE.amberDim, 1, 13, w - 2, 1);
-  drawWord(ctx, 'METRO', 9, 5, PALETTE.amber);
+/** Ancho de la placa del andén, en px (PROPS['metro-sign'].tilesWide). */
+const SIGN_W = TILE * 6;
+
+/**
+ * Texto de la placa que cabe: en mayúsculas; si no entra con 2 px entre letras, con 1; si aún no, las palabras de
+ * delante se quedan en su inicial con punto («P. NORTE»). Nunca se corta.
+ */
+function signText(name: string): { text: string; gap: number } {
+  const room = SIGN_W - 10;
+  const full = name.toUpperCase();
+  for (const gap of [2, 1]) if (wordWidth(full, gap) <= room) return { text: full, gap };
+  const words = full.split(' ');
+  return { text: [...words.slice(0, -1).map((w) => `${w[0]}.`), words[words.length - 1]].join(' '), gap: 1 };
+}
+
+/** Placa del andén (MET-01): del color de la línea (el de su cenefa) con el nombre de la parada en blanco. */
+function drawMetroSign(ctx: Ctx, name: string, color: string): void {
+  const w = SIGN_W;
+  const { text, gap } = signText(name);
+  px(ctx, shade(color, -0.18), 0, 2, w, 13);
+  px(ctx, color, 1, 3, w - 2, 11);
+  px(ctx, shade(color, 0.08), 1, 3, w - 2, 1);
+  px(ctx, shade(color, -0.08), 1, 13, w - 2, 1);
+  for (const x of [2, w - 4]) px(ctx, shade(PALETTE.metal, 0.1), x, 4, 2, 2);
+  drawWord(ctx, text, Math.floor((w - wordWidth(text, gap)) / 2), 5, PALETTE.white, gap);
+  ctx.globalAlpha = 0.3;
+  px(ctx, PALETTE.ink, 1, 15, w - 1, 1);
+  ctx.globalAlpha = 1;
+}
+
+/** Pilar del andén (MET-01): fuste alicatado, rodapié y cinta amarilla y negra a la altura de quien pasa. */
+function drawMetroPillar(ctx: Ctx): void {
+  const cream = PALETTE.metroCream;
+  px(ctx, shade(cream, -0.16), 2, 0, 12, 46);
+  px(ctx, cream, 3, 0, 9, 46);
+  px(ctx, shade(cream, 0.04), 3, 0, 1, 46);
+  px(ctx, shade(cream, -0.07), 10, 0, 2, 46);
+  for (let y = 5; y < 26; y += 5) px(ctx, shade(cream, -0.06), 3, y, 9, 1);
+  for (let y = 27; y < 34; y++) {
+    for (let x = 2; x < 14; x++) px(ctx, ((x + y) >> 1) % 2 ? PALETTE.floorTape : PALETTE.ink, x, y);
+  }
+  px(ctx, PALETTE.wallTop, 2, 41, 12, 5);
+  px(ctx, shade(PALETTE.wallTop, 0.08), 2, 41, 12, 1);
+  px(ctx, shade(PALETTE.wallTop, -0.06), 2, 46, 12, 2);
 }
 
 /** Diagrama de la línea: cinco paradas y el trazado. */
@@ -837,7 +881,10 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-table', TILE, TILE, drawTable);
   make(scene, 'prop-counter', TILE, TILE, drawCounter);
   make(scene, 'prop-stall', TILE, TILE * 2, drawStall);
-  make(scene, 'prop-metro-sign', TILE * 3, TILE, drawMetroSign);
+  STATION_SIGNS.forEach((s, i) =>
+    make(scene, `prop-metro-sign-${i}`, SIGN_W, TILE, (ctx) => drawMetroSign(ctx, s.name, TILES[s.wall]?.trim ?? PALETTE.metroBlue)),
+  );
+  make(scene, 'prop-metro-pillar', TILE, TILE * 3, drawMetroPillar);
   make(scene, 'prop-line-map', TILE * 3, TILE, drawLineMap);
   make(scene, 'prop-poster', TILE, TILE * 2, drawPoster);
   make(scene, 'prop-parasol', TILE, TILE * 2, drawParasol);

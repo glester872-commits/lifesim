@@ -126,11 +126,43 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   T: ['XXXXX', '..X..', '..X..', '..X..', '..X..', '..X..', '..X..'],
   R: ['XXXX.', 'X...X', 'X...X', 'XXXX.', 'X.X..', 'X..X.', 'X...X'],
   O: ['.XXX.', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
+  // MET-01: las de las placas de andén (data/transit.ts: STATION_SIGNS).
+  A: ['.XXX.', 'X...X', 'X...X', 'XXXXX', 'X...X', 'X...X', 'X...X'],
+  B: ['XXXX.', 'X...X', 'X...X', 'XXXX.', 'X...X', 'X...X', 'XXXX.'],
+  C: ['.XXXX', 'X....', 'X....', 'X....', 'X....', 'X....', '.XXXX'],
+  G: ['.XXXX', 'X....', 'X....', 'X.XXX', 'X...X', 'X...X', '.XXX.'],
+  I: ['XXXXX', '..X..', '..X..', '..X..', '..X..', '..X..', 'XXXXX'],
+  Í: ['...X.', '..X..', '.XXX.', '..X..', '..X..', '..X..', '.XXX.'],
+  L: ['X....', 'X....', 'X....', 'X....', 'X....', 'X....', 'XXXXX'],
+  N: ['X...X', 'XX..X', 'X.X.X', 'X.X.X', 'X..XX', 'X...X', 'X...X'],
+  P: ['XXXX.', 'X...X', 'X...X', 'XXXX.', 'X....', 'X....', 'X....'],
+  S: ['.XXXX', 'X....', 'X....', '.XXX.', '....X', '....X', 'XXXX.'],
+  U: ['X...X', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
+  V: ['X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.X.X.', '..X..'],
+  '.': ['.....', '.....', '.....', '.....', '.....', '.....', '..X..'],
 };
 
-export function drawWord(ctx: Ctx, word: string, x: number, y: number, color: string): void {
+/** Ancho del hueco de un espacio, sin contar la separación. */
+const SPACE = 3;
+
+/** Si la fuente tiene todas las letras de la palabra (el espacio vale). */
+export const canSpell = (word: string): boolean => missingGlyphs(word).length === 0;
+
+/** Las letras de la palabra que la fuente no tiene (sin repetir). */
+export const missingGlyphs = (word: string): string[] => [...new Set([...word].filter((c) => c !== ' ' && !GLYPHS[c]))];
+
+/** Ancho en px de una palabra con `gap` px entre letras. */
+export function wordWidth(word: string, gap = 2): number {
+  return [...word].reduce((w, c) => w + (c === ' ' ? SPACE : 5) + gap, 0) - gap;
+}
+
+export function drawWord(ctx: Ctx, word: string, x: number, y: number, color: string, gap = 2): void {
   let cursor = x;
   for (const letter of word) {
+    if (letter === ' ') {
+      cursor += SPACE + gap;
+      continue;
+    }
     const glyph = GLYPHS[letter];
     if (!glyph) continue;
     glyph.forEach((row, ry) => {
@@ -138,7 +170,7 @@ export function drawWord(ctx: Ctx, word: string, x: number, y: number, color: st
         if (cell === 'X') px(ctx, color, cursor + rx, y + ry, 1, 1);
       });
     });
-    cursor += 7;
+    cursor += 5 + gap;
   }
 }
 

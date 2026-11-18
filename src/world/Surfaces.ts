@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import type { BuildingDef, PropKind, PropPlacement } from '../types/game';
 import { px, shade, type Ctx } from './paint';
+import { isWall, TILES } from './tiles.ts';
 
 /**
  * Biblioteca de materiales de suelo. Cada material es uno o varios caracteres
@@ -1002,6 +1003,128 @@ function stoneFloor({ ctx, cells }: Paint): void {
   }
 }
 
+/**
+ * MET-01, muro del andén (`w` L2, `x` L3). Donde da a la sala o a la vía enseña su cara, como el muro W de LocationBuilder:
+ * cabeza de 3 px, cenefa del color de la línea, azulejo crema de 8 × 3 a matajunta (cada pieza con su tono) y rodapié
+ * oscuro. La cabeza que queda justo encima de una cara es el techo: lleva los tubos fluorescentes, 24 px de cada 48.
+ */
+function metroWall({ ctx, cells, at }: Paint): void {
+  const top = PALETTE.wallTop;
+  const isFace = (tx: number, ty: number): boolean => isWall(at(tx, ty)) && !isWall(at(tx, ty + 1)) && !!TILES[at(tx, ty + 1)];
+  for (const [tx, ty] of cells) {
+    const X = tx * TILE;
+    const Y = ty * TILE;
+    const r = (k: number): number => hash(tx, ty, k + 211);
+    px(ctx, top, X, Y, TILE, TILE);
+    if (!isFace(tx, ty)) {
+      px(ctx, shade(top, 0.05), X, Y + (r(1) < 0.5 ? 7 : 3), TILE, 1);
+      px(ctx, shade(top, -0.04), X + (r(2) < 0.5 ? 5 : 11), Y, 1, TILE);
+      if (!isFace(tx, ty + 1)) continue;
+      // Techo: la regleta y el tubo, cortados en tramos de tres tiles (dos con tubo, uno sin).
+      const slot = ((tx % 3) + 3) % 3;
+      if (slot === 2) continue;
+      const x0 = slot === 0 ? X + 4 : X;
+      const x1 = slot === 0 ? X + TILE : X + 12;
+      px(ctx, shade(PALETTE.metal, -0.08), x0, Y + 9, x1 - x0, 4);
+      px(ctx, PALETTE.metroTube, x0 + (slot === 0 ? 1 : 0), Y + 10, x1 - x0 - 1, 2);
+      px(ctx, shade(PALETTE.metroTube, -0.12), x0 + (slot === 0 ? 1 : 0), Y + 11, x1 - x0 - 1, 1);
+      continue;
+    }
+    px(ctx, shade(top, 0.06), X, Y, TILE, 1);
+    // Cenefa del color de la línea (TileDef.trim): una fila clara y su filete.
+    const trim = TILES[at(tx, ty)]?.trim ?? PALETTE.metroBlue;
+    px(ctx, trim, X, Y + 3, TILE, 1);
+    px(ctx, shade(trim, -0.12), X, Y + 4, TILE, 1);
+    // Azulejo (9 de las 13 filas de la cara): tres hiladas de 3 px (2 de pieza y 1 de junta), a matajunta.
+    const joint = shade(PALETTE.metroCream, -0.09);
+    px(ctx, joint, X, Y + 5, TILE, 9);
+    for (let course = 0; course < 3; course++) {
+      const y = Y + 5 + course * 3;
+      const row = ty * 3 + course;
+      for (let x = X - ((row & 1) * 4); x < X + TILE; x += 8) {
+        const col = Math.floor((x + (row & 1) * 4) / 8);
+        const tone = shade(PALETTE.metroCream, batch(x, y, 72, 223) * 0.02 + (hash(col, row, 227) - 0.5) * 0.035);
+        const a = Math.max(x, X);
+        const b = Math.min(x + 7, X + TILE);
+        if (b <= a) continue;
+        px(ctx, shade(tone, 0.025), a, y, b - a, 1);
+        px(ctx, tone, a, y + 1, b - a, 1);
+      }
+    }
+    // Rodapié.
+    px(ctx, top, X, Y + 14, TILE, 2);
+    px(ctx, shade(top, 0.08), X, Y + 14, TILE, 1);
+  }
+}
+
+/**
+ * MET-01, suelo del andén (`p`): baldosa clara y cálida de 32 px (2 × 2 tiles) con junta fina. El tono va por pieza,
+ * con hash de su posición y una tanda amplia de ruido: no hay damero.
+ */
+function metroFloor({ ctx, cells }: Paint): void {
+  const base = shade(PALETTE.stoneLit, 0.04);
+  for (const [tx, ty] of cells) {
+    const X = tx * TILE;
+    const Y = ty * TILE;
+    const ix = Math.floor(tx / 2);
+    const iy = Math.floor(ty / 2);
+    const tone = shade(base, batch(X, Y, 96, 61) * 0.025 + (hash(ix, iy, 71) - 0.5) * 0.04);
+    const right = (tx & 1) === 1;
+    const bottom = (ty & 1) === 1;
+    px(ctx, shade(base, -0.1), X, Y, TILE, TILE);
+    px(ctx, tone, X, Y, TILE - (right ? 1 : 0), TILE - (bottom ? 1 : 0));
+    if (!bottom) px(ctx, shade(tone, 0.03), X, Y, TILE - (right ? 1 : 0), 1);
+    // Grano del gres: unas motas sueltas, por celda.
+    for (let k = 0; k < 3; k++) {
+      const r = (j: number): number => hash(tx, ty, 300 + k * 3 + j);
+      px(ctx, shade(tone, r(0) < 0.5 ? -0.04 : 0.03), X + Math.floor(r(1) * 14), Y + Math.floor(r(2) * 14));
+    }
+  }
+}
+
+/**
+ * MET-01, vía (`R`): foso de balasto. En una tanda de filas de vía, la del medio lleva los raíles (la vía suelta de una
+ * fila, también); las de los lados son foso, más hondas junto al andén. Traviesas en huecos de 8 px, cada una corrida
+ * y con su tono por hash: el espaciado no se repite.
+ */
+function track({ ctx, cells, at }: Paint): void {
+  const run = (tx: number, ty: number, dy: number): number => {
+    let n = 0;
+    // Tope: si `at` repite el borde fuera del mapa, el bucle no acaba nunca.
+    while (n < 8 && at(tx, ty + dy * (n + 1)) === 'R') n++;
+    return n;
+  };
+  for (const [tx, ty] of cells) {
+    const X = tx * TILE;
+    const Y = ty * TILE;
+    const up = run(tx, ty, -1);
+    const down = run(tx, ty, 1);
+    const ballast = shade(PALETTE.ballast, up === down ? -0.02 : -0.07);
+    px(ctx, ballast, X, Y, TILE, TILE);
+    for (let k = 0; k < 14; k++) {
+      const r = (j: number): number => hash(tx, ty, 400 + k * 3 + j);
+      px(ctx, shade(ballast, r(0) < 0.6 ? 0.06 : -0.05), X + Math.floor(r(1) * TILE), Y + Math.floor(r(2) * TILE));
+    }
+    if (up !== down) {
+      // Lado del andén: la sombra del canto; lado del muro: la canaleta.
+      if (down === 0) [0.3, 0.2, 0.1].forEach((a, i) => px(ctx, shade(ballast, -a * 0.3), X, Y + TILE - 1 - i, TILE, 1));
+      if (up === 0) px(ctx, shade(ballast, -0.08), X, Y, TILE, 2);
+      continue;
+    }
+    for (let slot = 0; slot < 2; slot++) {
+      const r = (j: number): number => hash(tx * 2 + slot, ty, 500 + j);
+      const sx = X + slot * 8 + Math.floor(r(0) * 3);
+      px(ctx, shade(PALETTE.sleeper, (r(1) - 0.5) * 0.08), sx, Y + 2, 3, 12);
+      px(ctx, shade(PALETTE.sleeper, -0.08), sx + 2, Y + 2, 1, 12);
+    }
+    for (const ry of [4, 10]) {
+      px(ctx, PALETTE.metalLit, X, Y + ry, TILE, 1);
+      px(ctx, shade(PALETTE.metal, -0.1), X, Y + ry + 1, TILE, 1);
+      if (hash(tx, ty, 600 + ry) < 0.35) px(ctx, PALETTE.white, X + Math.floor(hash(tx, ty, 610 + ry) * 12), Y + ry, 3, 1);
+    }
+  }
+}
+
 // ------------------------------------------------------------- biblioteca
 
 /** Los materiales, por caracteres de la rejilla (world/tiles.ts). */
@@ -1018,6 +1141,9 @@ export const MATERIALS: readonly Material[] = [
   { chars: 'd', paint: dirt },
   { chars: 'f', paint: wood },
   { chars: 't', paint: stoneFloor },
+  { chars: 'wx', paint: metroWall },
+  { chars: 'p', paint: metroFloor },
+  { chars: 'R', paint: track },
 ];
 
 const PAINTED = new Set(MATERIALS.flatMap((m) => [...m.chars]));

@@ -1,11 +1,17 @@
 import type { PropKind } from '../types/game';
 import type { Layer } from '../systems/Soundscape';
+import { STATION_SIGNS } from '../data/transit.ts';
+import { PALETTE } from '../config/constants.ts';
 
 export interface TileDef {
   key: string;
   solid: boolean;
   /** Número de variantes generadas; el constructor elige una de forma determinista. */
   variants: number;
+  /** Muro interior: cabeza vista desde arriba y, donde da a la sala, su cara (world/LocationBuilder). */
+  wall?: true;
+  /** Color de la cenefa (muro de andén): el de la línea (data/transit.ts: TransitLine.wall elige el char). */
+  trim?: string;
 }
 
 export const TILES: Readonly<Record<string, TileDef>> = {
@@ -24,7 +30,12 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   H: { key: 'tile-facade-home', solid: true, variants: 2 },
   C: { key: 'tile-facade-cafe', solid: true, variants: 2 },
   D: { key: 'tile-door', solid: false, variants: 1 },
-  W: { key: 'tile-wall', solid: true, variants: 2 },
+  W: { key: 'tile-wall', solid: true, variants: 2, wall: true },
+  // MET-01: muro y suelo del andén de metro (data/locations.ts: platform()). Los pinta world/Surfaces en coordenadas de
+  // mundo (cara con cenefa azul, azulejo crema y rodapié; baldosa grande de 2 × 2 tiles); la textura es el respaldo.
+  w: { key: 'tile-wall', solid: true, variants: 2, wall: true, trim: PALETTE.metroBlue },
+  x: { key: 'tile-wall', solid: true, variants: 2, wall: true, trim: PALETTE.metroGreen },
+  p: { key: 'tile-floor-stone', solid: false, variants: 2 },
   f: { key: 'tile-floor-wood', solid: false, variants: 2 },
   t: { key: 'tile-floor-stone', solid: false, variants: 2 },
   r: { key: 'tile-rug', solid: false, variants: 2 },
@@ -169,7 +180,10 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   table: { key: 'prop-table', tilesHigh: 1 },
   counter: { key: 'prop-counter', tilesHigh: 1 },
   stall: { key: 'prop-stall', tilesHigh: 2 },
-  'metro-sign': { key: 'prop-metro-sign', tilesHigh: 1, tilesWide: 3 },
+  // MET-01: la placa azul del andén con el nombre de la parada; una textura por nombre (data/transit.ts: STATION_SIGNS).
+  'metro-sign': { key: 'prop-metro-sign', tilesHigh: 1, tilesWide: 6, variants: STATION_SIGNS.length },
+  // Pilar del andén con cinta amarilla y negra: sólo su fila base choca.
+  'metro-pillar': { key: 'prop-metro-pillar', tilesHigh: 3, shadow: [14, 3] },
   'line-map': { key: 'prop-line-map', tilesHigh: 1, tilesWide: 3 },
   poster: { key: 'prop-poster', tilesHigh: 2 },
   parasol: { key: 'prop-parasol', tilesHigh: 2 },
@@ -363,6 +377,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'shelf-front': { key: 'prop-shelf-front', tilesHigh: 2, variants: 4 },
   'promo-bin': { key: 'prop-promo-bin', tilesHigh: 2, shadow: [14, 3] },
 };
+
+/** Si el carácter es un muro interior (W, o el del andén). */
+export const isWall = (ch: string | undefined): boolean => ch !== undefined && TILES[ch]?.wall === true;
 
 export function tileAt(ground: readonly string[], tx: number, ty: number): TileDef | undefined {
   const row = ground[ty];

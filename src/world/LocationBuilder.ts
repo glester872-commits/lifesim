@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { PALETTE, TILE, WIDEST_VIEW } from '../config/constants';
 import type { LocationDef } from '../types/game';
-import { PROPS, propKey, TILES, variantKey } from './tiles';
+import { isWall, PROPS, propKey, TILES, variantKey } from './tiles';
 import { LAYER, seat, standing } from './Layers';
 import { solidMask } from '../systems/LocationSystem';
 import { bakeBuildings, type GlowSpot, type WindowSpot } from './BuildingArt';
@@ -135,11 +135,14 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
   def.ground.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       const below = at(x, y + 1);
-      if (row[x] !== 'W' || below === 'W' || !TILES[below]) continue;
+      if (!isWall(row[x]) || isWall(below) || !TILES[below]) continue;
       const top = y * TILE + 3;
-      g.fillStyle(face, 1).fillRect(x * TILE, top, TILE, 13);
-      g.fillStyle(SHADOW, 0.06);
-      for (let k = top + 4; k < top + 12; k += 4) g.fillRect(x * TILE, k, TILE, 1);
+      // MET-01: un muro que pinta world/Surfaces (el del andén) trae su cara; aquí sólo la sombra.
+      if (!painted(row[x])) {
+        g.fillStyle(face, 1).fillRect(x * TILE, top, TILE, 13);
+        g.fillStyle(SHADOW, 0.06);
+        for (let k = top + 4; k < top + 12; k += 4) g.fillRect(x * TILE, k, TILE, 1);
+      }
       g.fillStyle(SHADOW, 0.25).fillRect(x * TILE, (y + 1) * TILE - 2, TILE, 2);
       if (!TILES[below].solid) g.fillStyle(SHADOW, 0.3).fillRect(x * TILE, (y + 1) * TILE, TILE, 2);
     }
@@ -150,7 +153,7 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
   // bajo lo sólido que está en el suelo (una barra, un mostrador). La sala deja de parecer un plano.
   if (def.kind === 'interior') {
     const floor = (x: number, y: number): boolean => !!TILES[at(x, y)] && !TILES[at(x, y)].solid;
-    const wall = (x: number, y: number): boolean => at(x, y) === 'W';
+    const wall = (x: number, y: number): boolean => isWall(at(x, y));
     const solid = (x: number, y: number): boolean => !!TILES[at(x, y)]?.solid;
     const FALL = [0.16, 0.1, 0.06, 0.03];
     def.ground.forEach((row, y) => {
@@ -179,7 +182,7 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
   for (const p of def.props) {
     const prop = PROPS[p.kind];
     // Lo que cuelga del techo o de la pared no toca el suelo; lo plano ya es suelo.
-    if (prop.overhead || prop.flat || at(p.tx, p.ty) === 'W') continue;
+    if (prop.overhead || prop.flat || isWall(at(p.tx, p.ty))) continue;
     const width = (prop.tilesWide ?? 1) * TILE;
     // Lo alto echa además la sombra del sol, que cambia con la hora: la pinta Lighting.
     // Aquí sólo el contacto con el suelo, que no depende del sol.
@@ -320,7 +323,7 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
     const top = Phaser.Display.Color.HexStringToColor(PALETTE.wallTop).color;
     def.ground.forEach((row, y) => {
       for (let x = 0; x < row.length; x++) {
-        if (row[x] !== 'W' || !TILES[def.ground[y - 1]?.[x]] || TILES[def.ground[y - 1][x]].solid) continue;
+        if (!isWall(row[x]) || !TILES[def.ground[y - 1]?.[x]] || TILES[def.ground[y - 1][x]].solid) continue;
         lip.fillStyle(top, 1).fillRect(x * TILE, y * TILE - 3, TILE, 4);
         lip.fillStyle(0xffffff, 0.08).fillRect(x * TILE, y * TILE - 3, TILE, 1);
       }

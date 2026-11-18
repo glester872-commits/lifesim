@@ -2,8 +2,16 @@
 // enfría, la luz se calienta) sin romper el orden de claridad, y la limpieza de huérfanos quita el ruido sin tocar las
 // líneas de un píxel, las esquinas ni los bordes. Y el acabado sólo se enciende donde los datos lo piden.
 import assert from 'node:assert/strict';
-import { despeckle, MATERIAL_RAMPS, materialTone, ramp, shade } from '../src/world/paint.ts';
+import { canSpell, despeckle, MATERIAL_RAMPS, materialTone, missingGlyphs, ramp, shade } from '../src/world/paint.ts';
 import { LOCATIONS } from '../src/data/locations.ts';
+import { STATION_SIGNS } from '../src/data/transit.ts';
+
+// MET-01: cada placa de andén se escribe entera con la fuente de rótulos (world/paint.ts: GLYPHS); una letra sin glifo
+// desaparecería del nombre.
+for (const { name } of STATION_SIGNS) {
+  const upper = name.toUpperCase();
+  assert.ok(canSpell(upper), `placa «${name}»: falta el glifo ${missingGlyphs(upper).map((c) => `«${c}»`).join(', ')} en GLYPHS`);
+}
 
 const rgb = (hex: string): [number, number, number] => {
   const n = Number.parseInt(hex.slice(1), 16);
