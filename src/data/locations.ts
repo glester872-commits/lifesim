@@ -1,6 +1,7 @@
 import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
 import { stationSign } from './transit.ts';
+import { withSignage } from './stationSigns.ts';
 import { posterVariant, stationStyle, stationWall, subSignVariant } from './stationStyles.ts';
 import { VALLESCO } from './vallesco.ts';
 import { STUDIO } from './studio.ts';
@@ -298,7 +299,8 @@ export function platform(
   // MET-03: lo que distingue a este andén (data/stationStyles.ts): tono, anuncios, rótulo y extras de la lista blanca.
   const style = stationStyle(id);
   const [adLeft, adRight, adHall] = style.posters.map(posterVariant);
-  return {
+  // MET-04: postes y planos con su variante (data/stationSigns.ts), derivada de los portales de abajo.
+  return withSignage({
     id,
     name,
     kind: 'interior',
@@ -394,7 +396,7 @@ export function platform(
       ],
       guards,
     },
-  };
+  });
 }
 
 /** Rocío cubre el vestíbulo de la estación que le toque ese día. */
@@ -513,7 +515,8 @@ const DECATHLON_L3 = platform(
 
 /** Pasillo físico dentro de la zona validada; no es un trayecto en tren. */
 function correspondence(base: LocationDef, other: LocationDef, line: string): LocationDef {
-  return {
+  // MET-04: con el portal `transfer` ya puesto, el poste del vestíbulo pasa a señalar la correspondencia.
+  return withSignage({
     ...base,
     name: base.name.includes('L3') ? base.name : base.name + ' · L2',
     ground: base.ground.map((row, y) => y === 11 ? row.slice(0, 7) + 'Y' + row.slice(8) : row),
@@ -527,7 +530,7 @@ function correspondence(base: LocationDef, other: LocationDef, line: string): Lo
       tx: 6, ty: 12, name: 'Correspondencia · ' + line,
       lines: ['A la izquierda del vestíbulo, el pasillo de correspondencia: 2 min a pie. El billete se valida al subir al primer tren y vale hasta salir a la calle. Servicio continuo; espera junto a las puertas del andén elegido. Al recargar reapareces en un andén seguro con el mismo saldo y reloj.'],
     }],
-  };
+  });
 }
 
 /** Tres taburetes a la barra, delante del mostrador (fila 6), mirando hacia él. */
