@@ -205,6 +205,7 @@ export type PropKind =
   | 'tyre-marks'
   | 'work-light'
   | 'tube-light'
+  | 'metro-light'
   // Distrito Arena (world/ArenaArt): taquilla, puesto de comida, puesto de bufandas, mástil con la bandera del club y torre de focos.
   | 'ticket-booth'
   | 'food-stall'
