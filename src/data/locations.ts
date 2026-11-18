@@ -2,6 +2,7 @@ import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
 import { stationSign } from './transit.ts';
 import { withSignage } from './stationSigns.ts';
+import { stationLighting } from './stationLighting.ts';
 import { posterVariant, stationStyle, stationWall, subSignVariant } from './stationStyles.ts';
 import { VALLESCO } from './vallesco.ts';
 import { STUDIO } from './studio.ts';
@@ -299,13 +300,15 @@ export function platform(
   // MET-03: lo que distingue a este andén (data/stationStyles.ts): tono, anuncios, rótulo y extras de la lista blanca.
   const style = stationStyle(id);
   const [adLeft, adRight, adHall] = style.posters.map(posterVariant);
+  // MET-05: tubos del techo y ambiente, comunes a todos los andenes (data/stationLighting.ts).
+  const lighting = stationLighting(id);
   // MET-04: postes y planos con su variante (data/stationSigns.ts), derivada de los portales de abajo.
   return withSignage({
     id,
     name,
     kind: 'interior',
     // Tubo fluorescente de andén: blanco frío y funcional, nada que ver con la luz de una casa o de un bar.
-    ambient: '#dbe7f2',
+    ambient: lighting.ambientColor,
     // MET-01: `w` y `p`, el muro alicatado y la baldosa del andén (world/Surfaces); misma solidez que W y t. El muro
     // toma el char de su línea (data/transit.ts: LINES.wall), que trae el color de la cenefa.
     // MET-03: y su tono de azulejo (data/stationStyles.ts: stationWall), un char generado por tono × línea.
@@ -335,6 +338,9 @@ export function platform(
       { kind: 'sign', tx: 6, ty: 12 },
       { kind: 'poster', tx: 15, ty: 12, variant: adHall },
       { kind: 'ticket-machine', tx: 14, ty: 11 },
+      // MET-05: los tubos cuelgan del techo (overhead): ni colisionan ni tapan el paso. Antes de los extras, que
+      // scripts/check-station-variety.ts espera al final.
+      ...lighting.lights.map((l) => ({ kind: lighting.kind, tx: l.tx, ty: l.ty })),
       // MET-03: carteles y papeleras extra, sólo en SAFE_EXTRA_TILES (scripts/check-station-variety.ts).
       ...style.extraProps.map((p) => ({ kind: p.kind, tx: p.tx, ty: p.ty, ...(p.ad ? { variant: posterVariant(p.ad) } : {}) })),
     ],

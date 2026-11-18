@@ -331,6 +331,9 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Del techo.
   pendant: { key: 'prop-pendant', tilesHigh: 2, overhead: true, light: { dy: 14 } },
   'tube-light': { key: 'prop-tube-light', tilesHigh: 2, tilesWide: 2, overhead: true, light: { dy: 14, cool: true } },
+  // MET-05: la luz de un tubo del andén, sin dibujo (el tubo está en el techo, fuera de cámara): sólo el charco frío
+  // en la baldosa. Dos tiles de ancho para centrarlo entre columnas; overhead: ni cuerpo ni sombra.
+  'metro-light': { key: 'prop-metro-light', tilesHigh: 1, tilesWide: 2, overhead: true, light: { dy: 16, cool: true, pool: [44, 20] } },
   // Lámpara de pie: la luz cálida de un salón, con su charco en el suelo.
   'floor-lamp': { key: 'prop-floor-lamp', tilesHigh: 2, light: { dy: 24, pool: [36, 16] }, shadow: [8, 3] },
   // Mesa baja de tienda con ropa doblada en montones.

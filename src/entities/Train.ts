@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import type { TrainSystem } from '../systems/TrainSystem';
-import { CAR_W, DOOR_CENTERS, DOOR_LEAF_W, DOOR_TOP } from '../world/TextureFactory';
+import { CAR_H, CAR_W, DOOR_CENTERS, DOOR_LEAF_W, DOOR_TOP } from '../world/TextureFactory';
+import { METRO_SHADOW } from '../data/stationLighting.ts';
 
 export const TRAIN_CARS = 3;
+/** El tono de sombra de world/LocationBuilder. */
+const SHADOW = 0x140f1c;
 export const TRAIN_LENGTH = CAR_W * TRAIN_CARS;
 
 /** Desplazamiento de cada puerta respecto al borde izquierdo del tren. */
@@ -25,6 +28,15 @@ export class Train {
   /** `lineId`: la línea del andén (data/transit: stationLine); su número va en el panel de la cabina delantera. */
   constructor(scene: Phaser.Scene, top: number, mapWidth: number, depth: number, lineId: string) {
     this.root = scene.add.container(0, top).setDepth(depth).setVisible(false);
+
+    // MET-05: sombra sobre la vía, en el fondo del contenedor (debajo de los coches, encima del suelo): se mueve y se
+    // oculta con el tren. La carrocería acaba en y = CAR_H − 2 (TextureFactory.drawCar): la sombra son esas 2 filas
+    // libres, todavía sobre la vía, en dos niveles (pegada al coche, los dos solapados ≈ METRO_SHADOW.train), y asoma
+    // también entre coches.
+    const half = METRO_SHADOW.train / 2;
+    this.root.add(scene.add.graphics()
+      .fillStyle(SHADOW, half).fillRect(-2, CAR_H - 3, TRAIN_LENGTH + 4, 3)
+      .fillStyle(SHADOW, half).fillRect(0, CAR_H - 3, TRAIN_LENGTH, 2));
 
     for (let car = 0; car < TRAIN_CARS; car++) {
       const tail = car === TRAIN_CARS - 1;

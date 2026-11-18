@@ -1065,6 +1065,8 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-monument', TILE * 3, TILE * 4, drawMonument);
   make(scene, 'prop-pendant', TILE, TILE * 2, drawPendant);
   make(scene, 'prop-tube-light', TILE * 2, TILE * 2, drawTubeLight);
+  // MET-05: transparente; la luz la pone world/Lighting desde PROPS['metro-light'].light.
+  make(scene, 'prop-metro-light', TILE * 2, TILE, () => undefined);
 
   for (let v = 0; v < 2; v++) {
     make(scene, `tile-court-${v}`, TILE, TILE, (ctx) => drawCourt(ctx, v));

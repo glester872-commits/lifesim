@@ -4,6 +4,7 @@ import type { BuildingDef, PropKind, PropPlacement } from '../types/game';
 import { px, shade, type Ctx } from './paint';
 import { isWall, TILES } from './tiles.ts';
 import { WALL_CHARS } from '../data/stationStyles.ts';
+import { METRO_SHADOW, TUNNEL_CONTRAST } from '../data/stationLighting.ts';
 
 /**
  * Biblioteca de materiales de suelo. Cada material es uno o varios caracteres
@@ -1097,34 +1098,56 @@ function track({ ctx, cells, at }: Paint): void {
     while (n < 8 && at(tx, ty + dy * (n + 1)) === 'R') n++;
     return n;
   };
+  // MET-05: las bocas del túnel son los extremos de cada fila de vía (la vía llega al borde del mapa): la columna del
+  // extremo y las dos siguientes, oscurecidas en escalón (data/stationLighting.ts: TUNNEL_CONTRAST). Proporcional
+  // (hacia el negro de fuera del mapa), no restando: el balasto ya es oscuro y restar lo dejaba en negro plano.
+  // Sin id de estación.
+  const ends = new Map<number, [number, number]>();
+  for (const [tx, ty] of cells) {
+    const e = ends.get(ty);
+    ends.set(ty, e ? [Math.min(e[0], tx), Math.max(e[1], tx)] : [tx, tx]);
+  }
   for (const [tx, ty] of cells) {
     const X = tx * TILE;
     const Y = ty * TILE;
+    const [x0, x1] = ends.get(ty) ?? [tx, tx];
+    const edge = Math.min(tx - x0, x1 - tx);
+    const dark = edge < TUNNEL_CONTRAST.length ? TUNNEL_CONTRAST[edge] : 0;
+    const k = (c: string): string => (dark ? mix(c, '#000000', -dark) : c);
     const up = run(tx, ty, -1);
     const down = run(tx, ty, 1);
     const ballast = shade(PALETTE.ballast, up === down ? -0.02 : -0.07);
-    px(ctx, ballast, X, Y, TILE, TILE);
-    for (let k = 0; k < 14; k++) {
-      const r = (j: number): number => hash(tx, ty, 400 + k * 3 + j);
-      px(ctx, shade(ballast, r(0) < 0.6 ? 0.06 : -0.05), X + Math.floor(r(1) * TILE), Y + Math.floor(r(2) * TILE));
+    // MET-05: labio del andén, la sombra del canto sobre la última fila de vía (la de debajo es la franja `y`).
+    const lip = (): void => {
+      if (at(tx, ty + 1) !== 'y') return;
+      px(ctx, k(shade(ballast, -METRO_SHADOW.lip / 2)), X, Y + TILE - 4, TILE, 1);
+      px(ctx, k(shade(ballast, -METRO_SHADOW.lip)), X, Y + TILE - 3, TILE, 3);
+    };
+    px(ctx, k(ballast), X, Y, TILE, TILE);
+    for (let n = 0; n < 14; n++) {
+      const r = (j: number): number => hash(tx, ty, 400 + n * 3 + j);
+      px(ctx, k(shade(ballast, r(0) < 0.6 ? 0.06 : -0.05)), X + Math.floor(r(1) * TILE), Y + Math.floor(r(2) * TILE));
     }
     if (up !== down) {
       // Lado del andén: la sombra del canto; lado del muro: la canaleta.
-      if (down === 0) [0.3, 0.2, 0.1].forEach((a, i) => px(ctx, shade(ballast, -a * 0.3), X, Y + TILE - 1 - i, TILE, 1));
-      if (up === 0) px(ctx, shade(ballast, -0.08), X, Y, TILE, 2);
+      if (down === 0) [0.3, 0.2, 0.1].forEach((a, i) => px(ctx, k(shade(ballast, -a * 0.3)), X, Y + TILE - 1 - i, TILE, 1));
+      if (up === 0) px(ctx, k(shade(ballast, -0.08)), X, Y, TILE, 2);
+      lip();
       continue;
     }
     for (let slot = 0; slot < 2; slot++) {
       const r = (j: number): number => hash(tx * 2 + slot, ty, 500 + j);
       const sx = X + slot * 8 + Math.floor(r(0) * 3);
-      px(ctx, shade(PALETTE.sleeper, (r(1) - 0.5) * 0.08), sx, Y + 2, 3, 12);
-      px(ctx, shade(PALETTE.sleeper, -0.08), sx + 2, Y + 2, 1, 12);
+      px(ctx, k(shade(PALETTE.sleeper, (r(1) - 0.5) * 0.08)), sx, Y + 2, 3, 12);
+      px(ctx, k(shade(PALETTE.sleeper, -0.08)), sx + 2, Y + 2, 1, 12);
     }
     for (const ry of [4, 10]) {
-      px(ctx, PALETTE.metalLit, X, Y + ry, TILE, 1);
-      px(ctx, shade(PALETTE.metal, -0.1), X, Y + ry + 1, TILE, 1);
-      if (hash(tx, ty, 600 + ry) < 0.35) px(ctx, PALETTE.white, X + Math.floor(hash(tx, ty, 610 + ry) * 12), Y + ry, 3, 1);
+      // En la boca, el raíl sin brillo (ni cara alta clara ni destello): se pierde en el túnel con el balasto.
+      px(ctx, k(dark ? shade(PALETTE.metal, -0.1) : PALETTE.metalLit), X, Y + ry, TILE, 1);
+      px(ctx, k(shade(PALETTE.metal, -0.1)), X, Y + ry + 1, TILE, 1);
+      if (!dark && hash(tx, ty, 600 + ry) < 0.35) px(ctx, PALETTE.white, X + Math.floor(hash(tx, ty, 610 + ry) * 12), Y + ry, 3, 1);
     }
+    lip();
   }
 }
 
