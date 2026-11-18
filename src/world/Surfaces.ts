@@ -3,6 +3,7 @@ import { PALETTE, TILE } from '../config/constants';
 import type { BuildingDef, PropKind, PropPlacement } from '../types/game';
 import { px, shade, type Ctx } from './paint';
 import { isWall, TILES } from './tiles.ts';
+import { WALL_CHARS } from '../data/stationStyles.ts';
 
 /**
  * Biblioteca de materiales de suelo. Cada material es uno o varios caracteres
@@ -1036,14 +1037,16 @@ function metroWall({ ctx, cells, at }: Paint): void {
     px(ctx, trim, X, Y + 3, TILE, 1);
     px(ctx, shade(trim, -0.12), X, Y + 4, TILE, 1);
     // Azulejo (9 de las 13 filas de la cara): tres hiladas de 3 px (2 de pieza y 1 de junta), a matajunta.
-    const joint = shade(PALETTE.metroCream, -0.09);
+    // MET-03: el tono del azulejo es el del char (world/tiles.ts: TileDef.tile, data/stationStyles.ts: WALL_TONES).
+    const cream = TILES[at(tx, ty)]?.tile ?? PALETTE.metroCream;
+    const joint = shade(cream, -0.09);
     px(ctx, joint, X, Y + 5, TILE, 9);
     for (let course = 0; course < 3; course++) {
       const y = Y + 5 + course * 3;
       const row = ty * 3 + course;
       for (let x = X - ((row & 1) * 4); x < X + TILE; x += 8) {
         const col = Math.floor((x + (row & 1) * 4) / 8);
-        const tone = shade(PALETTE.metroCream, batch(x, y, 72, 223) * 0.02 + (hash(col, row, 227) - 0.5) * 0.035);
+        const tone = shade(cream, batch(x, y, 72, 223) * 0.02 + (hash(col, row, 227) - 0.5) * 0.035);
         const a = Math.max(x, X);
         const b = Math.min(x + 7, X + TILE);
         if (b <= a) continue;
@@ -1141,7 +1144,8 @@ export const MATERIALS: readonly Material[] = [
   { chars: 'd', paint: dirt },
   { chars: 'f', paint: wood },
   { chars: 't', paint: stoneFloor },
-  { chars: 'wx', paint: metroWall },
+  // MET-03: y los muros por tono × línea generados de data/stationStyles.ts.
+  { chars: `wx${WALL_CHARS.map((c) => c.char).join('')}`, paint: metroWall },
   { chars: 'p', paint: metroFloor },
   { chars: 'R', paint: track },
 ];

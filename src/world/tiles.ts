@@ -1,6 +1,7 @@
 import type { PropKind } from '../types/game';
 import type { Layer } from '../systems/Soundscape';
-import { STATION_SIGNS } from '../data/transit.ts';
+import { LINES, STATION_SIGNS } from '../data/transit.ts';
+import { POSTER_ADS, SUB_SIGNS, WALL_CHARS, WALL_TONES } from '../data/stationStyles.ts';
 import { PALETTE } from '../config/constants.ts';
 
 export interface TileDef {
@@ -12,9 +13,23 @@ export interface TileDef {
   wall?: true;
   /** Color de la cenefa (muro de andén): el de la línea (data/transit.ts: TransitLine.wall elige el char). */
   trim?: string;
+  /** MET-03: tono del azulejo del muro de andén (data/stationStyles.ts: WALL_TONES); sin él, el crema. */
+  tile?: string;
 }
 
+/** Cenefa de cada línea: la de su char de muro. */
+const LINE_TRIM: Readonly<Record<string, string>> = { w: PALETTE.metroBlue, x: PALETTE.metroGreen };
+
+/** MET-03: un char de muro por tono × línea, generado de data/stationStyles.ts (nunca a mano). */
+const STATION_WALLS: Record<string, TileDef> = Object.fromEntries(
+  WALL_CHARS.map((c): [string, TileDef] => [
+    c.char,
+    { key: 'tile-wall', solid: true, variants: 2, wall: true, trim: LINE_TRIM[LINES.find((l) => l.id === c.line)?.wall ?? 'w'] ?? PALETTE.metroBlue, tile: WALL_TONES[c.tone] },
+  ]),
+);
+
 export const TILES: Readonly<Record<string, TileDef>> = {
+  ...STATION_WALLS,
   B: { key: 'tile-boxing-canvas', solid: false, variants: 1 },
   S: { key: 'tile-boxing-ropes-h', solid: true, variants: 1 },
   L: { key: 'tile-boxing-ropes-v', solid: true, variants: 1 },
@@ -33,8 +48,8 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   W: { key: 'tile-wall', solid: true, variants: 2, wall: true },
   // MET-01: muro y suelo del andén de metro (data/locations.ts: platform()). Los pinta world/Surfaces en coordenadas de
   // mundo (cara con cenefa azul, azulejo crema y rodapié; baldosa grande de 2 × 2 tiles); la textura es el respaldo.
-  w: { key: 'tile-wall', solid: true, variants: 2, wall: true, trim: PALETTE.metroBlue },
-  x: { key: 'tile-wall', solid: true, variants: 2, wall: true, trim: PALETTE.metroGreen },
+  w: { key: 'tile-wall', solid: true, variants: 2, wall: true, trim: LINE_TRIM.w },
+  x: { key: 'tile-wall', solid: true, variants: 2, wall: true, trim: LINE_TRIM.x },
   p: { key: 'tile-floor-stone', solid: false, variants: 2 },
   f: { key: 'tile-floor-wood', solid: false, variants: 2 },
   t: { key: 'tile-floor-stone', solid: false, variants: 2 },
@@ -86,6 +101,8 @@ export interface PropDef {
   tilesWide?: number;
   /** Versiones de la textura (`key-0`…): cada colocación elige la suya por posición, siempre la misma. */
   variants?: number;
+  /** MET-03: la variante de las colocaciones sin `variant`, en vez de la que toque por posición. */
+  defaultVariant?: number;
   /** Movimiento propio en reposo; lo anima world/Ambience. */
   ambient?: 'spray';
   /**
@@ -185,7 +202,11 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   // Pilar del andén con cinta amarilla y negra: sólo su fila base choca.
   'metro-pillar': { key: 'prop-metro-pillar', tilesHigh: 3, shadow: [14, 3] },
   'line-map': { key: 'prop-line-map', tilesHigh: 1, tilesWide: 3 },
-  poster: { key: 'prop-poster', tilesHigh: 2 },
+  // MET-03: un dibujo por anuncio ficticio (data/stationStyles.ts: POSTER_ADS); el andén fija el suyo con `variant`.
+  // Sin `variant` (fachadas, oficinas), el de siempre: la 0.
+  poster: { key: 'prop-poster', tilesHigh: 2, variants: POSTER_ADS.length, defaultVariant: 0 },
+  // MET-03: rótulo secundario colgado del techo sobre la placa («Correspondencia», «Estadio»…), uno por texto.
+  'metro-subsign': { key: 'prop-metro-subsign', tilesHigh: 1, tilesWide: 6, variants: SUB_SIGNS.length, overhead: true },
   parasol: { key: 'prop-parasol', tilesHigh: 2 },
   'cafe-table': { key: 'prop-cafe-table', tilesHigh: 1 },
   turnstile: { key: 'prop-turnstile', tilesHigh: 1 },
@@ -396,5 +417,5 @@ export function variantKey(def: TileDef, tx: number, ty: number): string {
 /** Textura de una colocación: con variantes, la que toca por posición (la misma en cada visita). */
 export function propKey(def: PropDef, tx: number, ty: number, variant?: number): string {
   if (!def.variants) return def.key;
-  return `${def.key}-${(variant ?? tx * 7 + ty * 13) % def.variants}`;
+  return `${def.key}-${(variant ?? def.defaultVariant ?? tx * 7 + ty * 13) % def.variants}`;
 }

@@ -5,12 +5,19 @@ import assert from 'node:assert/strict';
 import { canSpell, despeckle, MATERIAL_RAMPS, materialTone, missingGlyphs, ramp, shade, wordWidth } from '../src/world/paint.ts';
 import { LOCATIONS } from '../src/data/locations.ts';
 import { LINES, STATION_SIGNS } from '../src/data/transit.ts';
+import { SUB_SIGNS } from '../src/data/stationStyles.ts';
 
 // MET-01: cada placa de andén se escribe entera con la fuente de rótulos (world/paint.ts: GLYPHS); una letra sin glifo
 // desaparecería del nombre.
 for (const { name } of STATION_SIGNS) {
   const upper = name.toUpperCase();
   assert.ok(canSpell(upper), `placa «${name}»: falta el glifo ${missingGlyphs(upper).map((c) => `«${c}»`).join(', ')} en GLYPHS`);
+}
+
+// MET-03: y cada rótulo secundario (data/stationStyles.ts: SUB_SIGNS), que además cabe en sus seis tiles.
+for (const { text } of SUB_SIGNS) {
+  assert.ok(canSpell(text), `rótulo «${text}»: falta el glifo ${missingGlyphs(text).map((c) => `«${c}»`).join(', ')} en GLYPHS`);
+  assert.ok(wordWidth(text, 1) + 6 <= 6 * 16, `rótulo «${text}»: ${wordWidth(text, 1) + 6} px, no cabe en 96`);
 }
 
 // MET-02: el panel de destino de la cabina escribe el id de cada línea tal cual (world/TextureFactory: drawCar), y cabe

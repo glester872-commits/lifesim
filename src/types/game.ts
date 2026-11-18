@@ -62,6 +62,7 @@ export type PropKind =
   | 'counter'
   | 'stall'
   | 'metro-sign'
+  | 'metro-subsign'
   | 'metro-pillar'
   | 'poster'
   | 'line-map'

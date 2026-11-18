@@ -4,6 +4,9 @@ import { FACINGS, type Facing, type NpcLook } from '../types/game';
 import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
 import { blob, drawWord, make, px, shade, sprinkle, wordWidth, type Ctx } from './paint';
 import { LINES, STATION_SIGNS } from '../data/transit.ts';
+import { POSTER_ADS, SUB_SIGNS, type PosterAd, type SubSign } from '../data/stationStyles.ts';
+import { ARENA_CLUB } from '../data/cityEvents.ts';
+import { drawWord as writeSign, wordWidth as signWidth } from './paint.ts';
 import { TILES } from './tiles.ts';
 import { buildBuildingTextures } from './BuildingArt';
 import { buildBoxingTextures } from './BoxingArt';
@@ -201,16 +204,116 @@ function drawLineMap(ctx: Ctx): void {
   px(ctx, shade(PALETTE.white, -0.25), 18, 12, 14, 1);
 }
 
-/** Cartel publicitario: a este tamaño el texto es una mancha, y así se dibuja. */
-function drawPoster(ctx: Ctx): void {
+/**
+ * Cartel publicitario enmarcado (MET-03: uno por anuncio ficticio de data/stationStyles.ts, sin marcas ni texto real).
+ * A este tamaño el texto es una mancha, y así se dibuja; manda la imagen. Panel útil: x 3–12, y 5–28.
+ */
+function drawPoster(ctx: Ctx, ad: PosterAd): void {
   px(ctx, PALETTE.ink, 2, 4, 12, 26);
-  px(ctx, shade(PALETTE.stone, -0.12), 3, 5, 10, 24);
-  px(ctx, PALETTE.rug, 4, 6, 8, 11);
-  px(ctx, PALETTE.amber, 5, 8, 4, 4);
-  px(ctx, PALETTE.white, 4, 19, 8, 1);
-  px(ctx, PALETTE.white, 4, 21, 6, 1);
-  px(ctx, shade(PALETTE.white, -0.3), 4, 23, 7, 1);
-  px(ctx, PALETTE.glassLit, 4, 26, 5, 2);
+  const [teal, orange] = ARENA_CLUB.home;
+  const copy = (color: string): void => {
+    px(ctx, color, 4, 23, 8, 1);
+    px(ctx, shade(color, -0.25), 4, 25, 5, 1);
+  };
+  switch (ad) {
+    case 'clasico': // El de siempre, sin tocar: el de las fachadas y oficinas.
+      px(ctx, shade(PALETTE.stone, -0.12), 3, 5, 10, 24);
+      px(ctx, PALETTE.rug, 4, 6, 8, 11);
+      px(ctx, PALETTE.amber, 5, 8, 4, 4);
+      px(ctx, PALETTE.white, 4, 19, 8, 1);
+      px(ctx, PALETTE.white, 4, 21, 6, 1);
+      px(ctx, shade(PALETTE.white, -0.3), 4, 23, 7, 1);
+      px(ctx, PALETTE.glassLit, 4, 26, 5, 2);
+      return;
+    case 'zapatillas': // Zapatilla genérica sobre fondo claro, con su raya de movimiento.
+      px(ctx, PALETTE.glassLit, 3, 5, 10, 24);
+      px(ctx, shade(PALETTE.glassLit, -0.15), 3, 5, 10, 3);
+      px(ctx, PALETTE.white, 5, 13, 5, 3);
+      px(ctx, PALETTE.white, 4, 16, 8, 2);
+      px(ctx, PALETTE.rug, 6, 14, 3, 1);
+      px(ctx, PALETTE.ink, 4, 18, 8, 1);
+      px(ctx, PALETTE.amber, 3, 10, 3, 1);
+      copy(PALETTE.ink);
+      break;
+    case 'concierto': // Escenario de noche: dos focos y una silueta con micro.
+      px(ctx, PALETTE.night, 3, 5, 10, 24);
+      for (let i = 0; i < 6; i++) {
+        px(ctx, shade(PALETTE.amber, -0.3), 4 + i, 6 + i * 2, 1, 2);
+        px(ctx, shade(PALETTE.amber, -0.3), 11 - i, 6 + i * 2, 1, 2);
+      }
+      px(ctx, PALETTE.ink, 7, 14, 2, 2);
+      px(ctx, PALETTE.ink, 6, 16, 4, 4);
+      px(ctx, PALETTE.amber, 3, 20, 10, 1);
+      copy(PALETTE.amber);
+      break;
+    case 'museo': // Fachada de templo: frontón y columnas en piedra.
+      px(ctx, shade(PALETTE.stone, 0.15), 3, 5, 10, 24);
+      px(ctx, shade(PALETTE.stone, -0.2), 5, 9, 6, 1);
+      px(ctx, shade(PALETTE.stone, -0.2), 4, 10, 8, 1);
+      for (const x of [4, 7, 10]) px(ctx, PALETTE.white, x, 11, 2, 7);
+      px(ctx, shade(PALETTE.stone, -0.2), 4, 18, 8, 1);
+      copy(PALETTE.ink);
+      break;
+    case 'refresco': // Botella sin marca sobre rojo, con burbujas.
+      px(ctx, PALETTE.rug, 3, 5, 10, 24);
+      px(ctx, PALETTE.white, 7, 7, 2, 3);
+      px(ctx, PALETTE.white, 6, 10, 4, 10);
+      px(ctx, PALETTE.amber, 6, 13, 4, 3);
+      px(ctx, shade(PALETTE.rug, 0.25), 4, 8, 1, 1);
+      px(ctx, shade(PALETTE.rug, 0.25), 11, 12, 1, 1);
+      px(ctx, shade(PALETTE.rug, 0.25), 10, 7, 1, 1);
+      copy(PALETTE.white);
+      break;
+    case 'ciudad': // Turismo: cielo, sol y perfil de tejados.
+      px(ctx, PALETTE.glassLit, 3, 5, 10, 16);
+      px(ctx, PALETTE.amber, 9, 7, 3, 3);
+      px(ctx, PALETTE.roofA, 3, 15, 3, 6);
+      px(ctx, PALETTE.brick, 6, 12, 3, 9);
+      px(ctx, PALETTE.roofB, 9, 14, 4, 7);
+      px(ctx, PALETTE.white, 3, 21, 10, 8);
+      copy(PALETTE.metroBlue);
+      break;
+    case 'club': // CD Halcones: turquesa con franja naranja y el ala del halcón.
+      px(ctx, teal, 3, 5, 10, 24);
+      for (let i = 0; i < 10; i++) px(ctx, orange, 3 + i, 19 - i, 1, 3);
+      px(ctx, PALETTE.white, 5, 9, 5, 1);
+      px(ctx, PALETTE.white, 6, 10, 4, 1);
+      px(ctx, PALETTE.white, 8, 11, 2, 1);
+      copy(PALETTE.white);
+      break;
+    case 'club-escudo': // CD Halcones: escudo turquesa sobre naranja.
+      px(ctx, orange, 3, 5, 10, 24);
+      px(ctx, PALETTE.white, 4, 8, 8, 9);
+      px(ctx, teal, 5, 9, 6, 7);
+      px(ctx, PALETTE.white, 6, 17, 4, 1);
+      px(ctx, teal, 7, 18, 2, 1);
+      px(ctx, orange, 7, 11, 2, 3);
+      copy(PALETTE.ink);
+      break;
+  }
+  // Reflejo del cristal del marco.
+  px(ctx, shade(PALETTE.white, -0.1), 11, 6, 1, 3);
+}
+
+/**
+ * MET-03: rótulo secundario colgado del techo (data/stationStyles.ts: SUB_SIGNS). Panel del color de la línea a la que
+ * lleva (neutro sin ella), letra blanca de la fuente de placas, centrado en sus seis tiles y con dos tirantes.
+ */
+function drawSubSign(ctx: Ctx, sign: SubSign, w: number): void {
+  const wall = LINES.find((l) => l.id === sign.line)?.wall;
+  const color = (wall && TILES[wall]?.trim) || PALETTE.night;
+  const tw = signWidth(sign.text, 1);
+  const pw = tw + 6;
+  const x0 = Math.floor((w - pw) / 2);
+  // El techo liso en todo el tramo del rótulo: el tubo (world/Surfaces.metroWall, filas 9–12 del tile) no queda
+  // asomando a los lados ni tapado detrás; sólo pasa donde cuelga un rótulo.
+  px(ctx, PALETTE.wallTop, 0, 9, w, 4);
+  px(ctx, PALETTE.metal, x0 + 3, 0, 1, 4);
+  px(ctx, PALETTE.metal, x0 + pw - 4, 0, 1, 4);
+  px(ctx, shade(color, -0.3), x0, 4, pw, 11);
+  px(ctx, color, x0 + 1, 4, pw - 2, 10);
+  px(ctx, shade(color, 0.12), x0 + 1, 4, pw - 2, 1);
+  writeSign(ctx, sign.text, x0 + 3, 6, PALETTE.white, 1);
 }
 
 /** Mesa de terraza con sombrilla: el toldo ocupa el tile de arriba. */
@@ -949,7 +1052,8 @@ export function buildTextures(scene: Phaser.Scene): void {
   );
   make(scene, 'prop-metro-pillar', TILE, TILE * 3, drawMetroPillar);
   make(scene, 'prop-line-map', TILE * 3, TILE, drawLineMap);
-  make(scene, 'prop-poster', TILE, TILE * 2, drawPoster);
+  POSTER_ADS.forEach((ad, i) => make(scene, `prop-poster-${i}`, TILE, TILE * 2, (ctx) => drawPoster(ctx, ad)));
+  SUB_SIGNS.forEach((s, i) => make(scene, `prop-metro-subsign-${i}`, TILE * 6, TILE, (ctx) => drawSubSign(ctx, s, TILE * 6)));
   make(scene, 'prop-parasol', TILE, TILE * 2, drawParasol);
   make(scene, 'prop-cafe-table', TILE, TILE, drawCafeTable);
 

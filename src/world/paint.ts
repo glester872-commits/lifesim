@@ -140,6 +140,10 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   U: ['X...X', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
   V: ['X...X', 'X...X', 'X...X', 'X...X', 'X...X', '.X.X.', '..X..'],
   '.': ['.....', '.....', '.....', '.....', '.....', '.....', '..X..'],
+  // MET-03: las de los rótulos secundarios (data/stationStyles.ts: SUB_SIGNS).
+  D: ['XXXX.', 'X...X', 'X...X', 'X...X', 'X...X', 'X...X', 'XXXX.'],
+  H: ['X...X', 'X...X', 'X...X', 'XXXXX', 'X...X', 'X...X', 'X...X'],
+  Ó: ['...X.', '.XXX.', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
   // MET-02: los números de línea del panel de destino del tren (data/transit.ts: LINES).
   '2': ['.XXX.', 'X...X', '....X', '...X.', '..X..', '.X...', 'XXXXX'],
   '3': ['XXXX.', '....X', '....X', '.XXX.', '....X', '....X', 'XXXX.'],
