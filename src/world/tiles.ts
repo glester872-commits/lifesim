@@ -1,6 +1,7 @@
 import type { PropKind } from '../types/game';
 import type { Layer } from '../systems/Soundscape';
 import { LINES, STATION_SIGNS } from '../data/transit.ts';
+import { LINE_MAPS, SIGN_FACES } from '../data/stationSigns.ts';
 import { POSTER_ADS, SUB_SIGNS, WALL_CHARS, WALL_TONES } from '../data/stationStyles.ts';
 import { PALETTE } from '../config/constants.ts';
 
@@ -188,7 +189,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   stove: { key: 'prop-stove', tilesHigh: 2, tilesWide: 2 },
   // HD-03: el centro del farol (antes 18: la luz caía 9 px por debajo, en el fuste).
   lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 27 }, shadow: [8, 3], post: true },
-  sign: { key: 'prop-sign', tilesHigh: 2, post: true },
+  // MET-04: 0 = el poste de siempre (calle y todo poste sin `variant`); el resto, los paneles del metro (data/stationSigns.ts).
+  sign: { key: 'prop-sign', tilesHigh: 2, post: true, variants: SIGN_FACES.length + 1, defaultVariant: 0 },
   planter: { key: 'prop-planter', tilesHigh: 1 },
   bed: { key: 'prop-bed', tilesHigh: 2 },
   desk: { key: 'prop-desk', tilesHigh: 1 },
@@ -201,7 +203,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'metro-sign': { key: 'prop-metro-sign', tilesHigh: 1, tilesWide: 6, variants: STATION_SIGNS.length },
   // Pilar del andén con cinta amarilla y negra: sólo su fila base choca.
   'metro-pillar': { key: 'prop-metro-pillar', tilesHigh: 3, shadow: [14, 3] },
-  'line-map': { key: 'prop-line-map', tilesHigh: 1, tilesWide: 3 },
+  // MET-04: 0 = el plano genérico (Colosseo); el resto, uno por andén con las paradas reales de su línea.
+  'line-map': { key: 'prop-line-map', tilesHigh: 1, tilesWide: 3, variants: LINE_MAPS.length + 1, defaultVariant: 0 },
   // MET-03: un dibujo por anuncio ficticio (data/stationStyles.ts: POSTER_ADS); el andén fija el suyo con `variant`.
   // Sin `variant` (fachadas, oficinas), el de siempre: la 0.
   poster: { key: 'prop-poster', tilesHigh: 2, variants: POSTER_ADS.length, defaultVariant: 0 },

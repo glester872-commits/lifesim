@@ -8,6 +8,7 @@ import { POSTER_ADS, SUB_SIGNS, type PosterAd, type SubSign } from '../data/stat
 import { ARENA_CLUB } from '../data/cityEvents.ts';
 import { drawWord as writeSign, wordWidth as signWidth } from './paint.ts';
 import { TILES } from './tiles.ts';
+import { LINE_MAPS, SIGN_BACKGROUND, SIGN_FACES, type Arrow, type LineMapFace, type SignFace } from '../data/stationSigns.ts';
 import { buildBuildingTextures } from './BuildingArt';
 import { buildBoxingTextures } from './BoxingArt';
 import { buildDojangTextures } from './DojangArt';
@@ -202,6 +203,92 @@ function drawLineMap(ctx: Ctx): void {
   }
   px(ctx, PALETTE.amber, 4, 12, 10, 1);
   px(ctx, shade(PALETTE.white, -0.25), 18, 12, 14, 1);
+}
+
+/** Color de una línea: el `trim` del char de su muro, el mismo de la cenefa y la placa. */
+const lineColor = (id: string | null): string =>
+  TILES[LINES.find((l) => l.id === id)?.wall ?? '']?.trim ?? PALETTE.metroBlue;
+
+/**
+ * MET-04: plano real de la línea de un andén: su trazo, un punto por parada en el orden de STOPS, las de
+ * correspondencia (`hub`) con anillo y la del andén en ámbar y más grande.
+ */
+function drawLineMapFace(ctx: Ctx, map: LineMapFace): void {
+  const w = TILE * 3;
+  const bg = shade(PALETTE.night, 0.06);
+  px(ctx, PALETTE.ink, 0, 1, w, 14);
+  px(ctx, bg, 1, 2, w - 2, 12);
+  // Puntos de 2×2 de x 3 a x 44 (el anillo, x-2..x+3, no pisa el marco): 4 px mínimos entre paradas, 5 junto a una con
+  // anillo (1 px de hueco al anillo); lo que sobra se reparte. Las 10 paradas de L2 caben (38 de 40 px).
+  const n = map.stops.length;
+  const min = map.stops.slice(1).map((s, i) => (s.hub || map.stops[i].hub ? 5 : 4));
+  const extra = Math.max(0, w - 8 - min.reduce((a, b) => a + b, 0));
+  const xs = [n > 1 ? 3 : Math.floor(w / 2) - 1];
+  min.forEach((g, i) => xs.push(xs[i] + g + Math.floor((extra * (i + 1)) / min.length) - Math.floor((extra * i) / min.length)));
+  px(ctx, lineColor(map.line), xs[0], 7, xs[n - 1] - xs[0] + 2, 2);
+  map.stops.forEach((s, i) => {
+    if (!s.hub) return;
+    px(ctx, PALETTE.white, xs[i] - 2, 5, 6, 6);
+    px(ctx, bg, xs[i] - 1, 6, 4, 4);
+  });
+  for (const x of xs) px(ctx, PALETTE.white, x, 7, 2, 2);
+  px(ctx, PALETTE.amber, xs[map.current] - 1, 6, 4, 4);
+}
+
+/** MET-04: flecha de 5 px de alto (7×5 en horizontal, 5×5 en vertical) centrada en (cx, cy). */
+function drawArrow(ctx: Ctx, arrow: Arrow, cx: number, cy: number, color: string): void {
+  for (let k = 0; k < 3; k++) {
+    if (arrow === 'right') px(ctx, color, cx + 3 - k, cy - k, 1, 2 * k + 1);
+    if (arrow === 'left') px(ctx, color, cx - 3 + k, cy - k, 1, 2 * k + 1);
+    if (arrow === 'up') px(ctx, color, cx - k, cy - 2 + k, 2 * k + 1, 1);
+    if (arrow === 'down') px(ctx, color, cx - k, cy + 2 - k, 2 * k + 1, 1);
+  }
+  if (arrow === 'right') px(ctx, color, cx - 3, cy, 4, 1);
+  if (arrow === 'left') px(ctx, color, cx, cy, 4, 1);
+  if (arrow === 'up') px(ctx, color, cx, cy + 1, 1, 2);
+  if (arrow === 'down') px(ctx, color, cx, cy - 2, 1, 2);
+}
+
+/**
+ * MET-04: panel de poste del metro, en el mismo poste de siempre: pictograma (y 2–8) y flecha (y 10–14) en blanco.
+ * Salida: puerta sobre verde. Andén: tren; correspondencia: «L2»/«L3» en la fuente 5×7; los dos del color de la línea.
+ */
+function drawSignFace(ctx: Ctx, face: SignFace): void {
+  const white = PALETTE.white;
+  px(ctx, PALETTE.metal, 7, 16, 2, 16);
+  px(ctx, PALETTE.metalLit, 7, 16, 1, 16);
+  if (face.type === 'correspondencia') {
+    // Blanco con marco y «L2»/«L3» del color de la línea destino, flecha en tinta (data/stationSigns: SIGN_BACKGROUND).
+    const color = lineColor(face.line);
+    const text = face.line ?? '';
+    px(ctx, color, 0, 0, TILE, 16);
+    px(ctx, SIGN_BACKGROUND.correspondencia, 1, 1, TILE - 2, 14);
+    drawWord(ctx, text, Math.floor((TILE - wordWidth(text, 1)) / 2), 2, color, 1);
+    drawArrow(ctx, face.arrow, 7, 12, PALETTE.ink);
+    return;
+  }
+  const color = face.type === 'salida' ? SIGN_BACKGROUND.salida : lineColor(face.line);
+  px(ctx, PALETTE.ink, 0, 0, TILE, 16);
+  px(ctx, color, 1, 1, TILE - 2, 14);
+  px(ctx, shade(color, 0.1), 1, 1, TILE - 2, 1);
+  if (face.type === 'salida') {
+    // Marco de puerta de 5×7 con el pomo.
+    px(ctx, white, 5, 2, 5, 1);
+    px(ctx, white, 5, 2, 1, 7);
+    px(ctx, white, 9, 2, 1, 7);
+    px(ctx, white, 8, 5, 1, 1);
+  } else if (face.type === 'anden') {
+    // Frente del tren: techo, caja con parabrisas, faros y ruedas.
+    px(ctx, white, 5, 2, 5, 1);
+    px(ctx, white, 4, 3, 7, 4);
+    px(ctx, color, 5, 3, 5, 2);
+    px(ctx, color, 5, 6, 1, 1);
+    px(ctx, color, 9, 6, 1, 1);
+    px(ctx, white, 5, 7, 5, 1);
+    px(ctx, white, 5, 8, 1, 1);
+    px(ctx, white, 9, 8, 1, 1);
+  }
+  drawArrow(ctx, face.arrow, 7, 12, white);
 }
 
 /**
@@ -1038,7 +1125,8 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-bush', TILE, TILE, drawBush);
   make(scene, 'prop-bench', TILE, TILE, drawBench);
   make(scene, 'prop-lamp', TILE, TILE * 2, drawLamp);
-  make(scene, 'prop-sign', TILE, TILE * 2, drawSign);
+  make(scene, 'prop-sign-0', TILE, TILE * 2, drawSign);
+  SIGN_FACES.forEach((f, i) => make(scene, `prop-sign-${i + 1}`, TILE, TILE * 2, (ctx) => drawSignFace(ctx, f)));
   make(scene, 'prop-planter', TILE, TILE, drawPlanter);
   make(scene, 'prop-bed', TILE, TILE * 2, drawBed);
   make(scene, 'prop-desk', TILE, TILE, drawDesk);
@@ -1051,7 +1139,8 @@ export function buildTextures(scene: Phaser.Scene): void {
     make(scene, `prop-metro-sign-${i}`, SIGN_W, TILE, (ctx) => drawMetroSign(ctx, s.name, TILES[s.wall]?.trim ?? PALETTE.metroBlue)),
   );
   make(scene, 'prop-metro-pillar', TILE, TILE * 3, drawMetroPillar);
-  make(scene, 'prop-line-map', TILE * 3, TILE, drawLineMap);
+  make(scene, 'prop-line-map-0', TILE * 3, TILE, drawLineMap);
+  LINE_MAPS.forEach((m, i) => make(scene, `prop-line-map-${i + 1}`, TILE * 3, TILE, (ctx) => drawLineMapFace(ctx, m)));
   POSTER_ADS.forEach((ad, i) => make(scene, `prop-poster-${i}`, TILE, TILE * 2, (ctx) => drawPoster(ctx, ad)));
   SUB_SIGNS.forEach((s, i) => make(scene, `prop-metro-subsign-${i}`, TILE * 6, TILE, (ctx) => drawSubSign(ctx, s, TILE * 6)));
   make(scene, 'prop-parasol', TILE, TILE * 2, drawParasol);
