@@ -2,7 +2,12 @@ import Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
 import { FACINGS, type Facing, type NpcLook } from '../types/game';
 import { NPC_DEFS, PASSENGER_LOOKS, UNIFORM_LOOKS } from '../data/npcs';
-import { blob, drawWord, make, px, shade, sprinkle, type Ctx } from './paint';
+import { blob, drawWord, make, px, shade, sprinkle, wordWidth, type Ctx } from './paint';
+import { LINES, STATION_SIGNS } from '../data/transit.ts';
+import { POSTER_ADS, SUB_SIGNS, type PosterAd, type SubSign } from '../data/stationStyles.ts';
+import { ARENA_CLUB } from '../data/cityEvents.ts';
+import { drawWord as writeSign, wordWidth as signWidth } from './paint.ts';
+import { TILES } from './tiles.ts';
 import { buildBuildingTextures } from './BuildingArt';
 import { buildBoxingTextures } from './BoxingArt';
 import { buildDojangTextures } from './DojangArt';
@@ -112,14 +117,20 @@ function drawRail(ctx: Ctx, variant: number): void {
   px(ctx, shade(PALETTE.metal, -0.1), 0, 12, TILE, 1);
 }
 
-/** Borde de anden: franja tactil ambar del lado de la via. */
+/**
+ * Borde de andén (MET-01): canto de 1 px, franja amarilla de seguridad de 3 px y, tras 1 px de suelo, la banda táctil
+ * oscura de botones; el resto, la baldosa del andén (world/Surfaces: metroFloor). Se pisa entero.
+ */
 function drawPlatformEdge(ctx: Ctx): void {
-  px(ctx, PALETTE.tile, 0, 0, TILE, TILE);
-  px(ctx, shade(PALETTE.tile, -0.12), 0, 0, TILE, 2);
-  px(ctx, PALETTE.amberDim, 0, 2, TILE, 3);
-  for (let x = 1; x < TILE; x += 3) px(ctx, shade(PALETTE.amberDim, 0.12), x, 3, 1, 1);
-  px(ctx, shade(PALETTE.tile, -0.06), 0, 9, TILE, 1);
-  sprinkle(ctx, PALETTE.tileLit, TILE, TILE, 63, 5);
+  const floor = shade(PALETTE.stoneLit, 0.04);
+  px(ctx, floor, 0, 0, TILE, TILE);
+  px(ctx, shade(PALETTE.stone, -0.25), 0, 0, TILE, 1);
+  px(ctx, PALETTE.floorTape, 0, 1, TILE, 3);
+  px(ctx, shade(PALETTE.floorTape, 0.08), 0, 1, TILE, 1);
+  px(ctx, PALETTE.metal, 0, 5, TILE, 2);
+  for (let x = 0; x < TILE; x += 2) px(ctx, shade(PALETTE.metal, 0.14), x + ((x >> 1) & 1), 5 + ((x >> 1) & 1), 1, 1);
+  px(ctx, shade(floor, -0.06), 0, 7, TILE, 1);
+  sprinkle(ctx, shade(floor, -0.04), TILE, 8, 63, 4);
 }
 
 /** Quiosco de metro: panel oscuro con el disco de la red. */
@@ -132,14 +143,50 @@ function drawMetro(ctx: Ctx, variant: number): void {
 }
 
 
-/** Rótulo de 3x1 tiles: la boca de metro tiene que decir qué es. */
-function drawMetroSign(ctx: Ctx): void {
-  const w = TILE * 3;
-  px(ctx, PALETTE.ink, 0, 1, w, 14);
-  px(ctx, shade(PALETTE.night, 0.05), 1, 2, w - 2, 12);
-  px(ctx, PALETTE.amberDim, 1, 2, w - 2, 1);
-  px(ctx, PALETTE.amberDim, 1, 13, w - 2, 1);
-  drawWord(ctx, 'METRO', 9, 5, PALETTE.amber);
+/** Ancho de la placa del andén, en px (PROPS['metro-sign'].tilesWide). */
+const SIGN_W = TILE * 6;
+
+/**
+ * Texto de la placa que cabe: en mayúsculas; si no entra con 2 px entre letras, con 1; si aún no, las palabras de
+ * delante se quedan en su inicial con punto («P. NORTE»). Nunca se corta.
+ */
+function signText(name: string): { text: string; gap: number } {
+  const room = SIGN_W - 10;
+  const full = name.toUpperCase();
+  for (const gap of [2, 1]) if (wordWidth(full, gap) <= room) return { text: full, gap };
+  const words = full.split(' ');
+  return { text: [...words.slice(0, -1).map((w) => `${w[0]}.`), words[words.length - 1]].join(' '), gap: 1 };
+}
+
+/** Placa del andén (MET-01): del color de la línea (el de su cenefa) con el nombre de la parada en blanco. */
+function drawMetroSign(ctx: Ctx, name: string, color: string): void {
+  const w = SIGN_W;
+  const { text, gap } = signText(name);
+  px(ctx, shade(color, -0.18), 0, 2, w, 13);
+  px(ctx, color, 1, 3, w - 2, 11);
+  px(ctx, shade(color, 0.08), 1, 3, w - 2, 1);
+  px(ctx, shade(color, -0.08), 1, 13, w - 2, 1);
+  for (const x of [2, w - 4]) px(ctx, shade(PALETTE.metal, 0.1), x, 4, 2, 2);
+  drawWord(ctx, text, Math.floor((w - wordWidth(text, gap)) / 2), 5, PALETTE.white, gap);
+  ctx.globalAlpha = 0.3;
+  px(ctx, PALETTE.ink, 1, 15, w - 1, 1);
+  ctx.globalAlpha = 1;
+}
+
+/** Pilar del andén (MET-01): fuste alicatado, rodapié y cinta amarilla y negra a la altura de quien pasa. */
+function drawMetroPillar(ctx: Ctx): void {
+  const cream = PALETTE.metroCream;
+  px(ctx, shade(cream, -0.16), 2, 0, 12, 46);
+  px(ctx, cream, 3, 0, 9, 46);
+  px(ctx, shade(cream, 0.04), 3, 0, 1, 46);
+  px(ctx, shade(cream, -0.07), 10, 0, 2, 46);
+  for (let y = 5; y < 26; y += 5) px(ctx, shade(cream, -0.06), 3, y, 9, 1);
+  for (let y = 27; y < 34; y++) {
+    for (let x = 2; x < 14; x++) px(ctx, ((x + y) >> 1) % 2 ? PALETTE.floorTape : PALETTE.ink, x, y);
+  }
+  px(ctx, PALETTE.wallTop, 2, 41, 12, 5);
+  px(ctx, shade(PALETTE.wallTop, 0.08), 2, 41, 12, 1);
+  px(ctx, shade(PALETTE.wallTop, -0.06), 2, 46, 12, 2);
 }
 
 /** Diagrama de la línea: cinco paradas y el trazado. */
@@ -157,16 +204,116 @@ function drawLineMap(ctx: Ctx): void {
   px(ctx, shade(PALETTE.white, -0.25), 18, 12, 14, 1);
 }
 
-/** Cartel publicitario: a este tamaño el texto es una mancha, y así se dibuja. */
-function drawPoster(ctx: Ctx): void {
+/**
+ * Cartel publicitario enmarcado (MET-03: uno por anuncio ficticio de data/stationStyles.ts, sin marcas ni texto real).
+ * A este tamaño el texto es una mancha, y así se dibuja; manda la imagen. Panel útil: x 3–12, y 5–28.
+ */
+function drawPoster(ctx: Ctx, ad: PosterAd): void {
   px(ctx, PALETTE.ink, 2, 4, 12, 26);
-  px(ctx, shade(PALETTE.stone, -0.12), 3, 5, 10, 24);
-  px(ctx, PALETTE.rug, 4, 6, 8, 11);
-  px(ctx, PALETTE.amber, 5, 8, 4, 4);
-  px(ctx, PALETTE.white, 4, 19, 8, 1);
-  px(ctx, PALETTE.white, 4, 21, 6, 1);
-  px(ctx, shade(PALETTE.white, -0.3), 4, 23, 7, 1);
-  px(ctx, PALETTE.glassLit, 4, 26, 5, 2);
+  const [teal, orange] = ARENA_CLUB.home;
+  const copy = (color: string): void => {
+    px(ctx, color, 4, 23, 8, 1);
+    px(ctx, shade(color, -0.25), 4, 25, 5, 1);
+  };
+  switch (ad) {
+    case 'clasico': // El de siempre, sin tocar: el de las fachadas y oficinas.
+      px(ctx, shade(PALETTE.stone, -0.12), 3, 5, 10, 24);
+      px(ctx, PALETTE.rug, 4, 6, 8, 11);
+      px(ctx, PALETTE.amber, 5, 8, 4, 4);
+      px(ctx, PALETTE.white, 4, 19, 8, 1);
+      px(ctx, PALETTE.white, 4, 21, 6, 1);
+      px(ctx, shade(PALETTE.white, -0.3), 4, 23, 7, 1);
+      px(ctx, PALETTE.glassLit, 4, 26, 5, 2);
+      return;
+    case 'zapatillas': // Zapatilla genérica sobre fondo claro, con su raya de movimiento.
+      px(ctx, PALETTE.glassLit, 3, 5, 10, 24);
+      px(ctx, shade(PALETTE.glassLit, -0.15), 3, 5, 10, 3);
+      px(ctx, PALETTE.white, 5, 13, 5, 3);
+      px(ctx, PALETTE.white, 4, 16, 8, 2);
+      px(ctx, PALETTE.rug, 6, 14, 3, 1);
+      px(ctx, PALETTE.ink, 4, 18, 8, 1);
+      px(ctx, PALETTE.amber, 3, 10, 3, 1);
+      copy(PALETTE.ink);
+      break;
+    case 'concierto': // Escenario de noche: dos focos y una silueta con micro.
+      px(ctx, PALETTE.night, 3, 5, 10, 24);
+      for (let i = 0; i < 6; i++) {
+        px(ctx, shade(PALETTE.amber, -0.3), 4 + i, 6 + i * 2, 1, 2);
+        px(ctx, shade(PALETTE.amber, -0.3), 11 - i, 6 + i * 2, 1, 2);
+      }
+      px(ctx, PALETTE.ink, 7, 14, 2, 2);
+      px(ctx, PALETTE.ink, 6, 16, 4, 4);
+      px(ctx, PALETTE.amber, 3, 20, 10, 1);
+      copy(PALETTE.amber);
+      break;
+    case 'museo': // Fachada de templo: frontón y columnas en piedra.
+      px(ctx, shade(PALETTE.stone, 0.15), 3, 5, 10, 24);
+      px(ctx, shade(PALETTE.stone, -0.2), 5, 9, 6, 1);
+      px(ctx, shade(PALETTE.stone, -0.2), 4, 10, 8, 1);
+      for (const x of [4, 7, 10]) px(ctx, PALETTE.white, x, 11, 2, 7);
+      px(ctx, shade(PALETTE.stone, -0.2), 4, 18, 8, 1);
+      copy(PALETTE.ink);
+      break;
+    case 'refresco': // Botella sin marca sobre rojo, con burbujas.
+      px(ctx, PALETTE.rug, 3, 5, 10, 24);
+      px(ctx, PALETTE.white, 7, 7, 2, 3);
+      px(ctx, PALETTE.white, 6, 10, 4, 10);
+      px(ctx, PALETTE.amber, 6, 13, 4, 3);
+      px(ctx, shade(PALETTE.rug, 0.25), 4, 8, 1, 1);
+      px(ctx, shade(PALETTE.rug, 0.25), 11, 12, 1, 1);
+      px(ctx, shade(PALETTE.rug, 0.25), 10, 7, 1, 1);
+      copy(PALETTE.white);
+      break;
+    case 'ciudad': // Turismo: cielo, sol y perfil de tejados.
+      px(ctx, PALETTE.glassLit, 3, 5, 10, 16);
+      px(ctx, PALETTE.amber, 9, 7, 3, 3);
+      px(ctx, PALETTE.roofA, 3, 15, 3, 6);
+      px(ctx, PALETTE.brick, 6, 12, 3, 9);
+      px(ctx, PALETTE.roofB, 9, 14, 4, 7);
+      px(ctx, PALETTE.white, 3, 21, 10, 8);
+      copy(PALETTE.metroBlue);
+      break;
+    case 'club': // CD Halcones: turquesa con franja naranja y el ala del halcón.
+      px(ctx, teal, 3, 5, 10, 24);
+      for (let i = 0; i < 10; i++) px(ctx, orange, 3 + i, 19 - i, 1, 3);
+      px(ctx, PALETTE.white, 5, 9, 5, 1);
+      px(ctx, PALETTE.white, 6, 10, 4, 1);
+      px(ctx, PALETTE.white, 8, 11, 2, 1);
+      copy(PALETTE.white);
+      break;
+    case 'club-escudo': // CD Halcones: escudo turquesa sobre naranja.
+      px(ctx, orange, 3, 5, 10, 24);
+      px(ctx, PALETTE.white, 4, 8, 8, 9);
+      px(ctx, teal, 5, 9, 6, 7);
+      px(ctx, PALETTE.white, 6, 17, 4, 1);
+      px(ctx, teal, 7, 18, 2, 1);
+      px(ctx, orange, 7, 11, 2, 3);
+      copy(PALETTE.ink);
+      break;
+  }
+  // Reflejo del cristal del marco.
+  px(ctx, shade(PALETTE.white, -0.1), 11, 6, 1, 3);
+}
+
+/**
+ * MET-03: rótulo secundario colgado del techo (data/stationStyles.ts: SUB_SIGNS). Panel del color de la línea a la que
+ * lleva (neutro sin ella), letra blanca de la fuente de placas, centrado en sus seis tiles y con dos tirantes.
+ */
+function drawSubSign(ctx: Ctx, sign: SubSign, w: number): void {
+  const wall = LINES.find((l) => l.id === sign.line)?.wall;
+  const color = (wall && TILES[wall]?.trim) || PALETTE.night;
+  const tw = signWidth(sign.text, 1);
+  const pw = tw + 6;
+  const x0 = Math.floor((w - pw) / 2);
+  // El techo liso en todo el tramo del rótulo: el tubo (world/Surfaces.metroWall, filas 9–12 del tile) no queda
+  // asomando a los lados ni tapado detrás; sólo pasa donde cuelga un rótulo.
+  px(ctx, PALETTE.wallTop, 0, 9, w, 4);
+  px(ctx, PALETTE.metal, x0 + 3, 0, 1, 4);
+  px(ctx, PALETTE.metal, x0 + pw - 4, 0, 1, 4);
+  px(ctx, shade(color, -0.3), x0, 4, pw, 11);
+  px(ctx, color, x0 + 1, 4, pw - 2, 10);
+  px(ctx, shade(color, 0.12), x0 + 1, 4, pw - 2, 1);
+  writeSign(ctx, sign.text, x0 + 3, 6, PALETTE.white, 1);
 }
 
 /** Mesa de terraza con sombrilla: el toldo ocupa el tile de arriba. */
@@ -380,62 +527,125 @@ export const DOOR_LEAF_W = 6;
 export const DOOR_TOP = 17;
 export const DOOR_H = 28;
 
-const TRAIN_BODY = shade(PALETTE.metalLit, 0.12);
+/** MET-02: carrocería blanco roto (el gris claro de los muros interiores), franja azul oscuro con filete claro. */
+const TRAIN_BODY = PALETTE.wallFace;
+const TRAIN_STRIPE = shade(PALETTE.metroBlue, -0.3);
+const TRAIN_NOSE = shade(PALETTE.metal, -0.18);
+const TRAIN_RED = shade(PALETTE.brickLit, 0.15);
+/** Filas del costado (coordenadas del coche): filete claro y franja azul de 4 px en la mitad baja. */
+const STRIPE_TRIM = 36;
+const STRIPE_TOP = 37;
+const STRIPE_H = 4;
 
 /**
  * Coche visto en 3/4 como las fachadas: techo arriba y costado hacia el andén.
- * Los huecos de puerta son negros; las hojas son sprites aparte que se deslizan.
+ * Los huecos de puerta son negros con marco; las hojas son sprites aparte que se deslizan.
+ * `cab`: morro oscuro a la izquierda (la cola se espeja). `panel`: texto ámbar del panel de destino
+ * (la línea) y faro encendido; sin él es la cola: panel apagado (nunca texto al revés al espejarla), faro
+ * apagado y pilotos rojos.
  */
-function drawCar(ctx: Ctx, cab: boolean): void {
+function drawCar(ctx: Ctx, cab: boolean, panel = ''): void {
+  // Techo: gris con luz arriba, rejillas de ventilación y sombra sobre el costado.
   px(ctx, PALETTE.metal, 0, 1, CAR_W, 13);
   px(ctx, PALETTE.metalLit, 0, 1, CAR_W, 1);
-  px(ctx, shade(PALETTE.metal, -0.06), 0, 7, CAR_W, 1);
-  for (let x = 10; x < CAR_W - 8; x += 22) px(ctx, shade(PALETTE.metal, -0.1), x, 3, 8, 3);
-  px(ctx, shade(PALETTE.metal, -0.18), 0, 14, CAR_W, 1);
-
-  px(ctx, TRAIN_BODY, 0, 15, CAR_W, 31);
-  px(ctx, shade(TRAIN_BODY, 0.06), 0, 15, CAR_W, 1);
-  px(ctx, PALETTE.glassLit, 0, 38, CAR_W, 2);
-  px(ctx, shade(PALETTE.glassLit, -0.25), 0, 40, CAR_W, 1);
-
-  const windows: [number, number][] = [
-    [4, 12],
-    [34, 28],
-    [82, 10],
-  ];
-  for (const [x, w] of windows) {
-    px(ctx, PALETTE.glass, x, 19, w, 11);
-    px(ctx, shade(PALETTE.glass, 0.1), x, 19, w, 1);
-    px(ctx, shade(PALETTE.glassLit, -0.35), x + 2, 21, 2, 6);
+  px(ctx, shade(PALETTE.metal, 0.06), 0, 2, CAR_W, 3);
+  for (let x = 16; x < CAR_W - 12; x += 26) {
+    px(ctx, PALETTE.metalLit, x, 4, 14, 1);
+    px(ctx, shade(PALETTE.metal, -0.2), x, 5, 14, 5);
+    for (let y = 6; y < 10; y += 2) px(ctx, shade(PALETTE.metal, -0.38), x + 1, y, 12, 1);
   }
+  px(ctx, shade(PALETTE.metal, -0.14), 0, 12, CAR_W, 1);
+  px(ctx, shade(PALETTE.metal, -0.3), 0, 13, CAR_W, 2);
 
-  for (const cx of DOOR_CENTERS) {
-    px(ctx, PALETTE.ink, cx - DOOR_LEAF_W, DOOR_TOP, DOOR_LEAF_W * 2, DOOR_H);
-    px(ctx, shade(PALETTE.amberDim, -0.2), cx - DOOR_LEAF_W, DOOR_TOP + DOOR_H - 2, DOOR_LEAF_W * 2, 1);
+  // Costado por bandas: luz alta, cuerpo, filete, franja y faldón en sombra.
+  px(ctx, TRAIN_BODY, 0, 15, CAR_W, 31);
+  px(ctx, shade(TRAIN_BODY, 0.06), 0, 15, CAR_W, 2);
+  px(ctx, shade(TRAIN_BODY, -0.06), 0, 32, CAR_W, 4);
+  px(ctx, PALETTE.white, 0, STRIPE_TRIM, CAR_W, 1);
+  px(ctx, TRAIN_STRIPE, 0, STRIPE_TOP, CAR_W, STRIPE_H);
+  px(ctx, shade(TRAIN_BODY, -0.12), 0, 41, CAR_W, 5);
+  px(ctx, shade(TRAIN_BODY, -0.24), 0, 45, CAR_W, 1);
+
+  // Ventanas oscuras corridas entre puertas, con marco y un reflejo diagonal de 1 px.
+  // En la cabina, el tramo entre el morro y la primera puerta queda en carrocería (una ventana de 3 px no se lee).
+  const windows: [number, number][] = [...(cab ? [] : [[4, 11] as [number, number]]), [33, 30], [81, 11]];
+  for (const [x, w] of windows) {
+    px(ctx, shade(TRAIN_BODY, -0.22), x - 1, 18, w + 2, 14);
+    px(ctx, PALETTE.night, x, 19, w, 12);
+    px(ctx, PALETTE.ink, x, 19, w, 1);
+    for (const start of [x + 2, x + Math.round(w * 0.6)]) {
+      for (let i = 0; i < 9; i++) {
+        const sx = start + i;
+        if (sx < x + w) px(ctx, PALETTE.glass, sx, 29 - i, 1, 1);
+      }
+    }
   }
 
   if (cab) {
-    px(ctx, shade(PALETTE.metal, -0.2), 0, 1, 5, 13);
-    px(ctx, PALETTE.glass, 0, 17, 3, 14);
-    px(ctx, PALETTE.amber, 0, 41, 2, 2);
+    // Morro de 10 px: techo y frontal más oscuros, canto de luz en la junta con el costado.
+    px(ctx, shade(TRAIN_NOSE, 0.1), 0, 1, 10, 13);
+    px(ctx, TRAIN_NOSE, 0, 15, 10, 31);
+    px(ctx, shade(TRAIN_NOSE, 0.18), 9, 15, 1, 31);
+    // Parabrisas inclinado: el borde delantero retrocede hacia arriba.
+    for (let r = 0; r < 15; r++) {
+      const xs = 1 + Math.floor((14 - r) / 4);
+      px(ctx, PALETTE.night, xs, 17 + r, 9 - xs, 1);
+      px(ctx, PALETTE.ink, xs, 17 + r, 1, 1);
+    }
+    for (let i = 0; i < 6; i++) px(ctx, shade(PALETTE.glassLit, -0.2), 6 - i, 19 + i, 2, 1);
+    // La franja da la vuelta al morro, más oscura.
+    px(ctx, shade(TRAIN_STRIPE, -0.15), 0, STRIPE_TOP, 9, STRIPE_H);
+    if (panel) {
+      // Cabeza: faro bajo blanco-ámbar y piloto rojo, 2×2 cada uno.
+      px(ctx, PALETTE.white, 1, 42, 2, 1);
+      px(ctx, PALETTE.amber, 1, 43, 2, 1);
+      px(ctx, TRAIN_RED, 5, 42, 2, 2);
+    } else {
+      // Cola (sin panel, se espeja): faro apagado y dos pilotos rojos de 2×2.
+      px(ctx, shade(PALETTE.amberDim, -0.35), 1, 42, 2, 2);
+      px(ctx, TRAIN_RED, 5, 42, 2, 2);
+      px(ctx, TRAIN_RED, 1, 33, 2, 2);
+    }
+    // Panel de destino sobre el parabrisas: marco oscuro y la línea en ámbar.
+    px(ctx, PALETTE.ink, 0, 3, 15, 11);
+    px(ctx, shade(PALETTE.ink, 0.12), 1, 4, 13, 9);
+    if (panel) drawWord(ctx, panel, 2, 5, PALETTE.amber, 1);
   } else {
-    px(ctx, PALETTE.ink, 0, 15, 1, 31);
+    // Fuelle: junta oscura de 2 px en cada extremo del coche intermedio.
+    px(ctx, PALETTE.ink, 0, 13, 2, 33);
+    px(ctx, PALETTE.ink, CAR_W - 2, 13, 2, 33);
+  }
+
+  // Huecos de puerta con marco y umbral.
+  for (const cx of DOOR_CENTERS) {
+    px(ctx, shade(TRAIN_BODY, -0.3), cx - DOOR_LEAF_W - 1, DOOR_TOP - 1, DOOR_LEAF_W * 2 + 2, DOOR_H + 1);
+    // Interior tenue tras las hojas: fondo gris oscuro, suelo y una barra vertical clara.
+    px(ctx, shade(PALETTE.night, 0.18), cx - DOOR_LEAF_W, DOOR_TOP, DOOR_LEAF_W * 2, DOOR_H);
+    px(ctx, shade(PALETTE.metal, -0.35), cx - DOOR_LEAF_W, DOOR_TOP + DOOR_H - 5, DOOR_LEAF_W * 2, 3);
+    px(ctx, shade(PALETTE.metalLit, -0.1), cx - 3, DOOR_TOP + 1, 1, DOOR_H - 6);
+    px(ctx, shade(PALETTE.amberDim, -0.2), cx - DOOR_LEAF_W, DOOR_TOP + DOOR_H - 2, DOOR_LEAF_W * 2, 1);
   }
 
   px(ctx, PALETTE.ink, 0, 46, CAR_W, 2);
-  sprinkle(ctx, shade(TRAIN_BODY, -0.05), CAR_W, 12, 311, 16);
 }
 
+/** Hoja de puerta: clara, ventanilla oscura con marco y la franja a la altura de la del coche. */
 function drawDoorLeaf(ctx: Ctx): void {
-  px(ctx, shade(TRAIN_BODY, -0.04), 0, 0, DOOR_LEAF_W, DOOR_H);
-  px(ctx, PALETTE.glass, 1, 3, DOOR_LEAF_W - 2, 10);
-  px(ctx, PALETTE.glassLit, 0, 21, DOOR_LEAF_W, 2);
-  px(ctx, shade(TRAIN_BODY, -0.15), 0, 0, 1, DOOR_H);
+  px(ctx, shade(TRAIN_BODY, 0.03), 0, 0, DOOR_LEAF_W, DOOR_H);
+  px(ctx, shade(TRAIN_BODY, -0.12), 0, DOOR_H - 4, DOOR_LEAF_W, 4);
+  px(ctx, shade(TRAIN_BODY, -0.22), 1, 2, DOOR_LEAF_W - 2, 12);
+  px(ctx, PALETTE.night, 2, 3, DOOR_LEAF_W - 3, 10);
+  px(ctx, PALETTE.glass, 3, 4, 1, 3);
+  px(ctx, PALETTE.white, 0, STRIPE_TRIM - DOOR_TOP, DOOR_LEAF_W, 1);
+  px(ctx, TRAIN_STRIPE, 0, STRIPE_TOP - DOOR_TOP, DOOR_LEAF_W, STRIPE_H);
+  px(ctx, shade(TRAIN_BODY, -0.3), 0, 0, 1, DOOR_H);
+  px(ctx, shade(TRAIN_BODY, -0.18), DOOR_LEAF_W - 1, 0, 1, DOOR_H);
 }
 
 function drawDoorLight(ctx: Ctx): void {
-  px(ctx, PALETTE.amber, 0, 0, 6, 2);
-  px(ctx, shade(PALETTE.amber, 0.2), 1, 0, 4, 1);
+  px(ctx, shade(PALETTE.amber, -0.1), 0, 0, 6, 2);
+  px(ctx, shade(PALETTE.amber, 0.25), 1, 0, 4, 1);
+  px(ctx, PALETTE.white, 2, 0, 2, 1);
 }
 
 // ------------------------------------------------------------- personajes
@@ -837,9 +1047,13 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-table', TILE, TILE, drawTable);
   make(scene, 'prop-counter', TILE, TILE, drawCounter);
   make(scene, 'prop-stall', TILE, TILE * 2, drawStall);
-  make(scene, 'prop-metro-sign', TILE * 3, TILE, drawMetroSign);
+  STATION_SIGNS.forEach((s, i) =>
+    make(scene, `prop-metro-sign-${i}`, SIGN_W, TILE, (ctx) => drawMetroSign(ctx, s.name, TILES[s.wall]?.trim ?? PALETTE.metroBlue)),
+  );
+  make(scene, 'prop-metro-pillar', TILE, TILE * 3, drawMetroPillar);
   make(scene, 'prop-line-map', TILE * 3, TILE, drawLineMap);
-  make(scene, 'prop-poster', TILE, TILE * 2, drawPoster);
+  POSTER_ADS.forEach((ad, i) => make(scene, `prop-poster-${i}`, TILE, TILE * 2, (ctx) => drawPoster(ctx, ad)));
+  SUB_SIGNS.forEach((s, i) => make(scene, `prop-metro-subsign-${i}`, TILE * 6, TILE, (ctx) => drawSubSign(ctx, s, TILE * 6)));
   make(scene, 'prop-parasol', TILE, TILE * 2, drawParasol);
   make(scene, 'prop-cafe-table', TILE, TILE, drawCafeTable);
 
@@ -851,7 +1065,9 @@ export function buildTextures(scene: Phaser.Scene): void {
   }
 
   make(scene, 'prop-turnstile', TILE, TILE, drawTurnstile);
+  // MET-02: la cola (espejada) lleva el panel apagado; la cabina delantera, una variante por línea con su id.
   make(scene, 'train-car-cab', CAR_W, CAR_H, (ctx) => drawCar(ctx, true));
+  for (const line of LINES) make(scene, `train-car-cab-${line.id}`, CAR_W, CAR_H, (ctx) => drawCar(ctx, true, line.id));
   make(scene, 'train-car', CAR_W, CAR_H, (ctx) => drawCar(ctx, false));
   make(scene, 'train-door-leaf', DOOR_LEAF_W, DOOR_H, drawDoorLeaf);
   make(scene, 'train-door-light', 6, 2, drawDoorLight);

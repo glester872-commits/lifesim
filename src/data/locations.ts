@@ -1,5 +1,7 @@
 import type { LocationDef, MetroDef, PointDef } from '../types/game.ts';
 import { seatsFurniture } from './seating.ts';
+import { stationSign } from './transit.ts';
+import { posterVariant, stationStyle, stationWall, subSignVariant } from './stationStyles.ts';
 import { VALLESCO } from './vallesco.ts';
 import { STUDIO } from './studio.ts';
 import { RIBERA } from './ribera.ts';
@@ -266,7 +268,26 @@ const CAFE: LocationDef = {
  * comparten trazado; cambian destino, salida, habituales y vigilancia.
  * La vía llega a los bordes del mapa: son las bocas del túnel.
  */
-function platform(
+/** Trazado común de los andenes; `w` es el muro, que cada estación cambia por el char de su línea y su tono. */
+export const PLATFORM_GROUND: readonly string[] = [
+  'wwwwwwwwwwwwwwwwwwwwww',
+  'wwwwwwwwwwwwwwwwwwwwww',
+  'RRRRRRRRRRRRRRRRRRRRRR',
+  'RRRRRRRRRRRRRRRRRRRRRR',
+  'RRRRRRRRRRRRRRRRRRRRRR',
+  'wyyyyyyyyyyyyyyyyyyyyw',
+  'wppppppppppppppppppppw',
+  'wppppppppppppppppppppw',
+  'wppppppppppppppppppppw',
+  'wppppppppppppppppppppw',
+  'wwwwwwwwppppppwwwwwwww',
+  'wwwwwwppppppppppwwwwww',
+  'wwwwwwppppppppppwwwwww',
+  'wwwwwwwwwwwDwwwwwwwwww',
+  'wwwwwwwwwwwwwwwwwwwwww',
+];
+
+export function platform(
   id: string,
   name: string,
   exit: { location: string; spawn: string },
@@ -274,35 +295,32 @@ function platform(
   npcs: LocationDef['npcs'],
   guards: MetroDef['guards'],
 ): LocationDef {
+  // MET-03: lo que distingue a este andén (data/stationStyles.ts): tono, anuncios, rótulo y extras de la lista blanca.
+  const style = stationStyle(id);
+  const [adLeft, adRight, adHall] = style.posters.map(posterVariant);
   return {
     id,
     name,
     kind: 'interior',
     // Tubo fluorescente de andén: blanco frío y funcional, nada que ver con la luz de una casa o de un bar.
     ambient: '#dbe7f2',
-    ground: [
-      'WWWWWWWWWWWWWWWWWWWWWW',
-      'WWWWWWWWWWWWWWWWWWWWWW',
-      'RRRRRRRRRRRRRRRRRRRRRR',
-      'RRRRRRRRRRRRRRRRRRRRRR',
-      'RRRRRRRRRRRRRRRRRRRRRR',
-      'WyyyyyyyyyyyyyyyyyyyyW',
-      'WttttttttttttttttttttW',
-      'WttttttttttttttttttttW',
-      'WttttttttttttttttttttW',
-      'WttttttttttttttttttttW',
-      'WWWWWWWWttttttWWWWWWWW',
-      'WWWWWWttttttttttWWWWWW',
-      'WWWWWWttttttttttWWWWWW',
-      'WWWWWWWWWWWDWWWWWWWWWW',
-      'WWWWWWWWWWWWWWWWWWWWWW',
-    ],
+    // MET-01: `w` y `p`, el muro alicatado y la baldosa del andén (world/Surfaces); misma solidez que W y t. El muro
+    // toma el char de su línea (data/transit.ts: LINES.wall), que trae el color de la cenefa.
+    // MET-03: y su tono de azulejo (data/stationStyles.ts: stationWall), un char generado por tono × línea.
+    ground: PLATFORM_GROUND.map((row) => row.split('w').join(stationWall(id))),
     props: [
       { kind: 'line-map', tx: 2, ty: 1 },
-      { kind: 'poster', tx: 6, ty: 1 },
-      { kind: 'metro-sign', tx: 9, ty: 1 },
-      { kind: 'poster', tx: 13, ty: 1 },
+      { kind: 'poster', tx: 6, ty: 1, variant: adLeft },
+      // La placa dice la parada (data/transit.ts: STOPS); seis tiles, entre los dos anuncios.
+      { kind: 'metro-sign', tx: 7, ty: 1, variant: stationSign(id) },
+      // MET-03: el rótulo secundario cuelga del techo justo encima de la placa, en sus mismas seis columnas.
+      ...(style.subSign ? [{ kind: 'metro-subsign' as const, tx: 7, ty: 0, variant: subSignVariant(style.subSign) }] : []),
+      { kind: 'poster', tx: 13, ty: 1, variant: adRight },
       { kind: 'line-map', tx: 16, ty: 1 },
+      // Pilares en las dos esquinas del andén, contra el muro lateral y junto a los postes de señal: rincones sin paso,
+      // fuera de puertas del tren, puntos de espera, asientos, rondas y tornos.
+      { kind: 'metro-pillar', tx: 1, ty: 9 },
+      { kind: 'metro-pillar', tx: 20, ty: 9 },
       { kind: 'sign', tx: 2, ty: 9 },
       { kind: 'bench', tx: 4, ty: 9 },
       { kind: 'bench', tx: 5, ty: 9 },
@@ -313,8 +331,10 @@ function platform(
       { kind: 'turnstile', tx: 10, ty: 10 },
       { kind: 'turnstile', tx: 12, ty: 10 },
       { kind: 'sign', tx: 6, ty: 12 },
-      { kind: 'poster', tx: 15, ty: 12 },
+      { kind: 'poster', tx: 15, ty: 12, variant: adHall },
       { kind: 'ticket-machine', tx: 14, ty: 11 },
+      // MET-03: carteles y papeleras extra, sólo en SAFE_EXTRA_TILES (scripts/check-station-variety.ts).
+      ...style.extraProps.map((p) => ({ kind: p.kind, tx: p.tx, ty: p.ty, ...(p.ad ? { variant: posterVariant(p.ad) } : {}) })),
     ],
     // Sin tarjeta no se sube al tren: se compra y se recarga aquí.
     terminals: [{ tx: 14, ty: 11, name: 'Máquina de billetes', catalog: 'transport-machine' }],

@@ -131,6 +131,21 @@ export const PALETTE = {
   amberDim: '#b88046',
   /** Cinta amarilla de suelo (colas de caja de la nave de Decathlon, world/StoreArt). */
   floorTape: '#e3c23a',
+  /** MET-01, andén de metro: cenefa y placa del nombre (azul de red), azulejo crema del muro y tubo fluorescente. */
+  metroBlue: '#24508f',
+  /** La L3 exprés: el mismo andén con la cenefa y la placa en verde (data/transit.ts: LINES.wall). */
+  metroGreen: '#2e7a4f',
+  metroCream: '#e4dac3',
+  /** MET-03: otros tonos del azulejo de andén (data/stationStyles.ts: WALL_TONES), todos claros para no romper la red. */
+  metroTileWhite: '#ebe9e3',
+  // Pálidos pero con croma: cada uno se separa ≥20 en algún canal del blanco, del crema y de los demás (check-station-variety).
+  metroTileSky: '#bcd4e8',
+  metroTileMint: '#bee0c4',
+  metroTileRose: '#ecc4b8',
+  metroTileSand: '#e8d296',
+  /** Ocre tradicional del Casco Antiguo: el más fuerte. */
+  metroTileOchre: '#d09854',
+  metroTube: '#eef5fb',
 
   wood: '#7b5a3d',
   woodLit: '#8e6b4b',
