@@ -1,0 +1,93 @@
+{
+  "initial": {
+    "location": "district",
+    "volumes": [
+      {
+        "name": "volume:home-door",
+        "x": 672,
+        "y": 816,
+        "w": 160,
+        "h": 168,
+        "depth": 816
+      },
+      {
+        "name": "volume:res-olmo-3",
+        "x": 288,
+        "y": 816,
+        "w": 160,
+        "h": 176,
+        "depth": 816
+      },
+      {
+        "name": "volume:res-olmo-11",
+        "x": 824,
+        "y": 816,
+        "w": 176,
+        "h": 168,
+        "depth": 816
+      }
+    ],
+    "renderer": 2
+  },
+  "checks": [
+    {
+      "name": "walk along facade",
+      "pass": true,
+      "detail": {
+        "from": 664,
+        "to": 699.4666666666662
+      }
+    },
+    {
+      "name": "facade collision",
+      "pass": true,
+      "detail": {
+        "y": 824,
+        "wall": 816
+      }
+    },
+    {
+      "name": "enter home",
+      "pass": true,
+      "detail": "home"
+    },
+    {
+      "name": "exit home",
+      "pass": true,
+      "detail": "district"
+    },
+    {
+      "name": "occlusion reveals player behind roof",
+      "pass": true,
+      "detail": 0.45
+    },
+    {
+      "name": "building returns opaque",
+      "pass": true,
+      "detail": 1
+    },
+    {
+      "name": "save and reload",
+      "pass": true,
+      "detail": {
+        "saved": {
+          "location": "district",
+          "money": 120,
+          "hour": 22
+        },
+        "restored": {
+          "location": "district",
+          "money": 120,
+          "hour": 22
+        }
+      }
+    },
+    {
+      "name": "no runtime exceptions",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "pass": true,
+  "errors": []
+}

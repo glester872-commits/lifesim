@@ -21,6 +21,7 @@ import { routineOn, type StoryState } from './Story.ts';
 import { promotionReady, settle, type JobProgress } from './Jobs.ts';
 import type { SocialState } from './Social.ts';
 import type { StudyState } from './Study.ts';
+import { holdsConsequence, plantonRef, type ConsequenceState } from './Consequences.ts';
 
 /**
  * Qué se puede hacer ahora que todavía no se ha hecho (data/opportunities.ts), leído del estado de siempre: nada de
@@ -43,6 +44,8 @@ export interface OpportunityInput {
   stories: StoryState;
   /** Marcas de eventos (EventMemory.eventFlags): el folleto del metro. */
   flags?: Readonly<Record<string, number>>;
+  /** SIM-01 · registro de consecuencias (systems/Consequences): sólo se lee. */
+  consequences?: ConsequenceState;
 }
 
 export interface Opportunity {
@@ -67,11 +70,15 @@ function cheapestUpgrade(h: HousingState): (typeof UPGRADES)[number] | undefined
   return UPGRADES.filter((u) => fits(u, h.home) && !h.owned.includes(u.id)).sort((a, b) => a.price - b.price)[0];
 }
 
+const today = (input: OpportunityInput): number => Math.floor(input.now / 1440) + 1;
+
 const free = (input: OpportunityInput): number => Math.round((input.money - owed(input.household)) * 100) / 100;
 
 function holds(c: OpportunityCond, input: OpportunityInput): boolean {
   if ('job' in c) return c.job === 'active' ? input.job?.status === 'active' : input.job?.status !== 'active';
-  if ('promotion' in c) return !!input.job && input.job.status === 'active' && !!promotionReady(input.job, input.study.unlocks);
+  // SIM-01: con una falta o un retraso vivo en el registro, el ascenso espera (se lee, no se toca Jobs).
+  if ('promotion' in c) return !!input.job && input.job.status === 'active' && !!promotionReady(input.job, input.study.unlocks) && !holdsConsequence(input.consequences, 'work', input, today(input));
+  if ('consequence' in c) return holdsConsequence(input.consequences, c.consequence, input, today(input));
   if ('card' in c) {
     const card = input.cards.transport;
     return c.card === false ? card === undefined : card !== undefined && card + 1e-9 < 2 * LINES[0].fare;
@@ -107,7 +114,7 @@ export function nowAt(npc: string, input: OpportunityInput): string {
 }
 
 function fill(text: string, input: OpportunityInput, def: OpportunityDef): string {
-  const promoted = def.when.some((c) => 'promotion' in c);
+  const promoted = def.when.some((c) => 'promotion' in c || ('consequence' in c && c.consequence === 'work'));
   const jobId = def.when.find((c): c is Extract<OpportunityCond, { job: string }> => 'job' in c)?.id ?? (promoted ? input.job?.job : undefined);
   const job = JOBS.find((j) => j.id === jobId) ?? JOBS[0];
   const lvl = job.levels[0];
@@ -116,7 +123,8 @@ function fill(text: string, input: OpportunityInput, def: OpportunityDef): strin
   const course = COURSES.find((c) => c.id === courseId) ?? COURSES[0];
   const fee = course.flyer && course.flyer.flag in (input.flags ?? {}) ? course.fee - course.flyer.discount : course.fee;
   const u = cheapestUpgrade(input.housing);
-  const person = def.when.find((c): c is Extract<OpportunityCond, { person: string }> => 'person' in c)?.person;
+  const person = def.when.find((c): c is Extract<OpportunityCond, { person: string }> => 'person' in c)?.person
+    ?? (def.when.some((c) => 'consequence' in c && c.consequence === 'planton') ? plantonRef(input.consequences) : undefined);
   const card = CATALOGS.find((c) => c.id === 'transport-machine')?.products.find((p) => p.effect && 'issue' in p.effect && p.effect.issue);
   const hh = (n: number): string => `${String(n).padStart(2, '0')}:00`;
   const values: Record<string, () => string> = {
@@ -145,7 +153,7 @@ export function opportunityInput(s: GameStateData, now: number): OpportunityInpu
   return {
     now, money: s.money, job: s.job ?? null, study: s.study ?? emptyStudy(), household: s.household ?? startHousehold(s.day),
     housing: s.housing ?? startHousing(), cards: s.cards, social: s.social ?? {}, phone: s.phone ?? createPhone(), stories: s.stories ?? {},
-    flags: s.events?.eventFlags ?? {},
+    flags: s.events?.eventFlags ?? {}, consequences: s.consequences,
   };
 }
 

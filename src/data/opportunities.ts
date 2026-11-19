@@ -24,7 +24,13 @@ export type OpportunityCond =
   /** La mejora más barata de la casa que no tienes: te llega ya (libre ≥ precio) o hay que ahorrar. */
   | { upgrade: 'affordable' | 'saving' }
   /** Con el ascenso del empleo activo listo para proponerse: buenos turnos, sin faltas y con el curso que pida el nivel. */
-  | { promotion: 'ready' };
+  | { promotion: 'ready' }
+  /**
+   * SIM-01 · con una consecuencia viva (systems/Consequences): 'work', una falta o un retraso del contrato activo (y
+   * mientras tanto el ascenso no sale); 'planton', un plantón sin arreglar ({persona}); 'income', una caída de ingresos
+   * y no llegas a lo que vence esta semana.
+   */
+  | { consequence: 'work' | 'planton' | 'income' };
 
 export interface OpportunityDef {
   id: string;
@@ -57,6 +63,27 @@ export const OPPORTUNITIES: readonly OpportunityDef[] = [
     title: 'Ascenso en {empleador}',
     text: '{jefe} quiere hablar contigo: pasas a {nivel}, {sueldo} por turno. Se propone en el puesto, al fichar.',
     via: 'place',
+  },
+  {
+    id: 'ascenso-retrasado',
+    when: [{ consequence: 'work' }],
+    title: 'El ascenso en {empleador}, en espera',
+    text: '{jefe} tiene apuntado lo del otro día: dos turnos buenos seguidos, puntual, y se vuelve a hablar de ascensos. El horario, en el fichaje.',
+    via: 'place',
+  },
+  {
+    id: 'planton-arreglo',
+    when: [{ consequence: 'planton' }],
+    title: 'Arreglar lo del plantón con {persona}',
+    text: 'Habla con ella (E): si le pides perdón y quedáis, venir al plan es lo que lo arregla. Ahora: {ahora}.',
+    via: 'person',
+  },
+  {
+    id: 'gastos-apuro',
+    when: [{ consequence: 'income' }],
+    title: 'Vas justo con la casa',
+    text: 'Libres tienes {libre} (cartera menos lo que debes). Un turno (tu contrato o uno suelto) lo cubre; se paga en el móvil, en Cuentas.',
+    via: 'phone',
   },
   {
     id: 'tarjeta',

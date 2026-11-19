@@ -410,6 +410,8 @@ export interface BuildingDef {
    * tono, tonos en escalones y sin píxeles huérfanos en la fachada y la azotea (world/ResidentialArt). Sólo el dibujo.
    */
   art?: 'clasico';
+  /** Piloto 2.5D: elevación visual en píxeles y proyección de la cubierta. No cambia la huella ni la puerta. */
+  volume?: { rise: number; skew: number; side: boolean };
 }
 
 /** Donde se compra algo con E: máquina expendedora, taquilla, mostrador. */
@@ -835,6 +837,8 @@ export interface GameStateData {
   job?: import('../systems/Jobs.ts').JobProgress | null;
   /** Gastos de casa y meta de ahorro (systems/Household). Opcional: una partida anterior empieza sus periodos al cargar. */
   household?: import('../systems/Household.ts').HouseholdState;
+  /** SIM-01 · registro de consecuencias (systems/Consequences): referencias, diferidos y avisos dados. Opcional: una v5 migra con el registro vacío. */
+  consequences?: import('../systems/Consequences.ts').ConsequenceState;
   /** Últimos movimientos de la cartera con su motivo. Opcional: una partida anterior carga sin historial. */
   ledger?: import('../systems/Household.ts').Movement[];
   /** Micropréstamo (systems/Credit): préstamos, cuotas y cooldown. Opcional: sin campo, sin préstamo. */

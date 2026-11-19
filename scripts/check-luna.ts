@@ -162,6 +162,6 @@ const blocked = safePosition(ID, spawnToWorld({ tx: 33, ty: 5, facing: 'down' })
   const [x, y] = tileOf(blocked).split(',').map(Number);
   assert.ok(isWalkable(street, x, y), 'safePosition no saca al jugador del bajo');
 }
-assert.equal(SAVE_VERSION, 5); // MAP-07 subió el esquema (reputation); esta tarea no lo cambia.
+assert.equal(SAVE_VERSION, 6); // SIM-01 subió el esquema (consequences); esta tarea no lo cambia.
 
 console.log('check-luna: ok');

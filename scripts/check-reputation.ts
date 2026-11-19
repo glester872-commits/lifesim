@@ -109,7 +109,7 @@ function memory(): { store: Map<string, string>; save: SaveSystem } {
   const storage: SaveStorage = { read: (k) => store.get(k) ?? null, write: (k, v) => void store.set(k, v), remove: (k) => void store.delete(k) };
   return { store, save: new SaveSystem(storage) };
 }
-assert.equal(SAVE_VERSION, 5);
+assert.equal(SAVE_VERSION, 6); // SIM-01 subió el esquema (consequences); esta tarea no lo cambia.
 {
   // Una v4 sin reputation carga con {}.
   const { store, save } = memory();
