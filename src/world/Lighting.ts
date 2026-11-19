@@ -326,6 +326,7 @@ export class Lighting {
   private readonly lights: Phaser.GameObjects.Image[] = [];
   private readonly windows: Phaser.GameObjects.Graphics;
   private readonly windowSpots: readonly WindowSpot[];
+  private readonly volumeWindows = new Map<string, { brush: Phaser.GameObjects.Graphics; owner: Phaser.GameObjects.Image }>();
   /** Lo que brilla (rótulos, pantallas, apliques): encima de la sombra de la hora, sin oscurecerse. */
   /** `flicker`: semilla del tartamudeo ocasional de ese rótulo (sin ella, luz fija). */
   private readonly emissives: { img: Phaser.GameObjects.Image; place?: PlaceInfo; flicker?: number }[] = [];
@@ -417,6 +418,14 @@ export class Lighting {
       .setBlendMode(Phaser.BlendModes.MULTIPLY);
     this.windows = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
     const depth = LightDepth.of(scene);
+    for (const w of built.windows) {
+      if (!w.volume || w.depth === undefined || this.volumeWindows.has(w.volume)) continue;
+      const owner = scene.children.getByName(w.volume);
+      if (!(owner instanceof Phaser.GameObjects.Image)) continue;
+      const brush = scene.add.graphics().setDepth(LAYER.glow).setBlendMode(Phaser.BlendModes.ADD);
+      depth.light(brush, w.depth);
+      this.volumeWindows.set(w.volume, { brush, owner });
+    }
 
     for (const p of def.props) {
       const prop = PROPS[p.kind];
@@ -481,7 +490,7 @@ export class Lighting {
       if (g.building && !place) continue;
       const img = scene.add.image(g.x, g.y, g.key).setOrigin(0, 0).setDepth(LAYER.emissive);
       // Un rótulo está en la fachada: lo que se ve delante de él está delante (world/LightDepth).
-      if (!this.indoor) depth.light(img, -Infinity);
+      if (!this.indoor) depth.light(img, g.depth ?? -Infinity);
       // Neón de la noche y rótulos del Carmen: fijos casi siempre y, de higos a brevas, un tartamudeo (tick). Con movimiento reducido, fijos.
       const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
       this.emissives.push({ img, place, flicker: flickers ? this.emissives.length + 1 : undefined });
@@ -505,10 +514,10 @@ export class Lighting {
         const rows = facadeRows(b) + backRows(b);
         const top = b.front === 'n' ? b.ty + 1 : b.ty;
         // Una farola no alumbra los tejados ni el sol les pone la sombra del vecino: quedan con la luz del cielo.
-        this.roofs.push({ x: b.tx * TILE, y: top * TILE, w: b.w * TILE, h: (b.h - rows) * TILE });
+        this.roofs.push({ x: b.tx * TILE, y: top * TILE - (b.volume?.rise ?? 0), w: b.w * TILE + (b.volume?.skew ?? 0), h: (b.h - rows) * TILE });
         // Cuantas más plantas, más sombra: un local bajo poca, un bloque de tres la de media calle; los fondos de tejados, como un bloque.
         const floors = b.front === 's' ? (b.floors ?? 1) : b.front === 'n' ? 1 : 0;
-        this.casters.push({ x: b.tx * TILE, y: b.ty * TILE, w: b.w * TILE, h: b.h * TILE, height: TILE * (floors === 0 ? 2.2 : 1.6 + (floors - 1) * 1.1) });
+        this.casters.push({ x: b.tx * TILE, y: b.ty * TILE, w: b.w * TILE, h: b.h * TILE, height: TILE * (floors === 0 ? 2.2 : 1.6 + (floors - 1) * 1.1) + (b.volume?.rise ?? 0) });
         const place = PLACE_OF_BUILDING.get(b.id);
         if (place && b.doorX !== undefined && b.front && place.type === 'business') this.doors.push({ b, place });
       }
@@ -604,10 +613,12 @@ export class Lighting {
    * echan a la acera (y la de la puerta de cada local abierto).
    */
   private relight(night: number, homes: number, wet: number): void {
-    const g = this.windows.clear();
+    this.windows.clear();
+    for (const { brush } of this.volumeWindows.values()) brush.clear();
     this.screens = [];
     const sources: LightSource[] = [];
     this.windowSpots.forEach((w, i) => {
+      const g = (w.volume && this.volumeWindows.get(w.volume)?.brush) || this.windows;
       const place = PLACE_OF_BUILDING.get(w.building);
       const lit = w.shop ? !!place && this.opened(place) : windowRank(i) < homes;
       if (!lit) return;
@@ -879,6 +890,7 @@ export class Lighting {
     }
     this.windowLayer.setAlpha(night).setVisible(night > 0.05);
     for (const light of this.lights) light.setAlpha(night).setVisible(night > 0.05);
+    for (const { brush, owner } of this.volumeWindows.values()) brush.setAlpha(night * owner.alpha).setVisible(night > 0.05);
     this.night = night;
     LAMP_LIGHT.night = night;
     LAMP_LIGHT.sky = sky;
@@ -895,6 +907,7 @@ export class Lighting {
    */
   tick(time: number): void {
     if (this.indoor) return;
+    for (const { brush, owner } of this.volumeWindows.values()) brush.setAlpha(this.night * owner.alpha);
     for (const e of this.emissives) {
       if (!e.flicker || !e.img.visible) continue;
       const period = 12_000 + (e.flicker * 2711) % 8000;

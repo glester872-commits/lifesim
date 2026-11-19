@@ -688,7 +688,13 @@ function widen(def: LocationDef): LocationDef {
   };
 }
 
-const WIDENED = widen(BASE);
+// Prueba jugable 2.5D en el Olmo. Los portales y las huellas conservan sus datos originales.
+const VOLUMES: Readonly<Record<string, NonNullable<BuildingDef['volume']>>> = {
+  'res-olmo-3': { rise: 32, skew: 16, side: true },
+  'home-door': { rise: 24, skew: 16, side: false },
+  'res-olmo-11': { rise: 24, skew: 16, side: true },
+};
+const WIDENED = widen({ ...BASE, buildings: BASE.buildings?.map((b) => VOLUMES[b.id] ? { ...b, volume: VOLUMES[b.id] } : b) });
 // El tablón del barrio (systems/Boards), en coordenadas ya ensanchadas: en la plaza del metro, fuera de los caminos.
 const WIDE: LocationDef = { ...WIDENED, props: [...WIDENED.props, ...MEDIAN, at('notice-board', 34, 42)] };
 

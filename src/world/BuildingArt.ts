@@ -1978,6 +1978,13 @@ function rowHouses(b: BuildingDef): RowHouse[] {
   return out;
 }
 
+/** El lateral comparte el material del último paño de fachada, también en bloques segmentados. */
+export function buildingWallColor(b: BuildingDef): string {
+  if (b.finish) return LOOKS[b.style].wall;
+  const segments = rowHouses(b);
+  return toned(b.style, segments[segments.length - 1].tone).wall;
+}
+
 /**
  * Pinta los edificios sobre la RenderTexture del suelo: tejado, planta alta,
  * planta baja con puerta, rótulo y cosas en el tejado. Horneado una vez por
@@ -1998,6 +2005,9 @@ export interface WindowSpot {
   shop: boolean;
   /** Color de la luz de dentro (Look.lit): ámbar de café, blanco de oficina, rosa de discoteca. */
   tone: number;
+  /** Volumetric facades sort their emitted light at the building's foot. */
+  depth?: number;
+  volume?: string;
 }
 
 /** Dónde está el cristal de cada pieza de fachada, en px dentro del tile (ver drawFront y drawUpper). */
@@ -2030,9 +2040,17 @@ export interface GlowSpot {
   cast?: false;
   /** Rótulo de un local: sólo brilla con el local abierto. Sin él, siempre (la boca de metro). */
   building?: string;
+  /** En una pieza volumétrica, la luz pertenece a su fachada y no al suelo. */
+  depth?: number;
 }
 
-export function bakeBuildings(rt: Phaser.GameObjects.RenderTexture, buildings: readonly BuildingDef[], glows: GlowSpot[] = []): WindowSpot[] {
+/** Mismo pintor para el suelo y las piezas volumétricas; siempre reutiliza el arte procedural. */
+export interface BuildingPaintTarget {
+  scene: Phaser.Scene;
+  batchDraw(key: string, x: number, y: number): unknown;
+}
+
+export function bakeBuildings(rt: BuildingPaintTarget, buildings: readonly BuildingDef[], glows: GlowSpot[] = []): WindowSpot[] {
   const windows: WindowSpot[] = [];
   const pane = (b: BuildingDef, shop: boolean, p: readonly [number, number, number, number] | undefined, tx: number, ty: number): void => {
     const tone = Number.parseInt(LOOKS[b.style].lit.slice(1), 16);

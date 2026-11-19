@@ -12,6 +12,7 @@ import { bakeDetail } from './Detail';
 import { finishKey, finished } from './UrbanFinish';
 import { LightDepth } from './LightDepth';
 import { addLandmarks } from './LandmarkArt';
+import { addBuildingVolume } from './BuildingVolume';
 
 /** Lado en px de la caja de colisión de un poste, al pie de su tile (PropDef.post). */
 const POST_BODY = 6;
@@ -279,7 +280,8 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   }
   ground.beginDraw();
   const glows: GlowSpot[] = [];
-  const windows = bakeBuildings(ground, def.buildings ?? [], glows);
+  const flatBuildings = (def.buildings ?? []).filter((b) => !b.volume);
+  const windows = bakeBuildings(ground, flatBuildings, glows);
   // HD-04: la boca de metro de suelo (tiles M, con su puerta D dentro), en los exteriores, con la marquesina, la
   // escalera y el rótulo de las bocas de 3 × 3; de noche, su rótulo y sus apliques encendidos como en las demás.
   if (finished(def)) {
@@ -294,7 +296,8 @@ export function buildLocation(scene: Phaser.Scene, def: LocationDef): BuiltLocat
   ground.endDraw();
   bakeKerbsAndShadows(scene, ground, def);
   // Lo que hace que la calle parezca usada y las casas habitadas (world/Detail): cortinas, bajantes, desgaste.
-  bakeDetail(scene, ground, def, windows);
+  bakeDetail(scene, ground, { ...def, buildings: flatBuildings }, windows);
+  for (const b of def.buildings ?? []) if (b.volume) windows.push(...addBuildingVolume(scene, b, glows));
   addLandmarks(scene, def.landmarks ?? [], glows);
 
   for (const placement of def.props) {

@@ -22,6 +22,7 @@ import { startIdentity } from '../systems/PlayerIdentity';
 import { startHousing, type HousingState } from '../systems/Housing';
 import { parseAgenda, type AgendaState } from '../systems/Agenda';
 import { apply as applyReputation, settleWithReputation, type Reputation } from '../systems/Reputation';
+import type { ConsequenceState } from '../systems/Consequences';
 
 /**
  * Estado central de la partida.
@@ -130,6 +131,9 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** Gastos de casa y meta de ahorro (systems/Household). */
   private _household: HouseholdState;
+
+  /** SIM-01 · registro de consecuencias (systems/Consequences). Sin registro todavía, undefined: el snapshot no lleva la clave. */
+  private _consequences: ConsequenceState | undefined;
 
   /** Movimientos de la cartera, con su motivo. */
   private _ledger: Movement[];
@@ -254,6 +258,7 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._job = structuredClone(initial.job ?? null);
 
     this._household = structuredClone(initial.household ?? { since: initial.day, generated: {}, obligations: [], goal: null });
+    this._consequences = initial.consequences === undefined ? undefined : structuredClone(initial.consequences);
 
     this._ledger = structuredClone(initial.ledger ?? []);
 
@@ -301,6 +306,19 @@ export class GameState extends Phaser.Events.EventEmitter {
   setHousehold(h: HouseholdState): void {
     this._household = structuredClone(h);
     this.emit('household');
+  }
+
+  // ================================================================
+  // CONSECUENCIAS (systems/Consequences, SIM-01)
+  // ================================================================
+
+  get consequences(): ConsequenceState | undefined {
+    return this._consequences === undefined ? undefined : structuredClone(this._consequences);
+  }
+
+  setConsequences(c: ConsequenceState): void {
+    this._consequences = structuredClone(c);
+    this.emit('consequences');
   }
 
   get ledger(): Movement[] {
@@ -956,6 +974,7 @@ export class GameState extends Phaser.Events.EventEmitter {
       job: structuredClone(this._job),
 
       household: structuredClone(this._household),
+      ...(this._consequences === undefined ? {} : { consequences: structuredClone(this._consequences) }),
 
       ledger: structuredClone(this._ledger),
 

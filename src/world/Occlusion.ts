@@ -38,12 +38,18 @@ export class Occlusion {
     for (const img of this.tall) {
       const w = img.displayWidth;
       // Tapa si está delante (sus pies más al sur) y su dibujo, sin contar la base, cae encima del cuerpo.
-      const covers =
+      let covers =
         img.depth > foot.y &&
         right > img.x - w / 2 &&
         left < img.x + w / 2 &&
         foot.y > img.y - img.displayHeight &&
         top < img.y - 6;
+      const mask = img.getData('occlusionMask') as Uint8ClampedArray | undefined;
+      if (covers && mask) {
+        const x = Math.floor(foot.x - (img.x - w / 2));
+        const y = Math.floor(top - (img.y - img.displayHeight));
+        covers = [0, 7, 14].some((dy) => x >= 0 && x < img.width && y + dy >= 0 && y + dy < img.height && mask[((y + dy) * img.width + x) * 4 + 3] > 32);
+      }
       const want = covers ? FADED : 1;
       if (img.alpha !== want) img.setAlpha(Math.abs(want - img.alpha) < 0.02 ? want : img.alpha + (want - img.alpha) * k);
     }

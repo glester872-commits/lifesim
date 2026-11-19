@@ -73,7 +73,7 @@ assert.ok(full.includes(getGarment(gone).name.toLowerCase()));
 if (!pool.some((g) => g !== gone && getGarment(g).name === getGarment(gone).name)) assert.ok(!today.includes(getGarment(gone).name.toLowerCase()), 'stockText dice lo agotado');
 
 // (d) Guardado intacto.
-assert.equal(SAVE_VERSION, 5);
+assert.equal(SAVE_VERSION, 6);
 
 // (e) Cinco probadores, cada uno con su punto DECAT_FITTING_* y su probador derivado.
 const pts = Object.keys(DECATHLON_STORE.points ?? {}).filter((k) => /^DECAT_FITTING_\d\d$/.test(k)).sort();

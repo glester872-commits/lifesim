@@ -27,6 +27,7 @@ import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
 import { parseAgenda, startAgenda } from './Agenda.ts';
 import { parseMetroJourney } from './Transit.ts';
 import { parseReputation } from './Reputation.ts';
+import { emptyConsequences, parseConsequences } from './Consequences.ts';
 import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
 
 /**
@@ -393,6 +394,8 @@ function parseState(value: unknown): GameStateData | null {
     job: parseJob(s.job),
     // Una partida anterior a los gastos de casa empieza sus periodos el día que se carga: nada de alquiler atrasado.
     household: parseHousehold(s.household, Math.floor(total / 1440) + 1),
+    // SIM-01 · sin registro (partida v6 que aún no lo escribió) carga sin la clave; una v5 llega aquí con el vacío de migrate.
+    ...(s.consequences === undefined ? {} : { consequences: parseConsequences(s.consequences) }),
     ledger: parseLedger(s.ledger),
     // Sin préstamo guardado (partida anterior a la Fase 3a, SAVE_VERSION sigue en 4) carga sin la clave, como `paid`:
     // vuelve igual que se guardó y GameState empieza sin préstamo. Uno dañado se lee como «sin préstamo».
@@ -659,6 +662,7 @@ function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly st
  *   jugador puede llevar skin/hairColor/eyes. Ningún campo de la 1 cambia de sentido.
  *   3 → 4 (LV-10): ids, tipo, origen y estado en el ledger.
  *   4 → 5 (MAP-07): `reputation` por barrio; una v4 carga con {}.
+ *   5 → 6 (SIM-01): `consequences` (registro de consecuencias); una v5 carga con el registro vacío.
  *
  * Una versión nueva añade aquí su paso; parseState sigue poniendo los valores seguros de lo que falte.
  */
@@ -671,6 +675,8 @@ function migrate(version: number, state: unknown): unknown {
   if (version < 4 && isRecord(s)) s = { ...s, ledger: parseLedger(s.ledger) };
   // 4 → 5 (MAP-07): aparece `reputation` (por barrio); sin ella, nadie te conoce todavía.
   if (version < 5 && isRecord(s) && !('reputation' in s)) s = { ...s, reputation: {} };
+  // 5 → 6 (SIM-01): aparece `consequences`, vacío: nada se rellena hacia atrás (REGISTER_WINDOW lo limita al cargar).
+  if (version < 6 && isRecord(s) && !('consequences' in s)) s = { ...s, consequences: emptyConsequences() };
   return s;
 }
 

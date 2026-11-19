@@ -50,7 +50,9 @@ import { STREET_EVENTS } from './data/streetEvents';
 import { STORIES } from './data/saraStory';
 import { setReputationSource, StreetEvent } from './systems/StreetEvents';
 import { valueIn, zoneOf } from './systems/Reputation';
-import { missedNotice } from './systems/Jobs';
+import { missedNotice, settle as settleShifts } from './systems/Jobs';
+import { emptyConsequences, reconcile as reconcileConsequences } from './systems/Consequences';
+import { creditBlocker, emptyCredit } from './systems/Credit';
 import { PROTESTS } from './data/protests';
 import { Protest } from './systems/Protest';
 import { eventId, type EventInfo } from './systems/WorldEvents';
@@ -180,6 +182,23 @@ const syncHousehold = (): void => {
 syncHousehold();
 onNewDay(state, syncHousehold);
 
+// SIM-01 · consecuencias (systems/Consequences): después de las cuentas, al arrancar, en cada medianoche y al
+// liquidar el contrato (reviewAgenda). Sólo registra referencias y avisa; se guarda ANTES de avisar: recargar no repite.
+const syncConsequences = (): void => {
+  const s = state.snapshot;
+  const now = (s.day - 1) * 1440 + s.hour * 60 + s.minute;
+  const job = s.job ?? null;
+  const household = s.household ?? state.household;
+  const loan = creditBlocker({ job: job && settleShifts(job, now).progress, household, credit: s.credit ?? emptyCredit(), today: s.day });
+  const r = reconcileConsequences(s.consequences ?? emptyConsequences(), { job, stories: s.stories ?? {}, household, money: s.money, creditBlocker: loan }, s.day, now);
+  if (!r.changed) return;
+  state.setConsequences(r.state);
+  services.save.save(state.snapshot);
+  for (const n of r.notices) phone.notice(n.channel.title, n.text, n.channel.app);
+};
+syncConsequences();
+onNewDay(state, syncConsequences);
+
 // Embarazos de las vecinas (systems/Pregnancy): al arrancar (una partida anterior empieza aquí sus registros) y en cada
 // medianoche, fase a fase. Se guarda antes de avisar: recargar no repite el nacimiento.
 const syncPregnancy = (): void => {
@@ -230,6 +249,8 @@ const reviewAgenda = (): void => {
   // repasar, y un turno ya marcado como falta no saldría en «Te lo has perdido».
   const job = fresh ? state.settleJob(now) : null;
   const settled = !!job?.changed;
+  // SIM-01: una falta o un despido recién liquidados se registran ya, sin esperar a medianoche.
+  if (settled) syncConsequences();
   // Lo que dice el jefe de las faltas nuevas o del despido (antes, sólo al abrir el fichaje: Menus.reviewJob).
   const boss = job?.progress ? missedNotice(job.progress, job.missed) : '';
   const missed = boss ? [boss, ...r.missed] : r.missed;
