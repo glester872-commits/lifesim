@@ -114,6 +114,10 @@ interface SlabStyle {
   spread: number;
   /** Granito: px² por mota de sal y pimienta (sin él, sólo el grano de `slab`). */
   grain?: number;
+  /** VIS-01: tono de la junta respecto a `base` (por defecto -0,16). */
+  joint?: number;
+  /** VIS-01: algunas losas sueltas (≈1 de cada 5) un punto más claras u oscuras; el resto, lisas. */
+  accent?: number;
 }
 
 /** Una pieza con junta, bisel (luz arriba-izquierda) y, a veces, un accidente. */
@@ -147,7 +151,7 @@ function slab(ctx: Ctx, x: number, y: number, sw: number, sh: number, tone: stri
 function slabs(style: SlabStyle): Material['paint'] {
   const { base, course, lengths, seed, spread } = style;
   return ({ ctx, x0, y0, x1, y1 }) => {
-    px(ctx, shade(base, -0.16), x0, y0, x1 - x0, y1 - y0);
+    px(ctx, shade(base, style.joint ?? -0.16), x0, y0, x1 - x0, y1 - y0);
     const first = Math.floor(y0 / course);
     for (let row = first; row * course < y1; row++) {
       const y = row * course;
@@ -157,6 +161,8 @@ function slabs(style: SlabStyle): Material['paint'] {
         const len = lengths[Math.floor(r(1) * lengths.length)];
         if (x + len > x0) {
           let tone = shade(base, batch(x, y, 72, seed) * 0.05 + (r(3) - 0.5) * spread * 0.085);
+          // Por losa, nunca por píxel ni alterno: simétrico, la media de la plaza no se mueve.
+          if (style.accent && r(8) < 0.2) tone = shade(tone, r(9) < 0.5 ? -style.accent : style.accent);
           const t = r(2);
           if (t < 0.14) tone = mix(tone, WARM_TINT, 0.16);
           else if (t > 0.9) tone = mix(tone, COOL_TINT, 0.14);
@@ -1158,7 +1164,7 @@ export const MATERIALS: readonly Material[] = [
   // Plaza de granito (plazuela del metro): losas grandes a matajunta.
   { chars: 'P', paint: slabs({ base: PALETTE.plaza, course: 12, lengths: [16, 20, 24, 28], seed: 17, spread: 1, grain: 14 }) },
   // Plaza mayor: losa de caliza más grande y más clara, de hiladas anchas.
-  { chars: '~', paint: slabs({ base: shade(PALETTE.plaza, 0.03), course: 16, lengths: [16, 24, 32], seed: 29, spread: 0.8 }) },
+  { chars: '~', paint: slabs({ base: shade(PALETTE.plaza, 0.03), course: 16, lengths: [16, 24, 32], seed: 29, spread: 0.8, joint: -0.24, accent: 0.05 }) },
   { chars: ',', paint: sidewalk },
   { chars: '.:=zblu', paint: asphalt },
   { chars: 'V', paint: median },

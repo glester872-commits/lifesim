@@ -75,6 +75,8 @@ export interface Routine {
   stage?: readonly Phase[];
   /** Su paso ese día frente al de siempre (CharacterDef.speed): al final del embarazo, más despacio. */
   pace?: number;
+  /** Dónde duerme esa rutina, si no es CharacterDef.home (SIM-05: el compañero de piso, en tu vivienda). */
+  homeOf?: string;
 }
 
 export interface CharacterDef {
@@ -965,6 +967,21 @@ export const CHARACTERS: readonly CharacterDef[] = [
         weight: 1,
         stops: kevinDay('RB_BENCH_04', 'RB_BENCH_08', 'RB_VIEW_02'),
       },
+      // SIM-05 · compañero de piso (systems/Roommate.routineId la fija): una por vivienda con sitio para dos
+      // (HomeDef.mate). Duerme «en casa» en el portal de tu vivienda, se va a Ribera en metro y vuelve por la tarde a
+      // su asiento del salón. El id tiene que coincidir con Roommate.mateRoutine.
+      ...HOMES.filter((h) => h.mate).map((h): Routine => ({
+        id: `convive-${h.id}`,
+        days: ANY_DAY,
+        weight: 1,
+        story: true,
+        homeOf: h.mate!.portal,
+        stops: [
+          inside('09:30', 'METRO_ENTRANCE', 'Me voy a Ribera, a lo de siempre. Luego nos vemos en casa.'),
+          { at: '19:30', point: h.mate!.seat, lines: ['¿Qué tal el día? Yo vengo reventado.', 'Hoy estoy bastante tranquilo, la verdad.'], going: ['Vuelvo a casa, que ya toca.'] },
+          inside('23:30', h.mate!.portal, 'Me voy a dormir. Hasta mañana.'),
+        ],
+      })),
     ],
   },
 ];

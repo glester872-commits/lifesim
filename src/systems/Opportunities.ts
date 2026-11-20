@@ -22,6 +22,7 @@ import { promotionReady, settle, type JobProgress } from './Jobs.ts';
 import type { SocialState } from './Social.ts';
 import type { StudyState } from './Study.ts';
 import { holdsConsequence, plantonRef, type ConsequenceState } from './Consequences.ts';
+import { routineId as mateRoutineId, type RoommateState } from './Roommate.ts';
 
 /**
  * Qué se puede hacer ahora que todavía no se ha hecho (data/opportunities.ts), leído del estado de siempre: nada de
@@ -46,6 +47,8 @@ export interface OpportunityInput {
   flags?: Readonly<Record<string, number>>;
   /** SIM-01 · registro de consecuencias (systems/Consequences): sólo se lee. */
   consequences?: ConsequenceState;
+  /** SIM-05 · compañero de piso (systems/Roommate): fija su rutina de convivencia. */
+  roommate?: RoommateState;
 }
 
 export interface Opportunity {
@@ -105,7 +108,7 @@ export function nowAt(npc: string, input: OpportunityInput): string {
   const def = CHARACTERS.find((c) => c.npc === npc);
   if (!def) return 'por el barrio';
   const story = input.stories[npc];
-  const pick = (day: number) => routineFor(def, day, { rainy: rainyDay(day), forced: story ? routineOn(story, day) : undefined });
+  const pick = (day: number) => routineFor(def, day, { rainy: rainyDay(day), forced: story ? routineOn(story, day) : mateRoutineId(input.roommate, npc, day) });
   const w = whereabouts(def, input.now, pick);
   if (w.moving) return 'de camino a algún sitio';
   if (w.inside && w.stop.point === def.home) return (input.now % 1440) < 8 * 60 ? 'durmiendo en su casa' : 'en su casa';
@@ -153,7 +156,7 @@ export function opportunityInput(s: GameStateData, now: number): OpportunityInpu
   return {
     now, money: s.money, job: s.job ?? null, study: s.study ?? emptyStudy(), household: s.household ?? startHousehold(s.day),
     housing: s.housing ?? startHousing(), cards: s.cards, social: s.social ?? {}, phone: s.phone ?? createPhone(), stories: s.stories ?? {},
-    flags: s.events?.eventFlags ?? {}, consequences: s.consequences,
+    flags: s.events?.eventFlags ?? {}, consequences: s.consequences, roommate: s.roommate,
   };
 }
 

@@ -29,6 +29,8 @@ export interface Obligation {
   fee: number;
   /** Día en que se pagó. */
   paid?: number;
+  /** SIM-05 · lo que pone el compañero de piso (systems/Roommate.applyShare), fijado una vez: rebaja tu parte. */
+  mate?: number;
 }
 
 export interface HouseholdState {
@@ -53,7 +55,8 @@ export const billOf = (o: Obligation): BillDef => {
   return b;
 };
 
-export const total = (o: Obligation): number => cents(o.amount + o.fee);
+/** Tu parte: importe más recargo, menos lo que pone el compañero (SIM-05). */
+export const total = (o: Obligation): number => cents(o.amount + o.fee - (o.mate ?? 0));
 
 export function startHousehold(today: number): HouseholdState {
   return { since: today, generated: {}, obligations: [], goal: null };
@@ -199,7 +202,8 @@ export function parseHousehold(v: unknown, today: number): HouseholdState {
     if (r.amount < 0 || r.fee < 0 || obligations.some((x) => x.bill === r.bill && x.period === r.period)) continue;
     // Un periodo guardado sin estar en `generated` (tocado a mano) no se vuelve a crear.
     generated[r.bill as string] = Math.max(generated[r.bill as string] ?? 0, (r.period as number) + 1);
-    obligations.push({ bill: r.bill as string, period: r.period, due: r.due, amount: r.amount, fee: r.fee, ...(int(r.paid) ? { paid: r.paid } : {}) });
+    const mate = typeof r.mate === 'number' && r.mate >= 0 && r.mate <= r.amount ? { mate: r.mate } : {};
+    obligations.push({ bill: r.bill as string, period: r.period, due: r.due, amount: r.amount, fee: r.fee, ...(int(r.paid) ? { paid: r.paid } : {}), ...mate });
   }
   return { since: o.since, generated, obligations, goal: typeof o.goal === 'string' && goalById(o.goal) ? o.goal : null };
 }

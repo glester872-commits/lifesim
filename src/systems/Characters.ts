@@ -227,8 +227,8 @@ for (const def of CHARACTERS) {
     PLANS.set(routine, trips);
     // Todas duermen en casa al cambiar de día: así una rutina empalma con la siguiente sin saltos.
     const dawn = locate(trips, speedOf(def, routine), DAY_STARTS, routine.id);
-    if (dawn.moving || dawn.stop.point !== def.home) {
-      throw new Error(`[${def.npc}/${routine.id}] a las 06:00 tiene que estar en casa (${def.home}), está en ${dawn.stop.point}`);
+    if (dawn.moving || dawn.stop.point !== (routine.homeOf ?? def.home)) {
+      throw new Error(`[${def.npc}/${routine.id}] a las 06:00 tiene que estar en casa (${routine.homeOf ?? def.home}), está en ${dawn.stop.point}`);
     }
     if (routine.outing && OUTINGS[routine.outing] === undefined) throw new Error(`[${def.npc}/${routine.id}] plan desconocido ${routine.outing}`);
   }
@@ -313,7 +313,7 @@ function viable(def: CharacterDef, routine: Routine, day: number): Trip[] | null
     return null;
   }
   const dawn = locate(trips, speedOf(def, routine), DAY_STARTS, routine.id);
-  if (dawn.moving || dawn.stop.point !== def.home) return null;
+  if (dawn.moving || dawn.stop.point !== (routine.homeOf ?? def.home)) return null;
   for (let i = 0; i < trips.length; i++) {
     const next = trips[(i + 1) % trips.length];
     const leave = next.arrive - next.travel;

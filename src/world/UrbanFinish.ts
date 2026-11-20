@@ -181,24 +181,30 @@ function grain(ctx: Ctx, x: number, y: number, w: number, tone: string, seed: nu
 /** Banco de plaza (32 × 24): respaldo de tres listones con su hueco, asiento visto desde arriba, costados de fundición y su sombra debajo. */
 function drawPlazaBenchFine(ctx: Ctx): void {
   const w = TILE * 2;
+  // VIS-01: madera cálida propia del banco; juntas oscuras entre listones y cara frontal en sombra.
+  const BW = PALETTE.benchWood;
+  const BW_LIT = PALETTE.benchWoodLit;
+  const BW_DK = PALETTE.benchWoodDark;
   // Montantes del respaldo, por detrás de los listones.
   px(ctx, IRON, 4, 3, 1, 11);
   px(ctx, IRON, w - 5, 3, 1, 11);
   for (const y of [3, 6, 9]) {
-    px(ctx, WOOD_LIT, 3, y, w - 6, 1);
-    px(ctx, WOOD, 3, y + 1, w - 6, 1);
-    grain(ctx, 3, y + 1, w - 6, WOOD, 7 + y);
-    px(ctx, WOOD_DK, 3, y, 1, 2);
-    px(ctx, WOOD_DK, w - 4, y, 1, 2);
+    px(ctx, BW_LIT, 3, y, w - 6, 1);
+    px(ctx, BW, 3, y + 1, w - 6, 1);
+    grain(ctx, 3, y + 1, w - 6, BW, 7 + y);
+    px(ctx, BW_DK, 3, y, 1, 2);
+    px(ctx, BW_DK, w - 4, y, 1, 2);
+    // Junta oscura entre listón y listón (antes, hueco transparente).
+    if (y < 9) px(ctx, shade(BW_DK, -0.2), 3, y + 2, w - 6, 1);
   }
-  // Asiento: dos tablas a lo largo con su junta, y el canto en sombra.
-  px(ctx, shade(WOOD_LIT, 0.06), 2, 13, w - 4, 1);
-  px(ctx, WOOD_LIT, 2, 14, w - 4, 1);
-  grain(ctx, 2, 14, w - 4, WOOD_LIT, 31);
-  px(ctx, WOOD_DK, 2, 15, w - 4, 1);
-  px(ctx, WOOD, 2, 16, w - 4, 1);
-  px(ctx, WOOD_DK, 2, 17, w - 4, 1);
-  px(ctx, shade(WOOD_DK, -0.14), 2, 18, w - 4, 1);
+  // Asiento: dos tablas a lo largo, cada una con su realce, la junta y la cara frontal en sombra.
+  px(ctx, shade(BW_LIT, 0.06), 2, 13, w - 4, 1);
+  px(ctx, BW_LIT, 2, 14, w - 4, 1);
+  grain(ctx, 2, 14, w - 4, BW_LIT, 31);
+  px(ctx, shade(BW_DK, -0.2), 2, 15, w - 4, 1);
+  px(ctx, BW_LIT, 2, 16, w - 4, 1);
+  px(ctx, BW_DK, 2, 17, w - 4, 1);
+  px(ctx, shade(BW_DK, -0.18), 2, 18, w - 4, 1);
   // Bajo el asiento, la sombra en el suelo entre las patas.
   ctx.globalAlpha = 0.34;
   px(ctx, PALETTE.ink, 4, 19, w - 8, 2);
@@ -210,7 +216,8 @@ function drawPlazaBenchFine(ctx: Ctx): void {
   for (const x of [1, w - 4]) {
     px(ctx, IRON, x, 10, 3, 2);
     px(ctx, IRON_HI, x, 10, 3, 1);
-    px(ctx, IRON_LIT, x, 12, 1, 10);
+    // VIS-01: patas de hierro oscuro (antes, el canto en IRON_LIT).
+    px(ctx, IRON, x, 12, 1, 10);
     px(ctx, IRON, x + 1, 13, 1, 7);
     px(ctx, IRON_DK, x + 2, 12, 1, 10);
     px(ctx, IRON_HI, x + 1, 15, 1, 1);

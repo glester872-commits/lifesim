@@ -27,6 +27,11 @@ export interface HomeDef {
   place: string;
   /** Lo que se cuenta de la casa antes de mudarse. */
   text: string;
+  /**
+   * SIM-05 · Sitio para un compañero de piso (data/roommate.ts): su asiento por la tarde (un punto del interior,
+   * distinto de guestSeat) y el portal de la calle (punto 'entrance') donde está «en casa», sin verse, de noche.
+   */
+  mate?: { seat: string; portal: string };
   /** Mudarse aquí desde otra casa. */
   move?: {
     /** Mudanza y fianza, una vez. */
@@ -45,6 +50,7 @@ export const HOMES: readonly HomeDef[] = [
     rent: 45,
     visitPlan: 'visita',
     guestSeat: 'HOME_SOFA_02',
+    mate: { seat: 'HOME_SOFA', portal: 'HOME_ENTRANCE' },
     place: 'tu piso',
     text: 'Dos plantas de ventana, cocina, baño, dormitorio y un salón con sitio de sobra. Es donde empiezas.',
     move: { fee: 100, free: 150 },
@@ -70,6 +76,7 @@ export const HOMES: readonly HomeDef[] = [
     rent: 55,
     visitPlan: 'visita-ronda8',
     guestSeat: 'R8_SOFA_02',
+    mate: { seat: 'R8_SOFA', portal: 'RONDA_8_ENTRANCE' },
     place: 'tu piso de la Ronda',
     text: 'Al otro lado de la vía, en la Ronda nueva: dormitorio, despacho con ventana, baño y un salón con comedor. El más grande del barrio, y el más lejos de la Calle Mayor: se cruza por el paso del Parque del Olmo.',
     move: { fee: 180, free: 350 },

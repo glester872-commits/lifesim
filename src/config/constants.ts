@@ -150,6 +150,10 @@ export const PALETTE = {
   wood: '#7b5a3d',
   woodLit: '#8e6b4b',
   woodDark: '#5d432e',
+  // VIS-01: madera cálida del banco de plaza (listón, realce y cara/junta).
+  benchWood: '#93623a',
+  benchWoodLit: '#ad7a4a',
+  benchWoodDark: '#5c3b24',
 
   rug: '#8e4a50',
   rugLit: '#a15a60',

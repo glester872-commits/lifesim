@@ -30,11 +30,26 @@ const kevin = CHARACTERS.find((c) => c.npc === 'kevin')!;
 assert.equal(jeff.home, 'VL_MQ_8_ENTRANCE');
 assert.equal(kevin.home, 'RB_RES_2_ENTRANCE');
 for (const [def, loc] of [[jeff, 'velaria'], [kevin, 'ribera']] as const) {
-  for (const r of def.routines) for (const s of r.stops) for (const p of [s.point, ...(s.alt ?? [])]) {
+  // Las rutinas sin homeOf (las de siempre) no salen de su barrio: el invariante de antes, tal cual.
+  for (const r of def.routines.filter((x) => !x.homeOf)) for (const s of r.stops) for (const p of [s.point, ...(s.alt ?? [])]) {
     const at = findPoint(p);
     assert.ok(at, `[${def.npc}/${r.id}] punto desconocido ${p}`);
     const where = getLocation(at.location);
     assert.ok(where.id === loc || where.kind === 'interior', `[${def.npc}/${r.id}] ${p} fuera de su barrio`);
+  }
+}
+// SIM-05 · las que llevan homeOf (convivencia: duermen en la vivienda del jugador) se validan aparte: cada parada es un
+// punto conocido del barrio de la vivienda de homeOf, un interior, o METRO_ENTRANCE dentro (irse a su barrio en metro).
+for (const def of CHARACTERS) {
+  for (const r of def.routines.filter((x) => x.homeOf)) {
+    const home = findPoint(r.homeOf!);
+    assert.ok(home, `[${def.npc}/${r.id}] homeOf desconocido ${r.homeOf}`);
+    for (const s of r.stops) for (const p of [s.point, ...(s.alt ?? [])]) {
+      const at = findPoint(p);
+      assert.ok(at, `[${def.npc}/${r.id}] punto desconocido ${p}`);
+      const metro = p === 'METRO_ENTRANCE' && at.kind === 'entrance';
+      assert.ok(metro || at.location === home.location || getLocation(at.location).kind === 'interior', `[${def.npc}/${r.id}] ${p} fuera del barrio de su vivienda`);
+    }
   }
 }
 const minutesOf = (hm: string): number => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3));

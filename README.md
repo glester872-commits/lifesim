@@ -479,6 +479,18 @@ ni acceso global al estado.
   a la suya; al hablar con ellas durante la visita reconocen lo que tienes instalado, se puede hacer algo juntos
   (tele, picar o enseñarle la casa, que se recuerda) y al día siguiente lo comentan en persona o por móvil. Cancelar
   por el móvil cuesta como cancelar un plan del móvil. `npm run check` lo prueba en `check-housing.ts`.
+- **Compañero de piso (SIM-05)** — `data/roommate.ts` (Kevin: motivo, condiciones y su 40 % del alquiler),
+  `systems/Roommate.ts` las reglas y `GameStateData.roommate` la convivencia (opcional: una partida anterior carga sin
+  ella y sin cobros históricos). Se propone en el ordenador de casa si la vivienda tiene sitio para dos
+  (`HomeDef.mate`: Olmo 7 y Ronda 8) y ya conoces a Kevin; antes de confirmar se ve el reparto (céntimos exactos, el resto
+  a tu parte), que luz, agua e internet siguen siendo tuyos y desde qué alquiler cuenta: el primero que empieza después
+  del periodo en curso (aunque se firme el día en que éste empezó). Su parte se fija una vez en cada periodo (`Obligation.mate`) y rebaja lo que pagas; nunca entra en la cartera ni
+  cambia un periodo ya pagado. Al terminar, el alquiler en curso ese día conserva su parte y los siguientes no; mudarse a una
+  casa sin sitio la termina (se dice antes). Pagar tu parte antes de que venza se recuerda una vez por periodo (cumplido o
+  no) con una línea de Kevin y una memoria social que sube o baja un poco la relación; el impago sólo tiene el recargo de siempre. Desde el día siguiente duerme en tu portal, se va
+  a Ribera en metro y vuelve por la tarde a su sitio del sofá (rutinas `convive-<casa>`). Cuentas enseña la previsión:
+  disponible, cobrado, previsto «si fichas todos los turnos» y sólo alternativas que se pueden hacer ya. `npm run check`
+  lo prueba en `check-roommate.ts`.
 - **Emergencias: incendio en la Ronda (ALPHA-10)** — `data/emergencies.ts` declara cada emergencia (tipo, barrio, parque
   de salida, portales posibles, probabilidad, horas, enfriamiento y minutos de cada fase); `systems/Emergencies.ts` la lleva
   sin guardar estado propio, como las peleas: día, portal y fases salen del reloj y de una semilla por día (`none → smoke →

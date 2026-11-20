@@ -62,5 +62,9 @@ recuadros alternos.
 
 `/autodev [--mode=ECO|BALANCED|DEEP] [--audit] <objetivo>` (o prefijo `[ECO]`…) es el
 único orquestador: `.claude/skills/autodev/SKILL.md`. Sin modo, BALANCED. Correcciones
-máximas 1/2/3. Especialistas de solo lectura según el tipo de tarea, nunca todos:
-`gameplay-qa`, `visual-qa`, `optimizer` (`.claude/agents/`).
+máximas 1/2/3. Por defecto se invocan los 6 agentes: `lifesim-planner`,
+`lifesim-builder`, `lifesim-evaluator` y los especialistas de solo lectura
+`gameplay-qa`, `visual-qa` y `optimizer` (`.claude/agents/`). Un especialista se
+omite sólo si claramente no aplica a la tarea (p. ej. `visual-qa` en un cambio sin
+nada visible), y se dice cuál y por qué en el informe. Planner, builder y
+evaluator no se omiten nunca.

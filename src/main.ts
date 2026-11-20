@@ -15,7 +15,9 @@ import { CityAudio } from './audio/CityAudio';
 import { placeInfo, placesOfType } from './systems/Places';
 import { forceWeather, weatherAt } from './systems/Weather';
 import { dateOf, dayOfDate, formatDate, onNewDay, SEASON_LABEL } from './systems/Calendar';
-import { announce, billOf, sync as syncBills } from './systems/Household';
+import { announce, billOf, sync as syncBills, total as yourPart } from './systems/Household';
+import { applyShare, evaluateCommitment, rememberCommitment } from './systems/Roommate';
+import { getMate } from './data/roommate';
 import { rentsOf } from './systems/Housing';
 import { birthNotice, resolve as resolvePregnancy } from './systems/Pregnancy';
 import { summary as stallSummary } from './systems/PlayerStall';
@@ -173,11 +175,22 @@ bagButton.addEventListener('click', () => {
 // acabar. Se ponen al día al arrancar y en cada medianoche; repetirlo no crea nada: cada periodo, una vez.
 const syncHousehold = (): void => {
   const r = syncBills(state.household, state.day, rentsOf(state.housing));
-  if (!r.news.length && !r.fined.length) return;
-  state.setHousehold(r.household);
+  // SIM-05 · compañero de piso: su parte se fija una vez por periodo y el compromiso se evalúa una vez (systems/Roommate).
+  const shared = applyShare(r.household, state.roommate);
+  const kept = evaluateCommitment(shared.household, shared.roommate, state.day);
+  if (!r.news.length && !r.fined.length && !shared.applied.length && !kept.events.length) return;
+  state.setHousehold(shared.household);
+  if (shared.applied.length || kept.events.length) state.setRoommate(kept.roommate);
+  // Lo recuerda (memoria social, una vez por periodo); no cobra nada (Roommate.rememberCommitment).
+  if (kept.events.length && kept.roommate) {
+    const npc = getMate(kept.roommate.mate).npc;
+    state.setSocialProfile(npc, kept.events.reduce((p, e) => rememberCommitment(p, e, state.day), state.socialOf(npc)));
+  }
   services.save.save(state.snapshot);
   const fined = r.fined.map((o) => `${billOf(o).name}: sigue sin pagar pasado el margen; recargo único de ${euros(o.fee)}.`);
-  phone.notice('Cuentas', [...r.news.map(announce), ...fined].join(' '));
+  const splits = shared.applied.map((o) => `${billOf(o).name} compartido: ${euros(o.amount)} en total, ${euros(o.mate ?? 0)} los pone tu compañero y tu parte es ${euros(yourPart(o))}.`);
+  if (r.news.length || fined.length || splits.length) phone.notice('Cuentas', [...r.news.map(announce), ...splits, ...fined].join(' '));
+  if (kept.events.length) phone.notice('Casa', kept.events.map((e) => e.line).join(' '));
 };
 syncHousehold();
 onNewDay(state, syncHousehold);

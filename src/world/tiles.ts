@@ -188,7 +188,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'dining-table': { key: 'prop-dining-table', tilesHigh: 1 },
   stove: { key: 'prop-stove', tilesHigh: 2, tilesWide: 2 },
   // HD-03: el centro del farol (antes 18: la luz caía 9 px por debajo, en el fuste).
-  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 27 }, shadow: [8, 3], post: true },
+  // VIS-01: con charco propio (fuera, 92 × 54 frente a los 138 × 84 de la farola alta; antes, el genérico de 84 × 50).
+  lamp: { key: 'prop-lamp', tilesHigh: 2, light: { dy: 27, pool: [40, 18] }, shadow: [8, 3], post: true },
   // MET-04: 0 = el poste de siempre (calle y todo poste sin `variant`); el resto, los paneles del metro (data/stationSigns.ts).
   sign: { key: 'prop-sign', tilesHigh: 2, post: true, variants: SIGN_FACES.length + 1, defaultVariant: 0 },
   planter: { key: 'prop-planter', tilesHigh: 1 },

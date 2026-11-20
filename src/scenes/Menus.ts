@@ -11,7 +11,7 @@ import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, wea
 import { formatClock } from '../systems/TimeSystem';
 import { getJob, JOB_FALLBACK, jobAt, type JobDef } from '../data/jobs';
 import { applicationCheck, applicationResult, clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, missedNotice, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
-import { formatDate } from '../systems/Calendar';
+import { formatDate, formatDateShort } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
@@ -71,6 +71,8 @@ const productIcon = (p: Product): string => itemIcon('item' in p.effect ? p.effe
 const SLOT_LABEL = { top: 'arriba (torso y brazos)', bottom: 'abajo (piernas)', shoes: 'en los pies', glasses: 'en la cara', cap: 'en la cabeza', scarf: 'al cuello' } as const;
 import { UPGRADES, getHome, getUpgrade } from '../data/housing';
 import { buy, buyBlocker, installAll, installedIn, layout, move, moveBlocker, movePlans, moveSummary, optionsOf, quote as housingQuote, relocate, slotName, storedIn, type HousingState } from '../systems/Housing';
+import { active as mateActive, endRoommate, endSummary as mateEndSummary, moveEffect, moveNote, quote as mateQuote, startRoommate } from '../systems/Roommate';
+import { MATES } from '../data/roommate';
 import { owed, statusOf as billStatus, unpaid } from '../systems/Household';
 
 type AdviceOffer = Extract<ServiceOffer, { kind: 'advice' }>;
@@ -964,6 +966,10 @@ export class Menus {
       };
     });
     for (const id of movable) options.push({ label: `Cambiar de sitio: ${getUpgrade(id).name}`, detail: `ahora en ${slotName(h.home, this.slotOf(id)!)}` });
+    // SIM-05 · compañero de piso, desde el ordenador de casa: proponerlo (casa con sitio para dos, sin convivencia y
+    // habiéndolo conocido) o terminarlo.
+    const mate = shop ? null : this.mateOption();
+    if (mate) options.push(mate.option);
     options.push({ label: shop ? 'Volver' : 'Cerrar el catálogo' });
     const intro = shop
       ? `Te lo llevan hoy a ${getHome(h.home).name} y eliges dónde va. Cada cosa se tiene una vez. Saldo: ${euros(state.money)}.`
@@ -971,8 +977,43 @@ export class Menus {
     menu.open(name, intro, options, (i) => {
       if (i < sold.length) this.confirmUpgrade(sold[i].id, name, (n) => again(n, i));
       else if (i < sold.length + movable.length) this.openRelocate(movable[i - sold.length], (n) => again(n, i));
+      else if (mate && i === sold.length + movable.length) mate.open((n) => again(n, i));
       else menu.close();
     }, undefined, note, selected);
+  }
+
+  /** SIM-05 · «Compartir piso» o «Terminar la convivencia», con su reparto y su regla antes de confirmar. */
+  private mateOption(): { option: MenuOption; open: (back: (note: string) => void) => void } | null {
+    const { state, menu } = this.services;
+    const def = MATES[0];
+    const roommate = state.roommate;
+    if (mateActive(roommate)) {
+      return {
+        option: { label: `Terminar la convivencia con ${def.name}` },
+        open: (back) => menu.open(`Convivencia · ${def.name}`, mateEndSummary(roommate), [{ label: 'Terminarla' }, { label: 'Volver' }], (i) => {
+          if (i !== 0) return back('');
+          state.setRoommate(endRoommate(roommate, state.day));
+          this.host.persist();
+          back(`${def.name} se vuelve a Ribera. Los próximos alquileres los pagas tú enteros.`);
+        }, () => back('')),
+      };
+    }
+    const home = getHome(state.housing.home);
+    if (!home.mate) return null;
+    // Condición: haberle conocido (tiene perfil social).
+    const met = (state.snapshot.social ?? {})[def.npc] !== undefined;
+    return {
+      option: { label: `Compartir piso con ${def.name}`, disabled: met ? undefined : `Aún no conoces a ${def.name}: vive en Ribera Norte.` },
+      open: (back) => {
+        const q = mateQuote(def, home.id, state.household, state.day);
+        menu.open(`Compartir piso · ${def.name}`, q.text, [{ label: `Confirmar (tu parte: ${euros(q.you)})` }, { label: 'Volver' }], (i) => {
+          if (i !== 0) return back('');
+          state.setRoommate(startRoommate(def, home.id, state.day, state.household));
+          this.host.persist();
+          back(`${def.name} se viene a vivir contigo: desde mañana duerme aquí y su parte cuenta desde el alquiler del ${formatDateShort(q.from)}.`);
+        }, () => back(''));
+      },
+    };
   }
 
   /** La ranura de la casa de ahora en la que está puesta una mejora. */
@@ -1048,7 +1089,7 @@ export class Menus {
     const free = (): number => state.money - owed(state.household);
     const blocked = moveBlocker(state.housing, homeId, free(), this.overdueBills());
     const fee = home.move?.fee ?? 0;
-    menu.open(home.name, moveSummary(state.housing, homeId), [
+    menu.open(home.name, [moveSummary(state.housing, homeId), moveNote(state.roommate, homeId)].filter(Boolean).join(' '), [
       { label: `Alquilarla y mudarte (${euros(fee)})`, disabled: blocked ?? undefined },
       { label: 'Ahora no' },
     ], (i) => {
@@ -1064,6 +1105,10 @@ export class Menus {
       const moved = movePlans(state.snapshot.stories ?? {}, from.home, homeId);
       for (const [npc, story] of Object.entries(moved)) state.setStory(npc, story);
       state.setHousing(r.housing);
+      // SIM-05 · el compañero se viene a una casa con sitio para dos; a una sin él, la convivencia termina hoy.
+      const mateNote = moveNote(state.roommate, homeId);
+      const roommate = moveEffect(state.roommate, homeId, state.day);
+      if (roommate !== state.roommate && roommate) state.setRoommate(roommate);
       installAll(r.housing);
       this.host.persist();
       const carried = installedIn(r.housing);
@@ -1074,6 +1119,7 @@ export class Menus {
         carried.length ? `Se han instalado contigo: ${names(carried)}.` : 'Tu ropa, tatuajes y bolsa vienen contigo.',
         parked.length ? `No caben aquí y quedan guardadas en el trastero, sin perderse: ${names(parked)}.` : '',
         `Alquiler: ${euros(getHome(from.home).rent)} → ${euros(home.rent)} desde el próximo periodo.`,
+        mateNote,
       ].filter(Boolean));
       dialogue.once('close', () => this.host.movedHome());
     }, () => menu.close(), note);

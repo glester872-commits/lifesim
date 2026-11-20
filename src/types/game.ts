@@ -853,6 +853,8 @@ export interface GameStateData {
   study?: import('../systems/Study.ts').StudyState;
   /** Vivienda activa y mejoras compradas (systems/Housing). Opcional: una partida anterior conserva su piso, sin mejoras. */
   housing?: import('../systems/Housing.ts').HousingState;
+  /** SIM-05 · compañero de piso (systems/Roommate). Opcional: sin la clave, sin convivencia ni cobros históricos. */
+  roommate?: import('../systems/Roommate.ts').RoommateState;
   /** Guía del principio, avisos ya dados y últimas señales de progreso (systems/Agenda). Opcional: una partida anterior no ve la guía. */
   agenda?: import('../systems/Agenda.ts').AgendaState;
   /** Encuentros a los que se ha ido (systems/Parish): uno por ensayo. Opcional: una partida anterior carga sin ninguno. */

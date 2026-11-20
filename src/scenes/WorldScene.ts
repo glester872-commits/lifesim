@@ -99,6 +99,7 @@ import { getJob as jobDef } from '../data/jobs';
 import { onShift } from '../systems/Jobs';
 import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
+import { routineId as mateRoutineId } from '../systems/Roommate';
 import { STORIES } from '../data/saraStory';
 import { TOUR } from '../data/tour';
 import { freeBetween } from '../systems/Agenda';
@@ -1754,7 +1755,12 @@ export class WorldScene extends Phaser.Scene {
   private storyPicker(def: CharacterDef, now: number): RoutinePicker | undefined {
     const storyDef = STORIES[def.npc];
     let story = this.storyOf(def.npc);
-    if (!storyDef || !story) return undefined;
+    if (!storyDef || !story) {
+      // SIM-05 · el compañero de piso: su rutina de convivencia, fijada por día (systems/Roommate.routineId).
+      const roommate = this.services.state.roommate;
+      if (!roommate) return undefined;
+      return (day) => routineFor(def, day, { rainy: this.rainyDay(day), forced: mateRoutineId(roommate, def.npc, day) });
+    }
     const today = characterDay(now);
     if (story.dayDone < today) {
       const rainy = this.rainyDay(today);

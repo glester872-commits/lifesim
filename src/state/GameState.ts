@@ -20,6 +20,7 @@ import { emptyParish, type ParishState } from '../systems/Parish';
 import { emptyPregnancy, usePregnancies, type PregnancyState } from '../systems/Pregnancy';
 import { startIdentity } from '../systems/PlayerIdentity';
 import { startHousing, type HousingState } from '../systems/Housing';
+import type { RoommateState } from '../systems/Roommate';
 import { parseAgenda, type AgendaState } from '../systems/Agenda';
 import { apply as applyReputation, settleWithReputation, type Reputation } from '../systems/Reputation';
 import type { ConsequenceState } from '../systems/Consequences';
@@ -155,6 +156,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** Vivienda activa y mejoras compradas (systems/Housing). */
   private _housing: HousingState;
 
+  /** SIM-05 · compañero de piso (systems/Roommate); undefined sin convivencia. */
+  private _roommate: RoommateState | undefined;
+
   /** Guía, avisos dados y señales de progreso (systems/Agenda). */
   private _agenda: AgendaState;
 
@@ -271,6 +275,7 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._study = structuredClone(initial.study ?? emptyStudy());
 
     this._housing = structuredClone(initial.housing ?? startHousing());
+    this._roommate = initial.roommate === undefined ? undefined : structuredClone(initial.roommate);
 
     this._agenda = structuredClone(initial.agenda ?? parseAgenda(undefined));
 
@@ -380,6 +385,15 @@ export class GameState extends Phaser.Events.EventEmitter {
   setHousing(h: HousingState): void {
     this._housing = structuredClone(h);
     this.emit('housing');
+  }
+
+  get roommate(): RoommateState | undefined {
+    return this._roommate === undefined ? undefined : structuredClone(this._roommate);
+  }
+
+  setRoommate(r: RoommateState | undefined): void {
+    this._roommate = r === undefined ? undefined : structuredClone(r);
+    this.emit('roommate');
   }
 
   // ================================================================
@@ -988,6 +1002,7 @@ export class GameState extends Phaser.Events.EventEmitter {
       study: structuredClone(this._study),
 
       housing: structuredClone(this._housing),
+      ...(this._roommate === undefined ? {} : { roommate: structuredClone(this._roommate) }),
 
       agenda: structuredClone(this._agenda),
 

@@ -18,6 +18,8 @@ import { dayOf, hireBlocker, levelOf, levelSummary, nextShift, settle, statusOf,
 import { getJob, JOBS } from '../data/jobs';
 import { WEEKDAY_SHORT, weekdayOf, formatDateShort } from '../systems/Calendar';
 import { billOf, dueLabel, goalAdvice, goalById, goalView, owed, pay, statusOf as billStatus, total, unpaid } from '../systems/Household';
+import { incomeOutlook, outlookText, type Outlook } from '../systems/Roommate';
+import { MATES } from '../data/roommate';
 import { BILLS, GOALS } from '../data/household';
 import { euros } from '../systems/Commerce';
 import { COURSES, getGig, getSkill } from '../data/study';
@@ -721,9 +723,18 @@ export class PhoneScreen {
       li.append(rowText(m.label, `${formatDateShort(m.day)} · ${hh}`), el('span', 'phone__row-meta', `${m.amount > 0 ? '+' : '−'}${euros(Math.abs(m.amount))}`));
       moves.append(li);
     }
-    const parts: HTMLElement[] = [head, ul];
+    // SIM-05 · previsión: disponible, cobrado, previsto (con su supuesto), lo próximo con tu parte y qué puedes hacer ya.
+    const parts: HTMLElement[] = [head, ul, el('p', 'phone__note', outlookText(this.outlook(), today))];
     if (moves.childElementCount) parts.push(el('p', 'phone__note', 'Movimientos'), moves);
     this.screenEl.replaceChildren(...parts);
+  }
+
+  /** SIM-05 · systems/Roommate.incomeOutlook con lo de ahora. Compartir sólo si ya conoces a quien se ofrece. */
+  private outlook(): Outlook {
+    const s = this.state;
+    return incomeOutlook(s.household, s.money, s.snapshot.job ?? null, s.ledger, s.day, {
+      housing: s.housing, roommate: s.roommate, mateReady: (s.snapshot.social ?? {})[MATES[0].npc] !== undefined,
+    });
   }
 
   /** Confirmar un pago: importe, a quién y el saldo que queda. Si no llega, cuánto falta y qué hacer. */
@@ -739,7 +750,7 @@ export class PhoneScreen {
     const money = this.state.money;
     const amount = total(o);
     const enough = money + 1e-9 >= amount;
-    const text = `${def.name} · ${def.payee}. ${dueLabel(o, this.state.day)}. Importe ${euros(amount)}${o.fee ? ` (con recargo de ${euros(o.fee)})` : ''}. Saldo ${euros(money)} → ${enough ? euros(money - amount) : 'no llega'}.`;
+    const text = `${def.name} · ${def.payee}. ${dueLabel(o, this.state.day)}. Importe ${euros(amount)}${o.fee ? ` (con recargo de ${euros(o.fee)})` : ''}${o.mate ? ` (total ${euros(o.amount + o.fee)}; ${euros(o.mate)} los pone tu compañero)` : ''}. Saldo ${euros(money)} → ${enough ? euros(money - amount) : 'no llega'}.`;
     const ul = el('ul', 'phone__list');
     const confirm = el('li', `phone__row${enough ? '' : ' is-soon'}`);
     confirm.append(rowText(enough ? `Confirmar pago de ${euros(amount)}` : 'No te llega', enough ? 'Se paga con la cartera' : 'Sigue pendiente; no pasa nada hoy'));
@@ -767,7 +778,10 @@ export class PhoneScreen {
     this.item(cancel, () => this.go({ app: 'money' }));
     ul.append(confirm, cancel);
     const parts: HTMLElement[] = [el('p', 'phone__greeting', text), ul];
-    if (!enough) parts.splice(1, 0, el('p', 'phone__note', pay(h, money, bill, period, this.state.day).message));
+    if (!enough) {
+      const alt = this.outlook().alternatives;
+      parts.splice(1, 0, el('p', 'phone__note', `${pay(h, money, bill, period, this.state.day).message}${alt.length ? ` También puedes: ${alt.join(' ')}` : ''}`));
+    }
     this.screenEl.replaceChildren(...parts);
   }
 

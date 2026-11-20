@@ -197,6 +197,9 @@ function bakeKerbsAndShadows(scene: Phaser.Scene, rt: Phaser.GameObjects.RenderT
     g.fillStyle(SHADOW, 0.14).fillEllipse(cx + 2, cy + 1, w + 5, h + 3);
     g.fillStyle(SHADOW, 0.24).fillEllipse(cx + 1, cy, w, h);
     g.fillStyle(SHADOW, 0.26).fillEllipse(cx, cy - 1, Math.max(2, w - 6), Math.max(1, h - 2));
+    // VIS-01: fuera, con el acabado, el contacto justo en la base (la penumbra de arriba queda casi toda tapada
+    // por el pie del dibujo): una franja de 3 px corrida un píxel al sureste que asoma bajo la pieza.
+    if (finished(def) && !prop.castBlob) g.fillStyle(SHADOW, 0.3).fillEllipse(p.tx * TILE + width / 2 + 1, (p.ty + 1) * TILE, Math.max(4, w - 2), 3);
   }
 
   rt.draw(g);

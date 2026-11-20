@@ -29,6 +29,7 @@ import { parseMetroJourney } from './Transit.ts';
 import { parseReputation } from './Reputation.ts';
 import { emptyConsequences, parseConsequences } from './Consequences.ts';
 import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
+import { parseRoommate } from './Roommate.ts';
 
 /**
  * Qué se guarda y qué no (política de lo pasajero). Se guarda lo que es del
@@ -411,6 +412,8 @@ function parseState(value: unknown): GameStateData | null {
     study: parseStudy(s.study),
     // Una partida anterior a las mejoras conserva su piso y sus cosas: sin cobrar ni quitar nada.
     housing: parseHousing(s.housing),
+    // SIM-05 · sin convivencia guardada (partida anterior o dañada) carga sin la clave: sin compañero ni aportaciones.
+    ...((r) => (r ? { roommate: r } : {}))(parseRoommate(s.roommate)),
     // Una partida anterior a la agenda no ve la guía del principio ni avisos de lo que ya pasó.
     agenda: parseAgenda(s.agenda),
     // Una partida anterior a la parroquia carga sin ensayos: el próximo sábado se puede ir como cualquiera.
