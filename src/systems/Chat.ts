@@ -1531,6 +1531,47 @@ function socialTopic(
   }
 }
 
+/** Saludo al principio de una frase. `$` cubre un opener que sólo es «Hola.». */
+const GREETING_HEAD =
+  /^\s*((?:Ah|Oh|Mm|Vaya)[.,]\s+)?(¡?Hola[.!,]?|¡?Buenas[.!,]?|¡?Ey[.!,]?|¡?Eh[.!,]?)(\s+|$)/i;
+
+/**
+ * Quita el saludo inicial de una frase que va detrás de otro saludo, para no
+ * decir «Hola» dos veces. Respeta «¿» y «¡» y pone en mayúscula lo que queda;
+ * devuelve '' si la frase era sólo el saludo.
+ */
+export function withoutGreeting(
+  text: string,
+): string {
+  const head =
+    GREETING_HEAD.exec(
+      text,
+    );
+
+  if (!head) {
+    return text;
+  }
+
+  const rest =
+    text
+      .slice(
+        head[0].length,
+      )
+      .trim();
+
+  // Con interjección delante («Ah, hola, ¿qué tal?»), se queda ella y lo demás tal cual.
+  if (head[1]) {
+    return `${head[1]}${rest}`.trim();
+  }
+
+  return rest
+    .replace(
+      /^([¿¡]*)(.)/,
+      (_, marks: string, first: string) =>
+        marks + first.toUpperCase(),
+    );
+}
+
 // ================================================================
 // CONVERSATION
 // ================================================================
@@ -1695,13 +1736,23 @@ export class Conversation {
       c.opener
     ) {
       // Lo que trae de su historia (un plan, un enfado, un recuerdo): primero eso.
-      said.push(
-        this.syntheticLine(
-          'story',
-          c.opener,
-          'friendly',
-        ),
-      );
+      // Si ya ha saludado, sin su «Hola» de cabeza.
+      const story =
+        greet
+          ? withoutGreeting(
+              c.opener,
+            )
+          : c.opener;
+
+      if (story) {
+        said.push(
+          this.syntheticLine(
+            'story',
+            story,
+            'friendly',
+          ),
+        );
+      }
     } else if (
       this.socialProfile &&
       c.named

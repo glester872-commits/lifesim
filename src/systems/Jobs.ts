@@ -1,5 +1,6 @@
 // Sin Phaser: lo usan Menus, el móvil, SaveSystem y scripts/check-jobs.ts.
 import { getJob, JOBS, type JobChoice, type JobDef, type JobLevel, type JobSituation } from '../data/jobs.ts';
+import { getSkill } from '../data/study.ts';
 import { WEEKDAY_LABEL, weekdayOf, weekIndex } from './Calendar.ts';
 import { euros } from './Commerce.ts';
 
@@ -117,6 +118,30 @@ export function hireBlocker(job: JobDef, p: JobProgress | null, today: number): 
   if (dismissed !== undefined && today < back) return `Después del despido, no te vuelven a contratar hasta el ${WEEKDAY_LABEL[weekdayOf(back)]}.`;
   return null;
 }
+
+export interface ApplicationItem {
+  label: string;
+  ok: boolean;
+  why?: string;
+}
+
+/**
+ * SIM-04: los requisitos de una candidatura, cada uno con si se cumple. Pura: no toca `p` ni `skills`.
+ * La disponibilidad es hireBlocker tal cual; el conocimiento, `job.hireRequires` contra `skills` (systems/Study).
+ */
+export function applicationCheck(job: JobDef, p: JobProgress | null, today: number, skills: Readonly<Record<string, number>>): ApplicationItem[] {
+  const blocked = hireBlocker(job, p, today);
+  const out: ApplicationItem[] = [{ label: 'Disponibilidad', ok: !blocked, ...(blocked ? { why: blocked } : {}) }];
+  const req = job.hireRequires;
+  if (req) {
+    const have = skills[req.skill] ?? 0;
+    const ok = have >= req.min;
+    out.push({ label: `${getSkill(req.skill).name} ${have} de ${req.min}`, ok, ...(ok ? {} : { why: `Hacen falta ${req.label}.` }) });
+  }
+  return out;
+}
+
+export const applicationResult = (checks: readonly ApplicationItem[]): boolean => checks.every((c) => c.ok);
 
 /** Margen de descanso entre algo que se hace y un turno del contrato (LV-03). */
 export const SHIFT_REST_MIN = 30;
@@ -300,7 +325,7 @@ const waitAt = (job: JobDef): string => job.waitAt ?? 'en la sala de descanso';
 
 /** La oferta entera, para leerla antes de firmar. */
 export function offerText(job: JobDef): string {
-  return `${levelSummary(job.levels[0])} El contrato empieza mañana. Requisitos: fichar desde las ${clockIn(job, job.levels[0])} (se espera a la hora ${waitAt(job)}) y no más de ${job.late} min tarde, con energía de al menos ${job.minEnergy}. Más de ${job.grace} min tarde se paga lo trabajado; no venir es una falta (con ${job.maxStrikes} sin recuperar, a la calle). Con ${job.promoteAfter} buenos turnos, ${job.manager.split(',')[0]} habla de ascensos.`;
+  return `${levelSummary(job.levels[0])} El contrato empieza mañana. Requisitos: fichar desde las ${clockIn(job, job.levels[0])} (se espera a la hora ${waitAt(job)}) y no más de ${job.late} min tarde, con energía de al menos ${job.minEnergy}. Más de ${job.grace} min tarde se paga lo trabajado; no venir es una falta (con ${job.maxStrikes} sin recuperar, a la calle). Con ${job.promoteAfter} buenos turnos, ${job.manager.split(',')[0]} habla de ascensos.${job.hireRequires ? ` Para la candidatura: ${job.hireRequires.label} (${getSkill(job.hireRequires.skill).name} ${job.hireRequires.min} o más).` : ''}`;
 }
 
 function prune(p: JobProgress): void {

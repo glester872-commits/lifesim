@@ -63,6 +63,15 @@ export interface JobDef {
   waitAt?: string;
   /** Lo que dice quien contrata al firmar (la primera línea; el primer turno lo añade Menus). */
   welcome?: string;
+  /** El cierre de la propuesta de ascenso, tras los dos niveles (Menus.jobPromotion). Sin él, JOB_FALLBACK.promotionLine. */
+  promotionLine?: string;
+  /** Lo que se lee al dejar el puesto (Menus.jobQuit). Sin él, JOB_FALLBACK.quitLine, neutro: vale para cualquier empleo. */
+  quitLine?: string;
+  /**
+   * Requisito para que acepten la candidatura (SIM-04): conocimiento mínimo de una habilidad (systems/Study `skills`).
+   * Se evalúa en systems/Jobs.applicationCheck junto a la disponibilidad (hireBlocker). Sin él, basta con estar libre.
+   */
+  hireRequires?: { skill: string; min: number; label: string };
   levels: readonly JobLevel[];
   /** Turnos buenos (puntual y sin fallar) para que te propongan el siguiente nivel. */
   promoteAfter: number;
@@ -79,6 +88,17 @@ export interface JobDef {
   perks?: readonly (JobChoice & { unlock: string })[];
 }
 
+/**
+ * Los textos de Menus cuando un JobDef no trae el suyo: neutros, sin nada de un sitio concreto (ni chaleco, ni cartel,
+ * ni taquilla), porque salen en cualquier empleo. Lo propio de cada sitio va en su JobDef.
+ */
+export const JOB_FALLBACK = {
+  offerLabel: 'Leer la oferta de empleo',
+  desk: 'Tu puesto y el reloj de fichar.',
+  promotionLine: 'Desde mañana, si te parece.',
+  quitLine: 'Recoges tus cosas. «Suerte. Si cambias de idea, ya sabes dónde encontrarnos.»',
+} as const;
+
 export const JOBS: readonly JobDef[] = [
   {
     id: 'decathlon',
@@ -87,6 +107,10 @@ export const JOBS: readonly JobDef[] = [
     manager: 'Marta, la encargada',
     uniform: 'decathlon_employee',
     posting: 'Junto a las cajas hay un cartel: «SE BUSCA PERSONAL DE SECCIÓN. Pregunta por Marta».',
+    offerLabel: 'Leer el cartel de «Se busca personal»',
+    desk: 'Tu taquilla, el chaleco colgado y el reloj de fichar.',
+    promotionLine: 'Una hora más por turno y la sección a tu cargo, desde mañana.',
+    quitLine: 'Devuelves el chaleco. «Suerte. Si cambias de idea, ya sabes dónde está el cartel.»',
     casual: 'work-decathlon',
     levels: [
       { id: 'seccion', title: 'Dependiente de sección', days: [0, 2, 4], start: 10, hours: 6, wage: 60, energy: -35 },
@@ -150,11 +174,14 @@ export const JOBS: readonly JobDef[] = [
     place: 'office',
     employer: 'Atalaya Gestión',
     manager: 'Lucía, la jefa de administración',
-    posting: 'En el mostrador de recepción, una hoja grapada: «ATALAYA GESTIÓN busca auxiliar administrativo. Media jornada, de lunes a viernes. Se valora ofimática. Preguntar por Lucía».',
+    posting: 'En el mostrador de recepción, una hoja grapada: «ATALAYA GESTIÓN busca auxiliar administrativo. Media jornada, de lunes a viernes. Se pide ofimática básica. Preguntar por Lucía».',
+    hireRequires: { skill: 'ofimatica', min: 30, label: 'nociones de ofimática (dos clases del curso de Ofimática y gestión, en el centro de estudios de Vallesco)' },
     offerLabel: 'Leer la hoja de «Auxiliar administrativo»',
     desk: 'Tu tarjeta en el lector de recepción y tu mesa junto a la ventana.',
     waitAt: 'en tu mesa',
     welcome: '«Aquí cada uno organiza su mañana; lo que no puede pasar es que un cliente se quede sin respuesta.»',
+    promotionLine: 'Una hora más por turno y la cartera de clientes a tu cargo, desde mañana.',
+    quitLine: 'Dejas la tarjeta en recepción. Lucía: «Suerte. Si cambias de idea, la hoja sigue en el mostrador.»',
     levels: [
       { id: 'auxiliar', title: 'Auxiliar administrativo', days: [0, 1, 2, 3, 4], start: 9, hours: 4, wage: 36, energy: -16 },
       {

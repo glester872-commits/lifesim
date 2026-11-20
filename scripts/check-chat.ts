@@ -4,7 +4,7 @@
 // un personaje con nombre suena igual que un peatón.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ALL_LINES, ChatLog, Conversation, buildContext, fit, fill, spokenTime, type ChatInput } from '../src/systems/Chat.ts';
+import { ALL_LINES, ChatLog, Conversation, buildContext, fit, fill, spokenTime, withoutGreeting, type ChatInput } from '../src/systems/Chat.ts';
 import { IDENTITIES } from '../src/systems/People.ts';
 import { seededRng } from '../src/systems/MetroDaily.ts';
 import type { Topic } from '../src/data/chat.ts';
@@ -296,6 +296,37 @@ const share = (mix: Map<string, number>, ...topics: string[]): number => {
   const named = new Conversation({ ...base({ who: 'sara', identity: undefined }), named: 'sara' }, new ChatLog(), seededRng(700));
   assert.equal(named.open().options.at(-1)?.id, 'bye');
   console.log(`  despedirse: desde la primera frase y con 0, 1, 2, 3 y 5 temas hablados · ${labels.size} maneras de decirlo (${[...labels].slice(0, 5).join(' / ')}...)`);
+}
+
+// ------------------------------------------------ saludo + opener de historia: un solo «hola»
+{
+  const openers = ['Hola. Lo del Molinillo se quedó en el aire, ¿eh?', '¡Hola! Espera, no te muevas, que esta luz es buenísima.', 'Hola. Ando liada.', 'Hola.', 'Ah. Hola.'];
+  for (const who of ['sara', 'ada', 'amaia'] as const) {
+    for (let k = 0; k < 30; k++) {
+      for (const opener of openers) {
+        const lines = new Conversation({ ...base({ who, identity: undefined, day: MONDAY + k, hour: 10 + (k % 10) }), named: who, rel: (k % 3) as 0 | 1 | 2, opener }, new ChatLog(), seededRng(800 + k)).open().lines;
+        const rest = withoutGreeting(opener);
+        if (rest) {
+          assert.ok(lines.includes(rest), `${who} pierde el opener «${rest}»: «${lines.join(' ')}»`);
+          const story = lines.find((l, i) => i > 0 && l === rest)!;
+          assert.equal(withoutGreeting(story), story, `${who}: el opener empieza por saludo (semilla ${800 + k}): «${story}»`);
+        }
+        // Tras el saludo (lines[0]), ninguna frase vuelve a empezar saludando.
+        for (const l of lines.slice(1)) assert.equal(withoutGreeting(l), l, `${who} saluda dos veces (semilla ${800 + k}): «${lines.join(' ')}»`);
+      }
+    }
+  }
+  // Lo que se quita es sólo el saludo de cabeza; sin saludo delante, el opener queda entero.
+  assert.equal(withoutGreeting('Hola, ¿qué tal lo de ayer?'), '¿Qué tal lo de ayer?');
+  assert.equal(withoutGreeting('¡Hola! espera.'), 'Espera.');
+  assert.equal(withoutGreeting('Hola.'), '');
+  assert.equal(withoutGreeting('Ah. Hola.'), 'Ah.');
+  assert.equal(withoutGreeting('Ah, hola, ¿qué tal?'), 'Ah, ¿qué tal?');
+  assert.equal(withoutGreeting('Oh. Hola. Ando liada.'), 'Oh. Ando liada.');
+  assert.equal(withoutGreeting('Ah, eres tú.'), 'Ah, eres tú.');
+  assert.equal(withoutGreeting('Holaaa, no.'), 'Holaaa, no.');
+  const plain = 'Lo de hoy en el Molinillo sigue en pie, ¿eh?';
+  assert.ok(new Conversation({ ...base({ who: 'sara', identity: undefined }), named: 'sara', opener: plain }, new ChatLog(), seededRng(900)).open().lines.includes(plain), 'un opener sin saludo se recorta');
 }
 
 const named = ALL_LINES.filter((l) => l.n).length;

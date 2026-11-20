@@ -3,7 +3,7 @@ import { STOPS, TRANSFERS } from '../data/transit.ts';
 import { DEMAND_BUDGET, MATCH_DESTINATIONS, MATCH_FACTOR, PROFILES, RAIN_FACTOR, TRIP_PHASES, type DemandProfile } from '../data/metroDemand.ts';
 import { isWeekend } from './Calendar.ts';
 import { absMinute } from './Handoff.ts';
-import { matchOn } from './Match.ts';
+import { matchPhase } from './Match.ts';
 import { hashSeed, seededRng, weighted } from './MetroDaily.ts';
 import { routeBetween } from './Transit.ts';
 import { weatherAt } from './Weather.ts';
@@ -66,7 +66,10 @@ export function tripsFor(day: number, hour: number): readonly Trip[] {
   const rng = seededRng(hashSeed('metro-demand', day, hour));
   const weekend = isWeekend(day);
   const rain = weatherAt(day, hour).rain > 0 ? RAIN_FACTOR : 1;
-  const match = matchOn(day) !== null;
+  // SIM-03: el plus de ida al estadio sólo en build-up/arrival (matchPhase ya resuelve la madrugada como partido de ayer).
+  // leaving/after son vuelta: tripsFor no genera viajes de vuelta desde el estadio.
+  const phase = matchPhase({ day, hour, minute: 30 });
+  const match = phase === 'build-up' || phase === 'arrival';
   const trips: Trip[] = [];
   let n = 0;
   const push = (p: DemandProfile, originId: string, destinationId: string, routeId: string) => {

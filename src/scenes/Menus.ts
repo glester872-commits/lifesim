@@ -9,8 +9,8 @@ import { checkout, consume, euros, maxQty, payFare, productUse, purchase, spend 
 import { blocker, perform, type ActivityContext } from '../systems/Activities';
 import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, weatherDelay, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
-import { getJob, jobAt, type JobDef } from '../data/jobs';
-import { clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, missedNotice, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
+import { getJob, JOB_FALLBACK, jobAt, type JobDef } from '../data/jobs';
+import { applicationCheck, applicationResult, clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, missedNotice, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
 import { formatDate } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
@@ -582,7 +582,7 @@ export class Menus {
         run: () => this.run(name, casual, () => again()),
       });
     }
-    const text = contract ? `${job.desk ?? 'Tu taquilla, el chaleco colgado y el reloj de fichar.'} ${formatClock(state.day, state.hour, state.minute)}.` : job.posting;
+    const text = contract ? `${job.desk ?? JOB_FALLBACK.desk} ${formatClock(state.day, state.hour, state.minute)}.` : job.posting;
     menu.open(name, text, entries.map((e) => e.option), (i) => entries[i].run(), () => menu.close(), [news, note].filter(Boolean).join(' '));
   }
 
@@ -610,7 +610,7 @@ export class Menus {
     const { state } = this.services;
     const boss = job.manager.split(',')[0];
     if (!contract) {
-      return [{ option: { label: job.offerLabel ?? 'Leer el cartel de «Se busca personal»', detail: 'oferta' }, run: () => this.jobOffer(job, back) }];
+      return [{ option: { label: job.offerLabel ?? JOB_FALLBACK.offerLabel, detail: 'oferta' }, run: () => this.jobOffer(job, back) }];
     }
     const lvl = levelOf(contract);
     const out: { option: MenuOption; run: () => void }[] = [{
@@ -628,13 +628,39 @@ export class Menus {
   }
 
   private jobOffer(job: JobDef, back: (n?: string) => void): void {
-    const { state, menu, dialogue } = this.services;
+    const { state, menu } = this.services;
     const blocked = hireBlocker(job, state.job, state.day);
     menu.open(job.employer, offerText(job), [
-      { label: `Firmar con ${job.manager.split(',')[0]}`, disabled: blocked ?? undefined },
+      { label: 'Solicitar el puesto', disabled: blocked ?? undefined },
       { label: 'Ahora no' },
     ], (i) => {
       if (i === 1) return back();
+      this.jobApplication(job, back);
+    }, () => back());
+  }
+
+  /**
+   * SIM-04: la resolución de la candidatura. Los requisitos (systems/Jobs.applicationCheck) se enseñan marcados; si
+   * falta alguno, denegada y nada cambia. Si se cumplen, aceptar firma (tras volver a mirarlos) y rechazar no toca nada.
+   * La candidatura no se guarda: es una conversación, no un estado.
+   */
+  private jobApplication(job: JobDef, back: (n?: string) => void): void {
+    const { state, menu, dialogue } = this.services;
+    const boss = job.manager.split(',')[0];
+    const checks = applicationCheck(job, state.job, state.day, state.study.skills);
+    const list = checks.map((c) => `${c.label}: ${c.ok ? 'cumple' : `no cumple. ${c.why ?? ''}`}`.trim()).join(' · ');
+    if (!applicationResult(checks)) {
+      menu.open(job.manager, `Candidatura denegada. ${list}`, [{ label: 'Volver' }], () => back(), () => back());
+      return;
+    }
+    menu.open(job.manager, `Candidatura aceptada. ${list}. ${boss} te ofrece el contrato: ${levelSummary(job.levels[0])}`, [
+      { label: 'Aceptar el contrato' },
+      { label: 'Rechazar la oferta' },
+    ], (i) => {
+      if (i === 1) return back(`${boss}: «Entendido. Si cambias de idea, ya sabes dónde encontrarme.»`);
+      // Se vuelve a mirar con el estado de ahora: el menú puede llevar rato abierto.
+      const fresh = applicationCheck(job, state.job, state.day, state.study.skills);
+      if (!applicationResult(fresh)) return back(fresh.find((c) => !c.ok)?.why ?? 'La oferta ya no está disponible.');
       const p = hire(job, state.day, state.job);
       state.setJob(p);
       this.host.persist();
@@ -662,10 +688,12 @@ export class Menus {
     const choices = [...situation.choices, ...(job.perks ?? []).filter((p) => unlocks.includes(p.unlock))];
     menu.open(`Turno · ${levelOf(contract).title}`, situation.text, [...choices.map((c) => ({ label: c.label })), { label: 'Volver sin fichar' }], (i) => {
       if (i === choices.length) return back();
-      // Se vuelve a mirar: el menú puede llevar rato abierto.
-      const blocked = clockInBlocker(contract, this.now(), state.energy);
+      // Se vuelve a mirar con el contrato de ahora (no el de al abrir): el menú puede llevar rato abierto.
+      const fresh = state.job;
+      if (!fresh || fresh.job !== job.id || fresh.status !== 'active' || fresh.shifts[state.day]) return back();
+      const blocked = clockInBlocker(fresh, this.now(), state.energy);
       if (blocked) return back(blocked);
-      const out = work(contract, this.now(), choices[i]);
+      const out = work(fresh, this.now(), choices[i]);
       menu.close();
       state.setJob(out.progress);
       // MAP-07: el barrio donde se trabaja lo nota; un turno por día y trabajo.
@@ -686,11 +714,14 @@ export class Menus {
     const { state, menu, dialogue } = this.services;
     const contract = state.job!;
     const next = promotionReady(contract, state.study.unlocks)!;
-    menu.open(job.manager, `«Llevas ${contract.good} turnos buenos y necesito a alguien al frente.» Ahora: ${levelSummary(levelOf(contract))} Te propone: ${levelSummary(next)} Una hora más por turno y la sección a tu cargo, desde mañana.`, [
+    menu.open(job.manager, `«Llevas ${contract.good} turnos buenos y necesito a alguien al frente.» Ahora: ${levelSummary(levelOf(contract))} Te propone: ${levelSummary(next)} ${job.promotionLine ?? JOB_FALLBACK.promotionLine}`, [
       { label: 'Aceptar el ascenso' },
       { label: 'Seguir como estoy' },
     ], (i) => {
-      const p = i === 0 ? promote(contract, state.day) : decline(contract);
+      // Con el contrato de ahora: si ya no toca ese mismo ascenso (otro nivel, una falta, otro empleo), nada.
+      const fresh = state.job;
+      if (!fresh || fresh.job !== job.id || fresh.level !== contract.level || promotionReady(fresh, state.study.unlocks)?.id !== next.id) return back();
+      const p = i === 0 ? promote(fresh, state.day) : decline(fresh);
       state.setJob(p);
       this.host.persist();
       menu.close();
@@ -710,7 +741,7 @@ export class Menus {
       if (i === 1) return back();
       state.setJob(quit(state.job!, state.day));
       this.host.persist();
-      back('Devuelves el chaleco. «Suerte. Si cambias de idea, ya sabes dónde está el cartel.»');
+      back(job.quitLine ?? JOB_FALLBACK.quitLine);
     }, () => back());
   }
 

@@ -132,6 +132,16 @@ export const ADA_STORY: StoryDef = {
         },
       ],
     },
+    {
+      // Te disculpaste y el repaso del arreglo no llegó a hacerse (lluvia, ella sin ánimo, o lo cancelaste): lo
+      // vuelve a sacar. Sólo se llega aquí tras un arreglo cancelado. Sin efecto social: sólo venir repara.
+      id: 'arreglo-pasar', when: { flags: ['ada_conflict', 'ada_apologized'], plan: 'none', cooldown: 1 },
+      say: ['Lo del banco se quedó sin hacer. El tema 14 sigue esperando.'],
+      choices: [
+        { label: 'Vale, quedamos otra vez', plan: 'repaso-arreglo', reply: ['Vale. {cuando}, mismo banco.'], then: { event: 'perdon' } },
+        { label: 'Ahora no puedo', reply: ['Vale.'], then: {} },
+      ],
+    },
     VISIT_BEATS.share,
     {
       id: 'disculpa', when: { flags: ['ada_changed_mind'] },
@@ -221,7 +231,8 @@ export const ADA_STORY: StoryDef = {
     ...VISIT_BEATS.invite,
   ],
   openers: [
-    { when: { flags: ['ada_conflict', 'ada_apologized'] }, text: ['Hola. Lo del banco sigue en pie.'] },
+    { when: { flags: ['ada_conflict', 'ada_apologized'], plan: 'pending' }, text: ['Hola. Lo del banco sigue en pie.'] },
+    { when: { flags: ['ada_conflict', 'ada_apologized'], plan: 'none' }, text: ['Hola. Lo del banco se quedó sin hacer.'] },
     { when: { flags: ['ada_conflict'] }, text: ['Hola.', 'Ah. Hola.'] },
     ...visitOpeners(VISIT),
     { when: { recent: { event: 'plan-lluvia', days: 0 } }, text: ['Vaya día. Lo de {lugar} lo pasamos; el cielo no es culpa de nadie.'] },
@@ -239,7 +250,7 @@ export const ADA_STORY: StoryDef = {
   hello: {
     distance: 4,
     options: [
-      { when: { flags: ['ada_arc_done'], notFlags: ['ada_conflict'], chance: 0.6 }, lines: ['Eh. Mi examinador favorito.', 'Hola. ¿Un minuto? Te cuento lo de la academia.'] },
+      { when: { flags: ['ada_arc_done', 'ada_quiz_done'], notFlags: ['ada_conflict'], chance: 0.6 }, lines: ['Eh. Mi examinador favorito.', 'Hola. ¿Un minuto? Te cuento lo de la academia.'] },
       { when: { flags: ['ada_friend'], notFlags: ['ada_conflict'], chance: 0.6 }, lines: ['Eh. ¿Tienes un minuto?', 'Hola. Justo salía de la academia.'] },
       { when: { flags: ['ada_met'], notFlags: ['ada_conflict', 'ada_friend'], chance: 0.3 }, lines: ['Hola.'] },
     ],

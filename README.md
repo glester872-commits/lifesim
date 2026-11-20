@@ -824,7 +824,7 @@ La Calle del Carmen (distrito `vintage`, `data/vallesco.ts`) es la calle de moda
 - **Motor** (`systems/Chat.ts`): al abrir la charla y en cada respuesta filtra por contexto, elige con peso y recuerda lo dicho. No hay proceso continuo ni IA externa.
 - **Estilo**: sale del temperamento de la identidad (`data/identity.ts`), nunca del aspecto; cambia la longitud, cuánto aguanta la charla y qué opciones se ofrecen.
 - **Anti-repetición** (`ChatLog`): memoria por persona (la gente anónima, corta y sólo mientras está en la sala; los personajes con nombre, larga) más una memoria común de lo último dicho a cualquiera.
-- **Personajes con nombre**: Sara y Ada (`NAMED_VOICES`) mezclan frases propias, su relación sube con `EventMemory.importantNPCsMet` (se guarda con la partida).
+- **Personajes con nombre**: Sara y Ada (`NAMED_VOICES`) mezclan frases propias; su nivel de trato sale de su perfil de Social (`systems/Social.namedRelationLevel`), así que un plantón también lo baja. `EventMemory.importantNPCsMet` sólo cuenta en partidas antiguas sin perfil social (migración).
 - **Prueba**: `scripts/check-chat.ts`.
 
 ## Entrenar en el gimnasio (jugador)

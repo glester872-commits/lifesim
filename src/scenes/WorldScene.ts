@@ -190,7 +190,7 @@ import { isRainy, weatherAt, weatherEffects } from '../systems/Weather';
 import { ChatLog, Conversation, placeOf, weatherKind, type ChatTurn } from '../systems/Chat';
 import {
   applyDelta,
-  chatRelationLevel,
+  namedRelationLevel,
   CONTACT_OFFER_NOTE,
   contactOfferChance,
   grantContact,
@@ -3907,21 +3907,6 @@ export class WorldScene extends Phaser.Scene {
           id
         ];
 
-      const legacyRel:
-        0 | 1 | 2 =
-        met &&
-        (
-          met.encounters >=
-            5 ||
-          met.affinity >= 3
-        )
-          ? 2
-          : met &&
-              met.encounters >=
-                2
-            ? 1
-            : 0;
-
       /*
        * Prompt 57.
        */
@@ -3947,19 +3932,13 @@ export class WorldScene extends Phaser.Scene {
           met.encounters;
       }
 
-      const socialRel =
-        chatRelationLevel(
-          social,
-        );
-
+      // Con perfil social manda Social; importantNPCsMet sólo para partidas sin él (systems/Social.namedRelationLevel).
       const rel =
-        Math.max(
-          legacyRel,
-          socialRel,
-        ) as
-          | 0
-          | 1
-          | 2;
+        namedRelationLevel(
+          social,
+          state.social[id] !== undefined,
+          met,
+        );
 
       // Su historia (systems/Story): lo vivido abre frases, su ánimo de hoy manda y quizá saca algo primero.
       const story =

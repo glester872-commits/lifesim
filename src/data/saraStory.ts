@@ -155,6 +155,17 @@ export const SARA_STORY: StoryDef = {
       ],
     },
     {
+      // Pediste perdón y el arreglo no llegó a hacerse (lluvia, ella sin ánimo, o lo cancelaste): lo vuelve a sacar.
+      // Sólo se llega aquí tras un arreglo cancelado: ir lo cierra (kept) y faltar borra sara_apologized (missed).
+      // Sin efecto social: sólo venir al arreglo repara.
+      id: 'arreglo-pasar', when: { flags: ['sara_conflict', 'sara_apologized'], plan: 'none', cooldown: 1 },
+      say: ['Lo del Molinillo se quedó en el aire. Sigo esperando ese café, ¿eh?'],
+      choices: [
+        { label: 'Vale, quedamos otra vez', plan: 'arreglo', reply: ['Vale. {cuando} en el Molinillo. Esta vez sí.'], then: { event: 'perdon' } },
+        { label: 'Ahora no puedo', reply: ['Vale. Cuando puedas.'], then: {} },
+      ],
+    },
+    {
       // Canceló ella: se disculpa la siguiente vez.
       id: 'disculpa', when: { flags: ['sara_changed_mind'] },
       say: ['Perdona por cancelar lo de {lugar}. No tenía el día y no quería ir de mala gana. Te debo una.'],
@@ -283,7 +294,9 @@ export const SARA_STORY: StoryDef = {
   ],
   openers: [
     // Dolida: seca, y luego lo saca (beat 'reconciliar'). Si ya pediste perdón, espera a que vengas.
-    { when: { flags: ['sara_conflict', 'sara_apologized'] }, text: ['Hola. Lo del Molinillo sigue en pie, ¿eh?', 'Ah, hola. Te espero en el Molinillo, como dijimos.'] },
+    { when: { flags: ['sara_conflict', 'sara_apologized'], plan: 'pending' }, text: ['Hola. Lo del Molinillo sigue en pie, ¿eh?', 'Ah, hola. Te espero en el Molinillo, como dijimos.'] },
+    // El arreglo se canceló (ánimo, lluvia o tú): no promete cita; 'arreglo-pasar' lo vuelve a proponer.
+    { when: { flags: ['sara_conflict', 'sara_apologized'], plan: 'none' }, text: ['Hola. Lo del Molinillo se quedó en el aire, ¿eh?'] },
     { when: { flags: ['sara_conflict'] }, text: ['Ah. Hola.', 'Hola. Ando liada.', 'Ah, eres tú.'] },
     ...visitOpeners(VISIT),
     { when: { recent: { event: 'plan-lluvia', days: 0 } }, text: ['Qué rabia de lluvia. Lo de {lugar}, otro día; no es culpa de nadie.'] },
@@ -305,7 +318,7 @@ export const SARA_STORY: StoryDef = {
   hello: {
     distance: 4,
     options: [
-      { when: { flags: ['sara_arc_done'], notFlags: ['sara_conflict'], chance: 0.7 }, lines: ['¡Mi fotógrafo de confianza! Ven, ven.', '¡Eh! Justo hablaba de ti con Gus.'] },
+      { when: { flags: ['sara_arc_done', 'sara_shoot'], notFlags: ['sara_conflict'], chance: 0.7 }, lines: ['¡Mi fotógrafo de confianza! Ven, ven.', '¡Eh! Justo hablaba de ti con Gus.'] },
       { when: { flags: ['sara_friend'], notFlags: ['sara_conflict'], chance: 0.7 }, lines: ['¡Eh! ¿Tú por aquí? Ven, que te cuento una cosa.', '¡Mira quién anda por aquí! ¿Tienes un minuto?', '¡Ey! Justo pensaba en ti. Bueno, en un outfit, pero también en ti.'] },
       { when: { flags: ['sara_met'], notFlags: ['sara_conflict', 'sara_friend'], chance: 0.4 }, lines: ['¡Hola! Tú eres quien me encontré el otro día, ¿no?', 'Ey, ¡hola! Te he visto de lejos.'] },
     ],

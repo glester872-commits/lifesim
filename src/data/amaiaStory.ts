@@ -108,6 +108,16 @@ export const AMAIA_STORY: StoryDef = {
       ],
     },
     {
+      // Pediste perdón y el paseo del arreglo no se hizo (lluvia, ella sin ánimo, o lo cancelaste): lo vuelve a sacar.
+      // Sin efecto social: sólo venir al arreglo repara.
+      id: 'arreglo-pasar', when: { flags: ['amaia_conflict', 'amaia_apologized'], plan: 'none', cooldown: 1 },
+      say: ['Lo del banco se quedó en el aire. Sigo con el termo guardado.'],
+      choices: [
+        { label: 'Vale, quedamos otra vez', plan: 'paseo-arreglo', reply: ['Vale. {cuando}, mismo banco.'], then: { event: 'perdon' } },
+        { label: 'Ahora no puedo', reply: ['Vale. Cuando puedas.'], then: {} },
+      ],
+    },
+    {
       id: 'disculpa', when: { flags: ['amaia_changed_mind'] },
       say: ['Perdona lo de {lugar}. No tenía el día. Me quedé mirando la pantalla sin escribir nada.'],
       then: { clear: ['amaia_changed_mind'], social: { trust: 2 }, event: 'disculpa' },
@@ -195,7 +205,9 @@ export const AMAIA_STORY: StoryDef = {
     },
   ],
   openers: [
-    { when: { flags: ['amaia_conflict', 'amaia_apologized'] }, text: ['Hola. Lo del banco sigue en pie.'] },
+    { when: { flags: ['amaia_conflict', 'amaia_apologized'], plan: 'pending' }, text: ['Hola. Lo del banco sigue en pie.'] },
+    // El arreglo se canceló (lluvia, ánimo o tú): no promete cita; 'arreglo-pasar' lo vuelve a proponer.
+    { when: { flags: ['amaia_conflict', 'amaia_apologized'], plan: 'none' }, text: ['Hola. Lo del banco se quedó en el aire.'] },
     { when: { flags: ['amaia_conflict'] }, text: ['Hola.', 'Ah. Hola.'] },
     { when: { recent: { event: 'plan-lluvia', days: 0 } }, text: ['Vaya día. Lo nuestro en {lugar} lo pasamos; contra la lluvia no hay parche.'] },
     { when: { planIn: 0 }, text: ['Hoy a las {hora} en {lugar}. Lo tengo en el calendario.'] },

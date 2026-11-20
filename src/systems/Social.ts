@@ -725,6 +725,23 @@ export function chatRelationLevel(
   return 2;
 }
 
+/**
+ * El nivel de trato en el chat de un personaje con nombre (NAMED_VOICES): sale de Social si ya hay perfil
+ * (`hasProfile`), así que un plantón que baja la relación también lo baja aquí. El registro antiguo
+ * (EventMemory.importantNPCsMet: encounters ≥ 5 o affinity ≥ 3 → 2; encounters ≥ 2 → 1) sólo cuenta en partidas
+ * de antes de Social, sin perfil: su affinity sólo sube y taparía lo que haya bajado Social.
+ */
+export function namedRelationLevel(
+  social: SocialProfile,
+  hasProfile: boolean,
+  met?: { encounters: number; affinity: number },
+): 0 | 1 | 2 {
+  const socialRel = chatRelationLevel(social);
+  if (hasProfile || !met) return socialRel;
+  const legacyRel = met.encounters >= 5 || met.affinity >= 3 ? 2 : met.encounters >= 2 ? 1 : 0;
+  return Math.max(legacyRel, socialRel) as 0 | 1 | 2;
+}
+
 // ================================================================
 // ENCUENTROS
 // ================================================================

@@ -1,13 +1,13 @@
 // Empleo con contrato (systems/Jobs): oferta, horario, asistencia, cobro único, faltas, recuperación y ascenso.
 // `npm run check`. Falla si algo no se cumple.
 import assert from 'node:assert/strict';
-import { getJob, JOBS } from '../src/data/jobs.ts';
+import { getJob, JOB_FALLBACK, JOBS } from '../src/data/jobs.ts';
 import { getActivity } from '../src/data/activities.ts';
 import { STOPS } from '../src/data/transit.ts';
 import { LOCATIONS } from '../src/data/locations.ts';
 import {
-  clockInBlocker, decline, hire, hireBlocker, nextShift, offerText, parseJob, promote, promotionBlocker, promotionReady, quit, REHIRE_DAYS, settle,
-  shiftClash, situationFor, statusOf, work, type JobProgress,
+  applicationCheck, applicationResult, clockInBlocker, decline, hire, hireBlocker, nextShift, offerText, parseJob, promote, promotionBlocker, promotionReady, quit, REHIRE_DAYS, settle,
+  scheduled, shiftClash, situationFor, statusOf, work, type JobProgress,
 } from '../src/systems/Jobs.ts';
 import { absMinute } from '../src/systems/Handoff.ts';
 import { weekIndex } from '../src/systems/Calendar.ts';
@@ -202,6 +202,19 @@ assert.ok(new Set([3, 5, 8, 10].map((d) => situationFor(hire(job, 1), d).id)).si
   assert.ok(!/Marta|sala de descanso/.test(officeText), `textos de Decathlon en la oficina: ${officeText}`);
   assert.match(officeText, /Lucía lo apunta/);
   assert.match(officeText, /en tu mesa/);
+  // SIM-04 (corrección 1): lo que Menus enseña en el fichaje, la oferta, el ascenso y al dejarlo es dato de cada JobDef
+  // o el fallback neutro (JOB_FALLBACK). Control positivo: con el chaleco fijo en Menus.jobQuit o en el fallback, falla.
+  const decathlonOnly = /chaleco|cartel|taquilla|sala de personal|sala de descanso/i;
+  for (const [k, v] of Object.entries(JOB_FALLBACK)) assert.ok(v && !decathlonOnly.test(v), `fallback ${k} no neutro: ${v}`);
+  for (const j of JOBS) {
+    assert.ok((j.quitLine ?? JOB_FALLBACK.quitLine).length > 0, `${j.id}: sin frase al dejar el puesto`);
+    assert.ok((j.promotionLine ?? JOB_FALLBACK.promotionLine).length > 0, `${j.id}: sin cierre de ascenso`);
+  }
+  const officeVisible = [office.posting, office.desk ?? JOB_FALLBACK.desk, office.quitLine ?? JOB_FALLBACK.quitLine, office.offerLabel ?? JOB_FALLBACK.offerLabel,
+    office.promotionLine ?? JOB_FALLBACK.promotionLine, offerText(office)].join(' ');
+  assert.ok(!decathlonOnly.test(officeVisible), `frases de Decathlon en Atalaya: ${officeVisible}`);
+  assert.match(office.quitLine ?? '', /Lucía/, 'la despedida de Atalaya es de Lucía');
+  assert.match(job.quitLine ?? '', /chaleco/, 'Decathlon conserva su despedida');
   // Menos cansancio que Decathlon.
   assert.ok(office.levels[0].energy > job.levels[0].energy);
   // Conflicto de horarios: con la oficina, el turno suelto de Decathlon (6 h) no puede pisar un turno (±30 min).
@@ -229,6 +242,55 @@ assert.ok(new Set([3, 5, 8, 10].map((d) => situationFor(hire(job, 1), d).id)).si
   assert.equal(promotionReady({ ...ready, strikes: 1 }, ['ofimatica']), null, 'con una falta, no');
   assert.equal(promotionBlocker({ ...ready, strikes: 1 }, []), null, 'con una falta, el motivo no es el curso');
   assert.equal(promotionBlocker({ ...ready, good: 0 }, []), null, 'sin buenos turnos, no hay motivo');
+}
+
+// SIM-04: candidatura
+// Control positivo: sin `hireRequires` en Atalaya, «sin ofimática → false» falla; sin hireBlocker en applicationCheck,
+// «con Decathlon activo falla la disponibilidad» falla; si applicationCheck mutara, el deepEqual de copias falla.
+{
+  const office = getJob('atalaya');
+  const text = (c: ReturnType<typeof applicationCheck>): string => c.map((x) => `${x.label} ${x.why ?? ''}`).join(' ');
+  const none = applicationCheck(office, null, 1, {});
+  assert.equal(applicationResult(none), false, 'sin ofimática no aceptan la candidatura');
+  assert.match(text(none), /0 de 30/, 'la cifra real del requisito');
+  assert.equal(applicationResult(applicationCheck(office, null, 1, { ofimatica: 30 })), true, 'con 30, cumple');
+  assert.equal(applicationResult(applicationCheck(office, null, 1, { ofimatica: 29 })), false, 'con 29, no');
+  // Disponibilidad: el texto es el de hireBlocker.
+  const atDec = hire(job, 1);
+  const busy = applicationCheck(office, atDec, 1, { ofimatica: 60 });
+  assert.equal(busy[0].ok, false);
+  assert.equal(busy[0].why, hireBlocker(office, atDec, 1));
+  // Despedido hace menos de 7 días: falla.
+  const firedDec = settle(hire(job, 1), t(30, 12)).progress;
+  assert.equal(applicationResult(applicationCheck(job, firedDec, firedDec.ended! + REHIRE_DAYS - 1, {})), false, 'plazo de readmisión');
+  assert.equal(applicationResult(applicationCheck(job, null, 1, {})), true, 'Decathlon no pide nada más');
+  assert.ok(offerText(office).includes(office.hireRequires!.label), 'el requisito se ve antes de solicitar');
+  assert.ok(!offerText(job).includes('candidatura'), 'Decathlon sin requisito de candidatura');
+  // Pura: no muta ni el contrato ni las habilidades.
+  const skills = { ofimatica: 15 };
+  const [pBefore, sBefore] = [structuredClone(atDec), structuredClone(skills)];
+  applicationCheck(office, atDec, 1, skills);
+  assert.deepEqual([atDec, skills], [pBefore, sBefore], 'applicationCheck no muta');
+
+  // Cambio de empleo: dejar Decathlon y firmar en Atalaya deja un único contrato, con los despidos y sin turnos.
+  const firedOffice = settle(hire(office, 1), t(30, 12)).progress;
+  assert.equal(firedOffice.status, 'fired');
+  const day = firedOffice.ended! + REHIRE_DAYS + 5;
+  const left = quit(hire(job, firedOffice.ended! + 1, firedOffice), day);
+  assert.ok(applicationResult(applicationCheck(office, left, day, { ofimatica: 30 })), 'pasado el plazo, la candidatura sale');
+  const switched = hire(office, day, left);
+  assert.deepEqual([switched.job, switched.status, switched.shifts, switched.dismissals], ['atalaya', 'active', {}, { atalaya: firedOffice.ended }]);
+  assert.match(hireBlocker(job, switched, day) ?? '', /Ya tienes contrato en Atalaya Gestión/, 'un único contrato');
+
+  // Formación una sola vez: con el curso y los turnos buenos, el ascenso; tras él, ya no se vuelve a proponer.
+  let o = hire(office, 1);
+  let d = 2;
+  for (; o.good < office.promoteAfter; d++) if (scheduled(o, d)) o = work(o, t(d, 9), best(o, d)).progress;
+  assert.equal(promotionReady(o, ['ofimatica'])?.id, 'administrativo');
+  const prior = structuredClone(o.shifts);
+  const upO = promote(o, d);
+  assert.equal(promotionReady(upO, ['ofimatica']), null, 'el ascenso no se repite');
+  assert.deepEqual(upO.shifts, prior, 'los turnos cobrados no cambian');
 }
 
 console.log(`empleo: ${job.employer} · ${job.levels.map((l) => `${l.title} ${l.wage}€`).join(' → ')} · ${job.situations.length} situaciones · oficina ${getJob('atalaya').employer} · ok`);

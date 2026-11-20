@@ -416,17 +416,22 @@ function whenWords(planDay: number, from: string, gameDay: number): string {
   return `${planDay === gameDay ? 'hoy' : planDay === gameDay + 1 ? 'mañana' : `el ${formatDate(planDay)}`} a las ${from}`;
 }
 
+/** «de el»/«a el» → «del»/«al»: los sitios empiezan por artículo («Lo de {lugar}» con «el Molinillo»). */
+const contract = (t: string): string =>
+  // Bordes con \p{L} y no \b: \b no ve «í» como letra y «día el» acabaría en «díal».
+  t.replace(/(?<!\p{L})([Dd]e|[Aa]) el(?!\p{L})/gu, (_m, p: string) => (p.toLowerCase() === 'de' ? (p[0] === 'D' ? 'Del' : 'del') : (p[0] === 'A' ? 'Al' : 'al')));
+
 /** Sustituye {lugar}, {hora}, {cuando} y {sitio} con lo que toca. */
 function fill(text: string, s: NamedStory, def: StoryDef, gameDay: number): string {
   const plan = s.plan && def.plans[s.plan.id];
   // {sitio}: donde hablaron la última vez (o, si no, lo último que pasó con sitio).
   const back = [...s.events].reverse();
   const lastNote = (back.find((e) => e.id === 'charla' && e.note) ?? back.find((e) => e.note))?.note ?? 'el barrio';
-  return text
+  return contract(text
     .replaceAll('{lugar}', plan?.place ?? lastNote)
     .replaceAll('{hora}', plan?.from ?? '')
     .replaceAll('{cuando}', plan && s.plan ? whenWords(s.plan.day, plan.from, gameDay) : '')
-    .replaceAll('{sitio}', lastNote);
+    .replaceAll('{sitio}', lastNote));
 }
 
 const pickOf = <T>(items: readonly T[], seed: string): T => items[Math.floor(seededRng(hashSeed(seed))() * items.length)];
@@ -663,11 +668,11 @@ export function beatAfterTalk(s: NamedStory, def: StoryDef, profile: SocialProfi
   const picked = { id, day: tomorrow };
   return {
     id: 'invite',
-    say: [...def.invite.say, plan.ask!.replaceAll('{cuando}', when)],
+    say: [...def.invite.say, contract(plan.ask!.replaceAll('{cuando}', when))],
     plan: picked,
     choices: [
-      { label: accept.label, reply: accept.reply.map((t) => t.replaceAll('{lugar}', plan.place).replaceAll('{cuando}', when)), then: accept.then, plan: picked },
-      { label: decline.label, reply: decline.reply.map((t) => t.replaceAll('{lugar}', plan.place)), then: decline.then },
+      { label: accept.label, reply: accept.reply.map((t) => contract(t.replaceAll('{lugar}', plan.place).replaceAll('{cuando}', when))), then: accept.then, plan: picked },
+      { label: decline.label, reply: decline.reply.map((t) => contract(t.replaceAll('{lugar}', plan.place))), then: decline.then },
     ],
   };
 }
@@ -679,6 +684,8 @@ export function beatAfterTalk(s: NamedStory, def: StoryDef, profile: SocialProfi
 export function presentBeat(source: NamedStory, beat: ReadyBeat, now: StoryNow, sent = false): NamedStory {
   const s = structuredClone(source);
   if (beat.id !== RESCHEDULE) s.beats[beat.id] = now.day;
+  // Dicho otra vez: se puede volver a contestar (chooseBeat marca 'ans:' al contestar).
+  if (!beat.offer) delete s.beats[`ans:${beat.id}`];
   if (beat.offer && beat.plan) s.offer = { beat: beat.id, plan: beat.plan.id, day: s.offer?.day ?? now.day, planDay: s.offer?.planDay ?? beat.plan.day, ...(sent || s.offer?.sent ? { sent: true as const } : {}) };
   return s;
 }
@@ -691,11 +698,15 @@ export function chooseBeat(source: NamedStory, profile: SocialProfile, def: Stor
   // Una respuesta tardía desde otra superficie no puede volver a resolver la propuesta.
   const current = beat.offer ? offerBeat(source, def, now, now.minute < 6 * 60 ? now.day + 1 : now.day) : beat;
   if (!current || current.id !== beat.id || (beat.offer && current.plan?.id !== beat.plan?.id)) return { story: source, profile, reply: [] };
+  // Sin propuesta no hay offer que cerrar: sólo se contesta lo presentado (presentBeat) y una vez ('ans:' + id).
+  const answered = `ans:${beat.id}`;
+  if (!beat.offer && (source.beats[beat.id] === undefined || answered in source.beats)) return { story: source, profile, reply: [] };
   const choice = current.choices?.[index];
   if (!choice) return { story: source, profile, reply: [] };
   let s = structuredClone(source);
   s.offer = null;
   if (choice.plan) s = acceptPlan(s, def, choice.plan);
+  if (!beat.offer) s.beats[answered] = now.day;
   const applied = applyEffect(s, profile, choice.then, now, choice.plan ? def.plans[choice.plan.id]?.place : note);
   return { ...applied, reply: [...choice.reply] };
 }
@@ -777,7 +788,7 @@ export function planForInvite(
 export function helloFor(s: NamedStory, def: StoryDef, profile: SocialProfile, now: StoryNow): string | null {
   if (s.greetedDay === now.day) return null;
   const o = def.hello.options.find((x, i) => matches(s, x.when, profile, now, `hello:${i}`));
-  return o ? pickOf(o.lines, `${def.npc}:hello:${now.day}`) : null;
+  return o ? contract(pickOf(o.lines, `${def.npc}:hello:${now.day}`)) : null;
 }
 
 /** El día de reloj y el minuto del día de un minuto absoluto ((día − 1)·1440 + minuto). */
@@ -812,5 +823,6 @@ export function cancelStoryPlan(source: NamedStory, profile: SocialProfile, def:
   s.plan = { ...s.plan!, status: 'cancelled' };
   if (!late) delete s.routines[String(s.plan.day)];
   noteEvent(s, 'plan-cancelado', now, plan?.place);
-  return { story: s, profile: applyDelta(profile, { ...ZERO, friendship: -1, trust: late ? -3 : -1, mood: late ? -6 : -3 }) };
+  // friendship −2: deshace el +2 de aceptar la invitación (aceptar y cancelar no puede salir a cuenta).
+  return { story: s, profile: applyDelta(profile, { ...ZERO, friendship: -2, trust: late ? -3 : -1, mood: late ? -6 : -3 }) };
 }
