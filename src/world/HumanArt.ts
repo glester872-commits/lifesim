@@ -386,6 +386,43 @@ function face(ctx: Ctx, side: boolean, b: number, c: HumanColors): void {
 }
 
 /**
+ * QA-04: el píxel justo encima de cada ojo. Si al final es pelo, gorra o capucha (lo que cambió entre
+ * la cara y el último pelo, o la ceja gruesa del color del pelo), se desatura sin oscurecerse hacia el
+ * contorno: una ceja, no un píxel de pelo vivo pegado al ojo (con pelo rojo, el ojo se leía rojo).
+ * Se llama con los ojos ya pintados y antes del pelo; devuelve lo que hay que llamar tras el último
+ * pelo. getImageData no ve la transformación (espejo de 'left', patadas, poses bajadas): se aplica a
+ * mano. Sin getTransform (los contextos falsos de algunos checks) no hace nada.
+ */
+function browsOverEyes(ctx: Ctx, c: HumanColors, x: readonly number[], eyeTop: number): () => void {
+  const read = (): string[] | null => {
+    const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null;
+    if (!m) return null;
+    const cols = x.map((v) => Math.round(m.a < 0 ? m.a * (v + 1) + m.e : m.a * v + m.e));
+    const x0 = Math.min(...cols);
+    const d = ctx.getImageData(x0, Math.round(m.d * (eyeTop - 1) + m.f), Math.max(...cols) - x0 + 1, 1).data;
+    return cols.map((col) => {
+      const i = (col - x0) * 4;
+      return d[i + 3] === 0 ? '' : `#${[d[i], d[i + 1], d[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    });
+  };
+  const before = read();
+  return () => {
+    const now = read();
+    if (!before || !now) return;
+    now.forEach((color, i) => {
+      if (!color || (color === before[i] && color !== c.hair.toLowerCase())) return;
+      // Se desatura conservando la claridad: deja de ser rojo sin acercarse al contorno (si no, el ojo
+      // crece a 3 px por un lado y parece un guiño). El pelo oscuro sigue oscuro, como siempre.
+      const base = tone(color, -0.15);
+      const n = Number.parseInt(base.slice(1), 16);
+      const l = Math.round(((n >> 16) & 255) * 0.3 + ((n >> 8) & 255) * 0.59 + (n & 255) * 0.11);
+      const gray = `#${l.toString(16).padStart(2, '0').repeat(3)}`;
+      px(ctx, blend(base, gray, 0.8), x[i], eyeTop - 1, 1, 1);
+    });
+  };
+}
+
+/**
  * Las poses agachadas (sentadilla abajo, sentado en el suelo, en el remo) son
  * el cuerpo de pie bajado unos píxeles con las piernas cortadas y dobladas
  * encima: las mismas proporciones, la misma cabeza y la misma ropa que al
@@ -704,6 +741,7 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
   px(ctx, c.skin, 5, 2 + b, 6, 7);
   px(ctx, c.skin, 4, 3 + b, 8, 5);
   px(ctx, shade(c.skin, -0.07), 10, 3 + b, 2, 5);
+  let brows: (() => void) | undefined;
   if (!back) {
     // Modelado de la cara, por debajo de rasgos y pelo: la barbilla en sombra, la cuenca del ojo, la
     // nariz que echa su sombra a la derecha (luz del noroeste) y un punto de rubor en cada mejilla.
@@ -728,6 +766,7 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
     px(ctx, tone(c.skin, -0.24), 7, 7 + b, 1, 1);
     px(ctx, tone(c.skin, -0.14), 8, 7 + b, 1, 1);
     face(ctx, false, b, c);
+    brows = browsOverEyes(ctx, c, [6, 9], 5 + b + down);
   }
   hairFront(ctx, back, b, c);
   if (c.hood) {
@@ -743,6 +782,7 @@ function drawFrontBack(ctx: Ctx, back: boolean, pose: Pose, c: HumanColors): voi
       px(ctx, c.hood, 11, 3 + b, 1, 5);
     }
   }
+  brows?.();
   // Cuello alto de la capa de debajo, bajo la barbilla (también de espaldas), y la cadena por encima, en U.
   if (c.innerLayer) {
     // El cuello vuelto, más ancho que el cuello (de 6 a 9) y con su lado de sombra: se lee bajo la barba.
@@ -1149,6 +1189,7 @@ function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): vo
   if (c.eyes) px(ctx, c.eyes, 10, 6 + b, 1, 1);
   px(ctx, tone(c.skin, -0.14), 7, 6 + b, 1, 1);
   face(ctx, true, b, c);
+  const brows = browsOverEyes(ctx, c, [10], 5 + b);
 
   const hair = c.hair;
   const style = c.hairStyle ?? 'short';
@@ -1209,6 +1250,7 @@ function drawSideBody(ctx: Ctx, pose: Pose, c: HumanColors, near: 'r' | 'l'): vo
     px(ctx, c.hood, 4, 2 + b, 4, 7);
     px(ctx, shade(c.hood, -0.12), 11, 2 + b, 1, 3);
   }
+  brows();
   if (c.scarf) {
     px(ctx, c.scarf, 6, 9 + b, 5, 2);
     px(ctx, shade(c.scarf, 0.12), 6, 9 + b, 2, 1);
