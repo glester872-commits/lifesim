@@ -103,6 +103,27 @@ export function slotStorage(base: SaveStorage, id: SlotId): SaveStorage {
         // Sin sitio para el resumen: la lista lo calculará desde la partida.
       }
     },
+    writeSave: (key, value, info) => {
+      base.write(slotKey(id, key), value);
+      if (key !== SAVE_KEY || info.status !== 'ok') return;
+      const s = info.state;
+      const meta: SlotSummary = {
+        name: s.identity?.name ?? '',
+        savedAt: info.savedAt,
+        day: s.day,
+        hour: s.hour,
+        minute: s.minute,
+        locationId: s.locationId,
+        money: s.money,
+        version: info.version,
+        checksum: checksum(value),
+      };
+      try {
+        base.write(metaKey(id), JSON.stringify(meta));
+      } catch {
+        // Sin sitio para el resumen: la lista lo calculará desde la partida.
+      }
+    },
     remove: (key) => {
       base.remove(slotKey(id, key));
       if (key === SAVE_KEY) base.remove(metaKey(id));

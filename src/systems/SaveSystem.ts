@@ -144,7 +144,7 @@ export const BACKUP_KEY = `${SAVE_KEY}.backup`;
 /** Lo que hay guardado: nada, una partida que arranca, o algo que no se puede leer (roto o de una versión más nueva). */
 export type SaveInfo =
   | { status: 'none' }
-  | { status: 'ok'; state: GameStateData; savedAt: number | null; raw: string }
+  | { status: 'ok'; state: GameStateData; savedAt: number | null; raw: string; version: number }
   | { status: 'unreadable'; reason: 'corrupt' | 'newer' | 'foreign'; raw: string };
 
 /**
@@ -161,6 +161,13 @@ export interface SaveStorage {
     key: string,
     value: string,
   ): void;
+
+  /** Escritura conocida como archivo de partida. Permite que adaptadores escriban también índices derivados sin reparsear. */
+  writeSave?: (
+    key: string,
+    value: string,
+    info: Extract<SaveInfo, { status: 'ok' }>,
+  ) => void;
 
   remove(
     key: string,
@@ -709,8 +716,24 @@ export function inspectRaw(raw: string | null): SaveInfo {
     if (version > SAVE_VERSION) return { status: 'unreadable', reason: 'newer', raw };
     const state = parseState(migrate(version, parsed.state));
     if (!state) return { status: 'unreadable', reason: 'corrupt', raw };
-    restore(state);
-    return { status: 'ok', state, savedAt: plausibleDate(parsed.savedAt), raw };
+    return { status: 'ok', state: restore(state), savedAt: plausibleDate(parsed.savedAt), raw, version };
+  } catch {
+    return { status: 'unreadable', reason: 'corrupt', raw };
+  }
+}
+
+/** Valida texto de partida sin aplicar ubicación segura ni reinstalar mejoras; save() ya tiene el estado válido en memoria. */
+function validateSaveText(raw: string): SaveInfo {
+  if (raw.length > SAVE_MAX_BYTES) return { status: 'unreadable', reason: 'corrupt', raw };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || !isRecord(parsed.state)) return { status: 'unreadable', reason: 'foreign', raw };
+    const version = parsed.version === undefined ? 1 : parsed.version;
+    if (!isNumber(version)) return { status: 'unreadable', reason: 'corrupt', raw };
+    if (version > SAVE_VERSION) return { status: 'unreadable', reason: 'newer', raw };
+    const state = parseState(migrate(version, parsed.state));
+    if (!state) return { status: 'unreadable', reason: 'corrupt', raw };
+    return { status: 'ok', state, savedAt: plausibleDate(parsed.savedAt), raw, version };
   } catch {
     return { status: 'unreadable', reason: 'corrupt', raw };
   }
@@ -749,10 +772,12 @@ export class SaveSystem {
 
     try {
       const text = JSON.stringify(file);
-      // Lo que se va a escribir se lee antes como se leerá al cargar (NaN pasa a null, una referencia circular
-      // no se serializa): si no se podría cargar, no pisa la partida buena que ya hay.
-      if (inspectRaw(text).status !== 'ok') return false;
-      this.storage.write(SAVE_KEY, text);
+      // Una referencia circular o un estado esencial inválido se rechaza sin volver a ejecutar restore().
+      // El texto y sus índices derivados se crean desde una sola lectura del JSON.
+      const info = validateSaveText(text);
+      if (info.status !== 'ok') return false;
+      if (this.storage.writeSave) this.storage.writeSave(SAVE_KEY, text, info);
+      else this.storage.write(SAVE_KEY, text);
       return true;
     } catch {
       return false;

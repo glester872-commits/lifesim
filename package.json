@@ -17,7 +17,8 @@
     "simulate:events": "node scripts/simulate-metro-events.ts",
     "simulate:population": "node scripts/simulate-population.ts",
     "simulate:streets": "node scripts/simulate-streets.ts",
-    "check:city": "node scripts/check-city-life.ts"
+    "check:city": "node scripts/check-city-life.ts",
+    "bench:save": "node scripts/bench-save.ts"
   },
   "devDependencies": {
     "@types/ws": "^8.18.2",
