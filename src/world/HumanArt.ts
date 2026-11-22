@@ -367,8 +367,8 @@ function face(ctx: Ctx, side: boolean, b: number, c: HumanColors): void {
     px(ctx, hair, 5, 4 + b, 2, 1);
     px(ctx, hair, 9, 4 + b, 2, 1);
   } else if (c.brows === 'fine') {
-    px(ctx, shade(c.skin, -0.25), 6, 4 + b, 1, 1);
-    px(ctx, shade(c.skin, -0.25), 9, 4 + b, 1, 1);
+    px(ctx, tone(c.skin, -0.25), 6, 4 + b, 1, 1);
+    px(ctx, tone(c.skin, -0.25), 9, 4 + b, 1, 1);
   }
   if (c.glasses === 'dark') {
     px(ctx, PALETTE.ink, 5, 5 + b, 2, 2);
