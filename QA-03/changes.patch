@@ -1,0 +1,139 @@
+diff --git a/src/systems/PassengerAI.ts b/src/systems/PassengerAI.ts
+index 041b6fa..b2c09d7 100644
+--- a/src/systems/PassengerAI.ts
++++ b/src/systems/PassengerAI.ts
+@@ -114,6 +114,8 @@ export class PassengerAI {
+   private willBoard = false;
+   private approached = false;
+   private doorX = 0;
++  /** Acceso ligado al tren que estaba realmente abierto al iniciar el paso. */
++  private boardingCycle = -1;
+   private decidedRun = false;
+   private forceRun = false;
+   private running = false;
+@@ -195,18 +197,22 @@ export class PassengerAI {
+ 
+   /** Baja del tren por una puerta y se va hacia la salida. */
+   alight(doorX: number): void {
++    // Rechazar antes de renovar aspecto/viaje o colocar a nadie fuera del andén.
++    if (!this.accessOpen(doorX)) return;
+     this.becomeNewcomer();
+     const { layout } = this.world;
+     this.gate = pick(layout.gates);
+     this.state = 'EXITING_TRAIN';
+     this.activity = '';
+-    this.walker.place({ x: doorX + this.lane, y: layout.edgeY }, 'down');
+-    this.go([{ x: doorX + this.lane, y: layout.walkY + 8 }], () => this.leave());
++    this.walker.place({ x: doorX, y: layout.edgeY }, 'down');
++    this.go([{ x: doorX, y: layout.walkY + 8 }], () => this.leave());
+   }
+ 
+   // --------------------------------------------------------------- bucle
+ 
+   update(deltaMs: number): void {
++    // El tren se actualiza primero. No consumir una llegada de una puerta ya cerrada.
++    if (this.state === 'BOARDING' && !this.accessOpen(this.doorX, this.boardingCycle)) this.missTrain();
+     if (this.state !== 'OFFSTAGE' && this.state !== 'RIDING') {
+       if (this.walker.moving) {
+         if (this.walker.step(deltaMs)) this.resume();
+@@ -267,8 +273,8 @@ export class PassengerAI {
+         return;
+ 
+       case 'BOARDING':
+-        // Durante el aviso aún se cuela; con las puertas moviéndose, ya no.
+-        if (!train.doorsOpen && !train.closingWarning) this.missTrain();
++        // Al comenzar el aviso ya no se autoriza completar ningún acceso.
++        if (!this.accessOpen(this.doorX, this.boardingCycle)) this.missTrain();
+         return;
+ 
+       case 'EXITING_TRAIN':
+@@ -364,14 +370,23 @@ export class PassengerAI {
+ 
+   private board(): void {
+     const { layout } = this.world;
++    if (!this.accessOpen(this.doorX)) {
++      this.missTrain();
++      return;
++    }
++    this.boardingCycle = this.world.train.cycle;
+     this.state = 'BOARDING';
+     this.activity = '';
+     this.go(
+       [
+-        { x: this.doorX + this.lane, y: layout.walkY },
+-        { x: this.doorX + this.lane, y: layout.edgeY },
++        { x: this.doorX, y: layout.walkY },
++        { x: this.doorX, y: layout.edgeY },
+       ],
+       () => {
++        if (!this.accessOpen(this.doorX, this.boardingCycle)) {
++          this.missTrain();
++          return;
++        }
+         this.walker.hide();
+         this.state = 'RIDING';
+         this.activity = '';
+@@ -384,7 +399,7 @@ export class PassengerAI {
+   /** Entra en la estación con el tren ya abierto: a correr, o no. */
+   private maybeRunForTrain(): void {
+     const { train } = this.world;
+-    if (this.decidedRun || !(train.state === 'DOORS_OPENING' || train.doorsOpen)) return;
++    if (this.decidedRun || !train.doorsOpen || train.speed !== 0) return;
+     this.decidedRun = true;
+     // MOV-02: con viaje, sólo corre si este tren le sirve (mismo filtro que react/willBoard).
+     const stopId = this.world.stopId();
+@@ -395,6 +410,7 @@ export class PassengerAI {
+     const x = this.gatePoint().x;
+     this.doorX = layout.doorXs.reduce((best, d) => (Math.abs(d - x) < Math.abs(best - x) ? d : best));
+     this.running = true;
++    this.boardingCycle = train.cycle;
+     this.state = 'BOARDING';
+     this.activity = 'corre';
+     this.leaveSeatAndSpot();
+@@ -402,10 +418,14 @@ export class PassengerAI {
+     this.go(
+       [
+         ...this.toPlatform(),
+-        { x: this.doorX + this.lane, y: layout.walkY },
+-        { x: this.doorX + this.lane, y: layout.edgeY },
++        { x: this.doorX, y: layout.walkY },
++        { x: this.doorX, y: layout.edgeY },
+       ],
+       () => {
++        if (!this.accessOpen(this.doorX, this.boardingCycle)) {
++          this.missTrain();
++          return;
++        }
+         this.walker.hide();
+         this.state = 'RIDING';
+         this.activity = '';
+@@ -417,6 +437,15 @@ export class PassengerAI {
+ 
+   private missTrain(): void {
+     this.walker.halt();
++    this.next = null;
++    this.holdMs = 0;
++    this.boardingCycle = -1;
++    this.leaveSeatAndSpot();
++    const { layout } = this.world;
++    if (this.walker.y < layout.walkY) {
++      const x = Math.max(Math.min(...layout.doorXs), Math.min(Math.max(...layout.doorXs), this.walker.x));
++      this.walker.place({ x, y: layout.walkY }, 'up');
++    }
+     this.walker.face('up');
+     this.activity = 'pierde el tren';
+     if (this.running) this.world.note('alguien pierde el tren');
+@@ -774,6 +803,13 @@ export class PassengerAI {
+     this.startOffstage(this.respawnDelay());
+   }
+ 
++  /** La puerta pertenece a esta estación y sigue abierta en el mismo tren. */
++  private accessOpen(doorX: number, cycle = this.world.train.cycle): boolean {
++    const { train, layout } = this.world;
++    return Number.isFinite(doorX) && layout.doorXs.includes(doorX)
++      && train.doorsOpen && train.speed === 0 && train.cycle === cycle;
++  }
++
+   /**
+    * Todas las rutas del pasajero pasan por aquí. QA-04: ningún punto por encima de la línea amarilla (edgeY, donde se
+    * sube y se baja): por encima es vía. Un destino así es un fallo de quien lo calculó: se corrige al borde y se apunta

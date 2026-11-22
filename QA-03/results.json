@@ -1,0 +1,139 @@
+[
+  {
+    "case": "passenger-access",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-passenger-access.ts"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 543,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "passenger-baseline",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-passenger-access.ts",
+      "--baseline"
+    ],
+    "exitCode": 1,
+    "expectedExit": 1,
+    "error": null,
+    "durationMs": 591,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "metro",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-metro.ts"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 138,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "metro-demand",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-metro-demand.ts"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 2713,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "metro-transfers",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-metro-transfers.ts"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 767,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "navigation",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-navigation.ts"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 1693,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "regression",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-regression.ts"
+    ],
+    "exitCode": 1,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 778,
+    "matchedExpectedExit": false
+  },
+  {
+    "case": "save-torture",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-save-torture.ts"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 973,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "save-slots",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "scripts/check-save-slots.ts"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 853,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "build",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+      "run",
+      "build"
+    ],
+    "exitCode": 0,
+    "expectedExit": 0,
+    "error": null,
+    "durationMs": 10281,
+    "matchedExpectedExit": true
+  },
+  {
+    "case": "check",
+    "command": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+      "run",
+      "check"
+    ],
+    "exitCode": null,
+    "expectedExit": 0,
+    "error": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "durationMs": 300010,
+    "matchedExpectedExit": false
+  }
+]

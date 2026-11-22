@@ -1,0 +1,15 @@
+{
+  "base": "d84f8fc",
+  "restoredFile": "src/systems/PassengerAI.ts",
+  "command": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "scripts/check-regression.ts"
+  ],
+  "exitCode": 1,
+  "durationMs": 817,
+  "error": null,
+  "assertionMatched": true,
+  "srcChangesBeforeRun": [
+    "src/systems/PassengerAI.ts"
+  ]
+}

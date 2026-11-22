@@ -90,6 +90,7 @@ const BASE: HumanColors = { cloth: '#c9743f', clothDark: '#9d5730', trousers: '#
 const CASES: Record<string, HumanColors> = {
   'pelo rojo (short)': { ...BASE, hair: '#b8423a', hairStyle: 'short' },
   'gorra roja (bob)': { ...BASE, cap: '#b8423a', hair: '#6b5a3f', hairStyle: 'bob' },
+  'ceja fina con piel oscura': { ...BASE, hair: '#1a1614', hairStyle: 'bald', skin: '#b27450', brows: 'fine' },
 };
 // Columnas donde puede estar el ojo: de frente, los dos; de perfil, x 10; a la izquierda, su espejo (x 5).
 const COLUMNS: Record<'down' | 'left' | 'right', readonly (readonly number[])[]> = { down: [[6], [9]], right: [[10]], left: [[4, 5, 6]] };
@@ -124,6 +125,6 @@ for (const [name, colors] of Object.entries(CASES)) {
     }
   }
 }
-assert.equal(eyes, 2 * POSES.length * 4, 'no se revisaron todos los ojos');
+assert.equal(eyes, Object.keys(CASES).length * POSES.length * 4, 'no se revisaron todos los ojos');
 
 console.log('check-eye-frame: ok');
