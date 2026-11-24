@@ -85,7 +85,7 @@ export const DISTRICTS: Readonly<Record<DistrictId, DistrictProfile>> = {
     vehicles: { all: { van: 1.2, bus: 0.6 } },
     // Con su comercio de planta baja: el horno, la tienda de alimentación y el bar de abajo.
     // La escuela de taekwondo de la Ronda (data/vallesco.ts 'tkd-door'): un local de barrio, como el horno o el bar.
-    facades: ['home', 'res-*', 'civic', 'wine', 'bakery', 'grocer', 'bar', 'fire', 'police', 'dojang', 'backdrop'],
+    facades: ['home', 'res-*', 'civic', 'wine', 'bakery', 'grocer', 'bar', 'fire', 'police', 'dojang', 'hospital', 'backdrop'],
     ambience: { leaf: 1, paper: 0.4, steam: 0.8 },
   },
   // Calle Mayor y avenida: el granito de siempre, gente de recados y de oficina.

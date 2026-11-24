@@ -1,0 +1,61 @@
+PROYECTO: LIFESIM — ASSET LIST DE VEHÍCULOS (ESPAÑA)
+
+Objetivo: Buscar y recopilar imágenes de los 25 modelos de coche más comunes en España, con sus colores más frecuentes, para su implementación en el videojuego LifeSim.
+
+Instrucciones para el asistente:
+1. Para cada modelo de la lista, buscar 1 imagen de referencia por cada color indicado (o la combinación modelo+color más representativa).
+2. Priorizar imágenes con fondo neutro, sin marca de agua, alta resolución y vista 3/4 frontal (ideal para modelado/referencia).
+3. Si un color no existe para ese modelo en el mercado español, indicarlo y omitirlo.
+4. Nombrar los archivos con el formato: [numero]_[marca]_[modelo]_[color].jpg (ej: 01_dacia_sandero_blanco.jpg).
+5. Entregar una tabla resumen con: modelo, color, enlace a la imagen y estado (encontrada / no disponible).
+
+TABLA 1 — MODELOS Y PROBABILIDADES
+
+| # | Modelo | Probabilidad | Colores prioritarios a buscar |
+|---|--------|--------------|-------------------------------|
+| 1 | Dacia Sandero | 6.5% | Blanco, Gris, Negro, Azul |
+| 2 | SEAT Ibiza | 6.0% | Negro, Blanco, Gris, Rojo |
+| 3 | Volkswagen Golf | 5.5% | Negro, Blanco, Gris, Azul |
+| 4 | Renault Clio | 5.0% | Blanco, Negro, Gris, Rojo |
+| 5 | SEAT León | 4.5% | Negro, Blanco, Gris, Azul |
+| 6 | Toyota Corolla | 4.5% | Blanco, Gris, Negro, Azul |
+| 7 | MG ZS | 4.0% | Blanco, Negro, Gris, Rojo |
+| 8 | Hyundai Tucson | 3.5% | Blanco, Gris, Negro, Azul |
+| 9 | SEAT Arona | 3.5% | Blanco, Gris, Negro, Naranja |
+| 10 | Renault Mégane | 3.0% | Blanco, Negro, Gris, Azul |
+| 11 | Ford Focus | 3.0% | Blanco, Negro, Gris, Rojo |
+| 12 | Peugeot 208 | 3.0% | Blanco, Negro, Gris, Amarillo |
+| 13 | Nissan Qashqai | 2.5% | Blanco, Negro, Gris, Azul |
+| 14 | Toyota C-HR | 2.5% | Blanco, Negro, Gris, Azul |
+| 15 | Peugeot 2008 | 2.5% | Blanco, Negro, Gris, Azul |
+| 16 | Citroën C4 | 2.0% | Blanco, Gris, Negro, Azul |
+| 17 | Toyota Yaris Cross | 2.0% | Blanco, Gris, Negro, Azul |
+| 18 | Fiat 500 | 1.5% | Blanco, Negro, Rojo, Azul |
+| 19 | Toyota Yaris | 1.5% | Blanco, Gris, Negro, Azul |
+| 20 | Kia Sportage | 1.5% | Blanco, Gris, Negro, Azul |
+| 21 | Opel Corsa | 1.5% | Blanco, Negro, Gris, Rojo |
+| 22 | Dacia Duster | 1.5% | Blanco, Gris, Negro, Naranja |
+| 23 | Hyundai i20 | 1.0% | Blanco, Gris, Negro, Azul |
+| 24 | Volkswagen Polo | 1.0% | Blanco, Negro, Gris, Azul |
+| 25 | Mercedes-Benz Clase A | 1.0% | Negro, Blanco, Gris, Azul |
+
+TABLA 2 — PALETA DE COLORES GLOBAL (para validación)
+
+| Color | Probabilidad | Uso en el juego |
+|-------|--------------|-----------------|
+| Negro | 36% | Color dominante |
+| Blanco | 26% | Muy común (flotas) |
+| Gris | 21% | Discreto / seguro |
+| Azul | 8% | Color "real" más popular |
+| Rojo | 8% | Llamativo más común |
+| Otros | 1% | Verde, marrón, amarillo, naranja |
+
+Regla para el juego: Al generar un coche aleatorio, asignar color según esta tabla global. Los colores "Otros" solo para modelos juveniles/económicos (Fiat 500, Sandero, Arona, Duster).
+
+CHECKLIST DE ENTREGA
+
+- [ ] 25 modelos identificados
+- [ ] Imágenes por color prioritario (mín. 3 por modelo, máx. 4)
+- [ ] Nombres de archivo según formato
+- [ ] Tabla resumen completada
+- [ ] Confirmación de colores no disponibles

@@ -53,6 +53,8 @@ export const SEATS: Partial<Record<PropKind, SeatDef>> = {
   'stadium-seat': { name: 'Asiento', facing: 'up', idle: ['watch', 'talk', 'phone'] },
   // El banco de la iglesia: se mira al altar; en silencio, o leyendo la hoja de las canciones.
   pew: { name: 'Banco', facing: 'up', idle: ['rest', 'watch', 'read'] },
+  // La bancada de la espera del hospital (data/hospitalVenues.ts): mirando al vestíbulo, con el móvil o esperando.
+  'hosp-seat': { name: 'Bancada', facing: 'down', idle: ['rest', 'phone', 'read'] },
 };
 
 /** El mueble para sentarse que ocupa ese tile, si alguno. */

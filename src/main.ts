@@ -20,6 +20,7 @@ import { applyShare, evaluateCommitment, rememberCommitment } from './systems/Ro
 import { getMate } from './data/roommate';
 import { rentsOf } from './systems/Housing';
 import { birthNotice, resolve as resolvePregnancy } from './systems/Pregnancy';
+import { tick as tickHospital } from './systems/Hospital';
 import { summary as stallSummary } from './systems/PlayerStall';
 import { getNpc } from './data/npcs';
 import { euros } from './systems/Commerce';
@@ -225,6 +226,19 @@ const syncPregnancy = (): void => {
 };
 syncPregnancy();
 onNewDay(state, syncPregnancy);
+
+// HOSP-01 · el turno del hospital (systems/Hospital): con cada minuto de reloj, el que esperaba pasa a llamado y el
+// pendiente se cancela si cierran las consultas. Se guarda antes de avisar: recargar no repite el aviso.
+const syncHospital = (): void => {
+  if (!state.hospital.ticket) return;
+  const r = tickHospital(state.hospital, (state.day - 1) * 1440 + state.hour * 60 + state.minute);
+  if (!r.changed) return;
+  state.setHospital(r.state);
+  services.save.save(state.snapshot);
+  if (r.notice) phone.notice('Hospital', r.notice, 'today');
+};
+syncHospital();
+state.on('change', syncHospital);
 
 // CAS-09 · tu puesto del Rastro (systems/PlayerStall): se cierra al arrancar y en cada medianoche si ya pasó su domingo
 // (también al abrir el tablón o el puesto). Se guarda antes de avisar: recargar no repite el reembolso ni el aviso.

@@ -2,6 +2,7 @@ import type { Level } from '../config/population.ts';
 import type { OfferId, ServiceId } from './services.ts';
 import { CR_PROFILES } from './cuatroRiosVenues.ts';
 import { VL_PROFILES } from './velariaVenues.ts';
+import { HOSP_PROFILES } from './hospitalVenues.ts';
 import { PC_PROFILES } from './puertaCentralVenues.ts';
 import { RONDA_PROFILES } from './ronda.ts';
 import { AR_PROFILES } from './arenaVenues.ts';
@@ -680,6 +681,7 @@ export const POPULATION_PROFILES: readonly PopulationProfile[] = [
   arcadeProfile('cr-arcade', 'CR_ARCADE_', 'Delta'),
   ...CR_PROFILES,
   ...VL_PROFILES,
+  ...HOSP_PROFILES,
   ...PC_PROFILES,
   ...RONDA_PROFILES,
   ...AR_PROFILES,

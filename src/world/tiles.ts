@@ -404,6 +404,23 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   'shelf-run': { key: 'prop-shelf-run', tilesHigh: 1, variants: 4 },
   'shelf-front': { key: 'prop-shelf-front', tilesHigh: 2, variants: 4 },
   'promo-bin': { key: 'prop-promo-bin', tilesHigh: 2, shadow: [14, 3] },
+  // HOSP-01 · Hospital General (data/hospitalVenues.ts, world/HospitalArt): sólo la fila base de cada mueble choca.
+  'hosp-bed': { key: 'prop-hosp-bed', tilesHigh: 2, shadow: [12, 3] },
+  'er-bed': { key: 'prop-er-bed', tilesHigh: 2, shadow: [12, 3] },
+  // Bancada metálica de dos plazas con brazos (data/seating.ts): se sienta mirando al sur.
+  'hosp-seat': { key: 'prop-hosp-seat', tilesHigh: 1, tilesWide: 2, mount: true },
+  curtain: { key: 'prop-curtain', tilesHigh: 2 },
+  'med-cart': { key: 'prop-med-cart', tilesHigh: 2, shadow: [10, 3] },
+  'med-cabinet': { key: 'prop-med-cabinet', tilesHigh: 2 },
+  sanitizer: { key: 'prop-sanitizer', tilesHigh: 2, shadow: [6, 2], post: true },
+  // Sin luz propia: el charco frío de cada monitor hacía halos detrás de los boxes. La luz del hospital es la del techo.
+  'monitor-stand': { key: 'prop-monitor-stand', tilesHigh: 2, shadow: [6, 2] },
+  // En la pared (fila de muro con cara): 0 URGENCIAS (rojo), 1 CONSULTAS, 2 ADMISIÓN, 3 CONSULTA 1, 4 CONSULTA 2.
+  'hosp-sign': { key: 'prop-hosp-sign', tilesHigh: 1, tilesWide: 4, variants: 5, defaultVariant: 1 },
+  // Aparcada en la calzada de servicio de la Ronda: cuatro tiles de largo, vista desde arriba en una sola fila (no asoma
+  // a la del carril bici: nadie pasa por detrás de su techo). Debajo, su dársena pintada (plana, se pisa).
+  ambulance: { key: 'prop-ambulance', tilesHigh: 1, tilesWide: 4 },
+  'ambulance-bay': { key: 'prop-ambulance-bay', tilesHigh: 1, tilesWide: 6, flat: true },
 };
 
 /** Si el carácter es un muro interior (W, o el del andén). */

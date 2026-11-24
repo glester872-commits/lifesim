@@ -479,6 +479,11 @@ const BASE_UNIFORMS: readonly NpcLook[] = [
   { id: 'uniforme-portero', cloth: '#2f4a3a', clothDark: '#22362a', hair: '#33291f', trousers: '#1c1a20', cap: '#2f4a3a' },
   { id: 'uniforme-boutique', cloth: '#1c1a20', clothDark: '#121016', hair: '#1f1a15', trousers: '#1c1a20', sleeves: '#1c1a20' },
   { id: 'uniforme-clinica', cloth: '#f2f4f6', clothDark: '#d4d9de', hair: '#4a3b2f', trousers: '#f2f4f6' },
+  // HOSP-01 · Hospital General: bata blanca sobre camisa celeste con la acreditación y el estetoscopio al cuello (la
+  // cadena oscura); el pijama de enfermería de dos piezas, celeste; y admisión, de oficina con su acreditación.
+  { id: 'uniforme-medico', cloth: '#f4f6f7', clothDark: '#d2d8dc', hair: '#3c2524', sleeves: '#f4f6f7', trousers: '#3a4250', innerLayer: '#9cc2e0', badge: '#2f6f9a', chain: '#3a3f48' },
+  { id: 'uniforme-enfermeria', cloth: '#7fb4d6', clothDark: '#5f93b5', hair: '#2a2430', sleeves: '#7fb4d6', trousers: '#7fb4d6', badge: '#f4f4ef' },
+  { id: 'uniforme-admin', cloth: '#4a5262', clothDark: '#363c48', hair: '#4a3b2f', sleeves: '#4a5262', trousers: '#2b2f38', innerLayer: '#eef0f2', badge: '#2f6f9a' },
   // Distrito Arena, día de partido: policía (azul marino, chaleco con bandas reflectantes y gorra; ningún cuerpo real) y
   // el personal de seguridad del estadio (peto naranja fluorescente sobre negro).
   // La misma ropa la llevan la patrulla de cada barrio y la guardia de la comisaría (systems/Police), con la placa al pecho.
@@ -517,7 +522,7 @@ const STAFF_FACES: readonly Partial<NpcLook>[] = [
   { skin: '#b98462', hair: '#2b2420', hairStyle: 'buzz', facialHair: 'beard' },
 ];
 /** Los uniformes que llevan muchos a la vez. Fuera: los que son de una sola persona (dobok, dj, tatuaje, Decathlon, dependientes). */
-const SHARED_UNIFORMS = new Set(['uniforme-sala', 'uniforme-noche', 'uniforme-gym', 'uniforme-boutique', 'uniforme-tienda', 'uniforme-archivo', 'uniforme-arcade', 'uniforme-super', 'uniforme-barbero', 'uniforme-hotel', 'uniforme-clinica', 'uniforme-vuelta', 'uniforme-policia', 'uniforme-bomberos', 'uniforme-seguridad', 'uniforme-limpieza', 'uniforme-mantenimiento', 'uniforme-reparto', 'uniforme-portero']);
+const SHARED_UNIFORMS = new Set(['uniforme-sala', 'uniforme-noche', 'uniforme-gym', 'uniforme-boutique', 'uniforme-tienda', 'uniforme-archivo', 'uniforme-arcade', 'uniforme-super', 'uniforme-barbero', 'uniforme-hotel', 'uniforme-clinica', 'uniforme-medico', 'uniforme-enfermeria', 'uniforme-admin', 'uniforme-vuelta', 'uniforme-policia', 'uniforme-bomberos', 'uniforme-seguridad', 'uniforme-limpieza', 'uniforme-mantenimiento', 'uniforme-reparto', 'uniforme-portero']);
 
 const STAFF_LOOKS: readonly NpcLook[] = BASE_UNIFORMS.filter((u) => SHARED_UNIFORMS.has(u.id))
   .flatMap((u) => STAFF_FACES.map((face, i): NpcLook => ({ ...u, longHair: false, ...face, id: `${u.id}#${i + 1}` })));

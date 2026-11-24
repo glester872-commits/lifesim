@@ -238,7 +238,20 @@ export type PropKind =
   | 'pillar'
   | 'shelf-run'
   | 'shelf-front'
-  | 'promo-bin';
+  | 'promo-bin'
+  // Hospital General de Vallesco (data/hospitalVenues.ts, world/HospitalArt.ts). 'dept-sign' ya es de Decathlon: el
+  // rótulo de servicio del hospital es 'hosp-sign'. La ambulancia es decorado: sólo choca su fila base.
+  | 'hosp-bed'
+  | 'er-bed'
+  | 'hosp-seat'
+  | 'curtain'
+  | 'med-cart'
+  | 'med-cabinet'
+  | 'sanitizer'
+  | 'monitor-stand'
+  | 'hosp-sign'
+  | 'ambulance'
+  | 'ambulance-bay';
 
 export interface PropPlacement {
   kind: PropKind;
@@ -368,6 +381,8 @@ export type BuildingStyle =
   | 'church'
   // La nave de Decathlon en el Polígono Norte (Alpha-09): una pieza, de listones, franja azul y cristal (world/StoreArt).
   | 'megastore'
+  // Ronda de la Vía: el Hospital General de Vallesco y su ala de urgencias (world/HospitalArt), una pieza cada uno.
+  | 'hospital'
   | 'backdrop';
 
 /**
@@ -861,6 +876,23 @@ export interface GameStateData {
   parish?: import('../systems/Parish.ts').ParishState;
   /** Embarazos de las vecinas (systems/Pregnancy): inicio, fase resuelta y nacimiento. Opcional: una partida anterior empieza sus registros al cargar. */
   pregnancy?: import('../systems/Pregnancy.ts').PregnancyState;
+  /** Turno de consulta del hospital (systems/Hospital). Opcional: una partida anterior carga sin turno. */
+  hospital?: HospitalState;
+}
+
+/** Un turno pedido en la recepción del hospital: esperando, llamado a consulta, atendido o cancelado. */
+export interface HospitalTicket {
+  id: number;
+  day: number;
+  /** Minuto absoluto en que se pidió. */
+  issuedAt: number;
+  status: 'waiting' | 'called' | 'done' | 'cancelled';
+}
+
+export interface HospitalState {
+  ticket: HospitalTicket | null;
+  /** Último día con consulta hecha: una al día. */
+  lastVisitDay?: number;
 }
 
 export interface SaveFile {
