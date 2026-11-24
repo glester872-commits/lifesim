@@ -39,6 +39,8 @@ export type ServiceOffer =
    * constan) y, sólo si te han robado y no lo has denunciado, la denuncia.
    */
   | { kind: 'police'; title: string; street: string }
+  /** HOSP-01 · el hospital (systems/Hospital): Admisión da, enseña y cancela el turno; la Consulta 1 atiende el llamado. */
+  | { kind: 'hospital'; desk: 'reception' | 'doctor' }
   /** Quien lleva un encuentro con hora (data/parish.ts): horario, apuntarse si es la hora y cómo fue el último (systems/Parish). */
   | { kind: 'gathering'; gathering: string }
   /** CV-08A · lo que se vende en una manta o una bandeja (data/catalogs.ts), cobrado por systems/Commerce como en una máquina. */
@@ -128,6 +130,8 @@ export const SERVICE_OFFERS = {
   // systems/Emergencies) se viven en la calle, no aquí: la guardia no despacha avisos ni promete salidas.
   'fire-desk': { kind: 'activities', title: 'Parque de Bomberos · guardia', activities: ['fire-visit', 'fire-advice'] },
   'parish-choir': { kind: 'gathering', gathering: 'coro' },
+  'hospital-desk': { kind: 'hospital', desk: 'reception' },
+  'hospital-doctor': { kind: 'hospital', desk: 'doctor' },
 } as const satisfies Record<string, ServiceOffer>;
 
 export type OfferId = keyof typeof SERVICE_OFFERS;

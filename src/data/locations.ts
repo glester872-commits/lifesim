@@ -11,6 +11,7 @@ import { CUATRO_RIOS } from './cuatroRios.ts';
 import { CR_INTERIORS } from './cuatroRiosVenues.ts';
 import { VELARIA } from './velaria.ts';
 import { VL_INTERIORS } from './velariaVenues.ts';
+import { HOSP_INTERIORS } from './hospitalVenues.ts';
 import { PUERTA_CENTRAL } from './puertaCentral.ts';
 import { PC_INTERIORS } from './puertaCentralVenues.ts';
 import { ARENA } from './arena.ts';
@@ -732,6 +733,7 @@ export const LOCATIONS: readonly LocationDef[] = [
   VELARIA,
   VELARIA_STATION,
   ...VL_INTERIORS,
+  ...HOSP_INTERIORS,
   // Puerta Central (data/puertaCentral.ts): la Calle de la Puerta y la plaza, su estación y sus locales.
   PUERTA_CENTRAL,
   correspondence(PUERTA_CENTRAL_STATION, PUERTA_CENTRAL_L3, 'L3 exprés → Polígono Norte'),

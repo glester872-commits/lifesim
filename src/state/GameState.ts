@@ -159,6 +159,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   /** SIM-05 · compañero de piso (systems/Roommate); undefined sin convivencia. */
   private _roommate: RoommateState | undefined;
 
+  /** HOSP-01 · turno del hospital (systems/Hospital); undefined en una partida que nunca pidió turno. */
+  private _hospital: import('../types/game').HospitalState | undefined;
+
   /** Guía, avisos dados y señales de progreso (systems/Agenda). */
   private _agenda: AgendaState;
 
@@ -276,6 +279,7 @@ export class GameState extends Phaser.Events.EventEmitter {
 
     this._housing = structuredClone(initial.housing ?? startHousing());
     this._roommate = initial.roommate === undefined ? undefined : structuredClone(initial.roommate);
+    this._hospital = initial.hospital === undefined ? undefined : structuredClone(initial.hospital);
 
     this._agenda = structuredClone(initial.agenda ?? parseAgenda(undefined));
 
@@ -394,6 +398,16 @@ export class GameState extends Phaser.Events.EventEmitter {
   setRoommate(r: RoommateState | undefined): void {
     this._roommate = r === undefined ? undefined : structuredClone(r);
     this.emit('roommate');
+  }
+
+  /** HOSP-01 · el turno del hospital; sin registro, «sin turno». */
+  get hospital(): import('../types/game').HospitalState {
+    return this._hospital === undefined ? { ticket: null } : structuredClone(this._hospital);
+  }
+
+  setHospital(h: import('../types/game').HospitalState): void {
+    this._hospital = structuredClone(h);
+    this.emit('hospital');
   }
 
   // ================================================================
@@ -1003,6 +1017,7 @@ export class GameState extends Phaser.Events.EventEmitter {
 
       housing: structuredClone(this._housing),
       ...(this._roommate === undefined ? {} : { roommate: structuredClone(this._roommate) }),
+      ...(this._hospital === undefined ? {} : { hospital: structuredClone(this._hospital) }),
 
       agenda: structuredClone(this._agenda),
 

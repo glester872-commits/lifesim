@@ -24,6 +24,7 @@ import { parseLeague } from './League.ts';
 import { emptyStudy, parseStudy } from './Study.ts';
 import { emptyParish, parseParish } from './Parish.ts';
 import { emptyPregnancy, parsePregnancy } from './Pregnancy.ts';
+import { parseHospital } from './Hospital.ts';
 import { parseAgenda, startAgenda } from './Agenda.ts';
 import { parseMetroJourney } from './Transit.ts';
 import { parseReputation } from './Reputation.ts';
@@ -421,6 +422,8 @@ function parseState(value: unknown): GameStateData | null {
     housing: parseHousing(s.housing),
     // SIM-05 · sin convivencia guardada (partida anterior o dañada) carga sin la clave: sin compañero ni aportaciones.
     ...((r) => (r ? { roommate: r } : {}))(parseRoommate(s.roommate)),
+    // HOSP-01 · sin turno guardado (partida anterior o dañado) carga sin la clave: sin turno.
+    ...((h) => (h ? { hospital: h } : {}))(parseHospital(s.hospital)),
     // Una partida anterior a la agenda no ve la guía del principio ni avisos de lo que ya pasó.
     agenda: parseAgenda(s.agenda),
     // Una partida anterior a la parroquia carga sin ensayos: el próximo sábado se puede ir como cualquiera.

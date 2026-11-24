@@ -145,6 +145,7 @@ const GLYPHS: Readonly<Record<string, readonly string[]>> = {
   H: ['X...X', 'X...X', 'X...X', 'XXXXX', 'X...X', 'X...X', 'X...X'],
   Ó: ['...X.', '.XXX.', 'X...X', 'X...X', 'X...X', 'X...X', '.XXX.'],
   // MET-02: los números de línea del panel de destino del tren (data/transit.ts: LINES).
+  '1': ['..X..', '.XX..', 'X.X..', '..X..', '..X..', '..X..', 'XXXXX'],
   '2': ['.XXX.', 'X...X', '....X', '...X.', '..X..', '.X...', 'XXXXX'],
   '3': ['XXXX.', '....X', '....X', '.XXX.', '....X', '....X', 'XXXX.'],
 };
@@ -163,14 +164,26 @@ export function wordWidth(word: string, gap = 2): number {
   return [...word].reduce((w, c) => w + (c === ' ' ? SPACE : 5) + gap, 0) - gap;
 }
 
-export function drawWord(ctx: Ctx, word: string, x: number, y: number, color: string, gap = 2): void {
+/** Vocales con tilde que, con `raised`, se pintan con la letra entera y la tilde por encima de la línea (fuera de los 7 px). */
+const ACUTE: Readonly<Record<string, string>> = { Á: 'A', É: 'E', Í: 'I', Ó: 'O', Ú: 'U' };
+
+/**
+ * `raised`: la tilde va 2 px por encima del renglón y la letra queda entera (los rótulos con hueco arriba, como los del
+ * hospital); sin él, la letra con tilde de siempre dentro de sus 7 px (las placas del metro no cambian).
+ */
+export function drawWord(ctx: Ctx, word: string, x: number, y: number, color: string, gap = 2, raised = false): void {
   let cursor = x;
-  for (const letter of word) {
+  for (const letter of word.normalize('NFC')) {
     if (letter === ' ') {
       cursor += SPACE + gap;
       continue;
     }
-    const glyph = GLYPHS[letter];
+    const base = raised ? ACUTE[letter] : undefined;
+    if (base) {
+      px(ctx, color, cursor + 3, y - 3, 1, 1);
+      px(ctx, color, cursor + 2, y - 2, 1, 1);
+    }
+    const glyph = GLYPHS[base ?? letter];
     if (!glyph) continue;
     glyph.forEach((row, ry) => {
       [...row].forEach((cell, rx) => {

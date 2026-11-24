@@ -15,6 +15,8 @@ import { formatDate, formatDateShort } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
 import { getOffer, type OfferId, type ServiceOffer } from '../data/services';
 import { deskBrief, fileReport, POLICE, reportable } from '../systems/Police';
+import { attend as attendHospital, cancelTurn, requestTurn, statusLine, tick as tickHospital } from '../systems/Hospital';
+import { DOCTOR_LINES } from '../data/hospital';
 import { boardAt, type Board } from '../systems/Boards';
 import { attend as attendGathering, getGathering, hhmm, joinBlocker, lastAttendance, occurrenceOn } from '../systems/Parish';
 import { getNpc } from '../data/npcs';
@@ -1232,6 +1234,11 @@ export class Menus {
       this.openPoliceDesk(offer, who);
       return;
     }
+    if (offer.kind === 'hospital') {
+      if (offer.desk === 'reception') this.openHospitalDesk(who, note, selected);
+      else this.openHospitalDoctor(who);
+      return;
+    }
     if (offer.kind === 'gathering') {
       this.openGathering(offer.gathering, who, note);
       return;
@@ -1523,6 +1530,62 @@ export class Menus {
         `${formatClock(state.day, state.hour, state.minute)}.`,
       ]);
     });
+  }
+
+  /**
+   * HOSP-01 · Admisión del Hospital General (systems/Hospital): pedir turno, ver cómo va, dónde está la consulta y
+   * cancelarlo. Lo que no aplica se ve con su motivo. Nada cuesta dinero.
+   */
+  private openHospitalDesk(who: string, note = '', selected = 0): void {
+    const { state, menu } = this.services;
+    const now = absMinute(state.day, state.hour, state.minute);
+    // Lo del reloj, primero: si ya le tocaba o ha cerrado, el mostrador lo sabe (el aviso lo da main.ts).
+    const fresh = tickHospital(state.hospital, now);
+    if (fresh.changed) state.setHospital(fresh.state);
+    const h = state.hospital;
+    const ask = requestTurn(h, now);
+    const cancel = cancelTurn(h);
+    const options: MenuOption[] = [
+      { label: 'Pedir atención', detail: 'sin coste', disabled: ask.ok ? undefined : ask.message },
+      { label: 'Estado del turno' },
+      { label: '¿Dónde está la consulta?' },
+      { label: 'Cancelar turno', disabled: cancel.ok ? undefined : cancel.message },
+      { label: 'Nada, gracias' },
+    ];
+    const again = (message: string, i: number): void => this.openHospitalDesk(who, message, i);
+    const hello = state.hour < 12 ? 'Buenos días' : state.hour < 20 ? 'Buenas tardes' : 'Buenas noches';
+    menu.open('Admisión · Hospital General', `${hello}. ¿En qué le puedo ayudar?`, options, (i) => {
+      if (i === 0 || i === 3) {
+        const r = i === 0 ? requestTurn(state.hospital, now) : cancelTurn(state.hospital);
+        if (r.ok) {
+          state.setHospital(r.state);
+          this.host.persist();
+        }
+        again(r.message, i);
+        return;
+      }
+      if (i === 1) return again(statusLine(state.hospital, now), i);
+      if (i === 2) return again('Consulta 1, al fondo a la izquierda, pasada la sala de espera. Cuando le llamen, pase directamente.', i);
+      menu.close();
+    }, () => menu.close(), note, selected);
+  }
+
+  /** HOSP-01 · La médica de la Consulta 1: sólo con el turno llamado, una revisión de unos minutos; si no, lo dice. */
+  private openHospitalDoctor(who: string): void {
+    const { state, menu, clock, dialogue } = this.services;
+    menu.close();
+    const now = absMinute(state.day, state.hour, state.minute);
+    const fresh = tickHospital(state.hospital, now);
+    if (fresh.changed) state.setHospital(fresh.state);
+    const r = attendHospital(state.hospital, now);
+    if (!r.ok) {
+      dialogue.start(who, [r.message]);
+      return;
+    }
+    state.setHospital(r.state);
+    clock.advanceMinutes(r.minutes);
+    this.host.persist();
+    dialogue.start(who, [...DOCTOR_LINES, r.message]);
   }
 
   // ------------------------------------------------------------- tablón del barrio

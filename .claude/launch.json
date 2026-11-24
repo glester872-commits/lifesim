@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cas06-limpio",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "C:/Users/glest/AppData/Local/Temp/claude/1cd68afec0b9951e/17b4191a-928b-485b-a67e-1737ead6b8cf/scratchpad/ls-cas06", "--port", "5191", "--strictPort"],
+      "port": 5191
+    }
+  ]
+}

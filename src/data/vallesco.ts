@@ -219,7 +219,12 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('tkd-door', 'Escuela de Taekwondo Vallesco', 'dojang', [98, 56, 12, 8], 's', 104, { floors: 2, enter: into('academy-tkd'), point: 'TKD_ENTRANCE' }),
   // Las traseras de la manzana de enfrente cierran la Ronda por el sur.
   // ALPHA-10: en medio, frente al pasaje del paso, la comisaría de barrio (data/ronda.ts), con la puerta a la acera sur.
-  b('backdrop-ronda-s', 'Manzana sur', 'backdrop', [0, 69, 53, 5], undefined),
+  // HOSP-01: en medio de esa trasera (sin puerta ni puntos), el Hospital General de Vallesco con la entrada principal a
+  // la acera sur y, al lado, el ala de urgencias con su acceso de ambulancias (puerta dibujada, sin interior propio).
+  b('backdrop-ronda-s', 'Manzana sur', 'backdrop', [0, 69, 18, 5], undefined),
+  b('hospital-door', 'Hospital General de Vallesco', 'hospital', [18, 69, 22, 5], 'n', 28, { enter: into('hospital'), point: 'HOSP_ENTRANCE' }),
+  b('hospital-urgencias', 'Urgencias · Hospital General', 'hospital', [40, 69, 9, 5], 'n', 44, { inspect: ['Urgencias, 24 horas. Acceso de ambulancias: no se aparca. Para consultas, la entrada principal, a la izquierda.'] }),
+  b('backdrop-ronda-s1', 'Manzana sur', 'backdrop', [49, 69, 4, 5], undefined),
   b('ronda-policia', 'Policía de barrio · Vallesco', 'police', [53, 69, 8, 5], 'n', 56, { enter: into('vallesco-policia'), point: 'VPOLICIA_ENTRANCE' }),
   b('backdrop-ronda-s2', 'Manzana sur', 'backdrop', [61, 69, W - 61, 5], undefined),
 ];
@@ -231,6 +236,9 @@ const PROPS: readonly PropPlacement[] = [
   // ALPHA-08 · Ronda de la Vía: la autobomba en el vado, farolas y plátanos en el bordillo (fuera de las puertas) y un
   // banco en el pasaje del paso, contra la pared de Ronda 16 (el otro lado queda libre para pasar).
   at('fire-engine', 16, 65),
+  // HOSP-01: la ambulancia aparcada en la calzada de servicio, delante del acceso de urgencias (decorado, sin interacción).
+  at('ambulance-bay', 40, 67),
+  at('ambulance', 41, 67),
   ...row('street-lamp', 65, [4, 30, 46, 55, 74, 96]),
   ...row('plane-tree', 65, [12, 39, 62, 87, 104]),
   at('bench', 52, 61),
@@ -539,7 +547,8 @@ const LINKS: readonly Link[] = [
   ...chain('via-n', 'via-x', 'via-p', 'ronda-50'),
   ...chain('EDGE_RONDA_W', 'RONDA_2_ENTRANCE', 'BOMBEROS_ENTRANCE', 'RONDA_8_ENTRANCE', 'RONDA_12_ENTRANCE', 'ronda-50',
     'RONDA_16_ENTRANCE', 'RONDA_20_ENTRANCE', 'RONDA_26_ENTRANCE', 'RONDA_30_ENTRANCE', 'EDGE_RONDA_E'),
-  ...chain('ronda-s0', 'ronda-s50', 'VPOLICIA_ENTRANCE', 'ronda-s109'),
+  // HOSP-01: la puerta del hospital (28, 68) va en la acera sur, entre su principio y la bajada del pasaje.
+  ...chain('ronda-s0', 'HOSP_ENTRANCE', 'ronda-s50', 'VPOLICIA_ENTRANCE', 'ronda-s109'),
   ['ronda-50', 'ronda-s50'],
 ];
 

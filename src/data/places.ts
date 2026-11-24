@@ -122,6 +122,8 @@ export const PLACES: readonly PlaceDef[] = [
   { id: 'bomberos', name: 'Parque de Bomberos de Vallesco', type: 'public', tags: ['fire', 'civic'], building: 'ronda-bomberos', capacity: 8, hours: [0, 24], why: 'Ver la cochera con la guardia y preguntar por prevención en casa.' },
 
   // ALPHA-10 · la oficina de barrio de la policía, en la acera sur de la Ronda (data/ronda.ts): la recepción de siempre sin coger el metro.
+  // HOSP-01 · consultas externas en horario; fuera de él la puerta está cerrada (urgencias, por su acceso lateral, es decorado).
+  { id: 'hospital', name: 'Hospital General de Vallesco', type: 'public', tags: ['service', 'health', 'civic', WORK], building: 'hospital-door', capacity: 20, hours: [8, 21], why: 'Pedir turno en Admisión y pasar una revisión en la Consulta 1 cuando te llamen: sin coste, una al día.' },
   { id: 'vallesco-policia', name: 'Policía de barrio · Vallesco', type: 'business', tags: ['police', 'civic'], building: 'ronda-policia', capacity: 6, hours: [8, 22], why: 'Preguntar cómo está el barrio y, si te han robado en la calle, poner la denuncia sin ir hasta Puerta Central.' },
 
   // Transporte y espacio público

@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { drawMegastore, drawMegastoreGlow } from './StoreArt';
+import { drawEmergencyWing, drawHospital, drawHospitalGlow } from './HospitalArt';
 import { PALETTE, TILE } from '../config/constants';
 import type { BuildingDef, BuildingStyle } from '../types/game';
 import { glow, make, px, shade, sprinkle, type Ctx } from './paint';
@@ -178,6 +179,9 @@ const LOOKS: Readonly<Record<BuildingStyle, Look>> = {
   church: { roof: PALETTE.roofA, roofLit: PALETTE.roofALit, wall: PALETTE.stoneLit, shop: 'arched', upper: 'windows', lit: PALETTE.amber, door: 'wood' },
   // La nave de Decathlon se pinta entera en world/StoreArt drawMegastore; esto sólo da el tono de su cristal encendido.
   megastore: { roof: '#9aa0a6', roofLit: '#b4babe', wall: '#c89a64', shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass' },
+  // HOSP-01 · Hospital General de Vallesco: fachada blanca, cinta de cristal con luz fría, marquesina roja y blanca de
+  // urgencias y la cruz de rótulo. Se distingue de la farmacia (piedra) y de la clínica de Velaria por el tamaño y el rojo.
+  hospital: { roof: PALETTE.stone, roofLit: PALETTE.stoneLit, wall: '#eef1f2', shop: 'glass', upper: 'band', lit: PALETTE.glassLit, door: 'glass', awning: ['#c8302a', PALETTE.white], sign: 'cross' },
 };
 
 // ------------------------------------------------------------- la parroquia
@@ -1918,7 +1922,7 @@ const DECO_BY_STYLE: Partial<Record<BuildingStyle, readonly Deco[]>> = {
 };
 
 /** Edificios sin vida doméstica: ni su azotea ni su espalda llevan tendedero con ropa (QA-07). */
-const NO_LAUNDRY: ReadonlySet<BuildingStyle> = new Set<BuildingStyle>(['police']);
+const NO_LAUNDRY: ReadonlySet<BuildingStyle> = new Set<BuildingStyle>(['police', 'hospital']);
 
 /** Ventana de la espalda (drawBack): la luz de casa, de noche. */
 const BACK_PANE = [5, 8, 6, 8] as const;
@@ -2086,6 +2090,17 @@ export function bakeBuildings(rt: BuildingPaintTarget, buildings: readonly Build
       make(rt.scene, `bs-church-${b.id}-glow`, w, h, (ctx) => drawChurchGlow(ctx, h, col));
       rt.batchDraw(`bs-church-${b.id}`, b.tx * TILE, b.ty * TILE);
       glows.push({ key: `bs-church-${b.id}-glow`, x: b.tx * TILE, y: b.ty * TILE, building: b.id });
+      continue;
+    }
+    // HOSP-01 · el Hospital General y su ala de urgencias: una pieza cada uno (world/HospitalArt). El ala, sin interior,
+    // se reconoce por no llevar `enter`; su luz es la de urgencias, siempre encendida.
+    if (b.style === 'hospital') {
+      const [w, h, col] = [b.w * TILE, b.h * TILE, (b.doorX ?? b.tx + (b.w >> 1)) - b.tx];
+      const wing = !b.enter;
+      make(rt.scene, `bs-hospital-${b.id}`, w, h, (ctx) => (wing ? drawEmergencyWing(ctx, w, h, col) : drawHospital(ctx, w, h, col)));
+      make(rt.scene, `bs-hospital-${b.id}-glow`, w, h, (ctx) => drawHospitalGlow(ctx, w, h, col, wing));
+      rt.batchDraw(`bs-hospital-${b.id}`, b.tx * TILE, b.ty * TILE);
+      glows.push(wing ? { key: `bs-hospital-${b.id}-glow`, x: b.tx * TILE, y: b.ty * TILE } : { key: `bs-hospital-${b.id}-glow`, x: b.tx * TILE, y: b.ty * TILE, building: b.id });
       continue;
     }
     const look = LOOKS[b.style];
