@@ -4,13 +4,13 @@ import type { Appearance } from '../data/appearance';
 import type { Wallet } from '../systems/Commerce';
 import type { BasketLine } from '../systems/Basket';
 import { START_FITNESS, type Fitness } from '../systems/Fitness';
-import { createSocialProfile, type SocialProfile, type SocialState } from '../systems/Social';
+import { applyDelta, createSocialProfile, noteSocialMemory, type SocialProfile, type SocialState } from '../systems/Social';
 import { createStory, type NamedStory, type StoryState } from '../systems/Story';
-import { createPhone, type PhoneNews, type PhoneState } from '../systems/Phone';
+import { activePlan, createPhone, postMessage, saveNote, statusOf, type PhoneNews, type PhoneState } from '../systems/Phone';
 import type { Ticket } from '../systems/Tickets';
 import { policeMemory, restoreIncidents } from '../systems/Police';
 import type { JobProgress } from '../systems/Jobs';
-import { recordMovement, type HouseholdState, type Movement, type MovementType } from '../systems/Household';
+import { owed, recordMovement, type HouseholdState, type Movement, type MovementType } from '../systems/Household';
 import { emptyCredit, pendingEntry, type CreditResult, type CreditState } from '../systems/Credit';
 import type { RastroLedger } from '../systems/Rastro';
 import { settle as settleStall, type PlayerStallState } from '../systems/PlayerStall';
@@ -22,8 +22,30 @@ import { startIdentity } from '../systems/PlayerIdentity';
 import { startHousing, type HousingState } from '../systems/Housing';
 import type { RoommateState } from '../systems/Roommate';
 import { parseAgenda, type AgendaState } from '../systems/Agenda';
-import { apply as applyReputation, settleWithReputation, type Reputation } from '../systems/Reputation';
+import { apply as applyReputation, settleWithReputation, zoneOf, type Reputation } from '../systems/Reputation';
+import { expire as expireDelivery, type DeliveryOutcome, type DeliveryState, type Result as DeliveryResult } from '../systems/Delivery';
+import { getDelivery } from '../data/deliveries';
+import { bikeShareCharge, rentPublicBike as addPublicBike, type BikesState, type Spot as BikeSpot } from '../systems/Cycling';
+import { BIKE_SHARE_FARE } from '../data/bikeShare';
+import { addEntries, diaryFromGatherings, diaryFromJobChange, diaryFromProjects, emptyDiary, type Diary, type NewDiaryEntry } from '../systems/Diary';
+import { getJob } from '../data/jobs';
+import { getNpc } from '../data/npcs';
 import type { ConsequenceState } from '../systems/Consequences';
+import {
+  cancelProject, completeIfMet, emptyLifeProjects, noteCompletions, onJobChange, onWalletChange, pauseProject, projectCatalog, resumeProject, startProject,
+  type LifeProjectRequirements, type LifeProjectsState, type LifeProjectType, type ProjectResult,
+} from '../systems/LifeProjects';
+import { emptySocialGraph, tickSocialGraph, type SocialGraphState } from '../systems/SocialGraph';
+import {
+  chooseMicroStory, emptyMicroStories, offerFor, pendingMoney, storyLineFor, tickMicroStories,
+  type MicroCtx, type MicroEffect, type MicroStoriesState,
+} from '../systems/MicroStories';
+import type { SocialEventsState } from '../systems/SocialEvents';
+import { emptyNeighborhood, neighborCandidates, tickNeighborhood, type NeighborEffect, type NeighborhoodState } from '../systems/Neighborhood';
+import { applyWellbeing, settleWellbeing, startWellbeing, type WellbeingSource, type WellbeingState } from '../systems/Wellbeing';
+import { getHome } from '../data/housing';
+import { getMate } from '../data/roommate';
+import { giftsIn, giveGift } from '../systems/Gifts';
 
 /**
  * Estado central de la partida.
@@ -57,6 +79,12 @@ export class GameState extends Phaser.Events.EventEmitter {
    * vuelve a la estación. Lo borra la escena al cambiar de sitio.
    */
   private _offMap: string | null = null;
+
+  /**
+   * BIKE-01 · en bici o a pie (systems/Cycling). Sólo en memoria: pasa de una escena a la siguiente al cruzar en bici
+   * entre exteriores y no se guarda (se carga siempre a pie; parseBikes devuelve aparcada la bici montada).
+   */
+  ride: import('../systems/Cycling').RideState = { phase: 'ON_FOOT', speed: 0, heading: { x: 0, y: 0 }, since: 0, travelled: 0 };
 
   get offMap(): string | null {
     return this._offMap;
@@ -135,6 +163,27 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** SIM-01 · registro de consecuencias (systems/Consequences). Sin registro todavía, undefined: el snapshot no lleva la clave. */
   private _consequences: ConsequenceState | undefined;
+  /** VID-01 · proyectos de vida (systems/LifeProjects). Sin proyectos todavía, undefined: el snapshot no lleva la clave. */
+  private _lifeProjects: LifeProjectsState | undefined;
+  /** VID-02 · relaciones entre NPC (systems/SocialGraph). Sin grafo todavía, undefined: el snapshot no lleva la clave. */
+  private _socialGraph: SocialGraphState | undefined;
+  /** VID-03 · microhistorias (systems/MicroStories). Sin ninguna todavía, undefined: el snapshot no lleva la clave. */
+  private _microStories: MicroStoriesState | undefined;
+  /** VID-05 · quedadas en casa (systems/SocialEvents). Sin ninguna todavía, undefined: el snapshot no lleva la clave. */
+  private _socialEvents: SocialEventsState | undefined;
+  /** VID-06 · vecindario (systems/Neighborhood). Sin nada todavía, undefined: el snapshot no lleva la clave. */
+  private _neighborhood: NeighborhoodState | undefined;
+  /**
+   * VID-07 · tensión (systems/Wellbeing). Partida nueva sin ninguna fuente todavía: undefined y el snapshot no lleva la
+   * clave (empieza en TENSION_START el minuto de la primera fuente). Una vez definida se serializa siempre.
+   */
+  private _wellbeing: WellbeingState | undefined;
+  /** VID-10 · reparto urbano (systems/Delivery). Sin encargo ni resultado, undefined: el snapshot no lleva la clave. */
+  private _delivery: DeliveryState | undefined;
+  /** BIKE-01 · bicis del mundo (systems/Cycling). Lista vacía: el snapshot no lleva la clave. */
+  private _bikes: BikesState;
+  /** VID-11 · diario de vida (systems/Diary). Vacío, el snapshot no lleva la clave. */
+  private _diary: Diary;
 
   /** Movimientos de la cartera, con su motivo. */
   private _ledger: Movement[];
@@ -266,6 +315,15 @@ export class GameState extends Phaser.Events.EventEmitter {
 
     this._household = structuredClone(initial.household ?? { since: initial.day, generated: {}, obligations: [], goal: null });
     this._consequences = initial.consequences === undefined ? undefined : structuredClone(initial.consequences);
+    this._lifeProjects = initial.lifeProjects === undefined ? undefined : structuredClone(initial.lifeProjects);
+    this._socialGraph = initial.socialGraph === undefined ? undefined : structuredClone(initial.socialGraph);
+    this._microStories = initial.microStories === undefined ? undefined : structuredClone(initial.microStories);
+    this._socialEvents = initial.socialEvents === undefined ? undefined : structuredClone(initial.socialEvents);
+    this._neighborhood = initial.neighborhood === undefined ? undefined : structuredClone(initial.neighborhood);
+    this._wellbeing = initial.wellbeing === undefined ? undefined : structuredClone(initial.wellbeing);
+    this._delivery = initial.delivery === undefined ? undefined : structuredClone(initial.delivery);
+    this._bikes = structuredClone(initial.bikes ?? { v: 1, list: [] });
+    this._diary = structuredClone(initial.diary ?? emptyDiary());
 
     this._ledger = structuredClone(initial.ledger ?? []);
 
@@ -330,6 +388,252 @@ export class GameState extends Phaser.Events.EventEmitter {
     this.emit('consequences');
   }
 
+  // ================================================================
+  // PROYECTOS DE VIDA (systems/LifeProjects, VID-01)
+  // ================================================================
+
+  get lifeProjects(): LifeProjectsState | undefined {
+    return this._lifeProjects === undefined ? undefined : structuredClone(this._lifeProjects);
+  }
+
+  setLifeProjects(p: LifeProjectsState): void {
+    // VID-11: todas las vías de completar (cartera, contrato, reanudar) acaban aquí; el antes/después decide.
+    this.noteDiary(diaryFromProjects(this._lifeProjects, p, this.absNow()));
+    this._lifeProjects = structuredClone(p);
+    this.emit('lifeProjects');
+  }
+
+  // VID-02 · relaciones entre NPC (systems/SocialGraph).
+  get socialGraph(): SocialGraphState | undefined {
+    return this._socialGraph === undefined ? undefined : structuredClone(this._socialGraph);
+  }
+
+  setSocialGraph(g: SocialGraphState): void {
+    this._socialGraph = structuredClone(g);
+    this.emit('socialGraph');
+  }
+
+  // VID-03 · microhistorias (systems/MicroStories).
+  get microStories(): MicroStoriesState | undefined {
+    return this._microStories === undefined ? undefined : structuredClone(this._microStories);
+  }
+
+  setMicroStories(m: MicroStoriesState): void {
+    this._microStories = structuredClone(m);
+    this.emit('microStories');
+  }
+
+  // VID-05 · quedadas en casa (systems/SocialEvents).
+  get socialEvents(): SocialEventsState | undefined {
+    return this._socialEvents === undefined ? undefined : structuredClone(this._socialEvents);
+  }
+
+  setSocialEvents(s: SocialEventsState): void {
+    this.noteDiary(diaryFromGatherings(this._socialEvents, s, (npc) => {
+      try {
+        return getNpc(npc).name;
+      } catch {
+        return npc;
+      }
+    }));
+    this._socialEvents = structuredClone(s);
+    this.emit('socialEvents');
+  }
+
+  // VID-06 · vecindario (systems/Neighborhood).
+  get neighborhood(): NeighborhoodState | undefined {
+    return this._neighborhood === undefined ? undefined : structuredClone(this._neighborhood);
+  }
+
+  setNeighborhood(s: NeighborhoodState): void {
+    this._neighborhood = structuredClone(s);
+    this.emit('neighborhood');
+  }
+
+  /** Cada efecto del vecindario una sola vez: si el NPC ya tiene la memoria con esa ref (su id), no se repite. */
+  applyNeighborEffects(effects: readonly NeighborEffect[]): void {
+    const moment = { day: this._day, hour: this._hour, minute: this._minute };
+    for (const e of effects) {
+      const before = this.socialOf(e.npc);
+      if (before.memories.some((m) => m.id === e.memory.ref)) continue;
+      const p = noteSocialMemory(
+        applyDelta(before, { friendship: 0, attraction: 0, trust: 0, romance: 0, mood: 0, ...e.delta }),
+        { kind: 'SHARED_EVENT', ...moment, outcome: e.memory.outcome, note: e.memory.note },
+      );
+      const last = p.memories.at(-1);
+      if (last) last.id = e.memory.ref;
+      this.setSocialProfile(e.npc, p);
+    }
+  }
+
+  /** VID-06 · vecinos de la puerta de tu vivienda, sin tu compañero de piso. */
+  neighborCandidates(): string[] {
+    const mate = this._roommate ? [getMate(this._roommate.mate).npc] : [];
+    return neighborCandidates(getHome(this._housing.home).door, mate);
+  }
+
+  /** VID-06 · el día del vecindario: candidatos de la puerta de tu vivienda (sin tu compañero de piso), sólo conocidos. */
+  tickNeighbors(): void {
+    const cur = this._neighborhood ?? emptyNeighborhood();
+    const candidates = this.neighborCandidates();
+    const r = tickNeighborhood(cur, this._day, { candidates, known: (npc) => (this._social[npc]?.encounters ?? 0) > 0 });
+    if (r.state === cur) return;
+    this.setNeighborhood(r.state);
+    this.applyNeighborEffects(r.effects);
+  }
+
+  // VID-10 · reparto urbano (systems/Delivery).
+  get delivery(): DeliveryState | undefined {
+    return this._delivery === undefined ? undefined : structuredClone(this._delivery);
+  }
+
+  setDelivery(s: DeliveryState): void {
+    this._delivery = structuredClone(s);
+    this.emit('delivery');
+  }
+
+  // BIKE-01 · bicis del mundo (systems/Cycling).
+  get bikes(): BikesState {
+    return structuredClone(this._bikes);
+  }
+
+  setBikes(s: BikesState): void {
+    this._bikes = structuredClone(s);
+    this.emit('bikes');
+  }
+
+  // VID-11 · diario de vida (systems/Diary).
+  get diary(): Diary {
+    return structuredClone(this._diary);
+  }
+
+  setDiary(d: Diary): void {
+    this._diary = structuredClone(d);
+    this.emit('diary');
+  }
+
+  /** Apunta lo confirmado; nada nuevo (ids ya apuntados), ni copia ni aviso. */
+  private noteDiary(list: readonly NewDiaryEntry[]): void {
+    const next = addEntries(this._diary, list);
+    if (next !== this._diary) this.setDiary(next);
+  }
+
+  /**
+   * Alquila la bici compartida `bikeId` aparcada en `at`: cobra BIKE_SHARE_FARE con id fijo `bike-share:<bikeId>` y la
+   * añade a las bicis. Si ese cobro ya está en el ledger (doble E), no hace nada. Devuelve si se alquiló.
+   */
+  rentPublicBike(bikeId: string, at: BikeSpot): boolean {
+    const movementId = bikeShareCharge(this._ledger, bikeId);
+    if (!movementId || this._money + 1e-9 < BIKE_SHARE_FARE) return false;
+    const next = addPublicBike(this._bikes, bikeId, at);
+    if (next === this._bikes) return false;
+    this.as('Bici compartida', () => {
+      this.money = Math.round((this._money - BIKE_SHARE_FARE) * 100) / 100;
+    }, { type: 'transport', source: 'bike-share', movementId });
+    this.setBikes(next);
+    return true;
+  }
+
+  /**
+   * Aplica un resultado de systems/Delivery. Con encargo resuelto: el estado (que lo archiva en `last` y borra `active`),
+   * el cobro en el ledger y la reputación del barrio del destino (`delivery:<runId>`), todo en esta llamada. Si ese runId
+   * ya es el `last` guardado, no se paga ni se apunta nada otra vez. Devuelve si se aplicó.
+   */
+  applyDelivery(o: DeliveryOutcome): boolean {
+    if (!o.ok) return false;
+    const r = o.result;
+    if (r && this._delivery?.last?.runId === r.runId) return false;
+    this.setDelivery(o.state);
+    if (!r) return true;
+    const def = getDelivery(r.defId);
+    if (r.pay > 0) this.as(`Reparto · ${def?.title ?? r.defId}`, () => {
+      this.money += r.pay;
+    }, { type: 'income', source: `delivery:${r.defId}`, movementId: `delivery:${r.runId}` });
+    if (r.rep !== 0 && def) this.addReputation(zoneOf(def.to.location), r.rep, `delivery:${r.runId}`);
+    return true;
+  }
+
+  /** VID-10 · resuelve el encargo vencido, si lo hay (antes de abrir cualquier menú de reparto). */
+  expireDelivery(): DeliveryResult | undefined {
+    if (!this._delivery) return undefined;
+    const o = expireDelivery(this._delivery, this.absNow());
+    return o.ok && this.applyDelivery(o) ? o.result : undefined;
+  }
+
+  private absNow(): number {
+    return (this._day - 1) * 1440 + this._hour * 60 + this._minute;
+  }
+
+  /** Minuto absoluto de juego ((día-1)*1440 + hora*60 + minuto). */
+  absMinute(): number {
+    return this.absNow();
+  }
+
+  // VID-07 · tensión (systems/Wellbeing).
+  get wellbeing(): WellbeingState {
+    return this._wellbeing === undefined ? startWellbeing(this.absNow()) : structuredClone(this._wellbeing);
+  }
+
+  setWellbeing(w: WellbeingState): void {
+    this._wellbeing = structuredClone(w);
+    this.emit('wellbeing');
+  }
+
+  /** Una fuente de tensión o alivio con el minuto y el día actuales; devuelve el cambio real de tensión. */
+  wellbeingSource(source: WellbeingSource, amount: number, npc?: string): number {
+    const r = applyWellbeing(this._wellbeing ?? startWellbeing(this.absNow()), source, amount, this.absNow(), this._day, npc);
+    this.setWellbeing(r.state);
+    return r.applied;
+  }
+
+  /** El decay de la tensión hasta ahora. Barato (una división); sólo emite si algo cambia. */
+  settleWellbeing(): void {
+    const cur = this._wellbeing;
+    if (cur === undefined) return;
+    const next = settleWellbeing(cur, this.absNow());
+    if (next.tension === cur.tension && next.lastMinute === cur.lastMinute) return;
+    this.setWellbeing(next);
+  }
+
+  /** Aplica un resultado de LifeProjects y pasa la cartera actual por el gancho (p. ej. 'saved' si ya llega el dinero). */
+  private applyProject(r: ProjectResult): ProjectResult {
+    if (!r.ok) return r;
+    const prev = this._lifeProjects ?? emptyLifeProjects();
+    const w = this.wallet;
+    const now = this.absNow();
+    let next = onWalletChange(r.state, this._phone, w, w, now).projects;
+    // Reanudar uno con todo hecho (se compró en pausa) lo completa ya, y deja su recuerdo como las otras vías.
+    for (const p of next.items) next = completeIfMet(next, p.id, now);
+    const phone = noteCompletions(prev, next, this._phone, now);
+    if (phone !== this._phone) this.setPhone(phone);
+    this.setLifeProjects(next);
+    return { ...r, state: next };
+  }
+
+  /**
+   * Empieza un proyecto con los requisitos de projectCatalog (`extra` añade otros). El ascenso parte del nivel del
+   * contrato en vigor (`_job.level`); sin contrato activo no lleva fromLevel y startProject lo rechaza.
+   */
+  startLifeProject(type: LifeProjectType, extra: LifeProjectRequirements = {}): ProjectResult {
+    const job = this._job;
+    const fromLevel = type === 'promotion' && job?.status === 'active' ? { fromLevel: job.level } : {};
+    const reqs = { ...projectCatalog[type].requirements, ...extra, ...fromLevel };
+    const has = (id: string): boolean => (this._inventory[id] ?? 0) > 0;
+    return this.applyProject(startProject(this._lifeProjects ?? emptyLifeProjects(), type, this.absNow(), reqs, has));
+  }
+
+  cancelLifeProject(id: string): ProjectResult {
+    return this.applyProject(cancelProject(this._lifeProjects ?? emptyLifeProjects(), id, this.absNow()));
+  }
+
+  pauseLifeProject(id: string): ProjectResult {
+    return this.applyProject(pauseProject(this._lifeProjects ?? emptyLifeProjects(), id, this.absNow()));
+  }
+
+  resumeLifeProject(id: string): ProjectResult {
+    return this.applyProject(resumeProject(this._lifeProjects ?? emptyLifeProjects(), id, this.absNow()));
+  }
+
   get ledger(): Movement[] {
     return structuredClone(this._ledger);
   }
@@ -372,9 +676,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   }
 
   /** Apunta un cambio de la cartera. Sin motivo, «Otros». Cómo se suman las líneas: systems/Household.recordMovement. */
-  private record(delta: number): void {
-    if (Math.abs(delta) < 0.005) return;
-    recordMovement(this._ledger, { day: this._day, hour: this._hour, minute: this._minute, label: this.why ?? 'Otros', amount: delta, type: this.whyMeta?.type, source: this.whyMeta?.source, movementId: this.whyMeta?.movementId });
+  private record(delta: number): string | undefined {
+    if (Math.abs(delta) < 0.005) return undefined;
+    return recordMovement(this._ledger, { day: this._day, hour: this._hour, minute: this._minute, label: this.why ?? 'Otros', amount: delta, type: this.whyMeta?.type, source: this.whyMeta?.source, movementId: this.whyMeta?.movementId });
   }
 
   // ================================================================
@@ -469,7 +773,24 @@ export class GameState extends Phaser.Events.EventEmitter {
 
   /** Cambia el contrato y avisa (el móvil lo repinta). El dinero y la energía del turno se aplican aparte, antes de guardar. */
   setJob(job: JobProgress | null): void {
+    const before = this._job;
     this._job = structuredClone(job);
+    // VID-11: sólo la firma (no el ascenso ni el repaso de turnos); al cargar no pasa por aquí.
+    const hired = diaryFromJobChange(before, this._job, this.absNow(), (id) => {
+      try {
+        const j = getJob(id);
+        return { employer: j.employer, title: j.levels[0]?.title ?? '', place: j.place };
+      } catch {
+        return undefined;
+      }
+    });
+    if (hired) this.noteDiary([hired]);
+    // VID-01: todo ascenso pasa por aquí (Menus aplica Jobs.promote con setJob); el gancho es idempotente.
+    if (this._lifeProjects !== undefined) {
+      const r = onJobChange(this._lifeProjects, this._phone, before, this._job, this.absNow());
+      if (r.phone !== this._phone) this.setPhone(r.phone);
+      if (r.projects !== this._lifeProjects) this.setLifeProjects(r.projects);
+    }
     this.emit('job');
   }
 
@@ -740,7 +1061,9 @@ export class GameState extends Phaser.Events.EventEmitter {
   set wallet(
     w: Wallet,
   ) {
-    this.record(w.money - this._money);
+    const before = this.wallet;
+    // VID-01: el id del movimiento del ledger de este cobro es el origen del hito 'bought' (systems/LifeProjects.onWalletChange).
+    const movementId = this.record(w.money - this._money);
 
     this._money =
       w.money;
@@ -752,6 +1075,13 @@ export class GameState extends Phaser.Events.EventEmitter {
     this._cards = {
       ...w.cards,
     };
+
+    // Todas las compras (Menus.openCatalog y openProductSheet) pasan por aquí: un único gancho idempotente.
+    if (this._lifeProjects !== undefined) {
+      const r = onWalletChange(this._lifeProjects, this._phone, before, this.wallet, this.absNow(), movementId);
+      if (r.phone !== this._phone) this.setPhone(r.phone);
+      if (r.projects !== this._lifeProjects) this.setLifeProjects(r.projects);
+    }
 
     this.emit(
       'change',
@@ -847,6 +1177,8 @@ export class GameState extends Phaser.Events.EventEmitter {
       return;
     }
 
+    const dayChanged = day !== this._day;
+
     this._day =
       day;
 
@@ -859,6 +1191,111 @@ export class GameState extends Phaser.Events.EventEmitter {
     this.emit(
       'change',
     );
+    // VID-07: la tensión baja con el tiempo; cada avance del reloj consume los tramos enteros pasados.
+    this.settleWellbeing();
+    // VID-02 F2: el grafo entre NPC avanza sólo cuando cambia el día, nunca por minuto ni por frame.
+    if (dayChanged) this.tickSocial();
+    // VID-03 F4: las microhistorias también avanzan sólo con el día.
+    if (dayChanged) this.tickStories();
+    // VID-06: el vecindario, igual, sólo con el día.
+    if (dayChanged) this.tickNeighbors();
+  }
+
+  // VID-03 F4 · microhistorias conectadas a los sistemas reales.
+
+  /** Lo que pregunta el reductor. El tick corre al cambiar de día (de madrugada): «dormida» se mira a mediodía de hoy. */
+  private microCtx(): MicroCtx {
+    const noon = (this._day - 1) * 1440 + 12 * 60;
+    const now = this.absNow();
+    return {
+      known: (npc) => (this._social[npc]?.encounters ?? 0) > 0,
+      asleep: (npc) => statusOf(npc, noon).state === 'asleep',
+      busy: (npc) => this._stories[npc]?.plan?.status === 'pending' || activePlan(this._phone, npc, now) !== undefined,
+    };
+  }
+
+  /** Con qué cuentas para elegir: un regalo en la bolsa y el dinero libre (cartera menos lo debido, como Opportunities). */
+  private microMeans(): { hasGift: boolean; freeMoney: number } {
+    return { hasGift: giftsIn(this.wallet).length > 0, freeMoney: Math.round((this._money - owed(this._household)) * 100) / 100 };
+  }
+
+  tickStories(): void {
+    const cur = this._microStories ?? emptyMicroStories();
+    const r = tickMicroStories(cur, this._day, this.microCtx());
+    if (r.state === cur) return;
+    this.setMicroStories(r.state);
+    this.applyMicroEffects(r.effects);
+  }
+
+  /** La historia activa sin elegir de este NPC, con opciones y motivos de bloqueo; null si no hay. */
+  microOffer(npc: string): ReturnType<typeof offerFor> {
+    const m = this.microMeans();
+    return offerFor(this._microStories ?? emptyMicroStories(), npc, this._day, m.hasGift, m.freeMoney);
+  }
+
+  /** La respuesta de hoy de este NPC a una historia, si la hay. */
+  microLine(npc: string): string | null {
+    return storyLineFor(this._microStories ?? emptyMicroStories(), npc, this._day);
+  }
+
+  chooseStory(storyId: string, optionId: string): { ok: boolean; message: string } {
+    const r = chooseMicroStory(this._microStories ?? emptyMicroStories(), storyId, optionId, this._day, { ...this.microCtx(), ...this.microMeans() });
+    if (!r.ok) return { ok: false, message: r.message };
+    this.setMicroStories(r.state);
+    this.applyMicroEffects(r.effects);
+    return { ok: true, message: r.message };
+  }
+
+  /** Cada efecto con su sistema real. El reductor emite cada uno una sola vez; el dinero además se filtra por el ledger. */
+  private applyMicroEffects(effects: readonly MicroEffect[]): void {
+    const at = this.absNow();
+    const moment = { day: this._day, hour: this._hour, minute: this._minute };
+    for (const e of pendingMoney(effects, this._ledger.map((l) => l.movementId))) {
+      this.as(e.why, () => {
+        this.money = Math.round((this._money + e.amount) * 100) / 100;
+      }, { type: 'loan', source: 'micro-story', movementId: e.movementId });
+    }
+    for (const e of effects) {
+      if (e.kind === 'rel') {
+        this.setSocialProfile(e.npc, applyDelta(this.socialOf(e.npc), { friendship: 0, attraction: 0, trust: 0, romance: 0, mood: 0, ...e.delta }));
+      } else if (e.kind === 'memory') {
+        this.setSocialProfile(e.npc, noteSocialMemory(this.socialOf(e.npc), { kind: 'SHARED_EVENT', ...moment, outcome: 'neutral', note: e.text }));
+      } else if (e.kind === 'gift') {
+        const g = giftsIn(this.wallet)[0];
+        const r = g ? giveGift(this.socialOf(e.npc), this.wallet, g.id, moment) : null;
+        if (r?.ok) {
+          this.setSocialProfile(e.npc, r.profile);
+          this.wallet = r.wallet;
+        }
+      } else if (e.kind === 'note') {
+        this.setPhone(saveNote(this._phone, e, at));
+      } else if (e.kind === 'line') {
+        this.postStoryMessage(e.npc, e.text, `ms-line:${e.npc}:${this._day}`, at);
+      } else if (e.kind === 'offer') {
+        const pitch = storyLineFor(this._microStories ?? emptyMicroStories(), e.npc, this._day);
+        if (pitch) this.postStoryMessage(e.npc, pitch, `ms-offer:${e.storyId}`, at);
+      }
+    }
+  }
+
+  /** Al hilo del móvil sólo si tienes su número; con id fijo, nunca dos veces. Sin notificación (news vacío). */
+  private postStoryMessage(npc: string, text: string, id: string, at: number): void {
+    if (!this._social[npc]?.contactExchanged) return;
+    if (this._phone.threads[npc]?.messages.some((m) => m.id === id)) return;
+    const phone = postMessage(this._phone, npc, 'them', text, at);
+    const last = phone.threads[npc]?.messages.at(-1);
+    if (last) last.id = id;
+    this.setPhone(phone);
+  }
+
+  /** Avanza el grafo social hasta el día actual. O(1) si ya está al día (compara días y sale). */
+  tickSocial(): void {
+    const g = this._socialGraph ?? emptySocialGraph();
+    if (this._day <= g.lastTickDay) return;
+    const next = tickSocialGraph(g, this._day);
+    if (next === g) return;
+    this._socialGraph = next;
+    this.emit('socialGraph');
   }
 
   // ================================================================
@@ -1003,6 +1440,23 @@ export class GameState extends Phaser.Events.EventEmitter {
 
       household: structuredClone(this._household),
       ...(this._consequences === undefined ? {} : { consequences: structuredClone(this._consequences) }),
+      ...(this._lifeProjects === undefined ? {} : { lifeProjects: structuredClone(this._lifeProjects) }),
+      ...(this._socialGraph === undefined ? {} : { socialGraph: structuredClone(this._socialGraph) }),
+      ...(this._microStories === undefined ? {} : { microStories: structuredClone(this._microStories) }),
+      ...(this._socialEvents === undefined || this._socialEvents.events.length === 0 ? {} : { socialEvents: structuredClone(this._socialEvents) }),
+      ...(this._neighborhood === undefined || (this._neighborhood.packages.length === 0 && this._neighborhood.favors.length === 0) ? {} : { neighborhood: structuredClone(this._neighborhood) }),
+      ...(this._wellbeing === undefined ? {} : { wellbeing: structuredClone(this._wellbeing) }),
+      ...(this._delivery === undefined || (!this._delivery.active && !this._delivery.last) ? {} : { delivery: structuredClone(this._delivery) }),
+      // La bici que se lleva montada se guarda donde está el jugador (y parseBikes la devuelve aparcada ahí).
+      ...(this._bikes.list.length === 0 ? {} : {
+        bikes: {
+          v: 1,
+          list: this._bikes.list.map((b) => (b.status === 'ridden'
+            ? { ...b, location: this.locationId, x: this.position.x, y: this.position.y, facing: this.facing }
+            : { ...b })),
+        },
+      }),
+      ...(this._diary.entries.length === 0 ? {} : { diary: structuredClone(this._diary) }),
 
       ledger: structuredClone(this._ledger),
 

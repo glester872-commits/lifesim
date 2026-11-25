@@ -38,6 +38,7 @@ export class MobileControls {
   private readonly action: HTMLButtonElement;
   private readonly label: HTMLElement;
   private readonly back: HTMLButtonElement;
+  private readonly brake: HTMLButtonElement;
   private stickPointer: number | null = null;
   private center = { x: 0, y: 0 };
   private radius = 1;
@@ -53,6 +54,7 @@ export class MobileControls {
         <div class="touch__knob"></div>
       </div>
       <button type="button" class="touch__back" aria-label="Volver (Esc)" hidden>Volver</button>
+      <button type="button" class="touch__brake" aria-label="Frenar" hidden>Frenar</button>
       <button type="button" class="touch__action" aria-label="Interactuar (E)">
         <span class="touch__key">E</span>
         <span class="touch__label"></span>
@@ -69,10 +71,12 @@ export class MobileControls {
     this.action = pick('.touch__action');
     this.label = pick('.touch__label');
     this.back = pick('.touch__back');
+    this.brake = pick('.touch__brake');
 
     this.bindStick();
     this.bindButton(this.action, 'interact');
     this.bindButton(this.back, 'cancel');
+    this.bindButton(this.brake, 'advance');
     input.onContext((c) => this.show(c));
 
     const media = window.matchMedia(COARSE);
@@ -179,6 +183,13 @@ export class MobileControls {
     this.label.textContent = c.action ?? '';
     this.action.setAttribute('aria-label', c.action ? `${c.action} (E)` : 'Interactuar (E)');
     this.back.hidden = !c.back;
+    // BIKE-01 · el freno sólo existe pedaleando y sin nada delante; nunca coincide con «volver» (que pide menú abierto).
+    const brake = !!c.riding && !c.busy;
+    if (!brake && this.brake.classList.contains('is-pressed')) {
+      this.brake.classList.remove('is-pressed');
+      this.input.release('advance');
+    }
+    this.brake.hidden = !brake;
     // Con un diálogo o un menú delante no se anda: el stick se suelta.
     if (c.busy && this.stickPointer !== null) this.releaseStick();
   }

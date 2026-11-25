@@ -122,6 +122,7 @@ export type PropKind =
   | 'register'
   | 'fridge'
   | 'gondola'
+  | 'pantry-shelf'
   | 'cooler'
   | 'meeting-table'
   | 'ticket-machine'
@@ -854,6 +855,24 @@ export interface GameStateData {
   household?: import('../systems/Household.ts').HouseholdState;
   /** SIM-01 · registro de consecuencias (systems/Consequences): referencias, diferidos y avisos dados. Opcional: una v5 migra con el registro vacío. */
   consequences?: import('../systems/Consequences.ts').ConsequenceState;
+  /** VID-01 · proyectos de vida (systems/LifeProjects). Opcional: una v6 migra con la lista vacía. */
+  lifeProjects?: import('../systems/LifeProjects.ts').LifeProjectsState;
+  /** VID-02 · relaciones autónomas entre NPC (systems/SocialGraph). Opcional: una v7 migra con el grafo vacío. */
+  socialGraph?: import('../systems/SocialGraph.ts').SocialGraphState;
+  /** VID-03 · microhistorias (systems/MicroStories). Opcional: una v8 migra con la lista vacía. */
+  microStories?: import('../systems/MicroStories.ts').MicroStoriesState;
+  /** VID-05 · quedadas en casa (systems/SocialEvents). Opcional: una v9 migra con la lista vacía. */
+  socialEvents?: import('../systems/SocialEvents.ts').SocialEventsState;
+  /** VID-06 · vecindario: paquetes y favores (systems/Neighborhood). Opcional: una v10 migra con el estado vacío. */
+  neighborhood?: import('../systems/Neighborhood.ts').NeighborhoodState;
+  /** VID-07 · tensión (systems/Wellbeing). Opcional: una v11 migra con el estado inicial en su minuto. */
+  wellbeing?: import('../systems/Wellbeing.ts').WellbeingState;
+  /** VID-10 · reparto urbano: el encargo vivo y el último resultado (systems/Delivery). Opcional, sin migración: sin la clave, vacío. */
+  delivery?: import('../systems/Delivery.ts').DeliveryState;
+  /** BIKE-01 · bicis del mundo (systems/Cycling). Opcional, sin migración: sin la clave, ninguna. Se carga siempre a pie. */
+  bikes?: import('../systems/Cycling.ts').BikesState;
+  /** VID-11 · diario de vida (systems/Diary). Opcional, sin migración: sin la clave, vacío. */
+  diary?: import('../systems/Diary.ts').Diary;
   /** Últimos movimientos de la cartera con su motivo. Opcional: una partida anterior carga sin historial. */
   ledger?: import('../systems/Household.ts').Movement[];
   /** Micropréstamo (systems/Credit): préstamos, cuotas y cooldown. Opcional: sin campo, sin préstamo. */

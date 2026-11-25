@@ -290,11 +290,11 @@ const { first: cFirst, h: cHouse } = scenarioC();
   const l5 = m5.save.load()!;
   assert.deepEqual(l5.consequences, emptyConsequences());
   const m6 = memory();
-  m6.store.set(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, savedAt: 0, state: v5 }));
+  m6.store.set(SAVE_KEY, JSON.stringify({ version: 6, savedAt: 0, state: v5 }));
   const { consequences: _drop, ...rest } = l5;
   assert.deepEqual(rest, m6.save.load(), 'el resto de la v5 carga igual');
-  assert.equal(SAVE_VERSION, 6);
-  const newer = inspectRaw(JSON.stringify({ version: 7, savedAt: 0, state: v5 }));
+  assert.equal(SAVE_VERSION, 12); // VID-07 subió el esquema (wellbeing).
+  const newer = inspectRaw(JSON.stringify({ version: SAVE_VERSION + 1, savedAt: 0, state: v5 }));
   assert.ok(newer.status === 'unreadable' && newer.reason === 'newer');
   const junk = memory();
   junk.store.set(SAVE_KEY, JSON.stringify({ version: 6, savedAt: 0, state: { ...v5, consequences: { items: [1, 'x', { consequenceId: 'a' }, null], lastNoticeDay: Infinity } } }));

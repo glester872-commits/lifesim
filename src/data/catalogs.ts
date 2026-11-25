@@ -145,13 +145,27 @@ export const CATALOGS: readonly Catalog[] = [
     // CA-03 · Taller Biciclo (Campo Alto): sólo venta de accesorios y algo para la ruta; las reparaciones, aún no.
     id: 'ca-taller-mostrador',
     greeting: 'Lo que ves es lo que hay. ¿Una luz, un timbre?',
-    products: [item('water', 'Agua', 1.2), item('energy-drink', 'Bebida energética', 2.3), item('chocolate', 'Chocolatina', 1.3), item('gift-bike-bell', 'Timbre de bici', 6), item('gift-bike-light', 'Luz de bici', 9)],
+    // VID-01 · la bici (una por persona, data/items.ts max 1): €180 son tres turnos de dependiente de sección (€60,
+    // data/jobs.ts) o cinco de auxiliar (€36): un objetivo de unos días de trabajo, no de una tarde.
+    products: [item('water', 'Agua', 1.2), item('energy-drink', 'Bebida energética', 2.3), item('chocolate', 'Chocolatina', 1.3), item('gift-bike-bell', 'Timbre de bici', 6), item('gift-bike-light', 'Luz de bici', 9), item('bike', 'Bicicleta de ciudad', 180)],
   },
   {
     // CA-04 · Panadería Cuatro Hornos (Campo Alto): pan y bollería de barrio, algo más barato que la barra del café.
     id: 'ca-panaderia-mostrador',
     greeting: '¿Qué te pongo? Hay barra recién sacada.',
     products: [item('bread', 'Barra de pan', 1), item('croissant', 'Cruasán', 1.5), item('pastry', 'Napolitana de chocolate', 1.8), item('coffee', 'Café con leche', 1.6), item('sandwich', 'Sándwich', 3.2), item('water', 'Agua', 1.1)],
+  },
+  {
+    // LOC-01 · Horno de Luna (Luna): el horno de madrugada; pan, bollería y café, nunca más caro que la barra del café.
+    id: 'lu-horno-mostrador',
+    greeting: 'Acaba de salir la primera hornada. ¿Qué te pongo?',
+    products: [item('bread', 'Barra de pan', 1), item('croissant', 'Cruasán', 1.5), item('pastry', 'Napolitana de chocolate', 1.8), item('coffee', 'Café con leche', 1.6), item('water', 'Agua', 1.1)],
+  },
+  {
+    // LOC-01 · Ultramarinos Mayor (Casco Antiguo): la despensa de la Calle Mayor. La fruta, en la frutería del mercado.
+    id: 'cas-ultramarinos-mostrador',
+    greeting: 'Buenos días. Lo de la despensa, aquí; la fruta, en el mercado.',
+    products: [item('groceries', 'Compra para cocinar', 9), item('bread', 'Barra de pan', 1), item('sandwich', 'Bocadillo envasado', 2.5), item('water', 'Agua (1,5 l)', 0.7), item('chocolate', 'Chocolatina', 1.1), item('chips', 'Patatas fritas', 1.2)],
   },
   {
     // Conecta (Cuatro Ríos): tienda de móviles que, como tantas, recarga la tarjeta de transporte y tiene nevera.

@@ -119,6 +119,16 @@ body.has-touch .hud__key {
   font-variant-emoji: text;
 }
 
+/* BIKE-01 · velocidad en bici, sólo escritorio (ui/HUD.setSpeed); ancho fijo para que no baile al cambiar de cifra. */
+.hud__kmh {
+  min-width: 6ch;
+  color: rgba(232, 227, 218, 0.6);
+}
+
+.hud__kmh[hidden] {
+  display: none;
+}
+
 .hud__card {
   margin-top: 2px !important;
   font-family: var(--ui-mono);
@@ -1274,6 +1284,37 @@ body.has-touch .hud__key {
   border-color: var(--amber);
 }
 
+/* BIKE-01 · «Frenar», en el hueco de «volver» a la izquierda de la acción: sólo sale pedaleando y sin menú, así que nunca coinciden. */
+.touch__brake {
+  position: absolute;
+  right: calc(var(--edge-x-right) + var(--act) + 14px);
+  bottom: calc(var(--edge-y) + var(--act) / 2 - 22px);
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 2px solid rgba(232, 227, 218, 0.22);
+  background: rgba(14, 15, 22, 0.8);
+  color: var(--white);
+  font: 700 11px var(--ui-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch__brake[hidden] {
+  display: none;
+}
+
+.touch__brake.is-pressed {
+  border-color: var(--amber);
+  background: rgba(240, 180, 106, 0.2);
+}
+
 /* Con un diálogo, un menú o el mapa delante no se anda: el joystick se aparta; la acción, sólo si sirve. */
 #touch.is-busy .touch__stick,
 #touch.is-busy .touch__action:not(.is-ready) {
@@ -1645,6 +1686,20 @@ body.has-touch .dialogue__choices li {
   cursor: pointer;
 }
 
+/* VID-11: fila del Diario como botón real; se ve como las demás filas. */
+.phone__row--button {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.phone__row--button:focus-visible {
+  outline: 1px solid rgba(111, 208, 198, 0.6);
+}
+
 .phone__head {
   padding: 4px 4px 8px;
   border-bottom: 1px solid rgba(232, 227, 218, 0.08);
@@ -1703,6 +1758,36 @@ body.has-touch .dialogue__choices li {
 .phone__row-text .phone__rep-why {
   white-space: normal;
   line-height: 1.35;
+}
+
+/* Proyectos (VID-01) y Diario (VID-11): la fila crece y el texto se lee entero; sólo con el modificador. */
+.phone__row--wrap {
+  align-items: flex-start;
+}
+
+.phone__row--wrap,
+.phone__row--wrap .phone__row-text span {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.phone__row--wrap .phone__reply {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.phone__progress {
+  width: 48px;
+  height: 3px;
+  background: rgba(232, 227, 218, 0.15);
+}
+
+.phone__progress-fill {
+  height: 100%;
+  background: var(--accent);
 }
 
 .phone__tone--amistoso {
@@ -2936,4 +3021,115 @@ body.has-touch .kick__help {
 
 .online__share .online__field[readonly] {
   font: 11px var(--ui-mono);
+}
+
+/* VID-04 Atender a un cliente (ui/AttentionPanel): sobre la base de .kick. El cliente arriba (destino del arrastre),
+   la estantería debajo. Planos, como .kick: borde y fondo sin degradados. */
+/* Opaco y por encima de la caja de diálogo y la guía (sin z-index): nada se transparenta en la cabecera. */
+.kick.attn {
+  background: var(--ink);
+  z-index: 7;
+}
+
+.attn__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.attn__round {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.attn__zone {
+  margin: 6px 0 8px;
+  padding: 8px;
+  border: 2px dashed rgba(232, 227, 218, 0.22);
+  background: var(--night);
+  touch-action: none;
+  cursor: pointer;
+}
+
+.attn__bubble {
+  font: 14px/1.35 var(--ui-font);
+}
+
+.attn__patience {
+  height: 6px;
+  margin: 6px 0 4px;
+  background: rgba(232, 227, 218, 0.1);
+}
+
+.attn__bar {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--amber);
+  transition: width 120ms linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attn__bar { transition: none; }
+}
+
+.attn__said {
+  min-height: 1.3em;
+  font: italic 12px var(--ui-font);
+  color: rgba(232, 227, 218, 0.75);
+}
+
+.attn__said.is-exact { color: var(--accent); }
+.attn__said.is-near { color: var(--amber); }
+.attn__said.is-wrong { color: #e07a6a; }
+
+.attn__shelf {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.attn__card {
+  position: relative;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 2px solid rgba(232, 227, 218, 0.22);
+  background: var(--ink);
+  color: var(--white);
+  font: 700 12px var(--ui-mono);
+  overflow-wrap: anywhere;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.attn__card.is-on { border-color: var(--amber); color: var(--amber); }
+.attn__card.is-drag { z-index: 2; cursor: grabbing; opacity: 0.9; }
+.attn__card.is-exact { border-color: var(--accent); color: var(--accent); }
+.attn__card.is-near { border-color: var(--amber); color: var(--amber); }
+.attn__card.is-wrong { border-color: #e07a6a; color: #e07a6a; }
+.attn__mark:not(:empty) { margin-right: 4px; }
+
+.attn__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.attn__help {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.attn__quit { flex-shrink: 0; }
+
+@media (max-width: 480px) {
+  .attn__shelf { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .attn__help { display: none; }
+  .attn__quit { min-height: 40px; margin-left: auto; }
 }

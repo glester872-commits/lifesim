@@ -62,3 +62,89 @@ const DAY: TourStep = {
 };
 
 export const TOUR: readonly TourStep[] = [homeStep(), transportStep(), jobStep(), CONTACTS, DAY];
+
+// ================================================================
+// VID-12 · Los primeros días con narrativa guiada: cuatro hitos. Sólo textos; qué está hecho lo decide
+// systems/Agenda.guideProgress con lo que ya guarda la partida. Precios, tarjeta y puesto, de sus datos.
+// ================================================================
+
+export type GuideId = 'vecino' | 'metro' | 'trabajo' | 'social';
+
+export interface GuideMilestoneDef {
+  id: GuideId;
+  title: string;
+  text: string;
+  /** Etiquetas de los pasos, en el orden que evalúa guideProgress. */
+  steps: readonly string[];
+  /** Lo siguiente que hacer según en qué paso se esté: clave → texto. `{falta}` = euros que faltan. */
+  hints: Readonly<Record<string, string>>;
+}
+
+/** El producto que emite la tarjeta de transporte en la máquina del vestíbulo. */
+export const TRANSPORT_CARD = CATALOGS.find((c) => c.id === 'transport-machine')?.products.find((p) => p.effect && 'issue' in p.effect && p.effect.issue);
+/** Id de la tarjeta en la cartera (wallet.cards). */
+export const GUIDE_CARD = TRANSPORT_CARD?.effect && 'card' in TRANSPORT_CARD.effect ? TRANSPORT_CARD.effect.card : 'transport';
+
+function metroMilestone(): GuideMilestoneDef {
+  const line = LINES[0];
+  const price = TRANSPORT_CARD ? euros(TRANSPORT_CARD.price) : 'su precio';
+  return {
+    id: 'metro', title: 'Coger el metro',
+    text: `La tarjeta sale en la máquina del vestíbulo (${price}, con saldo). Cada viaje, ${euros(line.fare)}; ${line.minutesPerStop} min por parada.`,
+    steps: ['Sacar la tarjeta de transporte', 'Hacer un viaje', 'Salir a la calle en otra estación'],
+    hints: {
+      card: `Entra en la boca de metro y saca la tarjeta en la máquina del vestíbulo (${price}).`,
+      money: `La tarjeta cuesta ${price}: te faltan {falta}. Un turno suelto o un trabajo lo cubre.`,
+      ride: `Baja al andén y sube a un tren de la ${line.name}: el billete son ${euros(line.fare)}.`,
+      topup: `A la tarjeta no le llega para un viaje (${euros(line.fare)}): recarga la tarjeta en la máquina del vestíbulo.`,
+      exit: 'Sal de la estación a la calle por la escalera.',
+    },
+  };
+}
+
+function jobMilestone(): GuideMilestoneDef {
+  const job = JOBS[0];
+  const stop = STOPS.find((s) => s.id === job.place);
+  const where = `${job.employer} (parada ${stop?.name.split(' · ')[0] ?? 'de la línea'})`;
+  return {
+    id: 'trabajo', title: 'Buscar trabajo',
+    text: `En ${where} buscan personal. Puedes pedir el puesto, decir que no a la oferta o hacer un turno suelto.`,
+    steps: ['Pedir un puesto, firmarlo o hacer un turno suelto'],
+    hints: {
+      ask: `Ve a ${where} y pregunta junto a las cajas.`,
+      // {cuando}: «a las 09:00», «mañana a las 09:00»… del horario del local (systems/Places.nextOpening).
+      closed: `${job.employer.split(' ')[0]} abre {cuando}; mientras, saca la tarjeta o habla con tus vecinos, y luego ve a ${where} y pregunta junto a las cajas.`,
+    },
+  };
+}
+
+export const GUIDE: readonly GuideMilestoneDef[] = [
+  {
+    id: 'vecino', title: 'Conocer a un vecino',
+    text: 'La gente con nombre se conoce hablando (E): que se presente o que te dé su número.',
+    steps: ['Que alguien se presente o te dé su número'],
+    // {nombre}/{donde}: quién se presenta y dónde está ahora (systems/Opportunities.nowAt); {quienes}: todos; {luego}: `later` o `back`.
+    hints: {
+      talk: 'Habla (E) con alguien con nombre de tu calle hasta que se presente.',
+      here: '{nombre} está {donde}: háblale (E) hasta que se presente.',
+      walking: '{nombre} va por la calle ahora: búscala y háblale (E).',
+      // {dentro}: «en casa» si todas lo están; «dentro» si alguna está en un sitio que no es su casa.
+      home: 'Ahora no hay nadie a la vista ({quienes}, {dentro}). {luego}',
+      later: '{cuando}, {nombre} suele estar {donde}: ve allí y háblale (E).',
+      back: 'Vuelve más tarde a la calle.',
+    },
+  },
+  metroMilestone(),
+  jobMilestone(),
+  {
+    id: 'social', title: 'Quedar con alguien',
+    text: 'Un café o un plan, propuesto por ti o por la otra persona. Hace falta algo de trato.',
+    steps: ['Proponer un plan', 'Recibir una invitación', 'Que se acepte', 'Ir a la quedada'],
+    hints: {
+      trust: 'Aún no hay trato para invitar: sigue charlando con tu vecino (con más amistad sale «Invitar a un café»).',
+      propose: 'Invita a un café en persona (E) o propónselo por Mensajes (P).',
+      wait: 'Espera la respuesta en Mensajes (P).',
+      attend: 'Ve a la quedada a su hora: la tienes en la app Hoy.',
+    },
+  },
+];

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { PLACES } from '../src/data/places.ts';
 import { POPULATION_PROFILES } from '../src/data/population.ts';
 import { CATALOGS, getCatalog } from '../src/data/catalogs.ts';
-import { getActivity } from '../src/data/activities.ts';
+import { getActivity, ingredientsOf } from '../src/data/activities.ts';
 import { getItem } from '../src/data/items.ts';
 import { LOCATIONS } from '../src/data/locations.ts';
 import { getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
@@ -102,8 +102,7 @@ const sold = new Set(CATALOGS.flatMap((c) => c.products.map((p) => ('item' in p.
 for (const place of PLACES) {
   for (const s of interiorOf(place.building)?.spots ?? []) {
     for (const id of s.activities) {
-      const c = getActivity(id).consumes;
-      if (c) assert.ok(sold.has(c.item), `${id} gasta ${getItem(c.item).name}, que no se vende en ningún sitio`);
+      for (const c of ingredientsOf(getActivity(id))) assert.ok(sold.has(c.item), `${id} gasta ${getItem(c.item).name}, que no se vende en ningún sitio`);
     }
   }
 }

@@ -46,6 +46,11 @@ const VISIT: VisitText = {
     plain: ['Lo de ayer en tu casa estuvo genial. Tienes que venir tú a la mía algún día.'],
     message: ['Gracias por la tarde de ayer. Tu casa es de esas que te dan ganas de quedarte. Repetimos.'],
   },
+  gathering: {
+    solo: ['¡Una quedada en tu casa! Esto hay que repetirlo, que lo sepas.'],
+    both: ['¿Ada también? Qué bien. Así la saco un rato de los temarios.'],
+    toOther: ['Ada, suelta un momento el agua y mira qué bien se está aquí. Hoy no se estudia, ¿eh?'],
+  },
 };
 const VISIT_BEATS = visitBeats(VISIT);
 
@@ -171,6 +176,7 @@ export const SARA_STORY: StoryDef = {
       say: ['Perdona por cancelar lo de {lugar}. No tenía el día y no quería ir de mala gana. Te debo una.'],
       then: { clear: ['sara_changed_mind'], social: { trust: 2 }, event: 'disculpa' },
     },
+    VISIT_BEATS.gather,
     VISIT_BEATS.share,
     {
       // Te da su número; si ya lo tienes (os lo disteis antes), no vuelve a dártelo.

@@ -275,6 +275,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   register: { key: 'prop-register', tilesHigh: 1 },
   fridge: { key: 'prop-fridge', tilesHigh: 2 },
   gondola: { key: 'prop-gondola', tilesHigh: 1 },
+  // Despensa del ultramarinos (world/PropArt.ts): latas y tarros en tres baldas; como `shelf`, sólo choca su fila base.
+  'pantry-shelf': { key: 'prop-pantry-shelf', tilesHigh: 2, variants: 3 },
   cooler: { key: 'prop-cooler', tilesHigh: 2 },
   'meeting-table': { key: 'prop-meeting-table', tilesHigh: 1, tilesWide: 3 },
   // Visual V2 (design/ART_BIBLE.md): texturas más altas o anchas que su tile; sólo la fila base colisiona.

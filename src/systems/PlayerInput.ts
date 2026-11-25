@@ -19,6 +19,8 @@ export interface TouchContext {
   back: boolean;
   /** Diálogo, menú o mapa abiertos: el joystick se aparta. */
   busy: boolean;
+  /** BIKE-01 · en bici: aparece «Frenar» (la tecla 'advance'). */
+  riding?: boolean;
 }
 
 export class PlayerInput {
@@ -85,7 +87,7 @@ export class PlayerInput {
   /** Lo decide el mundo cada frame; sólo avisa a quien lo pinta cuando cambia. */
   setContext(c: TouchContext): void {
     const was = this.context;
-    if (was.action === c.action && was.back === c.back && was.busy === c.busy) return;
+    if (was.action === c.action && was.back === c.back && was.busy === c.busy && !!was.riding === !!c.riding) return;
     this.context = c;
     this.listener?.(c);
   }

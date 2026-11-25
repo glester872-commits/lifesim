@@ -3,6 +3,7 @@ import { ARENA_CLUB, ARENA_MATCHES } from '../data/cityEvents';
 import { LOCATION_DISTRICT } from '../data/districtIdentity';
 import { kickoffLabel, matchNow, matchOn } from '../systems/Match';
 import { isPolice, patrolLines } from '../systems/Police';
+import { socialLineFor } from '../systems/SocialGraph';
 import { PLACES } from '../data/places';
 import {
   AUTOSAVE_INTERVAL_MS,
@@ -47,7 +48,7 @@ import { FUTSAL, futsalWeek, isOpen as pitchOpen, PenaltySession, recordTanda, t
 import { LEAGUES, type LeagueDef } from '../data/campoAltoLeague';
 import { HALF_SHOTS, MATCH_SHOTS, matchId, playedResult, playerFixture, recordPlayed, rivalGoals, type Fixture as LeagueFixture } from '../systems/League';
 import { personFrame, personTexture, showPerson } from '../world/TextureFactory';
-import { KIND_OF, afterLine, practiceMma, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
+import { KIND_OF, afterLine, buildOf, practiceMma, summary, train, quote, settle, type Intensity } from '../systems/Fitness';
 import { ACADEMIES, getAcademy } from '../data/academies';
 import { charge, NO_MEMBERSHIP, settlePlan } from '../systems/Academy';
 import { formatDate } from '../systems/Calendar';
@@ -101,8 +102,8 @@ import { CHARACTERS, type CharacterDef } from '../data/characters';
 import { catchUp, characterDay, routineFor, whereabouts, type RoutinePicker, type Whereabouts } from '../systems/Characters';
 import { routineId as mateRoutineId } from '../systems/Roommate';
 import { STORIES } from '../data/saraStory';
-import { TOUR } from '../data/tour';
-import { freeBetween } from '../systems/Agenda';
+import { GUIDE, TOUR } from '../data/tour';
+import { freeBetween, type GuideMode } from '../systems/Agenda';
 import { homeEntry, installedIn } from '../systems/Housing';
 import {
   applyEffect,
@@ -124,11 +125,16 @@ import {
   presentBeat,
   routineOn,
   watchPlan,
+  planLineFresh,
   type Effect,
   type NamedStory,
   type ReadyBeat,
   type StoryNow,
 } from '../systems/Story';
+import { cancelGathering, homeOffer, inviteHome, openGatheringOf, playerInGathering, tickGatherings } from '../systems/HomeGathering';
+import { getHome, HOMES } from '../data/housing';
+import { acceptFavor, canDeliverTo, declineFavor, deliverPackage, emptyNeighborhood, FAVOR_MINUTES, favorFor, favorOfferFor, offerFavor, pendingPackage, pickUpPackage, resolveFavor } from '../systems/Neighborhood';
+import { emptySocialEvents } from '../systems/SocialEvents';
 import { offCamera, settleNamed, type StuckWatch } from '../systems/Recovery';
 import { pickTarget, tileAhead, wallBetween, type Candidate as PickCandidate } from '../systems/Interaction';
 import { stallVendors } from '../systems/PopUps';
@@ -200,15 +206,17 @@ import {
   relationshipState,
   type SocialProfile,
 } from '../systems/Social';
+import { SOCIAL_RELIEF, SPORT_RELIEF, tensionBand, WALK_TILES_PER_POINT } from '../systems/Wellbeing';
 import { NAMED_PEOPLE } from '../data/namedPeople';
 import { NAMED_VOICES } from '../data/chatNamed';
 import { getItem } from '../data/items';
-import { giftBlocker, giftsIn, giveGift } from '../systems/Gifts';
+import { giftBlocker, giftsIn, giveGift, MEAL, mealBlocker, shareMeal } from '../systems/Gifts';
 import { INIT_SLOT, activePlan, lineFor, markRead, tierOf, phoneTick, planFromTalk, postMessage, sendMessage, statusOf, whenLabel, type NpcStatus, type PhoneActionId, type PhoneEnv, type PhoneNews, type PhoneResult } from '../systems/Phone';
 import { zoneAt } from '../systems/Zones';
 import { WildlifeView } from '../world/WildlifeView';
 import { SignalView } from '../world/SignalView';
-import { PLAYER_H, pumpPeopleFine, setPlayerUniform } from '../world/TextureFactory';
+import { PLAYER_COLORS, PLAYER_H, pumpPeopleFine, setPlayerUniform } from '../world/TextureFactory';
+import { withAppearance } from '../systems/Appearance';
 import { RemotePlayers, zoneOf } from '../world/RemotePlayers';
 import type { Services } from '../services';
 import { LAYER } from '../world/Layers';
@@ -231,6 +239,16 @@ export interface WorldSceneData {
  * miran. Ningún sitio tiene su propio código de interacción; lo decide el dato.
  * Los NPC se leen en vivo: el vigilante camina y su punto de interacción con él.
  */
+// BIKE-01 · la bici del jugador (systems/Cycling): con alias, para no chocar con lo importado arriba.
+import * as RideSys from '../systems/Cycling';
+import { CYCLING as RIDE_CFG } from '../config/cycling';
+import { parkedBikeTexture, type RiderLook as BikeRiderLook } from '../world/CyclistArt';
+import { collectCompanyBikes, companyBikeBlocker, returnsCompanyBike } from '../systems/Delivery';
+import { homeDoor as bikeHomeDoor } from '../systems/Housing';
+import { ROADWAY as BIKE_ROADWAY } from '../systems/LocationSystem';
+import { BIKE_SHARE_FARE, BIKE_SHARE_STATIONS, type BikeShareStation } from '../data/bikeShare';
+import { bikeDockTexture } from '../world/CyclistArt';
+
 type Interactable =
   | { kind: 'npc'; sprite: Phaser.GameObjects.Sprite; def: NpcDef; lines?: () => readonly string[] }
   | { kind: 'portal'; x: number; y: number; portal: PortalDef }
@@ -243,6 +261,10 @@ type Interactable =
   | { kind: 'event'; x: number; y: number; view: StreetEventView }
   | { kind: 'emergency'; x: number; y: number; view: EmergencyView }
   | { kind: 'seat'; x: number; y: number; seat: Seat }
+  // BIKE-01 · una bici aparcada que se puede montar (la tuya o la de la empresa), o la que llevas (para bajarte).
+  | { kind: 'bike'; x: number; y: number; id: string }
+  // Una estación de bici compartida (data/bikeShare.ts): coger (1 €) o devolver la pública.
+  | { kind: 'dock'; x: number; y: number; dock: BikeShareStation; spot: RideSys.Spot }
   | { kind: 'station'; x: number; y: number; point: string; station: StationId; facing: Facing }
   | { kind: 'court'; x: number; y: number; name: string; point: string; spot: ShootingSpot }
   | { kind: 'pitch'; x: number; y: number; name: string; point: string; pitch: Pitch };
@@ -335,6 +357,8 @@ export class WorldScene extends Phaser.Scene {
    * restart de la escena (es la misma instancia); el tren lo borra.
    */
   private cameIn: { from: string; door: string; into: string } | null = null;
+  /** VID-06 · aviso del paquete recogido al salir de casa; sobrevive al restart, como cameIn. */
+  private pendingNotice: string | null = null;
   private mapWidth = 0;
   private mapHeight = 0;
   private metro: MetroSystem | null = null;
@@ -514,6 +538,12 @@ export class WorldScene extends Phaser.Scene {
   private readonly chatLog = new ChatLog();
   /** Cierra ya la charla de calle en curso (Esc o Q), sin pasar por ninguna respuesta. Sólo mientras hay una. */
   private chatEnd: (() => void) | null = null;
+  /** VID-07: «día:npc» a quienes ya les has notado la tensión hoy. */
+  private readonly tenseNoticed = new Set<string>();
+  /** VID-07: tiles andados aún sin convertir en alivio, y la última posición (en memoria, no se guardan). */
+  private walkTiles = 0;
+  private walkX = NaN;
+  private walkY = NaN;
   /** Lo último que se ha oído en la grada (talkSpectator), de lo más viejo a lo último: se repite lo que hace más que no se oye. */
   private fanRecent: string[] = [];
   /**
@@ -731,6 +761,39 @@ export class WorldScene extends Phaser.Scene {
     for (const seat of seatsIn(def)) {
       this.interactables.push({ kind: 'seat', x: seat.tx * TILE + TILE / 2, y: seat.ty * TILE + TILE / 2, seat });
     }
+    // BIKE-01 · la bici propia aparece delante de casa (el spawn de su puerta, de los datos) si se tiene y aún no existe.
+    const bikeDoor = bikeHomeDoor(state.housing);
+    const bikeLoc = getLocation(bikeDoor.location);
+    const bikeSpawn = bikeLoc.spawns[bikeDoor.spawn];
+    if (bikeSpawn) {
+      // Una casilla a un lado del spawn (la primera transitable), para no salir debajo del jugador; si ninguna, el spawn.
+      const side = [1, -1, 2, -2].find((dx) => isWalkable(bikeLoc, bikeSpawn.tx + dx, bikeSpawn.ty)) ?? 0;
+      const at = spawnToWorld({ ...bikeSpawn, tx: bikeSpawn.tx + side });
+      const before = state.bikes;
+      const after = RideSys.ensurePlayerBike(before, (state.wallet.inventory.bike ?? 0) >= 1, { location: bikeDoor.location, x: at.x, y: at.y, facing: bikeSpawn.facing });
+      if (after !== before) state.setBikes(after);
+    }
+    // Sin turno de reparto, la bici de empresa que quedó aparcada la recoge el servicio (systems/Delivery).
+    const collected = collectCompanyBikes(state.bikes, state.delivery);
+    if (collected !== state.bikes) state.setBikes(collected);
+    // Se llega montado sólo cruzando en bici entre exteriores (travel); si no, a pie.
+    this.bikeViews.clear();
+    this.rideEnergy = 0;
+    const carried = state.ride;
+    const riddenBike = carried.bikeId ? state.bikes.list.find((b) => b.id === carried.bikeId && b.status === 'ridden') : undefined;
+    if (riddenBike && carried.phase !== 'ON_FOOT' && carried.phase !== 'DISMOUNTING') {
+      state.ride = { ...carried, phase: 'CYCLING', speed: 0, since: this.time.now };
+      this.player.setRiding(true, this.riderLookOf(riddenBike));
+    } else state.ride = RideSys.onFoot();
+    for (const b of state.bikes.list) if (b.location === def.id && b.status === 'parked') this.showBike(b);
+    // Las estaciones de bici compartida de aquí (data/bikeShare.ts): un poste sin colisión y su interactable.
+    for (const dock of BIKE_SHARE_STATIONS) {
+      const pt = dock.location === def.id ? def.points?.[dock.point] : undefined;
+      if (!pt) continue;
+      const spot: RideSys.Spot = { location: def.id, x: pt.tx * TILE + TILE / 2, y: pt.ty * TILE + TILE, facing: pt.facing ?? 'down' };
+      this.add.image(spot.x, spot.y, bikeDockTexture(this)).setOrigin(0.5, 1).setDepth(spot.y);
+      this.interactables.push({ kind: 'dock', x: spot.x, y: spot.y - TILE / 2, dock, spot });
+    }
     this.menus = new Menus(this.services, {
       // Si ese puesto está ocupado, otro libre del mismo ejercicio (los tres sacos de la academia); si no hay, se dice.
       trainAt: (point) => {
@@ -747,6 +810,7 @@ export class WorldScene extends Phaser.Scene {
       fadeOut: () => this.cameras.main.fadeOut(TRANSITION_MS, 0, 0, 0),
       refreshHome: () => this.refreshHome(),
       movedHome: () => this.movedHome(),
+      syncBikes: () => this.syncBikes(),
     });
 
     this.physics.add.collider(this.player, built.solids);
@@ -841,11 +905,20 @@ export class WorldScene extends Phaser.Scene {
     this.traffic = def.traffic ? new Traffic(withDistrictLanes(def, def.traffic), VEHICLES, def.signals ?? [], built.widthPx, trafficRng('cars')) : null;
     // Ningún coche aparece encima del jugador ni de quien ya está en la calle (al volver a la escena, tampoco).
     this.gatherPedestrians();
+    this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx, trafficRng('bikes')) : null;
+    // Coches y bicis comparten BUDGETS.vehicles (cada Traffic sólo limita por carril): al poblar, el primero no se lo come
+    // entero; a cada uno, su parte en proporción a lo que aguantan sus carriles (Traffic.capacity). Menos una plaza,
+    // reservada para hail()/forceSpawn(), que no miran limit.
+    const vehicleBudget = BUDGETS[QUALITY.level].vehicles - 1;
+    if (this.traffic) {
+      const bikeCap = this.bikes?.capacity ?? 0;
+      this.traffic.limit = Math.round((vehicleBudget * this.traffic.capacity) / (this.traffic.capacity + bikeCap || 1));
+    }
     this.traffic?.populate(this.trafficClock(), this.pedestrians);
+    if (this.bikes) this.bikes.limit = vehicleBudget - (this.traffic?.vehicles.length ?? 0);
     // Las recogidas de taxi/VTC de la calle piden su coche a este tráfico (StreetLife.advanceRides, Traffic.hail).
     if (this.street) this.street.traffic = this.traffic;
     this.trafficView = this.traffic ? new TrafficView(this, this.traffic, hour, () => weatherAt(state.day, hour()).wet) : null;
-    this.bikes = def.traffic?.bikes ? new Traffic(withDistrictLanes(def, def.traffic.bikes), BIKES, def.signals ?? [], built.widthPx, trafficRng('bikes')) : null;
     this.bikes?.populate(this.trafficClock(), this.pedestrians);
     this.cyclistView = this.bikes ? new CyclistView(this, this.bikes, hour) : null;
     this.signals = def.signals?.length ? new SignalView(this, def, () => this.services.clock.minuteOfDay) : null;
@@ -928,7 +1001,9 @@ export class WorldScene extends Phaser.Scene {
       offer: (npc) => {
         const beat = this.storyOfferFor(npc);
         if (beat?.choices) return { accept: beat.choices[0].label, decline: beat.choices[1].label };
-        return this.storyOf(npc)?.plan?.status === 'pending' ? { cancel: true } : undefined;
+        const { state: st } = this.services;
+        const home = homeOffer(npc, st.social[npc], HOMES.find((h) => h.id === st.housing.home), st.socialEvents);
+        return { cancel: this.storyOf(npc)?.plan?.status === 'pending', ...home };
       },
       planLine: (npc) => {
         const story = this.storyOf(npc);
@@ -956,6 +1031,12 @@ export class WorldScene extends Phaser.Scene {
 
     // Partida nueva: la guía del principio, cuando ya se ve la calle (data/tour.ts). Una partida de antes no la ve.
     this.time.delayedCall(TRANSITION_MS + 500, () => this.offerTour());
+    const notice = this.pendingNotice ?? this.collectDoorPackage();
+    this.pendingNotice = null;
+    if (notice) {
+      this.persistSoon();
+      this.storyQueue.push(() => this.openDialogue('Portal', [notice]));
+    }
     // La pantalla de inicio (title.ts) se quita con la calle ya montada.
     this.game.events.emit('lifesim:world-ready');
 
@@ -985,6 +1066,7 @@ export class WorldScene extends Phaser.Scene {
       this.chatEnd = null;
       dialogue.close();
       if (this.services.menu.isOpen) this.services.menu.close();
+      this.services.attention.close();
       this.services.input.releaseAll();
       this.services.input.setContext({ action: null, back: false, busy: false });
       // Si se cambia de escena entrenando, lo hecho hasta ahora cuenta y el puesto se suelta.
@@ -1047,6 +1129,17 @@ export class WorldScene extends Phaser.Scene {
     if (this.leaving) { this.player.halt(); return; }
     // La sala online, cada fotograma: los demás se mueven y lo propio sale como mucho 10 veces por segundo.
     this.services.online.update(zoneOf(this.services.state.locationId), this.player.x, this.player.y, this.player.facing);
+    // VID-07: andar relaja. Saltos de más de 3 tiles (teleport, carga) y ratos con diálogo o menú no cuentan; NaN tampoco.
+    const walked = Math.hypot(this.player.x - this.walkX, this.player.y - this.walkY) / TILE;
+    this.walkX = this.player.x;
+    this.walkY = this.player.y;
+    if (walked <= 3 && !dialogue.isOpen && !menu.isOpen) {
+      this.walkTiles += walked;
+      if (this.walkTiles >= WALK_TILES_PER_POINT) {
+        this.walkTiles -= WALK_TILES_PER_POINT;
+        this.services.state.wellbeingSource('walk', 1);
+      }
+    }
     if (time - this.dressedAt > 500) {
       this.dressedAt = time;
       this.dressForWork();
@@ -1072,8 +1165,24 @@ export class WorldScene extends Phaser.Scene {
       this.talkSprite = null;
     }
     // Junto a la hora se dice si corre: el mapa, un menú que no es «en vivo» y la lectura tras un salto lo paran; el móvil, no.
-    const stopped = map.isOpen || clock.isHeld || clock.isPaused || (menu.isOpen && !menu.isLive && !dialogue.isOpen);
+    const { attention } = this.services;
+    const stopped = map.isOpen || attention.isOpen || clock.isHeld || clock.isPaused || (menu.isOpen && !menu.isLive && !dialogue.isOpen);
     this.services.hud.setClockMode(stopped ? 'paused' : phone.isOpen ? 'phone' : 'running');
+
+    // VID-04 (ui/AttentionPanel): atendiendo a un cliente el mundo y el reloj esperan, como con un menú. Va antes que el
+    // mapa, el móvil y la pausa para que M, P o Esc no se le adelanten: ◀ ▶ eligen, E entrega y Esc lo deja.
+    if (attention.isOpen) {
+      this.player.halt();
+      this.prompt.setVisible(false);
+      this.services.hint.hide();
+      input.setContext({ action: null, back: false, busy: true });
+      attention.tick(delta);
+      if (this.pressedAny(['left', 'leftAlt', 'up', 'upAlt'])) attention.move(-1);
+      else if (this.pressedAny(['right', 'rightAlt', 'down', 'downAlt'])) attention.move(1);
+      else if (this.pressedAny(['interact', 'advance', 'advanceAlt'])) attention.deliverSelected();
+      else if (this.pressedAny(['cancel', 'cancelAlt'])) attention.cancel();
+      return;
+    }
 
     // El mapa es un modo de interfaz, como el menú: el jugador se para, nada responde a la E y el
     // mundo espera (ni reloj ni gente) hasta cerrarlo. M o Esc lo cierran; su botón, también.
@@ -1189,8 +1298,14 @@ export class WorldScene extends Phaser.Scene {
     // Lo que enseña la cámara: un atascado sólo se va fuera de ella (Traffic.update).
     const seen = this.cameras.main.worldView;
     const view = [seen.x, seen.right] as const;
+    // El presupuesto de vehículos es de los dos flujos juntos: cada uno puede llenar lo que el otro deja libre. Una plaza
+    // queda reservada para hail()/forceSpawn(), que no miran limit: con un taxi pedido, el total tampoco pasa del tope.
+    const vehicleBudget = BUDGETS[QUALITY.level].vehicles - 1;
+    if (this.traffic) this.traffic.limit = vehicleBudget - (this.bikes?.vehicles.length ?? 0);
     this.traffic?.update(delta, this.trafficClock(), this.pedestrians, view);
     this.trafficView?.sync(time);
+    // Después del update de los coches: con la cuenta de este frame, no con la de antes (si no, 17 + 8 = 25).
+    if (this.bikes) this.bikes.limit = vehicleBudget - (this.traffic?.vehicles.length ?? 0);
     this.bikes?.update(delta, this.trafficClock(), this.pedestrians, view);
     this.cyclistView?.sync();
     this.signals?.update(time);
@@ -1295,8 +1410,9 @@ export class WorldScene extends Phaser.Scene {
     // MAP-08: fuera, el chaparrón, la tormenta o la niebla frenan el paso; bajo techo, nada.
     const paceState = this.services.state;
     this.player.weatherPace = getLocation(paceState.locationId).kind === 'exterior' ? weatherEffects(weatherAt(paceState.day, paceState.hour + paceState.minute / 60)).walkPace : 1;
-    // Teclas y joystick, al mismo movimiento: las teclas por su lado y el stick, analógico.
-    this.player.move({
+    // Teclas y joystick, al mismo movimiento: las teclas por su lado y el stick, analógico. En bici, la física de systems/Cycling.
+    if (paceState.ride.phase !== 'ON_FOOT') this.rideFrame(delta);
+    else this.player.move({
       up: this.keyHeld('up') || this.keyHeld('upAlt'),
       down: this.keyHeld('down') || this.keyHeld('downAlt'),
       left: this.keyHeld('left') || this.keyHeld('leftAlt'),
@@ -1321,7 +1437,7 @@ export class WorldScene extends Phaser.Scene {
     const target = this.nearestInteractable();
     this.updatePrompt(target);
     const arriving = this.time.now < this.readyAt;
-    input.setContext({ action: arriving ? null : this.actionLabel(target), back: false, busy: false });
+    input.setContext({ action: arriving ? null : this.actionLabel(target), back: false, busy: false, riding: this.services.state.ride.phase !== 'ON_FOOT' });
 
     // Una sola cosa por pulsación: si algo abrió un diálogo o un menú en este mismo frame (un aviso del andén),
     // la pulsación se gasta sin abrir otro encima.
@@ -1474,6 +1590,8 @@ export class WorldScene extends Phaser.Scene {
       case 'npc': return this.vendorOf(target.sprite) ? 'Comprar' : 'Hablar';
       case 'portal': return target.portal.train ? 'Subir' : target.portal.id === 'transfer' ? 'Transbordar' : target.portal.label?.startsWith('Salir') ? 'Salir' : 'Entrar';
       case 'seat': return 'Sentarse';
+      case 'bike': return this.services.state.ride.phase !== 'ON_FOOT' ? 'Bajar' : 'Montar';
+      case 'dock': return this.dockReturns(target) ? 'Devolver bici' : `Coger bici (${euros(BIKE_SHARE_FARE)})`;
       case 'station': return 'Entrenar';
       case 'court': return 'Tirar a canasta';
       case 'pitch': return this.leagueMatchHere() ? 'Jugar el partido de la liga' : this.pitchIsOpen(target.pitch) ? 'Chutar penaltis' : 'Mirar';
@@ -1574,6 +1692,7 @@ export class WorldScene extends Phaser.Scene {
     const now = Math.floor(this.absMinute());
     if (now === this.phoneMinute) return;
     this.phoneMinute = now;
+    this.gatheringTick(now);
     const slot = Math.floor(now / INIT_SLOT);
     // Al llegar a la escena no se recuperan las franjas de antes: nadie escribe de golpe al cargar.
     if (this.phoneSlot < 0) this.phoneSlot = slot;
@@ -1584,6 +1703,24 @@ export class WorldScene extends Phaser.Scene {
     this.phoneSlot = slot;
     if (result.phone !== phone) this.applyPhone(result);
     if (fresh) this.storyPhone(now);
+  }
+
+  /** VID-05 · Una vez por minuto de juego, sólo si hay quedadas abiertas o en marcha (systems/HomeGathering.tickGatherings). */
+  private gatheringTick(now: number): void {
+    const { state } = this.services;
+    const events = state.socialEvents;
+    if (!events?.events.some((e) => e.status === 'open' || e.status === 'running')) return;
+    const stories: Record<string, NamedStory> = {};
+    for (const ev of events.events) for (const inv of ev.invited) {
+      const s = this.storyOf(inv.npc);
+      if (s) stories[inv.npc] = s;
+    }
+    const out = tickGatherings(events, stories, state.social, state.locationId, now, this.storyNow());
+    if (!out) return;
+    for (const [npc, story] of Object.entries(out.stories)) this.saveStory(npc, story);
+    for (const [npc, profile] of Object.entries(out.profiles)) state.setSocialProfile(npc, profile);
+    if (out.socialEvents !== events) state.setSocialEvents(out.socialEvents);
+    this.persistSoon();
   }
 
   /**
@@ -1650,9 +1787,10 @@ export class WorldScene extends Phaser.Scene {
       if (out) {
         this.saveStory(plan.npc, out.story);
         const p = def.plans[out.id];
-        text = out.day === plan.day
+        // Sitio no comparable: plan.place es un id de sitio y p.place, prosa de su historia; se comparan día y hora.
+        text = out.day === plan.day && p.from === plan.at
           ? `Hecho. Te espero ${whenLabel(out.day, today)} en ${p.place} a las ${p.from}: allí suelo estar.`
-          : `Cambio de planes: ${whenLabel(plan.day, today)} no me cuadra. Mejor ${whenLabel(out.day, today)} en ${p.place}, a las ${p.from}; allí suelo estar.`;
+          : `Cambio de planes: mejor ${whenLabel(out.day, today)} en ${p.place}, a las ${p.from}; allí suelo estar.`;
       } else if (story.plan?.status === 'pending') text = `Ya tenemos algo quedado: ${planSummary(story, def, today)}. Lo dejamos para entonces, ¿vale?`;
       else text = 'Esta semana no encuentro un hueco que nos cuadre a los dos. Propónmelo más adelante, ¿vale?';
       phone = postMessage(phone, plan.npc, 'them', text, now);
@@ -1667,6 +1805,7 @@ export class WorldScene extends Phaser.Scene {
   private sendPhone(npc: string, action: PhoneActionId): void {
     const { state } = this.services;
     const now = Math.floor(this.absMinute());
+    if (action === 'invite-home' || action === 'cancel-gathering') return this.phoneGathering(npc, action, now);
     // Cancelar por el móvil el plan quedado con su historia (una visita a casa): las mismas reglas que cancelar uno del móvil.
     if (action === 'cancel-plan' && !activePlan(state.phone, npc, now) && this.storyOf(npc)?.plan?.status === 'pending') {
       const profile = state.socialOf(npc);
@@ -1691,6 +1830,43 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.applyPhone(sendMessage(state.phone, state.socialOf(npc), npc, action, now, this.phoneEnv().status(npc, now)));
+  }
+
+  /** VID-05 · Invitar a casa o anular la quedada desde su hilo (systems/HomeGathering): contesta al momento, con hora. */
+  private phoneGathering(npc: string, action: 'invite-home' | 'cancel-gathering', now: number): void {
+    const { state } = this.services;
+    const events = state.socialEvents ?? emptySocialEvents();
+    const stories: Record<string, NamedStory> = {};
+    for (const ev of events.events) for (const inv of ev.invited) {
+      const s = this.storyOf(inv.npc);
+      if (s) stories[inv.npc] = s;
+    }
+    const own = this.storyOf(npc);
+    if (own) stories[npc] = own;
+    if (action === 'cancel-gathering') {
+      const ev = openGatheringOf(events, npc);
+      const out = ev ? cancelGathering(events, ev.id, stories, state.social, state.phone, this.storyNow(), now) : null;
+      if (!out) return;
+      for (const [who, story] of Object.entries(out.stories)) this.saveStory(who, story, out.profiles[who]);
+      state.setSocialEvents(out.socialEvents);
+      state.setPhone(out.phone);
+      this.services.phone.notify(npc, 'Quedada en casa anulada. Ya se lo has dicho.');
+      this.persistSoon();
+      return;
+    }
+    const home = HOMES.find((h) => h.id === state.housing.home);
+    if (!home) return;
+    const storyNow = this.storyNow();
+    const out = inviteHome({
+      npc, home, events, stories, profile: state.socialOf(npc), phone: state.phone, now: storyNow, at: now,
+      status: (abs) => this.phoneEnv().status(npc, abs).state,
+    });
+    const ask = `¿Te vienes a casa ${out.day ? whenLabel(out.day, storyNow.day) : 'un día de estos'}?${out.from ? ` A las ${out.from}.` : ''}`;
+    for (const [who, story] of Object.entries(out.stories)) this.saveStory(who, story);
+    if (out.socialEvents !== events) state.setSocialEvents(out.socialEvents);
+    state.setPhone(postMessage(postMessage(state.phone, npc, 'me', ask, now), npc, 'them', out.reply, now + 1), [{ npc, text: out.reply, plan: out.accept }]);
+    this.services.phone.notify(npc, out.reply);
+    this.persistSoon();
   }
 
   /** Lo que pasa en persona llega al móvil: lo aceptado (un café, una cita) es un plan, y un número dado se avisa. */
@@ -1779,13 +1955,23 @@ export class WorldScene extends Phaser.Scene {
     const def = STORIES[c.def.npc];
     const story = this.storyOf(c.def.npc);
     if (!def || story?.plan?.status !== 'pending') return;
-    const together = w.location === this.services.state.locationId && !w.inside && Math.hypot(w.tx - player.tx, w.ty - player.ty) <= 3;
+    const { locationId } = this.services.state;
+    const near = Math.hypot(w.tx - player.tx, w.ty - player.ty) <= 3;
+    // VID-05 · En una quedada basta con estar en casa en la franja (la misma regla que HomeGathering.gatheringFacts).
+    const together = w.location === locationId && !w.inside
+      && (near || playerInGathering(this.services.state.socialEvents, c.def.npc, locationId, Math.floor(this.absMinute())));
     const profile = this.services.state.socialOf(c.def.npc);
     const result = watchPlan(story, profile, def, this.storyNow(), together);
     if (!result) return;
     this.saveStory(c.def.npc, result.story, result.profile);
     this.persistSoon();
-    if (result.kept) this.storyQueue.push(() => this.storyLines(c.sprite, result.say));
+    const until = def.plans[story.plan.id]?.until;
+    if (!result.kept || !until) return;
+    const queued = { day: story.plan.day, until };
+    this.storyQueue.push(() => {
+      // Si la cola se vacía tarde (ya cerrada la quedada, otro día o ella en otro sitio), la frase se descarta.
+      if (planLineFresh(queued, this.storyNow(), c.now?.location === this.services.state.locationId)) this.storyLines(c.sprite, result.say);
+    });
   }
 
   /** Al cruzarse: si hoy le toca saludar primero, para al jugador ella. */
@@ -2005,22 +2191,47 @@ export class WorldScene extends Phaser.Scene {
    * también la salta). Se apunta en la partida al acabar o al saltarla, así que no vuelve; el texto sigue en el
    * móvil (Hoy). Con algo abierto, espera a la próxima vez que se entre en un sitio.
    */
-  private offerTour(step = 0): void {
+  private offerTour(): void {
     const { state, dialogue, menu } = this.services;
     if (state.agenda.tour !== 'new' || this.leaving) return;
-    if (step === 0 && (dialogue.isOpen || menu.isOpen || this.services.phone.isOpen || this.services.map.isOpen)) return;
+    if (dialogue.isOpen || menu.isOpen || this.services.phone.isOpen || this.services.map.isOpen) return;
     // Leer la guía no gasta el día: el reloj espera hasta acabarla o saltarla (al cambiar de sitio, create lo suelta).
     this.services.clock.setPaused(true);
+    if (state.agenda.guide) {
+      this.tourStep(0);
+      return;
+    }
+    // VID-12 · primero se elige, una vez por partida: con guía (los cuatro hitos, seguidos en Hoy) o a tu aire. Esc = libre.
+    const hitos = GUIDE.map((g, i) => `${i + 1}. ${g.title}.`).join(' ');
+    dialogue.ask('Tus primeros días',[`Puedes seguir cuatro hitos: ${hitos} Se ven en el móvil (P) → Hoy, y allí se puede retomar o dejar la guía.`], ['Empezar con guía', 'Explorar libremente'], (i) => {
+      const mode: GuideMode = i === 0 ? 'guided' : 'free';
+      const guide = { mode, chosenAt: Math.floor(this.absMinute()), baseRides: state.events.rides };
+      if (mode === 'free') {
+        this.services.clock.setPaused(false);
+        state.setAgenda({ ...state.agenda, tour: 'skipped', guide });
+        this.persist();
+        return;
+      }
+      state.setAgenda({ ...state.agenda, guide });
+      this.persist();
+      this.tourStep(0);
+    }, 1);
+  }
+
+  /** Un paso de TOUR; «Saltar la guía» deja la guía en 'skipped' (se retoma desde Hoy). */
+  private tourStep(step: number): void {
+    const { state, dialogue } = this.services;
     const finish = (tour: 'done' | 'skipped'): void => {
       this.services.clock.setPaused(false);
-      state.setAgenda({ ...state.agenda, tour });
+      const a = state.agenda;
+      state.setAgenda(tour === 'skipped' && a.guide ? { ...a, tour, guide: { ...a.guide, mode: 'skipped' } } : { ...a, tour });
       this.persist();
     };
     const last = step === TOUR.length - 1;
     const s = TOUR[step];
     dialogue.ask(`Guía ${step + 1}/${TOUR.length} · ${s.title}`, [s.text], last ? ['Empezar'] : ['Siguiente', 'Saltar la guía'], (i) => {
       if (last) finish('done');
-      else if (i === 0) this.offerTour(step + 1);
+      else if (i === 0) this.tourStep(step + 1);
       else finish('skipped');
     }, last ? 0 : 1);
   }
@@ -2523,6 +2734,7 @@ export class WorldScene extends Phaser.Scene {
     state.fitness = { ...state.fitness, fatigue: Math.min(100, state.fitness.fatigue + 5), fights: { ...state.fitness.fights, [s.style]: record },
       ...(r ? { tournaments: { ...state.fitness.tournaments, [s.style]: r.entry } } : {}) };
     state.energy = Math.max(0, state.energy - s.bout.p.energy);
+    if (!abandoned) this.relieveSport();
     if (r?.prize && hasTournament(s.style)) state.as('Premio · ' + TOURNAMENTS[s.style].name, () => { state.money += r.prize; });
     // MMA: sube sólo lo que se practicó de verdad en el ejercicio (también si se abandona: lo hecho, hecho está).
     const t = s.bout.p.tech;
@@ -2755,6 +2967,7 @@ export class WorldScene extends Phaser.Scene {
     const { state } = this.services;
     const s = summarize(k.drill);
     const out = train(state.fitness, w.station, 'normal', s.accuracy, this.absMinute(), state.day, state.energy);
+    if (s.done >= 1) this.relieveSport();
     if (k.drill.set === 'punches') {
       // El saco (Doble Guardia): técnica de boxeo, forma y energía de los golpes dados; sin cinturones.
       state.fitness = out.next;
@@ -2870,6 +3083,7 @@ export class WorldScene extends Phaser.Scene {
     const out = train(state.fitness, w.station, w.intensity, Math.min(1, Math.max(0, fraction)), this.absMinute(), state.day, state.energy);
     state.fitness = out.next;
     state.energy = state.energy - out.energy;
+    if (fraction >= 0.99) this.relieveSport();
     const mates = fraction >= 0.5 ? this.classmates(w) : [];
     this.persist();
     if (fraction < 0.25) return ['Lo dejas por hoy.'];
@@ -3419,6 +3633,8 @@ export class WorldScene extends Phaser.Scene {
       case 'portal': return `portal:${item.portal.id}@${at}`;
       case 'rack': return `rack:${item.rack.name}@${at}`;
       case 'seat': return `seat:${item.seat.id}`;
+      case 'bike': return `bike:${item.id}`;
+      case 'dock': return `dock:${item.dock.id}`;
       case 'station': return `station:${item.point}`;
       case 'event': return `event:${item.view.def.id}`;
       case 'emergency': return `emergency:${item.view.def.id}`;
@@ -3433,6 +3649,7 @@ export class WorldScene extends Phaser.Scene {
   private nearestInteractable(): Interactable | null {
     const origin = { x: this.player.x, y: this.player.y - 8 };
     const loc = getLocation(this.services.state.locationId);
+    const riding = this.services.state.ride.phase !== 'ON_FOOT';
 
     // Un evento de calle se ofrece cuando ya lo tienes delante, sin marca que lo anuncie de lejos: en su
     // mirador (StreetEventDef.vantage), no pegado al jugador; dentro del patio mandan las cajas y la gente.
@@ -3458,6 +3675,8 @@ export class WorldScene extends Phaser.Scene {
     if (own) vendors.push({ kind: 'inspect', x: (own.tx + 1) * TILE, y: own.ty * TILE + TILE / 2, name: 'Tu puesto', lines: [], own: true });
     const cands = [...this.interactables, ...this.crowdInteractables(), ...events, ...vendors]
       // Un asiento ocupado no se ofrece; las puertas del tren, sólo con las puertas abiertas; un NPC oculto, no existe.
+      // BIKE-01 · montado, sólo las puertas (travel decide si se cruza en bici); sin puerta cerca, bajarse (abajo).
+      .filter((item) => !(riding && item.kind !== 'portal' && !(item.kind === 'dock' && this.dockReturns(item))))
       .filter((item) => !(item.kind === 'seat' && this.seatTaken(item.seat)) && !(item.kind === 'portal' && item.portal.train && !this.metro?.train.doorsOpen) && !(item.kind === 'npc' && !item.sprite.visible))
       .map(wrap);
     const ahead = tileAhead(this.playerTile(), this.player.facing);
@@ -3471,7 +3690,8 @@ export class WorldScene extends Phaser.Scene {
       allow: (c) => !(this.player.isSeating && c.kind !== 'npc'),
       blocked: (c) => wallBetween(loc, origin, c),
     });
-    return best?.item ?? null;
+    const rideId = this.services.state.ride.bikeId;
+    return best?.item ?? (riding && rideId ? { kind: 'bike', x: this.player.x, y: this.player.y - 8, id: rideId } : null);
   }
 
   private updatePrompt(target: Interactable | null): void {
@@ -3493,6 +3713,8 @@ export class WorldScene extends Phaser.Scene {
       : target.kind === 'event' || target.kind === 'emergency' ? target.view.def.name
       : target.kind === 'npc' ? target.def.name
       : target.kind === 'seat' ? `Sentarse · ${target.seat.def.name}`
+      : target.kind === 'bike' ? (this.time.now < this.rideNoteUntil ? this.rideNote : this.services.state.ride.phase !== 'ON_FOOT' ? 'Bajar de la bici' : 'Montar en bicicleta')
+      : target.kind === 'dock' ? (this.time.now < this.rideNoteUntil ? this.rideNote : `${target.dock.label} · ${this.dockReturns(target) ? 'Devolver bici' : `Coger bici (${euros(BIKE_SHARE_FARE)})`}`)
       : target.kind === 'court' ? `Tirar a canasta · ${target.spot.label}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
       : target.kind === 'pitch' ? ((lm) => (lm ? `Liga del barrio · ${lm.team} contra ${lm.rival}` : this.pitchIsOpen(target.pitch) ? 'Penaltis · sábados 10–13' : 'Penaltis · cerrado hasta el sábado a las 10'))(this.leagueMatchHere())
       : target.kind === 'station' ? `Entrenar · ${STATIONS[target.station].name}${this.stationBusy(target.point) ? ' · ocupada' : ''}`
@@ -3532,7 +3754,21 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  private interact(target: Interactable): void {
+  /** `shopOnly`: ya se ofreció el reparto en este mostrador (VID-10) y se eligió «Comprar». */
+  private interact(target: Interactable, shopOnly = false): void {
+    if (target.kind === 'bike') {
+      const { state } = this.services;
+      if (state.ride.phase !== 'ON_FOOT') this.dismountBike();
+      else {
+        const bike = state.bikes.list.find((b) => b.id === target.id);
+        if (bike) this.mountBike(bike);
+      }
+      return;
+    }
+    if (target.kind === 'dock') {
+      this.useDock(target);
+      return;
+    }
     if (target.kind === 'seat') {
       this.sitDown(target.seat);
       return;
@@ -3573,6 +3809,8 @@ export class WorldScene extends Phaser.Scene {
       else this.menus.openCatalog(target.name, target.catalog, '', 0, undefined, { closed: () => this.stallClosed(target)?.[0] ?? null });
       return;
     }
+    // VID-10 · el mostrador del origen o del destino del encargo vivo ofrece el reparto (y «Comprar», que vuelve aquí).
+    if (target.kind === 'terminal' && !shopOnly && this.menus.openDeliveryCounter(target.name, target.catalog, () => this.interact(target, true))) return;
     // Negocio cerrado (con el jugador aún dentro, o el mostrador de la calle): ni se compra ni se pide nada nuevo.
     const shut = this.shutFor(target);
     if (shut) {
@@ -3599,27 +3837,35 @@ export class WorldScene extends Phaser.Scene {
       const offer = this.offerOf(target.sprite);
       const survivor = this.survivorOf(target.sprite);
       const officer = this.officerOf(target.sprite);
+      // VID-03 F4 · personal con nombre (Nati en la barbería): una microhistoria pendiente va antes que su menú.
+      const micro = offer ? this.services.state.microOffer(target.def.id) : null;
       if (offer) {
         const sprite = target.sprite;
         // DEC-01 · el personal de sala contesta desde donde está y se gira hacia lo que indica (Menus.openStoreDesk).
         const agent = sprite instanceof Character ? this.crowdViews.map((v) => v.agentOf(sprite)).find((a) => a !== undefined) : undefined;
         // DEC-05 · cómo estaba antes de pararse a hablar (startTalk lo detiene): de camino, cobrando, reponiendo o libre.
         const staffNow = staffState(agent?.staffRole, agent, this.crowd?.agents ?? []);
-        // Quien atiende se vuelve hacia el jugador mientras dura su menú (lo suelta el bucle al cerrarse).
         this.startTalk(target.sprite);
         this.offerTalk = true;
-        // CV-08A · en una manta, el menú vale mientras el puesto siga montado: si recoge o se va, ya no cobra.
-        const stall = this.vendorOf(sprite) ? { closed: (): string | null => (this.vendorOf(sprite) ? null : 'Está recogiendo: ya no vende.') } : undefined;
-        const staff = agent?.staffRole && sprite instanceof Character ? {
-          tile: { tx: Math.round(agent.x), ty: Math.round(agent.y) },
-          role: agent.staffRole,
-          state: staffNow,
-          face: (to: Facing): void => {
-            sprite.talkingTo = to;
-            for (const view of this.crowdViews) view.sync(this.time.now);
-          },
-        } : undefined;
-        this.menus.openOffer(offer, target.def.name, '', 0, stall, staff);
+        // Quien ofrece algo se vuelve hacia el jugador mientras pregunta o muestra su menú; lo suelta el bucle al cerrarse todo.
+        const openStaffMenu = (): void => {
+          // CV-08A · en una manta, el menú vale mientras el puesto siga montado: si recoge o se va, ya no cobra.
+          const stall = this.vendorOf(sprite) ? { closed: (): string | null => (this.vendorOf(sprite) ? null : 'Está recogiendo: ya no vende.') } : undefined;
+          const staff = agent?.staffRole && sprite instanceof Character ? {
+            tile: { tx: Math.round(agent.x), ty: Math.round(agent.y) },
+            role: agent.staffRole,
+            state: staffNow,
+            face: (to: Facing): void => {
+              sprite.talkingTo = to;
+              for (const view of this.crowdViews) view.sync(this.time.now);
+            },
+          } : undefined;
+          // VID-03 F4 · la respuesta de hoy a una microhistoria, como nota del menú.
+          this.menus.openOffer(offer, target.def.name, this.services.state.microLine(target.def.id) ?? '', 0, stall, staff);
+        };
+        // VID-03 · con una microhistoria pendiente, va antes; «Ahora no» (o Esc) abre el menú de siempre.
+        if (micro) this.askMicroStory(target.def.name, micro, openStaffMenu);
+        else openStaffMenu();
       }
       else if (officer) {
         // Un agente de patrulla: saludo, cómo está la calle ahora y el robo de hoy si lo hay (systems/Police). No charla.
@@ -3635,8 +3881,78 @@ export class WorldScene extends Phaser.Scene {
       } else {
         const talk = this.conversationWith(target.sprite);
         this.startTalk(target.sprite);
-        if (talk) this.say(target.def.name, target.sprite, talk, talk.open(), target.def.id);
-        else this.openDialogue(target.def.name, target.lines?.() ?? target.def.lines);
+        // VID-02 F3 · una vez al día, quien tiene arista en el grafo social habla de su compañero en lugar del saludo.
+        const { state } = this.services;
+        // VID-03 F4 · una microhistoria pendiente con esta persona va antes que la línea social (y no la gasta).
+        const name = target.def.name;
+        const npcId = target.def.id;
+        const sprite = target.sprite;
+        const fallback = target.lines?.() ?? target.def.lines;
+        const chat = (): void => {
+          const offer = state.microOffer(npcId);
+          const storyLine = offer ? null : state.microLine(npcId);
+          const graph = state.socialGraph;
+          const social = !offer && !storyLine && graph ? socialLineFor(graph, npcId, state.day) : null;
+          if (offer) this.askMicroStory(name, offer);
+          else if (storyLine) this.openDialogue(name, [storyLine]);
+          else if (social) {
+            state.setSocialGraph(social.state);
+            this.openDialogue(name, [social.line]);
+          } else if (talk) this.say(name, sprite, talk, this.tenseOpening(talk.open(), npcId), npcId);
+          else this.openDialogue(name, fallback);
+        };
+        // VID-06 · el paquete que te dejaron en el portal para esta persona o la compra que le prometiste
+        // (systems/Neighborhood): dárselo, subírsela o charlar. Sin nada pendiente, quizá te pide un favor.
+        const hood0 = state.neighborhood;
+        const pkgFor = canDeliverTo(hood0, npcId);
+        const favFor = favorFor(hood0, npcId)?.status === 'accepted';
+        if (pkgFor || favFor) {
+          const acts: Array<'pkg' | 'fav'> = [...(pkgFor ? ['pkg' as const] : []), ...(favFor ? ['fav' as const] : [])];
+          const labels = acts.map((a) => (a === 'pkg' ? 'Darle el paquete' : `Subirle la compra (${FAVOR_MINUTES} min)`));
+          this.services.dialogue.ask(name, ['¿Qué tal?'], [...labels, 'Charlar'], (i) => {
+            const hood = state.neighborhood;
+            const act = acts[i];
+            if (!act || !hood) {
+              chat();
+              return;
+            }
+            if (act === 'pkg') {
+              const r = deliverPackage(hood, npcId, state.day);
+              state.setNeighborhood(r.state);
+              state.applyNeighborEffects(r.effects);
+              this.persist();
+              this.startTalk(sprite);
+              this.openDialogue(name, ['¡Mi paquete! Gracias por guardármelo.']);
+              return;
+            }
+            const r = resolveFavor(hood, npcId, state.day);
+            if (r.minutes === 0) {
+              chat();
+              return;
+            }
+            state.setNeighborhood(r.state);
+            state.applyNeighborEffects(r.effects);
+            this.services.clock.advanceMinutes(r.minutes);
+            this.persist();
+            this.startTalk(sprite);
+            this.openDialogue(name, ['Gracias, de verdad. Te debo una.']);
+          });
+        } else if (!favorFor(hood0, npcId) && favorOfferFor(hood0 ?? emptyNeighborhood(), npcId, state.day, state.neighborCandidates().filter((n) => state.socialOf(n).encounters > 0))) {
+          this.services.dialogue.ask(
+            name,
+            ['Oye, ¿me harías un favor? Me han dejado la compra abajo y voy con las manos llenas… ¿me la subes luego?'],
+            ['Vale, luego te la subo', 'Hoy no puedo'],
+            (i) => {
+              const offered = offerFavor(state.neighborhood ?? emptyNeighborhood(), npcId, state.day).state;
+              const r = i === 0 ? acceptFavor(offered, npcId, state.day) : declineFavor(offered, npcId, state.day);
+              state.setNeighborhood(r.state);
+              this.persist();
+              this.startTalk(sprite);
+              chat();
+            },
+            1,
+          );
+        } else chat();
       }
     }
     else if (target.board) this.menus.openBoard(this.services.state.locationId, target.board.tx, target.board.ty);
@@ -3798,6 +4114,23 @@ export class WorldScene extends Phaser.Scene {
 
   private openDialogue(speaker: string, lines: readonly string[]): void {
     this.services.dialogue.start(speaker, lines);
+  }
+
+  /**
+   * VID-03 F4 · la microhistoria pendiente: elegibles como opciones y «Ahora no» (cancelar, no la gasta). ask no tiene
+   * opciones deshabilitadas, así que las bloqueadas no salen y su motivo va en una línea. `onLater`: lo que sigue a
+   * «Ahora no» (el menú del personal); sin él, cierra.
+   */
+  private askMicroStory(name: string, offer: NonNullable<ReturnType<Services['state']['microOffer']>>, onLater?: () => void): void {
+    const open = offer.options.filter((o) => o.blocked === null);
+    const blocked = offer.options.filter((o) => o.blocked !== null).map((o) => `(${o.label}: ${o.blocked})`);
+    this.services.dialogue.ask(name, [offer.pitch, ...(blocked.length ? [blocked.join(' ')] : [])], [...open.map((o) => o.label), 'Ahora no'], (i) => {
+      if (i >= open.length) {
+        onLater?.();
+        return;
+      }
+      this.openDialogue(name, [this.services.state.chooseStory(offer.storyId, open[i].id).message]);
+    }, open.length);
   }
 
   /**
@@ -4144,6 +4477,10 @@ export class WorldScene extends Phaser.Scene {
 
     // Un regalo de la bolsa (systems/Gifts), a alguien con nombre: una opción más, al final.
     const gifts = namedId && NAMED_VOICES[namedId] ? giftsIn(this.services.state.wallet) : [];
+    // VID-09: con un plato casero en la bolsa y ella contigo en la quedada de tu casa (systems/HomeGathering).
+    const meal = !!namedId && !!NAMED_VOICES[namedId] && (this.services.state.wallet.inventory[MEAL] ?? 0) > 0
+      && playerInGathering(this.services.state.socialEvents, namedId, this.services.state.locationId, Math.floor(this.absMinute()));
+    const extras = [...(gifts.length ? ['Dar un regalo'] : []), ...(meal ? ['Compartir comida'] : [])];
 
     dialogue.ask(
       speaker,
@@ -4154,11 +4491,12 @@ export class WorldScene extends Phaser.Scene {
         ),
       ],
 
-      [...turn.options.map((o) => o.label), ...(gifts.length ? ['Dar un regalo'] : [])],
+      [...turn.options.map((o) => o.label), ...extras],
 
       (i) => {
         if (i >= turn.options.length) {
-          this.offerGift(speaker, sprite, talk, namedId!);
+          if (extras[i - turn.options.length] === 'Compartir comida') this.offerMeal(speaker, sprite, talk, namedId!);
+          else this.offerGift(speaker, sprite, talk, namedId!);
           return;
         }
         /*
@@ -4239,6 +4577,36 @@ export class WorldScene extends Phaser.Scene {
       }
       dialogue.start(speaker, r.ok ? [r.message, '¿Para mí? No hacía falta... Gracias, de verdad. Me lo quedo.'] : [r.message]);
     }, gifts.length);
+  }
+
+  /** VID-09 · Compartir comida (systems/Gifts.shareMeal), con el mismo cierre de charla que el regalo. */
+  private offerMeal(speaker: string, sprite: Phaser.GameObjects.Sprite, talk: Conversation, id: string): void {
+    const { state, dialogue } = this.services;
+    this.noteMeeting(talk, id);
+    this.startTalk(sprite);
+    this.chatEnd = () => dialogue.close();
+    const blocked = mealBlocker(state.socialOf(id), state.wallet, state.day);
+    if (blocked) {
+      dialogue.start(speaker, [blocked]);
+      return;
+    }
+    const n = state.wallet.inventory[MEAL] ?? 0;
+    const ask = n >= 2 ? `Llevas ${n} platos caseros. ¿Coméis juntos? (uno para cada uno)` : 'Llevas un plato casero. ¿Se lo das?';
+    let done = false;
+    dialogue.ask(speaker, [ask], ['Compartir', 'Ahora no'], (i) => {
+      this.startTalk(sprite);
+      if (i !== 0 || done) return;
+      done = true;
+      // Se revalida al aplicar: pudo cambiar la bolsa o el día mientras se elegía.
+      const r = shareMeal(state.socialOf(id), state.wallet, { day: state.day, hour: state.hour, minute: state.minute });
+      if (r.ok) {
+        state.wallet = r.wallet;
+        state.energy += r.energy;
+        state.setSocialProfile(id, r.profile);
+        this.persist();
+      }
+      dialogue.start(speaker, r.lines);
+    }, 1);
   }
 
   /**
@@ -4408,7 +4776,25 @@ export class WorldScene extends Phaser.Scene {
       named.sprite,
     );
 
+    // VID-07: charlar con alguien conocido y que no te tiene mala cara (ánimo neutro o mejor) relaja; una vez por NPC y día (Wellbeing).
+    if (base.encounters > 0 && next.mood >= 50) state.wellbeingSource('social', SOCIAL_RELIEF, id);
+
     this.persist();
+  }
+
+  /** VID-07: con mucha tensión, quien te conoce lo nota al abrir la charla; una vez por NPC y día (en memoria, no se guarda). */
+  private tenseOpening(turn: ChatTurn, npc: string): ChatTurn {
+    const { state } = this.services;
+    if (tensionBand(state.wellbeing) !== 'tense') return turn;
+    const key = `${state.day}:${npc}`;
+    if (this.tenseNoticed.has(key)) return turn;
+    this.tenseNoticed.add(key);
+    return { ...turn, lines: ['Pareces con mucha cosa encima hoy.', ...turn.lines] };
+  }
+
+  /** VID-07: una sesión de deporte terminada de verdad baja la tensión (tope diario en Wellbeing). */
+  private relieveSport(): void {
+    this.services.state.wellbeingSource('sport', SPORT_RELIEF);
   }
 
   /**
@@ -4493,9 +4879,190 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  // --- BIKE-01 · la bici del jugador (systems/Cycling) ---
+
+  /** Las bicis aparcadas de aquí, una imagen por bici (se rehace con la escena). */
+  private readonly bikeViews = new Map<string, Phaser.GameObjects.Image>();
+  /** Energía gastada pedaleando aún sin aplicar: se descuenta a state.energy en bloques de 0,1, no cada frame. */
+  private rideEnergy = 0;
+  /** Una nota breve en la pista («Frena antes de bajarte»), hasta `rideNoteUntil`. */
+  private rideNote = '';
+  private rideNoteUntil = 0;
+
+  /**
+   * El jugador en bici, con su ropa y su complexión (como a pie: withAppearance + buildOf) y casco.
+   * ponytail: los colores se fijan al montar; cambiarse de ropa montado no repinta hasta volver a montar.
+   */
+  private riderLookOf(b: RideSys.BikeState): BikeRiderLook {
+    const { state } = this.services;
+    const base = BIKES.find((t) => t.frame === b.frame) ?? BIKES[0];
+    const hex = `#${b.color.toString(16).padStart(6, '0')}`;
+    // Con turno de reparto activo: de uniforme y con la caja térmica, como las bicis de reparto de data/bikes.ts ('courier').
+    const uniform = state.delivery?.active?.shift ? UNIFORM_LOOKS.find((l) => l.id === 'uniforme-reparto') : undefined;
+    const courier = BIKES.find((t) => t.id === 'courier');
+    if (uniform && courier) {
+      return { look: uniform, bike: { ...courier, frame: b.frame, id: `own-${b.frame}-${hex.slice(1)}-reparto`, colors: [hex] }, color: 0, helmet: true, pack: false };
+    }
+    const colors = { ...withAppearance(PLAYER_COLORS, state.appearanceOf('player')), build: buildOf(state.fitness) };
+    // Sin la cesta de mimbre de la 'casual' de los NPC (de la que sale `base`): sobre el pecho y delante del manillar se leía como una bolsa.
+    return { look: PASSENGER_LOOKS[0], colors, bike: { ...base, basket: false, id: `own-${b.frame}-${hex.slice(1)}`, colors: [hex] }, color: 0, helmet: true, pack: false };
+  }
+
+  private showBike(b: RideSys.BikeState): void {
+    const img = this.bikeViews.get(b.id) ?? this.add.image(0, 0, parkedBikeTexture(this, b.color)).setOrigin(0.5, 1);
+    this.bikeViews.set(b.id, img);
+    // Profundidad por y, como los props: se pasa por detrás si se está más arriba.
+    img.setPosition(Math.round(b.x), Math.round(b.y)).setFlipX(b.facing === 'left').setDepth(b.y).setVisible(true);
+    // Se monta la tuya o la de la empresa: esas se ofrecen como cualquier otra cosa (nearestInteractable → pickTarget).
+    this.dropBikeTarget(b.id);
+    // La pública aparcada fuera de estación sigue siendo tu alquiler: se vuelve a montar sin pagar.
+    if (b.owner === 'player' || b.owner === 'company' || b.owner === 'public') this.interactables.push({ kind: 'bike', x: b.x, y: b.y - TILE / 2, id: b.id });
+  }
+
+  /** Las bicis aparcadas aquí, otra vez desde state.bikes: quita las que ya no están (la de empresa recogida) y pinta las nuevas. */
+  private syncBikes(): void {
+    const { state } = this.services;
+    const here = (id: string): boolean => state.bikes.list.some((b) => b.id === id && b.location === state.locationId && b.status === 'parked');
+    for (const [id, img] of this.bikeViews) {
+      if (here(id) || state.bikes.list.some((b) => b.id === id && b.status === 'ridden')) continue;
+      img.destroy();
+      this.bikeViews.delete(id);
+      this.dropBikeTarget(id);
+    }
+    for (const b of state.bikes.list) if (b.location === state.locationId && b.status === 'parked') this.showBike(b);
+  }
+
+  private dropBikeTarget(id: string): void {
+    this.interactables = this.interactables.filter((t) => !(t.kind === 'bike' && t.id === id));
+  }
+
+  private noteRide(text: string): void {
+    this.rideNote = text;
+    this.rideNoteUntil = this.time.now + 1_800;
+  }
+
+  /** Por la calzada (tiles ROADWAY), o un sitio sin carriles de coches ni de bicis: a toda velocidad; si no, la de la acera. */
+  private onRoadHere(): boolean {
+    const lanes = (this.traffic?.lanes.length ?? 0) + (this.bikes?.lanes.length ?? 0);
+    if (lanes === 0) return true;
+    const loc = getLocation(this.services.state.locationId);
+    const tx = Math.floor(this.player.x / TILE);
+    const ty = Math.floor((this.player.y - 1) / TILE);
+    return BIKE_ROADWAY.has(loc.ground[ty]?.[tx] ?? '');
+  }
+
+  private mountBike(b: RideSys.BikeState): void {
+    const { state } = this.services;
+    const blocked = companyBikeBlocker(b, state.delivery);
+    if (blocked) { this.noteRide(blocked); return; }
+    const r = RideSys.mount(state.ride, b, this.time.now);
+    if (!r.ok) { this.noteRide(r.reason); return; }
+    state.ride = r.ride;
+    state.setBikes({ v: 1, list: state.bikes.list.map((x) => (x.id === b.id ? r.bike : x)) });
+    this.player.setRiding(true, this.riderLookOf(r.bike));
+    this.bikeViews.get(b.id)?.setVisible(false);
+    this.dropBikeTarget(b.id);
+  }
+
+  /** Con la pública: montado en ella, o aparcada a ≤1 tile de esta estación. Entonces la estación la recoge. */
+  private dockReturns(t: Extract<Interactable, { kind: 'dock' }>): boolean {
+    const { state } = this.services;
+    const pub = RideSys.publicBike(state.bikes);
+    if (!pub) return false;
+    if (state.ride.phase !== 'ON_FOOT') return state.ride.bikeId === pub.id;
+    const tile = (x: number, y: number): [number, number] => [Math.floor(x / TILE), Math.floor((y - 1) / TILE)];
+    const [ax, ay] = tile(pub.x, pub.y);
+    const [bx, by] = tile(t.spot.x, t.spot.y);
+    return pub.status === 'parked' && pub.location === t.spot.location && Math.abs(ax - bx) <= 1 && Math.abs(ay - by) <= 1;
+  }
+
+  /** Coger (cobra BIKE_SHARE_FARE y se monta ya) o devolver la pública (sin dinero; montado, primero se baja). */
+  private useDock(t: Extract<Interactable, { kind: 'dock' }>): void {
+    const { state } = this.services;
+    if (this.dockReturns(t)) {
+      if (state.ride.phase !== 'ON_FOOT') this.dismountBike();
+      const pub = RideSys.publicBike(state.bikes);
+      if (!pub || pub.status !== 'parked') return; // no se ha podido bajar (iba rápido): ya lo dice la nota
+      state.setBikes(RideSys.returnPublicBike(state.bikes, pub.id));
+      this.syncBikes();
+      this.noteRide('Devuelves la bici en la estación.');
+      return;
+    }
+    const riding = state.ride.phase !== 'ON_FOOT';
+    const blocked = RideSys.rentBlocker(state.bikes, state.money, BIKE_SHARE_FARE, !!state.delivery?.active?.shift, riding);
+    if (blocked) { this.noteRide(blocked); return; }
+    const id = RideSys.nextPublicBikeId(state.ledger, state.absMinute());
+    if (!state.rentPublicBike(id, t.spot)) { this.noteRide('No se ha podido alquilar la bici.'); return; }
+    const bike = state.bikes.list.find((b) => b.id === id);
+    if (bike) this.mountBike(bike);
+  }
+
+  private dismountBike(): void {
+    const { state } = this.services;
+    const b = state.bikes.list.find((x) => x.id === state.ride.bikeId);
+    if (!b) {
+      state.ride = RideSys.onFoot();
+      this.player.setRiding(false);
+      return;
+    }
+    const r = RideSys.dismount(state.ride, b, { location: state.locationId, x: this.player.x, y: this.player.y, facing: this.player.facing }, this.time.now);
+    state.ride = r.ride;
+    if (!r.ok) { this.noteRide(r.reason); return; }
+    state.setBikes({ v: 1, list: state.bikes.list.map((x) => (x.id === b.id ? r.bike : x)) });
+    this.player.setRiding(false);
+    // Turno terminado y bajado junto al bikePoint: la bici de empresa se devuelve y desaparece.
+    if (returnsCompanyBike(r.bike, state.delivery)) {
+      state.setBikes(RideSys.returnCompanyBike(state.bikes, r.bike.id));
+      this.syncBikes();
+      this.noteRide('Devuelves la bici de la empresa.');
+      return;
+    }
+    this.showBike(r.bike);
+  }
+
+  /** Montado, cada frame: cierra las fases de subir y bajar, y pedalea con teclas o stick; Espacio frena. */
+  private rideFrame(delta: number): void {
+    const { state, input } = this.services;
+    state.ride = RideSys.tick(state.ride, this.time.now);
+    const phase = state.ride.phase;
+    if (phase === 'ON_FOOT' || phase === 'MOUNTING' || phase === 'DISMOUNTING') {
+      this.player.halt();
+      return;
+    }
+    let x = (this.held('right') || this.held('rightAlt') ? 1 : 0) - (this.held('left') || this.held('leftAlt') ? 1 : 0);
+    let y = (this.held('down') || this.held('downAlt') ? 1 : 0) - (this.held('up') || this.held('upAlt') ? 1 : 0);
+    const stick = input.stick;
+    if (x === 0 && y === 0 && stick) { x = stick.x; y = stick.y; }
+    // Contra una pared, un mueble o una fachada en la dirección de la marcha: se para en seco (el cuerpo es el de a pie).
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    let ride = state.ride;
+    const h = ride.heading;
+    if ((h.x > 0 && body.blocked.right) || (h.x < 0 && body.blocked.left) || (h.y > 0 && body.blocked.down) || (h.y < 0 && body.blocked.up)) ride = { ...ride, speed: 0 };
+    const r = RideSys.step(ride, { x, y, brake: this.held('advance') }, delta, { energy: state.energy, onRoad: this.onRoadHere() });
+    state.ride = r.ride;
+    this.rideEnergy += r.energyCost;
+    if (this.rideEnergy >= 0.1) {
+      const chunk = Math.floor(this.rideEnergy * 10) / 10;
+      this.rideEnergy -= chunk;
+      state.energy = Math.max(0, state.energy - chunk);
+    }
+    const d = r.ride.heading;
+    const facing: Facing = d.x === 0 && d.y === 0 ? this.player.facing : Math.abs(d.x) >= Math.abs(d.y) ? (d.x > 0 ? 'right' : 'left') : d.y > 0 ? 'down' : 'up';
+    this.player.ride(r.vx, r.vy, facing, r.ride.speed / RIDE_CFG.MAX_SPEED);
+  }
+
   private travel(portal: PortalDef): void {
     if (this.leaving) return;
     this.player.halt();
+    // BIKE-01 · en bici sólo se cruza de exterior a exterior y nunca por el metro (systems/Cycling.canRideThrough).
+    if (this.services.state.ride.phase !== 'ON_FOOT') {
+      const here = getLocation(this.services.state.locationId);
+      const dest = portal.offMap ? null : getLocation(portal.to.location);
+      if (!dest || !RideSys.canRideThrough(here.kind, dest.kind, !!portal.train || !!here.metro || !!dest.metro)) {
+        this.openDialogue('Bici', ['Aparca la bici antes de entrar.']);
+        return;
+      }
+    }
 
     // Salir a un sitio sin mapa (el aparcamiento de Decathlon): su menú, con el metro de vuelta (scenes/Menus.leaveTo).
     if (portal.offMap) {
@@ -4560,7 +5127,22 @@ export class WorldScene extends Phaser.Scene {
     const via = this.cameIn;
     const spawn = via && via.into === here && via.from === portal.to.location && getLocation(via.from).spawns[via.door] ? via.door : portal.to.spawn;
     this.cameIn = { from: here, door: portal.id, into: portal.to.location };
+    // Aún en el origen: si sales de tu vivienda, recoges el paquete al pasar por el portal (go guarda).
+    this.pendingNotice = this.collectDoorPackage();
     this.go(portal.to.location, spawn, false, portal.minutes ?? 0);
+  }
+
+  /** VID-06 · al estar en tu vivienda (llegues por donde llegues) recoges el paquete del portal; devuelve el aviso. */
+  private collectDoorPackage(): string | null {
+    const { state } = this.services;
+    const hood = state.neighborhood;
+    if (!hood || state.locationId !== getHome(state.housing.home).location) return null;
+    const waiting = pendingPackage(hood);
+    if (!waiting) return null;
+    const r = pickUpPackage(hood, state.day);
+    if (r.state === hood) return null;
+    state.setNeighborhood(r.state);
+    return `El repartidor ha dejado en tu portal un paquete para ${getNpc(waiting.recipient).name}. Tienes hasta el ${formatDate(waiting.deadlineDay)}.`;
   }
 
   /**
@@ -4645,6 +5227,9 @@ export class WorldScene extends Phaser.Scene {
     state.position.x = position.x;
     state.position.y = position.y;
     state.facing = spawn.facing;
+    // BIKE-01 · cruzando en bici (travel ya lo permitió), la bici va con el jugador a la llegada.
+    const rideId = state.ride.phase !== 'ON_FOOT' ? state.ride.bikeId : undefined;
+    if (rideId) state.setBikes(RideSys.moveBike(state.bikes, rideId, target.id, position.x, position.y));
     // Los observadores de medianoche también guardan: deben ver ya el destino y la tarifa confirmados.
     if (minutes) this.services.clock.advanceMinutes(minutes);
     this.persist();

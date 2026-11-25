@@ -406,6 +406,8 @@ const POINTS: Readonly<Record<string, PointDef>> = {
   CORNER_BAR_SMOKE_01: p(104, 18, 'meet', 'right'), CORNER_BAR_SMOKE_02: p(108, 18, 'meet', 'left'),
   // Delante del metro: quien ha quedado con alguien que llega en el próximo tren.
   METRO_MEET_01: p(27, 42, 'wait', 'right'), METRO_MEET_02: p(33, 41, 'wait', 'left'),
+  // La estación de bici compartida (data/bikeShare.ts), en la plazuela del metro.
+  BIKE_SHARE_METRO: p(26, 42, 'interact', 'up'),
   // Puerta de la Sala Órbita: cola junto a la fachada y corrillo al otro lado de la calle.
   CLUB_QUEUE_01: p(15, 18, 'wait', 'left'), CLUB_QUEUE_02: p(16, 18, 'wait', 'left'), CLUB_QUEUE_03: p(17, 18, 'wait', 'left'),
   CLUB_SMOKE_01: p(15, 16, 'meet', 'down'), CLUB_SMOKE_02: p(18, 16, 'meet', 'down'),
@@ -536,7 +538,7 @@ const LINKS: readonly Link[] = [
   ['FASHION_WINDOW_01', 'mayor-06'], ['FASHION_WINDOW_02', 'mayor-06'], ['SUPER_WINDOW', 'mayor-06'],
   ['HAIR_WINDOW', 'mayor-14'], ['PHARMACY_WINDOW', 'mayor-19'], ['FRUIT_WINDOW', 'mayor-23'],
   ['LAUNDRY_WINDOW', 'mayor-56'], ['BANK_WINDOW', 'mayor-64'],
-  ['METRO_MEET_01', 'plazuela-2'], ['METRO_MEET_02', 'METRO_PLAZUELA_BENCH'],
+  ['METRO_MEET_01', 'plazuela-2'], ['BIKE_SHARE_METRO', 'plazuela-3'], ['METRO_MEET_02', 'METRO_PLAZUELA_BENCH'],
   // Los sitios de quien vive en la calle, colgados del grafo: llegan por la acera y cruzan por los pasos, como todos.
   ['STREET_BUS_SHELTER', 'BUS_STOP'], ['STREET_METRO_PORTICO', 'plazuela-4'], ['STREET_BANK_DOORWAY', 'mayor-64'],
   ['STREET_MAYOR_ASK', 'mayor-06'], ['STREET_PASAJE', 'pasaje'], ['STREET_OLMO_CORNER', 'olmo-23'], ['STREET_SOLAR', 'tintoreros-n'],

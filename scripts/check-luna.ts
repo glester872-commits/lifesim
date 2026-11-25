@@ -40,16 +40,24 @@ assert.ok(out && out.to.location === ID && out.to.spawn === 'lu-metro' && street
 for (const p of street.portals) {
   assert.ok(hasLocation(p.to.location) && getLocation(p.to.location).spawns[p.to.spawn], `portal ${p.id} sin destino`);
 }
-assert.equal(street.buildings!.filter((b) => b.enter).length, 3, 'sólo el bar, la tienda y el metro llevan enter');
+// LOC-01: el Horno de Luna gana puerta (cambio de puertas especificado).
+assert.equal(street.buildings!.filter((b) => b.enter).length, 4, 'sólo el bar, la tienda, el horno y el metro llevan enter');
 
-// Los dos locales: vuelven a la calle, la tienda cobra en su caja, en el bar se pide la copa, y se llega andando desde el metro.
-for (const id of ['lu-bar', 'lu-abierto']) {
+// Los locales: vuelven a la calle, la tienda cobra en su caja, en el bar se pide la copa, y se llega andando desde el metro.
+for (const id of ['lu-bar', 'lu-abierto', 'lu-horno']) {
   const inside = getLocation(id);
   assert.ok(inside.portals.some((p) => p.to.location === ID && street.spawns[p.to.spawn]), `${id} no devuelve a la calle`);
   const walk = tilePath(street, street.spawns['lu-metro'], street.spawns[id]);
   assert.ok(walk && walk.length > 3, `del metro a ${id} no se llega andando`);
 }
 assert.ok(getLocation('lu-abierto').terminals?.length, 'la tienda no tiene caja');
+// LOC-01: el horno, ida y vuelta por su fachada, con caja y abierto de madrugada.
+const horno = street.buildings!.find((b) => b.id === 'lu-horno')!;
+assert.ok(horno.enter?.location === 'lu-horno' && getLocation('lu-horno').spawns[horno.enter.spawn], 'el horno no tiene entrada');
+assert.ok(getLocation('lu-horno').portals.some((p) => p.to.location === ID && p.to.spawn === 'lu-horno'), 'el horno no vuelve a su fachada');
+assert.ok(getLocation('lu-horno').terminals?.some((t) => t.catalog === 'lu-horno-mostrador'), 'el horno no tiene caja');
+const hornoInfo = placeInfo('lu-horno')!;
+assert.ok(isOpen(hornoInfo, 2, 3) && isOpen(hornoInfo, 2, 23) && !isOpen(hornoInfo, 2, 12), 'el horno no abre de 22 a 7');
 assert.ok(getLocation('lu-bar').spots?.some((s) => s.activities.includes('lu-copa')), 'en el bar no se puede pedir la copa');
 
 // La actividad: se puede con dinero, no sin él, y hace lo que dice.
@@ -99,8 +107,8 @@ for (const [id, pt] of Object.entries(street.points!)) {
 for (const [x, y] of [[44, 4], [47, 8], [44, 21], [47, 16]]) assert.ok(seen.has(`${x},${y}`), `el entrante de la plazuela en ${x},${y} no se alcanza`);
 for (const id of ['lu-cm', 'lu-pn', 'lu-ps', 'lu-n58', 'lu-s58']) assert.ok(route('LU_METRO_ENTRANCE', id), `la red no llega a ${id}`);
 
-// Los tres locales nuevos: sólo la puerta dibujada. Ni enter, ni portal, ni punto.
-for (const id of ['lu-horno', 'lu-lavanderia', 'lu-locutorio']) {
+// La lavandería y el locutorio: sólo la puerta dibujada. Ni enter, ni portal, ni punto (el horno, LOC-01, ya entra).
+for (const id of ['lu-lavanderia', 'lu-locutorio']) {
   const b = street.buildings!.find((x) => x.id === id);
   assert.ok(b, `falta ${id}`);
   assert.ok(!b.enter && !b.point, `${id} lleva enter o punto`);
@@ -162,6 +170,6 @@ const blocked = safePosition(ID, spawnToWorld({ tx: 33, ty: 5, facing: 'down' })
   const [x, y] = tileOf(blocked).split(',').map(Number);
   assert.ok(isWalkable(street, x, y), 'safePosition no saca al jugador del bajo');
 }
-assert.equal(SAVE_VERSION, 6); // SIM-01 subió el esquema (consequences); esta tarea no lo cambia.
+assert.equal(SAVE_VERSION, 12); // VID-07 subió el esquema (wellbeing); esta tarea no lo cambia.
 
 console.log('check-luna: ok');

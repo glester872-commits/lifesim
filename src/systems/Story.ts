@@ -560,6 +560,13 @@ export function watchPlan(s: NamedStory, profile: SocialProfile, def: StoryDef, 
   return null;
 }
 
+/**
+ * VID-05 · La frase de «plan cumplido» va a una cola que puede vaciarse tarde: sólo se dice si sigue siendo el día
+ * del plan, no ha pasado su `until` y ella sigue donde está el jugador.
+ */
+export const planLineFresh = (queued: { day: number; until: string }, now: Pick<StoryNow, 'day' | 'minute'>, sameLocation: boolean): boolean =>
+  sameLocation && now.day === queued.day && now.minute < minuteOf(queued.until);
+
 // ================================================================
 // CHARLAS
 // ================================================================

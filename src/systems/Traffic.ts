@@ -110,6 +110,17 @@ export class Traffic<T extends MoverType = MoverType> {
   get lanes(): LaneFlow['lanes'] {
     return this.def.lanes;
   }
+
+  /**
+   * Tope de vehículos en total (todos los carriles). target() sólo limita por carril; quien comparte presupuesto con
+   * otro flujo (coches y bicis en WorldScene: BUDGETS.vehicles) lo reparte aquí. Infinity: sin tope, como antes.
+   */
+  limit = Infinity;
+
+  /** Lo más que puede llevar a la vez: hora punta por carril × carriles (para repartir el presupuesto en proporción). */
+  get capacity(): number {
+    return this.peak * this.def.lanes.length;
+  }
   private readonly catalog: readonly T[];
   private readonly signals: readonly SignalDef[];
   private readonly widthPx: number;
@@ -168,7 +179,7 @@ export class Traffic<T extends MoverType = MoverType> {
     this.feet = pedestrians;
     this.def.lanes.forEach((lane, i) => {
       const n = this.target(clock.minuteOfDay / 60, clock.day, lane);
-      for (let k = 0; k < n; k++) {
+      for (let k = 0; k < n && this.vehicles.length < this.limit; k++) {
         const x = ((k + 0.5) / n) * this.widthPx + (i % 2) * TILE * 3;
         this.spawn(lane, x, clock);
       }
@@ -182,7 +193,7 @@ export class Traffic<T extends MoverType = MoverType> {
     this.def.lanes.forEach((lane, i) => {
       const target = this.target(clock.minuteOfDay / 60, clock.day, lane);
       this.spawnIn[i] -= deltaMs;
-      if (this.spawnIn[i] > 0 || this.inLane(lane).length >= target || !this.entryClear(lane)) return;
+      if (this.spawnIn[i] > 0 || this.inLane(lane).length >= target || this.vehicles.length >= this.limit || !this.entryClear(lane)) return;
       this.spawnIn[i] = between(this.rng, ...SPAWN_EVERY);
       this.spawn(lane, 0, clock, true);
     });

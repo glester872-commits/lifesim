@@ -2,7 +2,7 @@
 // ducha con gel y la cesta básica frente a los ingresos de verdad. `npm run check`. Falla si algo no se cumple.
 import assert from 'node:assert/strict';
 import { getCatalog } from '../src/data/catalogs.ts';
-import { ACTIVITIES, PLACE_ACTIVITIES, getActivity } from '../src/data/activities.ts';
+import { ACTIVITIES, PLACE_ACTIVITIES, getActivity, ingredientsOf } from '../src/data/activities.ts';
 import { getItem } from '../src/data/items.ts';
 import { getJob } from '../src/data/jobs.ts';
 import { BILLS } from '../src/data/household.ts';
@@ -40,7 +40,7 @@ for (const p of SUPER.products) {
   const item = getItem(p.effect.item);
   if (item.kind === 'food' || item.kind === 'drink') assert.ok((item.energy ?? 0) > 0, `${p.id}: comida sin efecto`);
   else {
-    const uses = [...ACTIVITIES, ...PLACE_ACTIVITIES].filter((a) => a.consumes?.item === item.id && usedBySpot(a.id));
+    const uses = [...ACTIVITIES, ...PLACE_ACTIVITIES].filter((a) => ingredientsOf(a).some((c) => c.item === item.id) && usedBySpot(a.id));
     assert.ok(uses.length > 0, `${p.id}: se vende sin actividad que lo use en ningún sitio`);
     assert.ok(item.where, `${p.id}: no dice dónde se usa`);
   }
@@ -87,7 +87,7 @@ const ctx = { day: 1, hour: 9, minute: 0, money: 0, energy: 50 };
 assert.match(blocker(shower, { ...ctx, inventory: {} }) ?? '', /gel de ducha/, 'sin gel se puede la ducha con gel');
 assert.equal(blocker(shower, { ...ctx, inventory: { 'shower-gel': 1 } }), null);
 const out = perform(shower);
-assert.ok(out.consumes?.item === 'shower-gel' && out.consumes.qty === 1 && out.energy > perform(getActivity('shower')).energy, 'la ducha con gel gasta uno y da más que la normal');
+assert.ok(out.consumes.length === 1 && out.consumes[0].item === 'shower-gel' && out.consumes[0].qty === 1 && out.energy > perform(getActivity('shower')).energy, 'la ducha con gel gasta uno y da más que la normal');
 
 // Guardar y cargar con lo comprado: mismos ids, mismas unidades, mismo dinero.
 const store = new Map<string, string>();

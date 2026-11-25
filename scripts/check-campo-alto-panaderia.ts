@@ -104,9 +104,9 @@ const profile = POPULATION_PROFILES.find((p) => p.place === ID);
 assert.ok(profile, 'la panadería no tiene perfil de población');
 assert.ok(profile.staff && profile.staff.length > 0, 'nadie atiende la panadería');
 
-// (h) En el barrio, cuatro puertas con interior: café, taller, panadería y metro.
+// (h) En el barrio, cinco puertas con interior: café, ultramarinos (LOC-01), taller, panadería y metro.
 const doors = street.buildings!.filter((b) => b.enter).length;
-assert.equal(doors, 4, `${doors} puertas con interior`);
+assert.equal(doors, 5, `${doors} puertas con interior`);
 
 // (i) La calle manda vecinos a por el pan y, el fin de semana, familias hacia el parque.
 const life = STREET_PROFILES.find((p) => p.location === 'campo-alto');

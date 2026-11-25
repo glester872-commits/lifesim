@@ -3,13 +3,13 @@ import { OPPORTUNITIES, type OpportunityCond, type OpportunityDef } from '../dat
 import { JOBS } from '../data/jobs.ts';
 import { COURSES } from '../data/study.ts';
 import { CATALOGS } from '../data/catalogs.ts';
-import { CHARACTERS } from '../data/characters.ts';
+import { CHARACTERS, type CharacterDef } from '../data/characters.ts';
 import { STORIES } from '../data/saraStory.ts';
 import { UPGRADES } from '../data/housing.ts';
 import { LINES, STOPS } from '../data/transit.ts';
 import { getNpc } from '../data/npcs.ts';
 import { WEEK, WEEKDAY_SHORT } from './Calendar.ts';
-import { rainyDay, routineFor, whereabouts } from './Characters.ts';
+import { rainyDay, routineFor, whereabouts, type Whereabouts } from './Characters.ts';
 import { euros } from './Commerce.ts';
 import { fits, startHousing, type HousingState } from './Housing.ts';
 import { owed, startHousehold, type HouseholdState } from './Household.ts';
@@ -103,13 +103,20 @@ function holds(c: OpportunityCond, input: OpportunityInput): boolean {
   return c.upgrade === 'affordable' ? free(input) >= u.price : free(input) < u.price;
 }
 
-/** Dónde está ahora quien tiene rutina, dicho en corto: «en Café Pausa», «de camino a algún sitio», «en su casa». */
-export function nowAt(npc: string, input: OpportunityInput): string {
+/** Su paradero de verdad ahora (la rutina que lo dibuja en el mundo, con el día de su historia); sin rutina, undefined. */
+export function whereNow(npc: string, input: OpportunityInput): { def: CharacterDef; w: Whereabouts } | undefined {
   const def = CHARACTERS.find((c) => c.npc === npc);
-  if (!def) return 'por el barrio';
+  if (!def) return undefined;
   const story = input.stories[npc];
   const pick = (day: number) => routineFor(def, day, { rainy: rainyDay(day), forced: story ? routineOn(story, day) : mateRoutineId(input.roommate, npc, day) });
-  const w = whereabouts(def, input.now, pick);
+  return { def, w: whereabouts(def, input.now, pick) };
+}
+
+/** Dónde está ahora quien tiene rutina, dicho en corto: «en Café Pausa», «de camino a algún sitio», «en su casa». */
+export function nowAt(npc: string, input: OpportunityInput): string {
+  const r = whereNow(npc, input);
+  if (!r) return 'por el barrio';
+  const { def, w } = r;
   if (w.moving) return 'de camino a algún sitio';
   if (w.inside && w.stop.point === def.home) return (input.now % 1440) < 8 * 60 ? 'durmiendo en su casa' : 'en su casa';
   const place = placeOfPoint(w.stop.point)?.name.split(' · ')[0];

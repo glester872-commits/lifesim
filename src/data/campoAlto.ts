@@ -13,8 +13,8 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from
  *   y 24–25 acera sur
  *   y 26–33 los bajos del sur: viviendas
  *
- * Los locales con puerta son el café, el Taller Biciclo (CA-03) y la Panadería Cuatro Hornos (CA-04, data/campoAltoVenues.ts); las demás fachadas son de
- * vecinos, sin `enter`.
+ * Los locales con puerta son el café, el Ultramarinos Esquina (LOC-01), el Taller Biciclo (CA-03) y la Panadería Cuatro Hornos
+ * (CA-04, data/campoAltoVenues.ts); las demás fachadas son de vecinos, sin `enter`.
  */
 const W = 48;
 const H = 34;
@@ -54,7 +54,7 @@ const b = (
 
 const BUILDINGS: readonly BuildingDef[] = [
   b('ca-res-1', 'Calle del Campo 2', 'res-brick', [0, 2, 8, 7], 's', 3, { point: 'CA_RES_1_ENTRANCE' }),
-  b('ca-res-2', 'Calle del Campo 6', 'res-plaster', [8, 2, 7, 7], 's', 11, { point: 'CA_RES_2_ENTRANCE' }),
+  b('ca-ultramarinos', 'Ultramarinos Esquina', 'grocer', [8, 2, 7, 7], 's', 11, { enter: { location: 'ca-ultramarinos', spawn: 'entry' }, point: 'CA_ULTRAMARINOS_ENTRANCE' }),
   b('ca-cafe', 'Café Campo Alto', 'cafe', [15, 2, 6, 7], 's', 17, { enter: { location: 'ca-cafe', spawn: 'entry' }, point: 'CA_CAFE_ENTRANCE' }),
   b('ca-res-3', 'Calle del Campo 12', 'res-modern', [21, 2, 8, 7], 's', 23, { point: 'CA_RES_3_ENTRANCE' }),
   b('ca-taller', 'Taller Biciclo', 'hardware', [29, 2, 7, 7], 's', 32, { enter: { location: 'ca-taller', spawn: 'entry' }, point: 'CA_TALLER_ENTRANCE' }),
@@ -135,6 +135,10 @@ const POINTS: Record<string, PointDef> = {
   CA_FUTSAL_WAIT_03: p(6, 21, 'wait', 'up'), CA_FUTSAL_WAIT_04: p(10, 21, 'wait', 'up'),
   // Después del partido, en la puerta del café.
   CA_CAFE_MEET_01: p(15, 9, 'meet', 'right'), CA_CAFE_MEET_02: p(16, 9, 'meet', 'left'),
+  // El turno de reparto (data/deliveries.ts SHIFTS): la bici de empresa se presta y se devuelve aquí, junto al tablón (40, 14).
+  CA_DELIVERY_BIKE: p(41, 15, 'interact', 'left'),
+  // La estación de bici compartida (data/bikeShare.ts), en la acera norte junto a la boca de metro.
+  CA_BIKE_SHARE: p(40, 9, 'interact', 'up'),
 };
 
 type Link = readonly [string, string];
@@ -146,10 +150,10 @@ const LINKS: readonly Link[] = [
   ...chain('EDGE_CA_SW', ...SOUTH.map((x) => `ca-s${pad(x)}`), 'EDGE_CA_SE'),
   // El paso de cebra y la bajada por el parque.
   ['ca-n23', 'ca-m23'], ['ca-m23', 'ca-park'], ['ca-park', 'ca-s23'],
-  ['CA_RES_1_ENTRANCE', 'ca-n03'], ['CA_RES_2_ENTRANCE', 'ca-n11'], ['CA_RES_3_ENTRANCE', 'ca-n23'],
+  ['CA_RES_1_ENTRANCE', 'ca-n03'], ['CA_ULTRAMARINOS_ENTRANCE', 'ca-n11'], ['CA_RES_3_ENTRANCE', 'ca-n23'],
   ['CA_CAFE_ENTRANCE', 'ca-n17'], ['CA_TALLER_ENTRANCE', 'ca-n32'], ['CA_PANADERIA_ENTRANCE', 'ca-n38'], ['CA_METRO_ENTRANCE', 'ca-n44'],
   ['CA_PARK_01', 'ca-park'], ['CA_PARK_02', 'ca-park'], ['CA_PARK_03', 'ca-park'], ['CA_PARK_04', 'ca-park'],
-  ['CA_METRO_WAIT_01', 'ca-n44'],
+  ['CA_METRO_WAIT_01', 'ca-n44'], ['CA_DELIVERY_BIKE', 'ca-m38'], ['CA_BIKE_SHARE', 'ca-n38'],
   // La pista (de la acera central a la sur) y la calistenia (del parque a la acera sur). Las barras, en fila como en
   // la Ribera: la línea recta de la 03/04 a 'ca-cali' rozaría el banco.
   ['ca-m12', 'ca-court'], ['ca-court', 'ca-s12'], ['ca-court', 'CA_HOOPS_01'], ['ca-court', 'CA_HOOPS_02'],
@@ -188,7 +192,7 @@ export const CAMPO_ALTO: LocationDef = {
   },
   inspects: [
     { tx: 47, ty: 9, name: 'Plano del barrio', lines: ['Campo Alto: la Calle del Campo, el parque y el Café Campo Alto. Línea 2 hacia Arena, Puerta Central y Vallesco.'] },
-    { tx: 40, ty: 14, name: 'Tablón', lines: ['Un cartel de papel: «Se busca portero para el sábado, en el parque». Sin teléfono, sólo un nombre: Lucho.', 'Sábados de 10 a 13: penaltis en la pista del parque.', 'Taller Biciclo: de lunes a sábado, de 10 a 20.', 'Panadería Cuatro Hornos: pan recién hecho de 7 a 14; los domingos, de 8 a 13.'] },
+    { tx: 40, ty: 14, name: 'Tablón', lines: ['Un cartel de papel: «Se busca portero para el sábado, en el parque». Sin teléfono, sólo un nombre: Lucho.', 'Sábados de 10 a 13: penaltis en la pista del parque.', 'Taller Biciclo: de lunes a sábado, de 10 a 20.', 'Panadería Cuatro Hornos: pan recién hecho de 7 a 14; los domingos, de 8 a 13.', 'Ultramarinos Esquina: de 9 a 21; los domingos, de 10 a 14.'] },
     { tx: 12, ty: 19, name: 'Pista del barrio', lines: ['Pista de uso libre. Balón propio. Por favor, nada de bicis en la pista.', 'Sábados 10–13: penaltis con los del barrio.'] },
     { tx: 38, ty: 18, name: 'Calistenia', lines: ['Barras de dominadas y bancos. Calienta antes; respeta los turnos.'] },
   ],

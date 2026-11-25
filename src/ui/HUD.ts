@@ -28,6 +28,9 @@ export class HUD {
   /** Saldo de la tarjeta de transporte; no se ve hasta tenerla. */
   private readonly cardEl: HTMLElement;
   private savedTimer: number | undefined;
+  /** BIKE-01 · km/h en bici; oculto a pie y en táctil. */
+  private readonly kmhEl: HTMLElement;
+  private kmh: number | null = null;
   /** Lo próximo de la agenda (systems/Agenda), con su sitio y el viaje; vacío si no hay nada. */
   private readonly nextEl: HTMLElement;
   /** Móvil: botón y desplegable con la tarjeta y lo próximo. */
@@ -46,7 +49,7 @@ export class HUD {
       <p class="hud__mark">LIFE<i>//</i>SIM</p>
       <p class="hud__clock"></p>
       <p class="hud__weather"></p>
-      <p class="hud__vitals"><span class="hud__money"></span><span class="hud__energy"></span></p>
+      <p class="hud__vitals"><span class="hud__money"></span><span class="hud__energy"></span><span class="hud__kmh" hidden></span></p>
       <button type="button" class="hud__more-btn" id="hud-more-button" aria-expanded="false" aria-controls="hud-more" aria-label="Detalles: agenda y tarjeta" title="Detalles: agenda y tarjeta" hidden><span aria-hidden="true">▾</span></button>
       <div class="hud__more" id="hud-more">
         <p class="hud__card"></p>
@@ -82,6 +85,7 @@ export class HUD {
     this.energyEl = this.pick(root, '.hud__energy');
     this.savedEl = this.pick(root, '.hud__saved');
     this.cardEl = this.pick(root, '.hud__card');
+    this.kmhEl = this.pick(root, '.hud__kmh');
 
     // El rótulo del sitio (#place) va justo debajo, crezca lo que crezca la placa.
     // --top-inset: lo más bajo de la placa y los botones (topInset); en móvil los avisos van debajo, sin tapar los iconos.
@@ -118,6 +122,15 @@ export class HUD {
     this.cardEl.textContent = card === undefined ? '' : `tarjeta · ${money(card)}`;
     this.cardEl.hidden = card === undefined;
     this.syncMore();
+  }
+
+  /** Se llama cada frame: sólo toca el DOM si cambia el entero o se monta/desmonta. */
+  setSpeed(kmh: number | null): void {
+    const v = kmh === null ? null : Math.round(kmh);
+    if (v === this.kmh) return;
+    this.kmh = v;
+    this.kmhEl.hidden = v === null;
+    if (v !== null) this.kmhEl.textContent = `${v} km/h`;
   }
 
   /** Sin nada que desplegar, no hay botón: ninguna afordancia vacía. */

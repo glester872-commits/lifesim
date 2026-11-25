@@ -27,6 +27,8 @@ export interface Services {
   /** El panel de la clase de patadas (ui/KickDrill): órdenes, compás, distancia y los botones de las dos piernas. */
   kickDrill: import('./ui/KickDrill').KickDrill;
   sparPanel: import('./ui/SparPanel').SparPanel;
+  /** VID-04: atender a un cliente en Decathlon (ui/AttentionPanel). Abierto, el mundo y el reloj esperan. */
+  attention: import('./ui/AttentionPanel').AttentionPanel;
   /** Null si METRO_CONFIG.debug está apagado. */
   metroDebug: MetroDebug | null;
   announcer: Announcer;

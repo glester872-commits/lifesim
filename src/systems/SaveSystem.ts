@@ -29,6 +29,15 @@ import { parseAgenda, startAgenda } from './Agenda.ts';
 import { parseMetroJourney } from './Transit.ts';
 import { parseReputation } from './Reputation.ts';
 import { emptyConsequences, parseConsequences } from './Consequences.ts';
+import { emptyLifeProjects, parseLifeProjects } from './LifeProjects.ts';
+import { emptySocialGraph, parseSocialGraph } from './SocialGraph.ts';
+import { emptyMicroStories, parseMicroStories } from './MicroStories.ts';
+import { emptySocialEvents, parseSocialEvents } from './SocialEvents.ts';
+import { emptyNeighborhood, parseNeighborhood } from './Neighborhood.ts';
+import { parseWellbeing, startWellbeing } from './Wellbeing.ts';
+import { parseDelivery } from './Delivery.ts';
+import { parseBikes } from './Cycling.ts';
+import { parseDiary } from './Diary.ts';
 import { homeDoor, installAll, parseHousing, reaches, startHousing } from './Housing.ts';
 import { parseRoommate } from './Roommate.ts';
 
@@ -405,6 +414,24 @@ function parseState(value: unknown): GameStateData | null {
     household: parseHousehold(s.household, Math.floor(total / 1440) + 1),
     // SIM-01 · sin registro (partida v6 que aún no lo escribió) carga sin la clave; una v5 llega aquí con el vacío de migrate.
     ...(s.consequences === undefined ? {} : { consequences: parseConsequences(s.consequences) }),
+    // VID-01 · sin proyectos guardados (v7 que aún no los escribió) carga sin la clave; una v6 llega con el vacío de migrate.
+    ...(s.lifeProjects === undefined ? {} : { lifeProjects: parseLifeProjects(s.lifeProjects) }),
+    // VID-02 · sin grafo guardado carga sin la clave; una v7 llega con el vacío de migrate.
+    ...(s.socialGraph === undefined ? {} : { socialGraph: parseSocialGraph(s.socialGraph) }),
+    // VID-03 · sin microhistorias guardadas carga sin la clave; una v8 llega con el vacío de migrate.
+    ...(s.microStories === undefined ? {} : { microStories: parseMicroStories(s.microStories) }),
+    // VID-05 · sin quedadas guardadas carga sin la clave; una v9 llega con el vacío de migrate.
+    ...(s.socialEvents === undefined ? {} : { socialEvents: parseSocialEvents(s.socialEvents) }),
+    // VID-06 · sin vecindario guardado carga sin la clave; una v10 llega con el vacío de migrate.
+    ...(s.neighborhood === undefined ? {} : { neighborhood: parseNeighborhood(s.neighborhood) }),
+    // VID-07 · sin tensión guardada carga sin la clave; una v11 llega con el estado inicial de migrate.
+    ...(s.wellbeing === undefined ? {} : { wellbeing: parseWellbeing(s.wellbeing, total) }),
+    // VID-10 · sin reparto guardado carga sin la clave (SAVE_VERSION sigue en 12: campo opcional, sin migración).
+    ...(s.delivery === undefined ? {} : { delivery: parseDelivery(s.delivery) }),
+    // BIKE-01 · sin bicis guardadas carga sin la clave; una montada vuelve aparcada (se carga a pie).
+    ...(s.bikes === undefined ? {} : { bikes: parseBikes(s.bikes) }),
+    // VID-11 · sin diario guardado carga sin la clave; uno dañado se lee vacío (systems/Diary.parseDiary).
+    ...(s.diary === undefined ? {} : { diary: parseDiary(s.diary) }),
     ledger: parseLedger(s.ledger),
     // Sin préstamo guardado (partida anterior a la Fase 3a, SAVE_VERSION sigue en 4) carga sin la clave, como `paid`:
     // vuelve igual que se guardó y GameState empieza sin préstamo. Uno dañado se lee como «sin préstamo».
@@ -676,6 +703,12 @@ function ownOutfit(appearance: Record<string, Appearance>, wardrobe: readonly st
  *   3 → 4 (LV-10): ids, tipo, origen y estado en el ledger.
  *   4 → 5 (MAP-07): `reputation` por barrio; una v4 carga con {}.
  *   5 → 6 (SIM-01): `consequences` (registro de consecuencias); una v5 carga con el registro vacío.
+ *   6 → 7 (VID-01): `lifeProjects` (proyectos de vida); una v6 carga con la lista vacía.
+ *   7 → 8 (VID-02): `socialGraph` (relaciones entre NPC); una v7 carga con el grafo vacío.
+ *   8 → 9 (VID-03): `microStories` (microhistorias); una v8 carga con la lista vacía.
+ *   9 → 10 (VID-05): `socialEvents` (quedadas en casa); una v9 carga con la lista vacía.
+ *   10 → 11 (VID-06): `neighborhood` (paquetes y favores de los vecinos); una v10 carga con el estado vacío.
+ *   11 → 12 (VID-07): `wellbeing` (tensión); una v11 carga con la tensión inicial en el minuto del save.
  *
  * Una versión nueva añade aquí su paso; parseState sigue poniendo los valores seguros de lo que falte.
  */
@@ -690,6 +723,23 @@ function migrate(version: number, state: unknown): unknown {
   if (version < 5 && isRecord(s) && !('reputation' in s)) s = { ...s, reputation: {} };
   // 5 → 6 (SIM-01): aparece `consequences`, vacío: nada se rellena hacia atrás (REGISTER_WINDOW lo limita al cargar).
   if (version < 6 && isRecord(s) && !('consequences' in s)) s = { ...s, consequences: emptyConsequences() };
+  // 6 → 7 (VID-01): aparece `lifeProjects`, vacío.
+  if (version < 7 && isRecord(s) && !('lifeProjects' in s)) s = { ...s, lifeProjects: emptyLifeProjects() };
+  // 7 → 8 (VID-02): aparece `socialGraph`, vacío.
+  if (version < 8 && isRecord(s) && !('socialGraph' in s)) s = { ...s, socialGraph: emptySocialGraph() };
+  // 8 → 9 (VID-03): aparece `microStories`, vacío.
+  if (version < 9 && isRecord(s) && !('microStories' in s)) s = { ...s, microStories: emptyMicroStories() };
+  // 9 → 10 (VID-05): aparece `socialEvents`, vacío.
+  if (version < 10 && isRecord(s) && !('socialEvents' in s)) s = { ...s, socialEvents: emptySocialEvents() };
+  // 10 → 11 (VID-06): aparece `neighborhood`, vacío.
+  if (version < 11 && isRecord(s) && !('neighborhood' in s)) s = { ...s, neighborhood: emptyNeighborhood() };
+  // 11 → 12 (VID-07): aparece `wellbeing`, en el minuto del save (no se inventan horas de decay). Mismo cálculo que parseState;
+  // un reloj que no sea número da 0 y parseState rechaza el save igualmente.
+  if (version < 12 && isRecord(s) && !('wellbeing' in s)) {
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    const minute = Math.max(0, Math.floor((Math.max(1, Math.floor(num(s.day))) - 1) * 1440 + Math.floor(num(s.hour)) * 60 + Math.floor(num(s.minute))));
+    s = { ...s, wellbeing: startWellbeing(minute) };
+  }
   return s;
 }
 

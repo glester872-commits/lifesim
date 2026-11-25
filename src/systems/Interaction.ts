@@ -31,7 +31,7 @@ export const INTERACTION = {
   tie: 1.5,
 } as const;
 
-export type InteractKind = 'portal' | 'npc' | 'terminal' | 'rack' | 'spot' | 'station' | 'court' | 'pitch' | 'seat' | 'inspect' | 'event' | 'emergency';
+export type InteractKind = 'portal' | 'npc' | 'terminal' | 'rack' | 'spot' | 'station' | 'court' | 'pitch' | 'seat' | 'dock' | 'bike' | 'inspect' | 'event' | 'emergency';
 
 /** Quién gana en un empate: salir y entrar primero, luego personas, luego lo que se usa, luego sentarse, y lo que sólo se mira, lo último. */
 export const PRIORITY: Readonly<Record<InteractKind, number>> = {
@@ -45,6 +45,10 @@ export const PRIORITY: Readonly<Record<InteractKind, number>> = {
   // La portería de los penaltis (systems/Futsal): justo detrás de la canasta: nunca empatan.
   pitch: 6.5,
   seat: 7,
+  // BIKE-01 · una bici aparcada (systems/Cycling): después de sentarse, antes de lo que sólo se mira.
+  // Una estación de bici compartida (data/bikeShare.ts): gana a la bici aparcada a su lado (devolver antes que montar).
+  dock: 7.4,
+  bike: 7.5,
   inspect: 8,
   event: 9,
   // Una emergencia (systems/Emergencies): como un evento de calle, lo último; sólo se ofrece mirando hacia ella.
@@ -165,9 +169,15 @@ export function pickTarget<T extends Candidate>(origin: Vec2, items: readonly T[
     })
     .sort(compare);
   if (ranked.length === 0) return null;
-  const counter = ranked.find((r) => ((r.c.kind === 'terminal' || r.c.serves) && onTile(r.c, opts.ahead)) || (r.c.serves && onTile(r.c, opts.across)));
+  // Una puerta delante gana a la gente igual que una caja: en la casilla de acceso paran comensales y repartidores.
+  const counter = ranked.find((r) => ((r.c.kind === 'terminal' || r.c.kind === 'portal' || r.c.serves) && onTile(r.c, opts.ahead)) || (r.c.serves && onTile(r.c, opts.across)));
   if (counter) return counter.c;
-  const best = ranked[0];
-  const keep = opts.current ? ranked.find((r) => r.c.id === opts.current!.id) : undefined;
+  // Una bici aparcada (al bajarse queda bajo los pies) sólo gana si es lo único o la tienes delante: cede ante
+  // cualquier otra cosa a la que mires (un tablón, una barra, una puerta…), también si era la que se ofrecía.
+  const faced = (r: (typeof ranked)[number]): boolean => onTile(r.c, opts.ahead) || r.s < Math.hypot(r.c.x - origin.x, r.c.y - origin.y);
+  const lookedAt = ranked.some((r) => r.c.kind !== 'bike' && faced(r));
+  const pool = lookedAt ? ranked.filter((r) => r.c.kind !== 'bike' || onTile(r.c, opts.ahead)) : ranked;
+  const best = pool[0];
+  const keep = opts.current ? pool.find((r) => r.c.id === opts.current!.id) : undefined;
   return keep && keep.s <= best.s + INTERACTION.sticky ? keep.c : best.c;
 }

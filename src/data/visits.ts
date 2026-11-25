@@ -1,5 +1,5 @@
 import type { Beat, Opener, PlanDef, StoryMessage } from '../systems/Story.ts';
-import { HOMES } from './housing.ts';
+import { HOMES, seatsFor, type HomeDef } from './housing.ts';
 
 /**
  * La visita a casa del jugador (systems/Story + data/housing.ts), compartida por quien tiene historia. Cada personaje
@@ -28,7 +28,15 @@ export interface VisitText {
   notices: { sofa: readonly string[]; cuadro: readonly string[]; lampara: readonly string[]; plain: readonly string[] };
   /** Al día siguiente, en persona y por móvil. */
   next: { sofa: readonly string[]; cuadro: readonly string[]; lampara: readonly string[]; plain: readonly string[]; message: readonly string[] };
+  /**
+   * VID-05 · En una quedada (systems/HomeGathering): de la propia quedada (`solo`), de la otra invitada si las dos están
+   * (`both`) y lo que le dice a la otra, ya sentadas las dos (`toOther`, sólo la primera invitada).
+   */
+  gathering: { solo: readonly string[]; both: readonly string[]; toOther: readonly string[] };
 }
+
+/** VID-05 · Lo que anota HomeGathering en la historia de cada invitada el día de la quedada. */
+export const GATHERING_EVENTS = { solo: 'quedada', both: 'quedada-dos', toOther: 'quedada-brindis' } as const;
 
 const ANY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
@@ -37,14 +45,21 @@ export function visitPlans(t: VisitText): Record<string, PlanDef> {
     say: t.kept,
     then: { social: { friendship: 4, trust: 3, mood: 5 }, mood: 10, event: 'visita' },
   };
-  return Object.fromEntries(HOMES.map((h): [string, PlanDef] => [h.visitPlan, { routine: visitRoutine(h.visitPlan), point: h.guestSeat, from: '19:30', until: '21:00', place: h.place, days: ANY_DAY, kept }]));
+  return Object.fromEntries(visitSeats().map((v): [string, PlanDef] => [v.plan, { routine: v.routine, point: v.seat, from: '19:30', until: '21:00', place: v.home.place, days: ANY_DAY, kept }]));
 }
 
 /** La rutina (data/characters.ts) del día de una visita a esa casa. */
 export const visitRoutine = (plan: string): string => `plan-${plan}`;
 
+/** VID-05 · El plan de visita del asiento `i` de esa casa (seatsFor): el 0 es el de siempre; los demás, `<visitPlan>-<i+1>`. */
+export const seatPlanId = (home: HomeDef, i: number): string => (i === 0 ? home.visitPlan : `${home.visitPlan}-${i + 1}`);
+
+/** Cada asiento de visita de cada casa, con su plan y su rutina: una sola lista para planes (aquí) y rutinas (data/characters.ts). */
+export const visitSeats = (): { home: HomeDef; seat: string; plan: string; routine: string }[] =>
+  HOMES.flatMap((home) => seatsFor(home).map((seat, i) => ({ home, seat, plan: seatPlanId(home, i), routine: visitRoutine(seatPlanId(home, i)) })));
+
 /** Las invitaciones (una por casa) y la actividad compartida. Van al final de los hitos, salvo la actividad (del día). */
-export function visitBeats(t: VisitText): { invite: Beat[]; share: Beat } {
+export function visitBeats(t: VisitText): { invite: Beat[]; share: Beat; gather: Beat } {
   const invite = (plan: string, home: string): Beat => ({
     id: plan,
     phone: true,
@@ -58,6 +73,8 @@ export function visitBeats(t: VisitText): { invite: Beat[]; share: Beat } {
   });
   return {
     invite: HOMES.map((h) => invite(h.visitPlan, h.id)),
+    // VID-05 · Ya sentadas las dos: la primera invitada le dice algo a la otra (delante de la actividad compartida).
+    gather: { id: 'quedada-brindis', when: { recent: { event: GATHERING_EVENTS.toOther, days: 0 }, cooldown: 1 }, say: t.gathering.toOther },
     share: {
       id: 'visita-comparte',
       when: { recent: { event: 'visita', days: 0 }, cooldown: 1 },
@@ -76,6 +93,8 @@ export function visitOpeners(t: VisitText): Opener[] {
   const during = { event: 'visita', days: 0 };
   const after = { event: 'visita', days: 1 };
   return [
+    { when: { recent: { event: GATHERING_EVENTS.both, days: 0 } }, text: t.gathering.both },
+    { when: { recent: { event: GATHERING_EVENTS.solo, days: 0 } }, text: t.gathering.solo },
     { when: { recent: during, has: 'sofa-lectura' }, text: t.notices.sofa },
     { when: { recent: during, has: 'cuadro-carmen' }, text: t.notices.cuadro },
     { when: { recent: during, has: 'lampara-pie' }, text: t.notices.lampara },

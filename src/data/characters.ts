@@ -1,7 +1,7 @@
 import { on, WEEKDAYS, WEEKEND } from '../systems/Calendar.ts';
 import type { Phase } from './pregnancy.ts';
 import { HOMES } from './housing.ts';
-import { visitRoutine } from './visits.ts';
+import { visitSeats } from './visits.ts';
 
 /** Cualquier día de la semana: las rutinas que fija la historia (Routine.story). */
 const ANY_DAY: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
@@ -380,7 +380,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('21:40', SARA_HOME, 'A casa. Qué día.'),
         ],
       },
-      ...HOMES.map((h) => [visitRoutine(h.visitPlan), h.guestSeat]).map(([id, seat]): Routine => ({
+      ...visitSeats().map((v) => [v.routine, v.seat]).map(([id, seat]): Routine => ({
         // Va a tu casa (data/visits.ts): se sienta en el sofá y, a su hora, vuelve a la suya. Una por vivienda.
         id,
         days: ANY_DAY,
@@ -553,7 +553,7 @@ export const CHARACTERS: readonly CharacterDef[] = [
           inside('19:20', ADA_HOME, 'A casa. Mañana más.'),
         ],
       },
-      ...HOMES.map((h) => [visitRoutine(h.visitPlan), h.guestSeat]).map(([id, seat]): Routine => ({
+      ...visitSeats().map((v) => [v.routine, v.seat]).map(([id, seat]): Routine => ({
         // Va a tu casa (data/visits.ts): se sienta en el sofá y, a su hora, vuelve a la suya. Una por vivienda.
         id,
         days: ANY_DAY,

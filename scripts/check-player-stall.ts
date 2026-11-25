@@ -20,7 +20,7 @@ assert.equal(stallDeskAt('casco-antiguo', 36, 14), PLAYER_STALL.popUp, 'el tabl�
 assert.equal(stallDeskAt('casco-antiguo', 43, 9), undefined, 'el plano del barrio ofrece el puesto');
 assert.ok(getLocation('casco-antiguo').props?.some((p) => p.tx === 36 && p.ty === 14 && PROPS[p.kind].board), 'en (36,14) no hay tabl처n de barrio que abra openBoard');
 // El inspect que comparte casilla con el tabl처n no tiene interactable propio (WorldScene): lo sirve openBoard.
-assert.equal(boardNoticeAt('campo-alto', 40, 14)?.lines.length, 4, 'el tabl처n de Campo Alto no trae sus 4 carteles');
+assert.equal(boardNoticeAt('campo-alto', 40, 14)?.lines.length, 5, 'el tabl처n de Campo Alto no trae sus 5 carteles');
 assert.equal(boardNoticeAt('casco-antiguo', 36, 14)?.stallDesk, PLAYER_STALL.popUp, 'el tabl처n del Casco Antiguo no trae el puesto');
 for (const loc of allLocations()) {
   for (const p of loc.props.filter((q) => PROPS[q.kind].board)) {

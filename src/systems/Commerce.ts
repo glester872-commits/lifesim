@@ -51,6 +51,8 @@ export function refusal(w: Wallet, p: Product): Refusal | null {
     if (p.effect.issue && has) return 'has-card';
     if (!p.effect.issue && !has) return 'no-card';
   }
+  // Un objeto con tope propio (data/items.ts `max`, p. ej. la bici: una) tampoco se pasa comprando de uno en uno.
+  if ('item' in p.effect && getItem(p.effect.item).max !== undefined && (w.inventory[p.effect.item] ?? 0) + (p.effect.qty ?? 1) > carryMax(p.effect.item)) return 'full';
   return w.money + 1e-9 < p.price ? 'money' : null;
 }
 
@@ -148,10 +150,27 @@ export function consume(w: Wallet, itemId: string): TxResult {
   if (item.kind === 'ingredient') return { ok: false, reason: 'no-item', wallet: w, message: 'Así no se come. Hay que cocinarlo.' };
   if (item.kind === 'hygiene') return { ok: false, reason: 'no-item', wallet: w, message: `Se usa ${item.where ?? 'en casa'}.` };
   if (item.kind === 'gift') return { ok: false, reason: 'no-item', wallet: w, message: `Es para regalar: ${item.where ?? 'a alguien que conozcas'}.` };
+  if (item.kind === 'gear') return { ok: false, reason: 'no-item', wallet: w, message: `${item.name}: ${item.where ?? 'es tuya'}.` };
   const next = copy(w);
   next.inventory[itemId] -= 1;
   if (next.inventory[itemId] === 0) delete next.inventory[itemId];
   return { ok: true, wallet: next, message: item.use ?? item.name, energy: item.energy ?? 0 };
+}
+
+/**
+ * Mete en la bolsa lo que sale de una actividad (cocinar: platos caseros). Pura: devuelve una cartera nueva, o la misma
+ * con el motivo si no cabe (carryMax); nunca entra una parte.
+ */
+export function produce(w: Wallet, itemId: string, qty: number): TxResult {
+  const item = getItem(itemId);
+  const have = w.inventory[itemId] ?? 0;
+  if (have + qty > carryMax(itemId)) {
+    const what = item.plural ?? item.name.toLowerCase();
+    return { ok: false, reason: 'full', wallet: w, message: `No te caben más ${what} en la bolsa.${item.kind === 'food' ? ' Cómete uno antes.' : ''}` };
+  }
+  const next = copy(w);
+  next.inventory[itemId] = have + qty;
+  return { ok: true, wallet: next, message: `${qty} × ${item.name.toLowerCase()}.` };
 }
 
 /** Saca unidades de la bolsa (lo que gasta una actividad). */

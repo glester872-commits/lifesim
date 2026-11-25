@@ -86,6 +86,8 @@ export interface JobDef {
   situations: readonly JobSituation[];
   /** Decisiones de más que se abren con un desbloqueo (systems/Study `unlocks`): salen en cualquier turno. */
   perks?: readonly (JobChoice & { unlock: string })[];
+  /** Minijuego que decide el turno en lugar de la situación (data/customerService.ts). */
+  minigame?: 'decathlon-cliente';
 }
 
 /**
@@ -112,6 +114,7 @@ export const JOBS: readonly JobDef[] = [
     promotionLine: 'Una hora más por turno y la sección a tu cargo, desde mañana.',
     quitLine: 'Devuelves el chaleco. «Suerte. Si cambias de idea, ya sabes dónde está el cartel.»',
     casual: 'work-decathlon',
+    minigame: 'decathlon-cliente',
     levels: [
       { id: 'seccion', title: 'Dependiente de sección', days: [0, 2, 4], start: 10, hours: 6, wage: 60, energy: -35 },
       { id: 'responsable', title: 'Responsable de montaña', days: [1, 3, 5], start: 9, hours: 7, wage: 84, energy: -38 },

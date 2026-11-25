@@ -1,5 +1,6 @@
 // CA-03 · Taller Biciclo (Campo Alto, data/campoAltoVenues.ts): la puerta de ca-taller entra y vuelve, se llega a pie
-// desde el metro, el mostrador vende agua, algo de comer y dos accesorios de regalo (nada de reparar ni bicis), cobra lo
+// desde el metro, el mostrador vende agua, algo de comer, dos accesorios de regalo y una bici (VID-01: se vende como
+// artículo y todavía no se puede montar; nada de reparar), cobra lo
 // justo, abre de lunes a sábado, la compra sobrevive a guardar y cargar, y tiene gente que atiende. Sin Phaser.
 import assert from 'node:assert/strict';
 import { getCatalog } from '../src/data/catalogs.ts';
@@ -37,11 +38,16 @@ const till = inside.points?.CATALLER_TILL;
 assert.ok(till, 'el taller no tiene caja');
 assert.ok(tilePath(inside, entry, till), 'de la entrada a la caja no se llega andando');
 
-// (c) El mostrador: cinco productos que existen, sólo venta; los accesorios son regalos con efecto.
+// (c) El mostrador: seis productos que existen, sólo venta; los accesorios son regalos con efecto. La bici (VID-01) se
+// vende como artículo, una sola en la bolsa, y todavía no se puede montar.
 const CATALOG = 'ca-taller-mostrador';
 assert.ok((inside.terminals ?? []).some((t) => t.catalog === CATALOG), 'el mostrador no vende su catálogo');
 const catalog = getCatalog(CATALOG);
-assert.equal(catalog.products.length, 5, `${catalog.products.length} productos`);
+assert.equal(catalog.products.length, 6, `${catalog.products.length} productos`);
+const bikeProduct = catalog.products.find((p) => 'item' in p.effect && p.effect.item === 'bike');
+assert.ok(bikeProduct, 'el taller no vende la bici');
+assert.equal(bikeProduct.price, 180, `la bici cuesta ${bikeProduct.price}`);
+assert.equal(ITEMS.find((i) => i.id === 'bike')?.max, 1, 'la bici no lleva max 1');
 const itemIds = new Set(ITEMS.map((i) => i.id));
 for (const p of catalog.products) {
   assert.ok('item' in p.effect, `${p.id} no es un objeto`);
@@ -49,7 +55,7 @@ for (const p of catalog.products) {
   assert.ok(itemIds.has(it), `${it} no existe en ITEMS`);
   for (const s of [p.id, p.label, it]) {
     assert.ok(!/repar/i.test(s), `${s} ofrece reparar`);
-    assert.ok(it.startsWith('gift-bike-') || !/bici|bike/i.test(s), `${s} es una bicicleta`);
+    assert.ok(it === 'bike' || it.startsWith('gift-bike-') || !/bici|bike/i.test(s), `${s} es una bicicleta`);
   }
   if (it.startsWith('gift-')) assert.ok(GIFTS[it], `${it} no está en GIFTS`);
 }
@@ -98,7 +104,7 @@ for (const i of inside.inspects ?? []) {
 // (h) En el barrio, puertas con interior.
 // CA-04: café, taller, panadería y metro.
 const doors = street.buildings!.filter((b) => b.enter).length;
-assert.equal(doors, 4,`${doors} puertas con interior`);
+assert.equal(doors, 5,`${doors} puertas con interior`);
 
 // (i) Alguien atiende y alguien compra.
 assert.ok(POPULATION_PROFILES.some((p) => p.place === ID), 'el taller no tiene perfil de población');

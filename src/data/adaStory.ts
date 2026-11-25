@@ -41,6 +41,11 @@ const VISIT: VisitText = {
     plain: ['Lo de ayer estuvo bien. Se me hizo corto, y no suelo decir eso.'],
     message: ['Gracias por lo de ayer. En tu casa se descansa. Cuando quieras, la mía, aunque tiene peor luz.'],
   },
+  gathering: {
+    solo: ['Así que esto es una quedada en casa. Me gusta: sin ruido y sin camareros.'],
+    both: ['Ha venido Sara también. Con ella aquí, seguro que no nos callamos en toda la tarde.'],
+    toOther: ['Sara, deja de mirar la decoración, que te veo venir. Siéntate y cuéntanos qué tal el lookbook.'],
+  },
 };
 const VISIT_BEATS = visitBeats(VISIT);
 
@@ -142,6 +147,7 @@ export const ADA_STORY: StoryDef = {
         { label: 'Ahora no puedo', reply: ['Vale.'], then: {} },
       ],
     },
+    VISIT_BEATS.gather,
     VISIT_BEATS.share,
     {
       id: 'disculpa', when: { flags: ['ada_changed_mind'] },

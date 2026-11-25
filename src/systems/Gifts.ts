@@ -76,3 +76,43 @@ export function giveGift(profile: SocialProfile, w: Wallet, itemId: string, at: 
   const next = noteSocialMemory(applyDelta(profile, { romance: 0, attraction: 0, ...delta }), { kind: 'SHARED_EVENT', ...at, outcome: 'positive', note: `${NOTE}: ${name.toLowerCase()}` });
   return { ok: true, message: given, profile: { ...next, giftDay: at.day }, wallet: spend(w, itemId) };
 }
+
+/**
+ * VID-09 · Compartir comida: un plato casero (data/items.ts home-meal, sale de cocinar) con alguien que está contigo en
+ * una quedada en casa. Misma idea que el regalo: hay que conoceros, una vez al día por persona (un recuerdo de ese día
+ * cuya nota empieza por «comida») y todo o nada.
+ *
+ * Raciones: un plato es una ración para una persona, nunca para dos. Si llevas dos o más, coméis los dos: salen dos
+ * de la bolsa y tú recibes la energía del tuyo. Si llevas uno, se lo das a ella y tú no comes.
+ */
+export const MEAL = 'home-meal';
+const MEAL_NOTE = 'comida';
+
+/** Por qué no se puede compartir comida ahora con esta persona, o null. */
+export function mealBlocker(profile: SocialProfile, w: Wallet, day: number): string | null {
+  if (profile.encounters < 1) return 'Aún no os conocéis lo bastante para regalarle nada.';
+  if (!w.inventory[MEAL]) return 'No llevas ningún plato casero. Se cocinan en la cocina de casa.';
+  if (profile.memories.some((m) => m.day === day && m.note?.startsWith(MEAL_NOTE))) return 'Hoy ya habéis comido juntos. Mejor otro día.';
+  return null;
+}
+
+export interface MealResult extends GiftResult {
+  /** Energía para el jugador: la de su plato si comisteis los dos, 0 si sólo comió ella. */
+  energy: number;
+  /** Lo que se cuenta. */
+  lines: string[];
+}
+
+/** Compartir un plato casero: perfil y cartera nuevos a la vez, o los mismos con el motivo. */
+export function shareMeal(profile: SocialProfile, w: Wallet, at: SocialMoment): MealResult {
+  const blocked = mealBlocker(profile, w, at.day);
+  if (blocked) return { ok: false, message: blocked, profile, wallet: w, energy: 0, lines: [blocked] };
+  const both = w.inventory[MEAL] >= 2;
+  const next = noteSocialMemory(applyDelta(profile, { friendship: 5, attraction: 0, trust: 2, romance: 0, mood: 8 }), {
+    kind: 'SHARED_EVENT', ...at, outcome: 'positive', note: `${MEAL_NOTE}: plato casero`,
+  });
+  const lines = both
+    ? ['Sacas dos platos caseros y coméis juntos en la mesa.', '«¿Esto lo has hecho tú? Está buenísimo. Me tienes que pasar la receta.»']
+    : ['Sólo te queda un plato casero: se lo das entero.', '«¿Y tú? ¿Seguro?» Lo prueba y sonríe. «Gracias. Está buenísimo.»'];
+  return { ok: true, message: lines[0], profile: next, wallet: spend(w, MEAL, both ? 2 : 1), energy: both ? (getItem(MEAL).energy ?? 0) : 0, lines };
+}

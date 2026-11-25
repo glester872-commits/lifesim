@@ -3,6 +3,7 @@ import { getJob, JOBS, type JobChoice, type JobDef, type JobLevel, type JobSitua
 import { getSkill } from '../data/study.ts';
 import { WEEKDAY_LABEL, weekdayOf, weekIndex } from './Calendar.ts';
 import { euros } from './Commerce.ts';
+import { bonusAfterTension, type TensionBand } from './Wellbeing.ts';
 
 /**
  * Un empleo con contrato: horario, asistencia, cobro, ascenso. Todo son
@@ -247,7 +248,7 @@ export interface ShiftOutcome {
  * llegar tarde (pasado el margen) cobra sólo lo trabajado, sale a la misma hora
  * y no cuenta como turno bueno. No toca el estado: devuelve el resultado.
  */
-export function work(p: JobProgress, now: number, choice: JobChoice): ShiftOutcome {
+export function work(p: JobProgress, now: number, choice: JobChoice, band?: TensionBand): ShiftOutcome {
   const def = getJob(p.job);
   const lvl = levelOf(p);
   const today = dayOf(now);
@@ -256,7 +257,10 @@ export function work(p: JobProgress, now: number, choice: JobChoice): ShiftOutco
   const late = lateBy > def.grace;
   const worked = lvl.hours * 60 - (late ? lateBy : 0);
   const share = worked / (lvl.hours * 60);
-  const pay = Math.round((lvl.wage * share + (choice.bonus ?? 0)) * 100) / 100;
+  // VID-07: con tensión alta el plus rinde menos; sin banda (o con otra) el plus queda igual.
+  const tense = band === 'tense';
+  const bonus = tense ? bonusAfterTension(choice.bonus ?? 0, 'tense') : (choice.bonus ?? 0);
+  const pay = Math.round((lvl.wage * share + bonus) * 100) / 100;
   const score = (late ? 0 : 1) + choice.score;
   const good = !late && score >= 1;
 
@@ -278,16 +282,32 @@ export function work(p: JobProgress, now: number, choice: JobChoice): ShiftOutco
   else lines.push(`${now < w.start ? `Esperas ${waitAt(def)} hasta las ${hh(lvl.start)}. ` : ''}Turno cerrado: te pagan ${euros(pay)}.`);
   if (!good && !late) lines.push(`${boss} no dice nada, pero no lo cuenta como un buen turno.`);
   if (out.strikes < p.strikes) lines.push(`${boss} te da una palmada: «Así sí. Lo del otro día, olvidado».`);
+  if (tense) lines.push('Hoy me cuesta concentrarme.');
   return { progress: out, minutes: w.end - now, money: pay, energy: Math.round(lvl.energy * share) + (choice.energy ?? 0), lines, late };
+}
+
+export interface PromotionCheck {
+  label: string;
+  ok: boolean;
+}
+
+/** Las condiciones del ascenso, una a una (la UI de proyectos las enseña). promotionReady es «todas cumplidas». */
+export function promotionChecks(p: JobProgress, unlocks: readonly string[]): PromotionCheck[] {
+  const def = getJob(p.job);
+  const next = def.levels[p.level + 1];
+  return [
+    { label: 'Contrato en vigor', ok: p.status === 'active' },
+    { label: 'Sin faltas pendientes', ok: p.strikes <= 0 },
+    { label: `Turnos buenos: ${Math.min(p.good, def.promoteAfter)}/${def.promoteAfter}`, ok: p.good >= def.promoteAfter },
+    { label: next ? `Puesto siguiente: ${next.title}` : 'Ya estás en el puesto más alto', ok: next !== undefined },
+    ...(next?.requires ? [{ label: `Tener ${next.requires.label}`, ok: unlocks.includes(next.requires.unlock) }] : []),
+  ];
 }
 
 /** ¿Toca proponerle el siguiente nivel? Con `requires`, también hace falta ese desbloqueo (`unlocks`). */
 export function promotionReady(p: JobProgress, unlocks: readonly string[]): JobLevel | null {
-  const def = getJob(p.job);
-  if (p.status !== 'active' || p.strikes > 0 || p.good < def.promoteAfter) return null;
-  const next = def.levels[p.level + 1];
-  if (!next || (next.requires && !unlocks.includes(next.requires.unlock))) return null;
-  return next;
+  if (!promotionChecks(p, unlocks).every((c) => c.ok)) return null;
+  return getJob(p.job).levels[p.level + 1] ?? null;
 }
 
 /** Lo que falta para el ascenso, si sólo falta el desbloqueo del siguiente nivel; si no, null. */

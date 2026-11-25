@@ -2,24 +2,28 @@
 import { TILE } from '../config/constants.ts';
 import { AGENDA } from '../config/agenda.ts';
 import { HOUR_BANDS } from '../config/metro.ts';
-import { getJob } from '../data/jobs.ts';
+import { getJob, JOBS } from '../data/jobs.ts';
+import { getActivity } from '../data/activities.ts';
+import { GUIDE, GUIDE_CARD, TRANSPORT_CARD, type GuideId, type GuideMilestoneDef } from '../data/tour.ts';
+import type { DiaryEntry } from './Diary.ts';
 import { BILLS } from '../data/household.ts';
 import { COURSES, getGig, getSkill } from '../data/study.ts';
 import { STORIES } from '../data/saraStory.ts';
 import { LINES, STOPS, type TransitStop } from '../data/transit.ts';
 import { getNpc } from '../data/npcs.ts';
 import { GATHERINGS, attendedTo, nextOccurrence, occurrenceOn, type ParishState } from './Parish.ts';
-import type { TilePoint } from '../types/game.ts';
+import type { GameStateData, TilePoint } from '../types/game.ts';
 import { allLocations, getLocation, hasLocation } from './LocationSystem.ts';
 import { findPoint, tilePath } from './Navigation.ts';
-import { placeInfo } from './Places.ts';
+import { isOpen, nextOpening, placeForInterior, placeInfo } from './Places.ts';
+import { nowAt, opportunityInput, whereNow } from './Opportunities.ts';
 import { travel } from './World.ts';
 import { destinationsFrom, journeyFare, routeBetween, serviceOpen, stopAtStation, type MetroJourney } from './Transit.ts';
 import { WEEKDAY_LABEL, weekdayOf, weekIndex } from './Calendar.ts';
 import { levelOf, nextShift, settle, type JobProgress } from './Jobs.ts';
 import { lessonStatus, nextSession, gigStatus, knowledge, levelName, type StudyState } from './Study.ts';
 import { goalById, goalView, unpaid, total, type HouseholdState } from './Household.ts';
-import { PLAN_KINDS, placeName, planStart, type PhoneState } from './Phone.ts';
+import { PLAN_KINDS, placeName, planStart, type PhoneState, type SocialPlan } from './Phone.ts';
 import type { StoryState } from './Story.ts';
 import type { SocialState } from './Social.ts';
 import type { Ticket } from './Tickets.ts';
@@ -56,10 +60,28 @@ export interface AgendaState {
   checked: number;
   /** Última señal de progreso de cada cosa (trabajo, curso, meta, cuerpo, recuerdo): sólo se avisa al cambiar. */
   marks: Record<string, string>;
+  /**
+   * VID-12: los primeros días guiados. Ausente hasta que el jugador elige (y en partidas de antes: se trata como 'free').
+   * `baseRides` = viajes cobrados (events.rides) al elegir: el hito del metro pide uno más.
+   */
+  guide?: GuideChoice;
 }
+
+export type GuideMode = 'guided' | 'free' | 'skipped';
+export interface GuideChoice { mode: GuideMode; chosenAt: number; baseRides: number }
 
 /** Partida nueva: con guía y nada avisado. `checked` y `marks` se ponen al día en la primera revisión, sin avisar. */
 export const startAgenda = (): AgendaState => ({ tour: 'new', seen: {}, checked: -1, marks: {} });
+
+const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+
+function parseGuide(v: unknown): GuideChoice | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  const mode: GuideMode | undefined = o.mode === 'guided' || o.mode === 'free' || o.mode === 'skipped' ? o.mode : undefined;
+  if (!mode) return undefined;
+  return { mode, chosenAt: finite(o.chosenAt) ? Math.floor(o.chosenAt) : 0, baseRides: finite(o.baseRides) && o.baseRides >= 0 ? Math.floor(o.baseRides) : 0 };
+}
 
 /** Lo guardado; una partida anterior a la agenda no ve la guía ni recibe avisos de lo que ya pasó. */
 export function parseAgenda(v: unknown): AgendaState {
@@ -75,7 +97,174 @@ export function parseAgenda(v: unknown): AgendaState {
     for (const [k, s] of Object.entries(o.marks)) if (typeof s === 'string') marks[k] = s;
   }
   const checked = typeof o.checked === 'number' && Number.isFinite(o.checked) ? Math.floor(o.checked) : -1;
-  return { tour, seen, checked, marks };
+  const guide = parseGuide(o.guide);
+  return guide ? { tour, seen, checked, marks, guide } : { tour, seen, checked, marks };
+}
+
+// ================================================================
+// VID-12 · HITOS DE LOS PRIMEROS DÍAS (puro: se lee de lo que ya guarda la partida, nada se marca por la guía)
+// ================================================================
+
+export interface GuideInput {
+  social: SocialState;
+  stories: StoryState;
+  /** events.rides: viajes en tren cobrados. */
+  rides: number;
+  /** wallet.cards. */
+  cards: Readonly<Record<string, number>>;
+  metroJourney: MetroJourney | null;
+  location: string;
+  money: number;
+  job: JobProgress | null;
+  ledger: readonly { label: string; amount: number }[];
+  marks: Readonly<Record<string, string>>;
+  plans: readonly SocialPlan[];
+  diary?: readonly Pick<DiaryEntry, 'type' | 'data'>[];
+  /** agenda.guide; sin él, base 0. */
+  guide?: GuideChoice;
+  /** Minuto absoluto de ahora: para el horario del sitio de trabajo. Sin él, no se mira. */
+  now?: number;
+  /** Quien se presenta (STORIES con 'conocerse') y dónde está ahora (Opportunities.nowAt). Sin él, la pista genérica. */
+  people?: readonly GuidePerson[];
+  /** Con nadie a la vista: la próxima media hora en que alguna está parada en el mapa, y dónde (`when` ya redactado). */
+  later?: GuidePerson & { when: string };
+}
+
+/** `reachable`: visible en el mapa (no dentro de ningún sitio), ande o esté parada; `moving`: va de camino. */
+export interface GuidePerson { name: string; at: string; home: boolean; reachable: boolean; moving: boolean }
+
+export interface GuideMilestone {
+  id: GuideId;
+  title: string;
+  done: boolean;
+  steps: { label: string; done: boolean }[];
+  hint: string;
+}
+
+export interface GuideProgress { milestones: GuideMilestone[]; next?: GuideId }
+
+/** Lo que vale como hecho con un empleo, apuntado por scenes/Menus en agenda.marks['guia:job']. */
+export const GUIDE_JOB_MARKS: readonly string[] = ['applied', 'declined', 'denied', 'casual'];
+
+/** Flags que pone el microevento de presentarse (`event: 'conocerse'`, data/*Story.ts): sólo sale al acabar una charla. */
+const MET_FLAGS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  Object.entries(STORIES).map(([npc, def]) => [npc, def.beats.flatMap((b) => (b.then?.event === 'conocerse' ? b.then.set ?? [] : []))]),
+);
+
+/** Quien tiene el beat de presentarse, de los datos. */
+const INTRO_NPCS = Object.entries(STORIES).filter(([, d]) => d.beats.some((b) => b.then?.event === 'conocerse')).map(([npc]) => npc);
+
+const metSomeone = (social: SocialState, stories: StoryState): boolean => Object.entries(social).some(([npc, p]) => p.contactExchanged
+  || (MET_FLAGS[npc] ?? []).some((f) => stories[npc]?.flags[f] !== undefined)
+  || !!stories[npc]?.events.some((e) => e.id === 'conocerse'));
+
+/** El local del primer empleo (el interior con su fichaje): su horario dice si la pista del trabajo puede esperar. */
+const GUIDE_SHOP = ((desk) => (desk ? placeForInterior(desk.id) : undefined))(allLocations().find((l) => l.workplace === JOBS[0].id));
+
+/** Los nombres de los turnos sueltos tal como los apunta el ledger (scenes/Menus: nombre sin el «(6 h)»). */
+const CASUAL_LABELS = new Set(JOBS.flatMap((j) => (j.casual ? [getActivity(j.casual).name.replace(/ \(.*\)$/, '')] : [])));
+
+const fill = (s: string, falta = 0): string => s.replace('{falta}', `€${falta.toFixed(2).replace('.', ',').replace(',00', '')}`);
+
+export function guideProgress(input: GuideInput): GuideProgress {
+  const def = (id: GuideId): GuideMilestoneDef => GUIDE.find((g) => g.id === id)!;
+  const make = (id: GuideId, flags: boolean[], hint: string): GuideMilestone => {
+    const d = def(id);
+    return { id, title: d.title, done: flags.every(Boolean), steps: d.steps.map((label, i) => ({ label, done: flags[i] ?? false })), hint };
+  };
+
+  // 1 · Vecino: su número, o que se haya presentado (flag de su historia o evento 'conocerse').
+  const met = metSomeone(input.social, input.stories);
+  const v = def('vecino').hints;
+  const people = input.people ?? [];
+  // Primero quien está parada en el mapa; si no, quien anda por la calle. Dentro de un sitio (su casa o no) no se alcanza.
+  const outside = people.find((p) => p.reachable && !p.moving) ?? people.find((p) => p.reachable);
+  const later = input.later ? v.later.replace('{cuando}', input.later.when).replace('{nombre}', input.later.name).replace('{donde}', input.later.at) : v.back;
+  const vecinoHint = !people.length ? v.talk
+    : outside ? (outside.moving ? v.walking : v.here).replace('{nombre}', outside.name).replace('{donde}', outside.at)
+      : v.home.replace('{quienes}', people.map((p) => p.name).join(', ').replace(/, ([^,]*)$/, ' y $1'))
+        .replace('{dentro}', people.every((p) => p.home) ? 'en casa' : 'dentro').replace('{luego}', later);
+  const vecino = make('vecino', [met], vecinoHint);
+
+  // 2 · Metro: tarjeta, un viaje cobrado desde que se eligió y, ya sin billete vivo, fuera de toda estación.
+  const m = def('metro').hints;
+  const card = input.cards[GUIDE_CARD] !== undefined;
+  const rode = input.rides > (input.guide?.baseRides ?? 0);
+  const out = rode && input.metroJourney === null && !stopAtStation(input.location);
+  const price = TRANSPORT_CARD?.price ?? 0;
+  const empty = card && input.cards[GUIDE_CARD] + 1e-9 < LINES[0].fare;
+  const metroHint = !card ? (input.money + 1e-9 < price ? fill(m.money, price - input.money) : m.card) : !rode ? (empty ? m.topup : m.ride) : m.exit;
+  const metro = make('metro', [card, rode, out], metroHint);
+
+  // 3 · Trabajo: contrato activo, turno suelto cobrado o lo apuntado al pedir/rechazar/ser denegado.
+  const worked = input.job?.status === 'active'
+    || GUIDE_JOB_MARKS.includes(input.marks['guia:job'] ?? '')
+    || input.ledger.some((l) => l.amount > 0 && CASUAL_LABELS.has(l.label));
+  const w = def('trabajo').hints;
+  const clock = input.now === undefined ? undefined : { day: dayOfAbs(input.now), hour: Math.floor((input.now % DAY) / 60), minute: input.now % 60 };
+  const opens = clock && GUIDE_SHOP && !isOpen(GUIDE_SHOP, clock.day, clock.hour, clock.minute) ? nextOpening(GUIDE_SHOP, clock.day, clock.hour, clock.minute) : null;
+  const when = opens && `${opens.day === clock!.day ? '' : opens.day === clock!.day + 1 ? 'mañana ' : `el ${WEEKDAY_LABEL[weekdayOf(opens.day)]} `}a las ${hhmm(Math.round(opens.hour * 60))}`;
+  const trabajo = make('trabajo', [worked], when ? w.closed.replace('{cuando}', when) : w.ask);
+
+  // 4 · Social: cada paso por separado. «Ir» = plan de su historia cumplido o quedada en casa a la que se fue.
+  // No se filtra por chosenAt: una partida nueva elige al empezar (no hay hechos de antes) y, al retomarla en una
+  // vieja (resumeGuide), Hoy promete «Lo ya hecho cuenta».
+  const storyPlans = Object.entries(input.stories).flatMap(([npc, s]) => (s.plan ? [{ npc, ...s.plan }] : []));
+  const proposed = input.plans.some((p) => p.by === 'player');
+  // bridgePlans cierra en 'cancelled' el plan del móvil aceptado y crea el de su historia: ese rastro by 'player'
+  // dice que el plan nació de una propuesta del jugador, no de una invitación.
+  // ponytail: si el jugador canceló una propuesta suya y luego ella invita de verdad, no cuenta; falla en negativo, nunca da crédito falso.
+  const received = input.plans.some((p) => p.by === 'npc')
+    || storyPlans.some((sp) => !input.plans.some((p) => p.npc === sp.npc && p.by === 'player' && p.status === 'cancelled'));
+  const accepted = input.plans.some((p) => p.status === 'accepted') || storyPlans.some((p) => p.status === 'pending' || p.status === 'kept');
+  const attended = storyPlans.some((p) => p.status === 'kept')
+    || !!input.diary?.some((e) => e.type === 'gathering' && e.data?.outcome !== 'plantón');
+  const s = def('social').hints;
+  const contact = Object.values(input.social).some((p) => p.contactExchanged || p.friendship >= 15);
+  const socialHint = accepted ? s.attend : proposed || received ? s.wait : contact ? s.propose : s.trust;
+  const social = make('social', [proposed, received, accepted, attended], socialHint);
+  // Completo = propuesta o invitación, aceptada y a la que se fue.
+  social.done = (proposed || received) && accepted && attended;
+
+  const milestones = [vecino, metro, trabajo, social];
+  return { milestones, next: milestones.find((x) => !x.done)?.id };
+}
+
+/** Lo que lee guideProgress, sacado de una foto de la partida (ui/Phone Hoy y el HUD de main.ts). */
+export function guideInputOf(s: GameStateData): GuideInput {
+  const now = at(s.day, s.hour, s.minute);
+  const social = s.social ?? {}, stories = s.stories ?? {};
+  let people: GuidePerson[] | undefined;
+  let later: GuideInput['later'];
+  if (!metSomeone(social, stories)) {
+    const oi = opportunityInput(s, now);
+    const look = (t: number): GuidePerson[] => INTRO_NPCS.map((npc) => {
+      const input = { ...oi, now: t };
+      const r = whereNow(npc, input);
+      return {
+        name: getNpc(npc).name, at: nowAt(npc, input), home: !!r && r.w.inside && r.w.stop.point === r.def.home,
+        reachable: !!r && !r.w.inside, moving: !!r?.w.moving,
+      };
+    });
+    people = look(now);
+    // ponytail: hasta 48 medias horas × INTRO_NPCS rutinas, sólo con nadie a la vista y el hito sin hacer; cachear por media hora si pesa en el HUD.
+    for (let t = Math.floor(now / 30) * 30 + 30; !people.some((p) => p.reachable) && !later && t <= now + DAY; t += 30) {
+      const p = look(t).find((x) => x.reachable && !x.moving);
+      if (p) later = { ...p, when: `${dayOfAbs(t) === s.day ? 'Hacia' : 'Mañana hacia'} las ${hhmm(t)}` };
+    }
+  }
+  return {
+    now, ...(people ? { people } : {}), ...(later ? { later } : {}),
+    social: s.social ?? {}, stories: s.stories ?? {}, rides: s.events.rides, cards: s.cards,
+    metroJourney: s.metroJourney ?? null, location: s.locationId, money: s.money, job: s.job ?? null,
+    ledger: s.ledger ?? [], marks: s.agenda?.marks ?? {}, plans: s.phone?.plans ?? [], diary: s.diary?.entries ?? [],
+    ...(s.agenda?.guide ? { guide: s.agenda.guide } : {}),
+  };
+}
+
+/** «Retomar la guía»: vuelve a 'guided' sin tocar nada más; en una partida sin guía la crea con los viajes de ahora como base. */
+export function resumeGuide(a: AgendaState, now: number, rides: number): AgendaState {
+  return { ...a, guide: a.guide ? { ...a.guide, mode: 'guided' } : { mode: 'guided', chosenAt: Math.floor(now), baseRides: rides } };
 }
 
 // ================================================================
