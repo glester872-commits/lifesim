@@ -54,19 +54,14 @@ function drawHallFloor(ctx: Ctx, v: number): void {
 }
 
 /**
- * Cola de caja (DEC-02): el hormigón de la nave sin junta, con la cinta amarilla a izquierda y derecha. La cinta sigue
- * de un tile al siguiente (la cola es una calle), con desgaste por ruido y no por recuadros.
+ * Cola de caja (DEC-02): el hormigón pulido de la nave sin junta y algo más gastado por el paso. La delimitan los postes
+ * negros con cinta (prop `stanchion`, data/decathlon.ts), como en cajas.jpeg; ya no lleva cinta amarilla pintada.
  */
 function drawQueueFloor(ctx: Ctx, v: number): void {
   const base = '#c4c8cc';
   px(ctx, base, 0, 0, TILE, TILE);
   sprinkle(ctx, shade(base, 0.04), TILE, TILE, 61 + v * 13, 6);
-  sprinkle(ctx, shade(base, -0.05), TILE, TILE, 83 + v * 11, 4);
-  for (const x of [1, TILE - 3]) {
-    px(ctx, PALETTE.floorTape, x, 0, 2, TILE);
-    // Desgaste de la cinta: un píxel más oscuro cada pocos, desplazado por variante y por lado.
-    for (let y = (v * 5 + x) % 6; y < TILE; y += 6 + v) px(ctx, shade(PALETTE.floorTape, -0.18), x + (y % 2), y);
-  }
+  sprinkle(ctx, shade(base, -0.05), TILE, TILE, 83 + v * 11, 7);
 }
 
 /** Pista de pádel de prueba, 6 × 12 tiles, pintada en el suelo: césped azul, líneas blancas y el vidrio del fondo. */
@@ -320,6 +315,305 @@ function drawPromoBin(ctx: Ctx): void {
   px(ctx, PALETTE.ink, 8, 23, 3, 2);
 }
 
+/** Cifras de 3 × 5 de los paneles de los probadores (se pintan a 2 × 2: 6 × 10 px). */
+const DIGITS: Readonly<Record<string, readonly string[]>> = {
+  1: ['.X.', 'XX.', '.X.', '.X.', 'XXX'],
+  2: ['XX.', '..X', '.X.', 'X..', 'XXX'],
+  3: ['XX.', '..X', '.X.', '..X', 'XX.'],
+  4: ['X.X', 'X.X', 'XXX', '..X', '..X'],
+  5: ['XXX', 'X..', 'XX.', '..X', 'XX.'],
+  6: ['.XX', 'X..', 'XXX', 'X.X', 'XXX'],
+  7: ['XXX', '..X', '.X.', '.X.', '.X.'],
+  8: ['XXX', 'X.X', 'XXX', 'X.X', 'XXX'],
+  9: ['XXX', 'X.X', 'XXX', '..X', 'XX.'],
+};
+
+/** Pictograma de silla de ruedas, 8 × 8, en blanco sobre el cuadro azul. */
+const WHEELCHAIR = ['..XX....', '..XX....', '...X....', '...XXX..', '.X.X..X.', 'X..XXXX.', 'X....X..', '.XXX..X.'];
+
+/**
+ * DEC-02 · Cabina de probador de Decathlon, 1 × 2 (design/Decathlon/proba.jpeg y probas.jpeg). Variante 1–9: el número
+ * blanco en el panel negro; 10: la accesible, con el pictograma en su cuadro azul. Dentro, la foto deportiva en blanco
+ * y negro (ruido distinto por variante), el espejo de marco blanco con su tira LED y el banco de madera clara; la
+ * cortina oscura siempre recogida a un lado, el que toque por variante.
+ */
+function drawDecathlonFitting(ctx: Ctx, v: number): void {
+  const black = '#1d2026';
+  // Panel de arriba, con el canto de la pared azul marino de detrás.
+  px(ctx, '#1d2340', 0, 0, TILE, 2);
+  px(ctx, black, 0, 2, TILE, 11);
+  px(ctx, shade(black, 0.08), 0, 2, TILE, 1);
+  if (v === 10) {
+    px(ctx, '#2f7fd8', 3, 3, 10, 10);
+    WHEELCHAIR.forEach((row, ry) => [...row].forEach((c, rx) => c === 'X' && px(ctx, PALETTE.white, 4 + rx, 4 + ry)));
+  } else {
+    DIGITS[v]?.forEach((row, ry) => [...row].forEach((c, rx) => c === 'X' && px(ctx, PALETTE.white, 5 + rx * 2, 3 + ry * 2, 2, 2)));
+  }
+  // Tabique a la derecha, gris oscuro con su canto de luz (no negro: la cabina tiene que leerse a 16 px).
+  px(ctx, '#2c2f36', 14, 13, 2, 17);
+  px(ctx, '#4a4e56', 14, 13, 1, 17);
+  // El interior, claro, con la cortina siempre abierta: a la izquierda en las impares y a la derecha en las pares
+  // (dibujado en espejo) y más o menos recogida según la cabina. Nada cerrado ni casi negro.
+  const flip = v % 2 === 0;
+  ctx.save();
+  if (flip) {
+    ctx.translate(14, 0);
+    ctx.scale(-1, 1);
+  }
+  px(ctx, '#efebe3', 0, 13, 14, 14);
+  px(ctx, '#e2d8c4', 0, 27, 14, 3);
+  // Foto en blanco y negro al fondo: gris claro, ruido determinista por cabina y una figura oscura que corre.
+  px(ctx, '#3a3a3a', 3, 14, 7, 9);
+  px(ctx, '#a4a4a4', 4, 15, 5, 7);
+  ctx.save();
+  ctx.translate(4, 15);
+  sprinkle(ctx, '#d0d0d0', 5, 7, 101 + v * 17, 8);
+  sprinkle(ctx, '#707070', 5, 7, 211 + v * 29, 5);
+  px(ctx, '#202020', 1 + (v % 3), 2, 2, 4);
+  px(ctx, '#202020', 1 + (v % 3), 1, 1, 1);
+  ctx.restore();
+  // Espejo: marco blanco, luna fría y la tira LED muy encendida en el canto.
+  px(ctx, '#ffffff', 10, 13, 4, 15);
+  px(ctx, '#9fb6c8', 11, 15, 2, 11);
+  px(ctx, '#c8dae6', 11, 15, 1, 5);
+  px(ctx, '#ffffff', 13, 13, 1, 15);
+  px(ctx, '#bfe6ff', 12, 14, 1, 1);
+  // Banco de madera clara con su canto y sus patas.
+  px(ctx, '#7a5a34', 2, 24, 8, 4);
+  px(ctx, '#e2c493', 2, 24, 8, 2);
+  px(ctx, '#f0d8ac', 2, 24, 8, 1);
+  // La barra y la cortina recogida: gris antracita con los pliegues claros.
+  px(ctx, '#9aa0a6', 0, 13, 14, 1);
+  const cw = 2 + (v % 3);
+  px(ctx, '#2e3138', 0, 14, cw, 16);
+  for (let x = 1; x < cw; x += 2) px(ctx, '#565b64', x, 14, 1, 16);
+  px(ctx, '#565b64', cw - 1, 14, 1, 16);
+  ctx.restore();
+  // Zócalo y sombra al pie.
+  px(ctx, PALETTE.outline, 0, 30, TILE, 1);
+  px(ctx, 'rgba(0,0,0,0.25)', 0, 31, TILE, 1);
+}
+
+/** Azul de los módulos metálicos del control de probadores (probas.jpeg): más vivo que el de la señalética. */
+const DESK_BLUE = '#2c56cf';
+const LIGHT_WOOD = '#d9b98a';
+
+/** Un renglón de rótulo diminuto: trazos blancos que se leen como letras a zoom de juego, con huecos entre palabras. */
+function textLine(ctx: Ctx, x: number, y: number, w: number, seed: number, color: string = PALETTE.white): void {
+  for (let i = 0; i < w; i++) if ((i * 7 + seed * 3) % 5 !== 0) px(ctx, color, x + i, y);
+}
+
+/**
+ * DEC-02 · Módulo del control de probadores, 1 × 2 (probas.jpeg): metal azul con encimera de madera clara. 0: rótulo
+ * «ENTRADA PROBADORES»; 1: puerta; 2: cajonera de dos cajones; 3: papelera de devolución con «SALIDA PROBADORES», sus dos
+ * bocas negras y el cartel blanco de «Más productos, más tallas…».
+ */
+function drawFittingDesk(ctx: Ctx, v: number): void {
+  px(ctx, 'rgba(0,0,0,0.25)', 0, 29, TILE, 3);
+  // Encimera (la de la papelera, gris claro con sus dos bocas, como en la foto).
+  const top = v === 3 ? '#e6e8ea' : LIGHT_WOOD;
+  px(ctx, PALETTE.outline, 0, 9, TILE, 21);
+  px(ctx, top, 0, 10, TILE, 5);
+  px(ctx, shade(top, 0.12), 0, 10, TILE, 1);
+  px(ctx, shade(top, -0.2), 0, 14, TILE, 1);
+  if (v === 3) {
+    px(ctx, '#1a1c20', 2, 11, 5, 3);
+    px(ctx, '#1a1c20', 9, 11, 5, 3);
+  }
+  // Frente azul, con la junta del módulo a la derecha y el zócalo.
+  px(ctx, DESK_BLUE, 0, 15, TILE, 14);
+  px(ctx, shade(DESK_BLUE, 0.12), 0, 15, TILE, 1);
+  px(ctx, shade(DESK_BLUE, -0.18), 15, 15, 1, 14);
+  px(ctx, shade(DESK_BLUE, -0.3), 0, 28, TILE, 1);
+  if (v === 0) {
+    // ENTRADA: flecha blanca gruesa hacia las cabinas (arriba).
+    arrow(ctx, 8, 17, -1);
+  } else if (v === 1) {
+    px(ctx, shade(DESK_BLUE, -0.12), 1, 16, 14, 1);
+    px(ctx, shade(DESK_BLUE, -0.12), 1, 16, 1, 12);
+    px(ctx, shade(DESK_BLUE, 0.2), 12, 21, 1, 3);
+  } else if (v === 2) {
+    px(ctx, shade(DESK_BLUE, -0.15), 1, 21, 14, 1);
+    px(ctx, shade(DESK_BLUE, 0.2), 6, 17, 4, 1);
+    px(ctx, shade(DESK_BLUE, 0.2), 6, 23, 4, 1);
+  } else {
+    // SALIDA: flecha blanca gruesa hacia fuera (abajo), a la izquierda; a la derecha, el cartel blanco con el «+» azul.
+    arrow(ctx, 4, 26, 1);
+    px(ctx, PALETTE.white, 9, 17, 6, 9);
+    px(ctx, DESK_BLUE, 11, 18, 2, 5);
+    px(ctx, DESK_BLUE, 10, 19, 4, 2);
+    textLine(ctx, 10, 24, 4, 5, DESK_BLUE);
+  }
+}
+
+/**
+ * Flecha blanca de 2 px de grueso, 8 de ancho y 9 de alto, con la punta en (cx, tipY): hacia arriba (`dir` −1) o hacia
+ * abajo (1). Se lee a 16 px donde unas letras no caben.
+ */
+function arrow(ctx: Ctx, cx: number, tipY: number, dir: -1 | 1): void {
+  for (let i = 0; i < 4; i++) px(ctx, PALETTE.white, cx - 1 - i, tipY - dir * i, 2 + i * 2, 1);
+  px(ctx, PALETTE.white, cx - 1, tipY - dir * 4 - (dir > 0 ? 4 : 0), 2, 5);
+}
+
+/** Carro negro de perchas, 1 × 2: bastidor con ruedas y las perchas negras colgadas en fila. */
+function drawHangerCart(ctx: Ctx): void {
+  const frame = '#1c1e22';
+  px(ctx, 'rgba(0,0,0,0.25)', 1, 29, 14, 3);
+  px(ctx, frame, 1, 4, 1, 25);
+  px(ctx, frame, 14, 4, 1, 25);
+  px(ctx, frame, 1, 4, 14, 1);
+  px(ctx, frame, 1, 24, 14, 2);
+  for (let x = 2; x < 14; x += 2) {
+    px(ctx, '#3a3e46', x, 5, 1, 2);
+    px(ctx, frame, x - 1, 7, 3, 1);
+    px(ctx, shade(frame, 0.1 + ((x * 5) % 3) * 0.03), x, 8, 1, 9);
+  }
+  px(ctx, '#4a4e56', 2, 29, 2, 2);
+  px(ctx, '#4a4e56', 12, 29, 2, 2);
+  px(ctx, shade(frame, 0.18), 1, 4, 14, 1);
+}
+
+/** Mesa negra baja junto al carro, 1 × 1: tablero con su canto y las patas. */
+function drawBlackTable(ctx: Ctx): void {
+  const black = '#1c1e22';
+  px(ctx, 'rgba(0,0,0,0.25)', 1, 13, 15, 3);
+  px(ctx, black, 0, 2, TILE, 7);
+  px(ctx, shade(black, 0.12), 0, 2, TILE, 1);
+  px(ctx, shade(black, 0.06), 0, 8, TILE, 1);
+  px(ctx, black, 1, 9, 2, 5);
+  px(ctx, black, 13, 9, 2, 5);
+}
+
+/**
+ * Poste negro con cinta, 1 × 2: el pie redondo, el mástil y la cinta. 0: tendida hacia la derecha; 1: hacia arriba,
+ * hasta el poste de la fila de encima (una cola de norte a sur); 2: sin cinta, el primero de la fila.
+ */
+function drawStanchion(ctx: Ctx, v: number): void {
+  // 1 × 3: el poste ocupa las dos filas de abajo; la de arriba es para que la cinta llegue hasta la cabeza del poste de
+  // la fila de encima (a 16 px de la suya), que el dibujo de 1 × 2 no alcanzaba.
+  const black = '#1a1c20';
+  const belt = '#30343c';
+  const beltLit = '#6a707a';
+  const oy = TILE;
+  if (v === 1) {
+    px(ctx, belt, 9, oy - 6, 3, 19);
+    px(ctx, beltLit, 9, oy - 6, 1, 19);
+  }
+  px(ctx, 'rgba(0,0,0,0.25)', 3, oy + 29, 10, 3);
+  px(ctx, black, 4, oy + 27, 8, 3);
+  px(ctx, shade(black, 0.15), 4, oy + 27, 8, 1);
+  px(ctx, black, 7, oy + 11, 2, 17);
+  px(ctx, shade(black, 0.25), 7, oy + 11, 1, 17);
+  px(ctx, black, 6, oy + 9, 4, 3);
+  px(ctx, '#8a9098', 6, oy + 9, 4, 1);
+  if (v === 0) {
+    px(ctx, belt, 9, oy + 11, 7, 3);
+    px(ctx, beltLit, 9, oy + 11, 7, 1);
+  }
+}
+
+const GIFT_RED = '#d42a2f';
+
+/** Frontal de caja de Decathlon (`counter` 1): encimera negra, frente rojo de «Regalos que nos unen» y la bolsa azul colgada. */
+function drawGiftCounter(ctx: Ctx): void {
+  // El frontal rojo ocupa el tile entero, con un canto negro arriba y el zócalo; la bolsa azul, grande, colgada a la derecha.
+  px(ctx, GIFT_RED, 0, 0, TILE, TILE);
+  px(ctx, '#1c1e22', 0, 0, TILE, 2);
+  px(ctx, shade(GIFT_RED, 0.14), 0, 2, TILE, 1);
+  px(ctx, shade(GIFT_RED, -0.22), 0, 14, TILE, 2);
+  px(ctx, shade(GIFT_RED, -0.1), 15, 2, 1, 12);
+  // «Regalos que nos unen», abajo a la izquierda: arriba va el puesto negro (`register` 1) en el mismo tile.
+  textLine(ctx, 1, 11, 7, 6);
+  textLine(ctx, 1, 13, 6, 7);
+  px(ctx, '#0e1a50', 10, 3, 1, 3);
+  px(ctx, '#0e1a50', 14, 3, 1, 3);
+  px(ctx, '#0e1a50', 10, 3, 5, 1);
+  px(ctx, SIGN_BLUE, 9, 6, 7, 8);
+  px(ctx, shade(SIGN_BLUE, 0.18), 9, 6, 7, 1);
+  px(ctx, shade(SIGN_BLUE, -0.18), 15, 6, 1, 8);
+  px(ctx, PALETTE.white, 10, 9, 5, 2);
+}
+
+/**
+ * Puesto negro de cobro (`register`): bloque macizo con la pantalla clara bien visible y el datáfono. 1: con cajero;
+ * 2: autopago, con su franja azul de Decathlon encima de la pantalla.
+ */
+function drawTillStation(ctx: Ctx, self: boolean): void {
+  const black = '#1a1c20';
+  if (!self) {
+    // Encima del frontal rojo: el puesto ocupa la mitad izquierda de arriba y deja ver el rojo, el texto y la bolsa.
+    px(ctx, black, 0, 0, 9, 10);
+    px(ctx, '#3a3e46', 0, 0, 9, 1);
+    px(ctx, '#b8c8d8', 1, 1, 7, 5);
+    px(ctx, '#dfe8f0', 1, 1, 7, 1);
+    px(ctx, '#8aa0b4', 2, 3, 4, 1);
+    px(ctx, '#4a4e56', 1, 7, 4, 2);
+    px(ctx, '#4ab87a', 6, 8, 2, 1);
+    return;
+  }
+  px(ctx, 'rgba(0,0,0,0.25)', 1, 14, 15, 2);
+  px(ctx, black, 1, 1, 14, 14);
+  px(ctx, '#3a3e46', 1, 1, 14, 1);
+  if (self) {
+    px(ctx, SIGN_BLUE, 1, 1, 14, 3);
+    px(ctx, shade(SIGN_BLUE, 0.2), 1, 1, 14, 1);
+    px(ctx, PALETTE.white, 6, 2, 4, 1);
+  }
+  const top = self ? 5 : 3;
+  px(ctx, '#b8c8d8', 3, top, 10, 6);
+  px(ctx, '#dfe8f0', 3, top, 10, 1);
+  px(ctx, '#8aa0b4', 4, top + 3, 6, 1);
+  px(ctx, '#4a4e56', 4, 12, 5, 2);
+  px(ctx, '#4ab87a', 11, 12, 2, 1);
+}
+
+/** Pictograma de percha, 5 × 4, en blanco sobre la banderola. */
+const HANGER = ['..X..', '.X.X.', 'X...X', 'XXXXX'];
+
+/** Poste de caja, 1 × 2: mástil negro sobre el mostrador y la banderola azul con el número de la caja y la percha. */
+function drawTillBanner(ctx: Ctx, n: number): void {
+  const black = '#16181c';
+  px(ctx, black, 7, 13, 2, 19);
+  px(ctx, shade(black, 0.2), 7, 13, 1, 19);
+  px(ctx, PALETTE.outline, 0, 0, TILE, 14);
+  px(ctx, SIGN_BLUE, 1, 1, 14, 12);
+  px(ctx, shade(SIGN_BLUE, 0.18), 1, 1, 14, 1);
+  DIGITS[n]?.forEach((row, ry) => [...row].forEach((c, rx) => c === 'X' && px(ctx, PALETTE.white, 2 + rx * 2, 2 + ry * 2, 2, 2)));
+  HANGER.forEach((row, ry) => [...row].forEach((c, rx) => c === 'X' && px(ctx, PALETTE.white, 9 + rx, 5 + ry)));
+}
+
+/** Expositor negro de bolsas kraft, 1 × 2: tres baldas de bolsas de papel con el logo azul. */
+function drawKraftBags(ctx: Ctx): void {
+  const black = '#1c1e22';
+  const kraft = '#b8875a';
+  px(ctx, 'rgba(0,0,0,0.25)', 1, 29, 15, 3);
+  px(ctx, black, 1, 4, 14, 26);
+  for (let r = 0; r < 3; r++) {
+    const y = 6 + r * 8;
+    for (let b = 0; b < 3; b++) {
+      const c = shade(kraft, ((b * 5 + r * 3) % 4) * 0.03 - 0.03);
+      px(ctx, c, 2 + b * 4, y, 4, 6);
+      px(ctx, shade(c, 0.12), 2 + b * 4, y, 4, 1);
+      px(ctx, SIGN_BLUE, 3 + b * 4, y + 3, 2, 1);
+    }
+    px(ctx, shade(black, 0.15), 1, y + 6, 14, 1);
+  }
+}
+
+/** Tótem de «Tarjeta regalo», 1 × 2: panel blanco con la franja azul, las tarjetas azules y rojas y su pie. */
+function drawGiftCardTotem(ctx: Ctx): void {
+  px(ctx, 'rgba(0,0,0,0.25)', 2, 29, 12, 3);
+  px(ctx, PALETTE.outline, 2, 1, 12, 29);
+  px(ctx, '#f2f2f0', 3, 2, 10, 27);
+  px(ctx, SIGN_BLUE, 3, 2, 10, 6);
+  textLine(ctx, 4, 4, 8, 8);
+  for (let r = 0; r < 3; r++) {
+    px(ctx, r % 2 ? GIFT_RED : SIGN_BLUE, 4, 10 + r * 5, 3, 4);
+    px(ctx, r % 2 ? SIGN_BLUE : GIFT_RED, 9, 10 + r * 5, 3, 4);
+  }
+  px(ctx, '#5a5f66', 4, 27, 8, 2);
+}
+
 /** Columna de la nave, 1 × 3: hormigón pintado, la franja azul a la altura de los ojos y el zócalo. */
 function drawPillar(ctx: Ctx): void {
   const h = TILE * 3;
@@ -465,4 +759,17 @@ export function buildStoreTextures(scene: Phaser.Scene): void {
     make(scene, `prop-shelf-front-${v}`, TILE, TILE * 2, (ctx) => drawShelfFront(ctx, v));
   });
   make(scene, 'prop-promo-bin', TILE, TILE * 2, drawPromoBin);
+  // Las cabinas de Decathlon (tiles.ts `fitting-room` 1–10); la 0 es la de PropArt.
+  for (let v = 1; v <= 10; v++) make(scene, `prop-fitting-room-${v}`, TILE, TILE * 2, (ctx) => drawDecathlonFitting(ctx, v));
+  for (let v = 0; v < 4; v++) make(scene, `prop-fitting-desk-${v}`, TILE, TILE * 2, (ctx) => drawFittingDesk(ctx, v));
+  make(scene, 'prop-hanger-cart', TILE, TILE * 2, drawHangerCart);
+  make(scene, 'prop-black-table', TILE, TILE, drawBlackTable);
+  for (let v = 0; v < 3; v++) make(scene, `prop-stanchion-${v}`, TILE, TILE * 3, (ctx) => drawStanchion(ctx, v));
+  // Cajas (DEC-02): las variantes 1 de `counter` y `register`, la banderola de cada caja (1–6) y lo del pasillo.
+  make(scene, 'prop-counter-1', TILE, TILE, drawGiftCounter);
+  make(scene, 'prop-register-1', TILE, TILE, (ctx) => drawTillStation(ctx, false));
+  make(scene, 'prop-register-2', TILE, TILE, (ctx) => drawTillStation(ctx, true));
+  for (let v = 0; v < 6; v++) make(scene, `prop-till-banner-${v}`, TILE, TILE * 2, (ctx) => drawTillBanner(ctx, v + 1));
+  make(scene, 'prop-kraft-bags', TILE, TILE * 2, drawKraftBags);
+  make(scene, 'prop-gift-card-totem', TILE, TILE * 2, drawGiftCardTotem);
 }

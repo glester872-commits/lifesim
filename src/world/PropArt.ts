@@ -1192,8 +1192,10 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-lockers', TILE * 2, TILE * 2, drawLockers);
   make(scene, 'prop-clothes-rack', TILE * 2, TILE * 2, drawClothesRack);
   make(scene, 'prop-mannequin', TILE, TILE * 2, drawMannequin);
-  make(scene, 'prop-fitting-room', TILE, TILE * 2, drawFittingRoom);
-  make(scene, 'prop-register', TILE, TILE, drawRegister);
+  // Variante 0; las 1–10 (Decathlon) las hace world/StoreArt.buildStoreTextures.
+  make(scene, 'prop-fitting-room-0', TILE, TILE * 2, drawFittingRoom);
+  // Variante 0; la 1 (cajas de Decathlon) la hace world/StoreArt.buildStoreTextures.
+  make(scene, 'prop-register-0', TILE, TILE, drawRegister);
   make(scene, 'prop-fridge', TILE, TILE * 2, drawFridge);
   make(scene, 'prop-gondola', TILE, TILE, drawGondola);
   for (let v = 0; v < 3; v++) make(scene, `prop-pantry-shelf-${v}`, TILE, TILE * 2, (ctx) => drawPantryShelf(ctx, v));

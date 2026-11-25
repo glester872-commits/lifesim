@@ -31,8 +31,12 @@ export interface Checkout {
    */
   readonly open?: { readonly days?: readonly number[]; readonly minLevel?: Level; readonly hours?: readonly [number, number] };
 }
+/** Una cabina de probador: su rótulo (el número del panel), la casilla de la cabina y si es la accesible. */
+export interface FittingRoom { readonly id: string; readonly label: string; readonly tile: TilePoint; readonly accessible?: true }
 export interface StoreLayout {
   readonly version: 1;
+  /** Cabinas de probador, de izquierda a derecha; el punto de cada una, la casilla de debajo. */
+  readonly fittingRooms?: readonly FittingRoom[];
   readonly storeId: string;
   readonly departments: readonly Department[];
   readonly aisles: readonly Aisle[];
@@ -75,9 +79,22 @@ const SELF: readonly Checkout[] = [
   { id: 'auto-2', kind: 'self', till: t(44, TILL_Y), queue: [t(44, TILL_Y - 1), t(44, TILL_Y - 2)], exit: t(45, TILL_Y), open: { minLevel: 'MEDIUM' } },
 ];
 
+/**
+ * Probadores (design/Decathlon/proba.jpeg y probas.jpeg): una fila recta de once cabinas contra la pared del fondo, en el
+ * orden de los paneles de la foto: 1–5, otra 1, la accesible y 6–9. Las cabinas en la fila 3, x 19..29.
+ */
+const FITTING_LABELS = ['1', '2', '3', '4', '5', '1', '', '6', '7', '8', '9'] as const;
+const FITTING_ROOMS: readonly FittingRoom[] = FITTING_LABELS.map((label, i): FittingRoom => ({
+  id: label ? `probador-${label}${FITTING_LABELS.indexOf(label) < i ? '-bis' : ''}` : 'probador-accesible',
+  label,
+  tile: t(19 + i, 3),
+  ...(label ? {} : { accessible: true as const }),
+}));
+
 export const DECATHLON_LAYOUT: StoreLayout = {
   version: 1,
   storeId: 'decathlon-tienda',
+  fittingRooms: FITTING_ROOMS,
   departments: [
     { id: 'dep-running-raqueta', name: 'Running y raqueta', zone: 'NW', sectorIds: ['raqueta-padel', 'running', 'sportswear', 'probadores', 'raqueta'] },
     { id: 'dep-montana-camping-agua', name: 'Montaña, camping y agua', zone: 'N', sectorIds: ['montana-jr', 'montana-mujer', 'montana-hombre', 'camping', 'camping-2', 'agua', 'kayak'] },

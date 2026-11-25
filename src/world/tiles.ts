@@ -89,7 +89,7 @@ export const TILES: Readonly<Record<string, TileDef>> = {
   Y: { key: 'tile-stand-stairs', solid: false, variants: 1 },
   // Hormigón pulido de la nave de Decathlon (data/decathlon.ts, world/StoreArt): los pasillos de circulación.
   h: { key: 'tile-floor-hall', solid: false, variants: 2 },
-  // DEC-02: cola delimitada de las cajas de Decathlon: el mismo hormigón con la cinta amarilla a los lados. Tres
+  // DEC-02: cola delimitada de las cajas de Decathlon: el mismo hormigón, delimitada por postes con cinta (props). Tres
   // variantes de ruido: con dos, la elección por posición sería un damero.
   e: { key: 'tile-floor-queue', solid: false, variants: 3 },
 };
@@ -198,7 +198,8 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   shelf: { key: 'prop-shelf', tilesHigh: 2 },
   plant: { key: 'prop-plant', tilesHigh: 1 },
   table: { key: 'prop-table', tilesHigh: 1 },
-  counter: { key: 'prop-counter', tilesHigh: 1 },
+  // DEC-02: 1, el frontal rojo de las cajas de Decathlon con la bolsa azul (world/StoreArt.ts); sin `variant`, el de siempre.
+  counter: { key: 'prop-counter', tilesHigh: 1, variants: 2, defaultVariant: 0 },
   stall: { key: 'prop-stall', tilesHigh: 2 },
   // MET-01: la placa azul del andén con el nombre de la parada; una textura por nombre (data/transit.ts: STATION_SIGNS).
   'metro-sign': { key: 'prop-metro-sign', tilesHigh: 1, tilesWide: 6, variants: STATION_SIGNS.length },
@@ -271,8 +272,26 @@ export const PROPS: Readonly<Record<PropKind, PropDef>> = {
   mirror: { key: 'prop-mirror', tilesHigh: 1, tilesWide: 2, variants: 3 },
   'clothes-rack': { key: 'prop-clothes-rack', tilesHigh: 2, tilesWide: 2 },
   mannequin: { key: 'prop-mannequin', tilesHigh: 2 },
-  'fitting-room': { key: 'prop-fitting-room', tilesHigh: 2 },
-  register: { key: 'prop-register', tilesHigh: 1 },
+  // DEC-02: 0, la cabina de cortina de las tiendas pequeñas (sin `variant`); 1–9, las de Decathlon con su número en el
+  // panel negro; 10, la accesible con el pictograma azul (world/StoreArt.ts drawDecathlonFitting).
+  'fitting-room': { key: 'prop-fitting-room', tilesHigh: 2, variants: 11, defaultVariant: 0 },
+  // DEC-02 · control de probadores (world/StoreArt.ts): módulo azul con encimera de madera; 0 «ENTRADA», 1 puertas,
+  // 2 cajonera, 3 papelera de devolución con «SALIDA» y cartel. Decorado: ni spot ni inspect.
+  'fitting-desk': { key: 'prop-fitting-desk', tilesHigh: 2, variants: 4, defaultVariant: 1 },
+  'hanger-cart': { key: 'prop-hanger-cart', tilesHigh: 2 },
+  'black-table': { key: 'prop-black-table', tilesHigh: 1 },
+  // Poste negro con cinta: colisiona sólo su pie.
+  // 0, cinta hacia la derecha; 1, cinta hacia arriba (el poste de encima, en una fila de cola); 2, sin cinta (el primero).
+  // Tres de alto: la cinta de arriba llega a la cabeza del poste de encima; sólo choca el pie.
+  stanchion: { key: 'prop-stanchion', tilesHigh: 3, post: true, variants: 3, defaultVariant: 0 },
+  // DEC-02: 1, el puesto negro de caja de Decathlon (pantalla y datáfono); 2, el de autopago, con su franja azul; sin
+  // `variant`, el de siempre.
+  register: { key: 'prop-register', tilesHigh: 1, variants: 3, defaultVariant: 0 },
+  // DEC-02 · cajas de Decathlon (world/StoreArt.ts): el poste con la banderola azul del número (variante = caja − 1),
+  // el expositor de bolsas kraft y el tótem de «Tarjeta regalo». Decorado.
+  'till-banner': { key: 'prop-till-banner', tilesHigh: 2, post: true, variants: 6 },
+  'kraft-bags': { key: 'prop-kraft-bags', tilesHigh: 2 },
+  'gift-card-totem': { key: 'prop-gift-card-totem', tilesHigh: 2, foot: [10, 6] },
   fridge: { key: 'prop-fridge', tilesHigh: 2 },
   gondola: { key: 'prop-gondola', tilesHigh: 1 },
   // Despensa del ultramarinos (world/PropArt.ts): latas y tarros en tres baldas; como `shelf`, sólo choca su fila base.
