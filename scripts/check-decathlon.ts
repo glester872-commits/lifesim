@@ -146,6 +146,8 @@ for (const s of SECTORS) {
 for (const [id, pt] of Object.entries(loc.points ?? {}).filter(([id]) => id.startsWith('DECAT_FITTING_'))) {
   assert.ok(loc.props.some((pr) => pr.kind === 'fitting-room' && pr.tx === pt.tx && pr.ty === pt.ty - 1), `${id}: sin probador delante`);
 }
+// DEC-02 · Las cabinas, en fila y en el orden de la foto: 1–5, 1, la accesible (variante 10) y 6–9.
+assert.deepEqual(loc.props.filter((pr) => pr.kind === 'fitting-room').sort((a, b) => a.tx - b.tx).map((pr) => pr.variant), [1, 2, 3, 4, 5, 1, 10, 6, 7, 8, 9], 'las cabinas no siguen la foto');
 // DEC-02 · Cajas con cajero: quien paga en (c, 46) mirando a la derecha, mostrador y registradora en (c+1, 46), quien
 // cobra en (c+2, 46) mirando a la izquierda; puntos DECAT_TILL_n, DECAT_STAFF_n y DECAT_QUEUE_n_01/02.
 const has = (kind: string, tx: number, ty: number): boolean => loc.props.some((pr) => pr.kind === kind && pr.tx === tx && pr.ty === ty);
@@ -390,6 +392,35 @@ const ids = Object.keys(loc.points ?? {});
 for (const prefixes of [...DECATHLON_PROFILE.staff.map((s) => s.points), ...DECATHLON_PROFILE.visitors.flatMap((v) => v.plan.map((s) => s.points))]) {
   // `{n}` (la caja): basta con la primera.
   for (const prefix of prefixes) assert.ok(ids.some((id) => id.startsWith(prefix.replace('{n}', '1'))), `ningún punto con ${prefix}`);
+}
+
+// DEC-02 · Probadores con gente de sobra (catorce que sólo van a probarse, once cabinas) y el jugador dentro de la
+// accesible (Crowd.claim, como WorldScene): nunca dos en la misma cabina, ni nadie camino de la del jugador o en ella.
+{
+  const fitStep = DECATHLON_PROFILE.visitors.flatMap((v) => v.plan).find((s) => s.state === 'CHECK_ITEM' && s.points.includes('DECAT_FITTING_'))!;
+  const fitOnly: typeof DECATHLON_PROFILE = {
+    ...DECATHLON_PROFILE,
+    maxVisitors: 14,
+    visitors: DECATHLON_PROFILE.visitors.filter((v) => v.plan.includes(fitStep)).map((v) => ({ ...v, plan: [fitStep] })),
+  };
+  const mine = loc.fittings!.find((f) => f.name === 'Probador accesible')!.point;
+  const crowd = new Crowd(loc, shop, fitOnly);
+  const clock = { day: 6, hour: 18, minute: 0 };
+  crowd.claim(new Set([mine]));
+  crowd.populate(clock, away);
+  const used = new Set<string>();
+  for (let t = 0; t < 1500; t++) {
+    crowd.update(500, clock, away);
+    const held = new Map<string, number>();
+    for (const a of crowd.agents) {
+      if (!a.point?.startsWith('DECAT_FITTING_')) continue;
+      assert.notEqual(a.point, mine, `tick ${t}: ${a.id} va a la cabina del jugador`);
+      held.set(a.point, (held.get(a.point) ?? 0) + 1);
+      used.add(a.point);
+    }
+    for (const [id, k] of held) assert.equal(k, 1, `tick ${t}: ${k} personas en ${id}`);
+  }
+  assert.ok(used.size >= 3, `casi nadie se prueba nada (${used.size} cabinas usadas)`);
 }
 
 // 9 · Merchandising variado: la nave con muchos tipos de mueble distintos y los carteles de casi todas las familias.

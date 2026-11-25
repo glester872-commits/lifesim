@@ -2,7 +2,7 @@ import type { Facing, InspectDef, LocationDef, PointDef, PropKind, PropPlacement
 import type { PlanStep, PopulationProfile, StaffRole, VisitorRole } from './population.ts';
 import { at, p, TWO } from './interiors.ts';
 import { cashier, customer } from './cuatroRiosVenues.ts';
-import { DECATHLON_LAYOUT, type Rect } from './decathlonLayout.ts';
+import { DECATHLON_LAYOUT, type FittingRoom, type Rect } from './decathlonLayout.ts';
 
 /**
  * Decathlon · Polígono Norte por dentro (Alpha-07, nave reconstruida en Alpha-08). Desde Alpha-09 tiene calle: se baja
@@ -75,6 +75,13 @@ const row = (kind: PropKind, x0: number, x1: number, y: number, skip: readonly n
 };
 const all = (kind: PropKind, cells: readonly (readonly [number, number])[]): PropPlacement[] => cells.map(([x, y]) => at(kind, x, y));
 
+/** Las cabinas de probador (data/decathlonLayout.ts), de izquierda a derecha. */
+const FITTING_ROOMS: readonly FittingRoom[] = DECATHLON_LAYOUT.fittingRooms ?? [];
+/** Textura de la cabina (world/tiles.ts `fitting-room`): 1–9, su número; 10, la accesible; 0 es la de las tiendas pequeñas. */
+const fittingVariant = (f: FittingRoom): number => (f.accessible ? 10 : Number(f.label));
+/** «Probador 3», «Probador accesible» y, la segunda cabina con el mismo número, «Probador 1 bis». */
+const fittingName = (f: FittingRoom): string => (f.accessible ? 'Probador accesible' : `Probador ${f.label}${f.id.endsWith('-bis') ? ' bis' : ''}`);
+
 export const SECTORS: readonly Sector[] = [
   // ------------------------------------------------------------------ fondo (arriba), de izquierda a derecha
   {
@@ -92,22 +99,30 @@ export const SECTORS: readonly Sector[] = [
     sign: [12, 12],
   },
   {
-    id: 'sportswear', name: 'Sportswear', plan: 'Sportswear', family: 'fitness', rect: R(18, 2, 20, 10),
-    props: [at('wall-shelf', 18, 1), at('clothes-rack', 18, 5), at('clothes-rack', 18, 8)],
-    browse: [[20, 5, 'left'], [20, 8, 'left'], [19, 2, 'up']],
+    // DEC-02 · bajo los probadores (que ocupan todo el fondo de x 18 a 30): de la fila 7 al pasillo norte.
+    id: 'sportswear', name: 'Sportswear', plan: 'Sportswear', family: 'fitness', rect: R(18, 7, 23, 10),
+    props: [at('wall-shelf', 18, 1), at('clothes-rack', 18, 8), at('clothes-rack', 21, 8)],
+    browse: [[20, 8, 'left'], [23, 8, 'left'], [20, 10, 'up']],
     look: { tx: 18, ty: 1, lines: ['Un mural de camisetas dobladas por colores, de arriba abajo, con el precio en amarillo: «9,99». Parece un catálogo de pintura.'] },
   },
   {
-    id: 'probadores', name: 'Probadores', plan: 'Probadores', family: 'fitness', rect: R(21, 2, 25, 10),
-    props: [...row('fitting-room', 21, 25, 3)],
-    browse: [[23, 7, 'up']],
-    look: { tx: 23, ty: 3, lines: ['Cinco cabinas con cortina. En la del medio alguien lleva diez minutos decidiendo entre dos mallas iguales.'] },
+    // DEC-02 · la fila de cabinas de la foto (data/decathlonLayout.ts FITTING_ROOMS), con su número o el pictograma.
+    id: 'probadores', name: 'Probadores', plan: 'Probadores', family: 'fitness', rect: R(18, 2, 30, 6),
+    props: [
+      ...FITTING_ROOMS.map((f) => ({ ...at('fitting-room', f.tile.tx, f.tile.ty), variant: fittingVariant(f) })),
+      // El control de delante (probas.jpeg), en la fila 6: la 5 queda libre para llegar a todas las cabinas, y se sube a
+      // ella por x 18–20 y 29–30. Entrada, dos módulos, cajonera, papelera de salida, poste, mesa y carro. Decorado.
+      ...[0, 1, 1, 2, 3].map((v, i) => ({ ...at('fitting-desk', 21 + i, 6), variant: v })),
+      at('stanchion', 26, 6), at('black-table', 27, 6), at('hanger-cart', 28, 6),
+    ],
+    browse: [[30, 5, 'up']],
+    look: { tx: FITTING_ROOMS[2].tile.tx, ty: FITTING_ROOMS[2].tile.ty, lines: ['Once cabinas en fila, del 1 al 9, con la accesible en medio y su silla azul en el panel. En la 3 alguien lleva diez minutos decidiendo entre dos mallas iguales.'] },
   },
   {
-    id: 'montana-jr', name: 'Montaña junior', plan: 'Montaña JR', family: 'montana', rect: R(26, 2, 30, 10),
-    props: [...all('clothes-rack', [[26, 4], [29, 4], [26, 8], [29, 8]])],
-    browse: [[28, 6, 'left'], [27, 9, 'up']],
-    look: { tx: 26, ty: 4, lines: ['Chubasqueros de niño en seis colores chillones, para que se les vea desde la otra punta del monte.'] },
+    id: 'montana-jr', name: 'Montaña junior', plan: 'Montaña JR', family: 'montana', rect: R(24, 7, 30, 10),
+    props: [...all('clothes-rack', [[25, 8], [28, 8]])],
+    browse: [[27, 8, 'left'], [30, 8, 'left'], [27, 10, 'up']],
+    look: { tx: 25, ty: 8, lines: ['Chubasqueros de niño en seis colores chillones, para que se les vea desde la otra punta del monte.'] },
     sign: [27, 12],
   },
   {
@@ -327,8 +342,18 @@ const STAFFED = CHECKOUTS.filter((c) => c.kind === 'staffed');
  * la máquina debajo de quien paga. La taquilla del personal y el punto de información, junto a la puerta.
  */
 const FRONT: readonly PropPlacement[] = [
-  ...STAFFED.flatMap((c) => [at('counter', c.till.tx + 1, c.till.ty), at('register', c.till.tx + 1, c.till.ty)]),
-  ...CHECKOUTS.filter((c) => c.kind === 'self').map((c) => at('register', c.till.tx, c.till.ty + 1)),
+  // DEC-02 (caja.jpeg, cajas.jpeg): frontal rojo de «Regalos que nos unen» con el puesto negro encima; detrás de quien
+  // paga, el poste con la banderola azul de su número (el orden de la caja en los datos); a la izquierda de la cola, dos
+  // postes con cinta en la columna del cajero de la caja anterior (que llega a su sitio desde el pasillo de salida).
+  ...STAFFED.flatMap((c, i) => [
+    { ...at('counter', c.till.tx + 1, c.till.ty), variant: 1 },
+    { ...at('register', c.till.tx + 1, c.till.ty), variant: 1 },
+    { ...at('till-banner', c.till.tx + 1, c.till.ty - 1), variant: i },
+    ...c.queue.map((q, k) => ({ ...at('stanchion', q.tx - 1, q.ty), variant: k === c.queue.length - 1 ? 2 : 1 })),
+  ]),
+  ...CHECKOUTS.filter((c) => c.kind === 'self').map((c) => ({ ...at('register', c.till.tx, c.till.ty + 1), variant: 2 })),
+  // En el paso de delante de la puerta, decorado: el expositor de bolsas kraft y el tótem de la tarjeta regalo.
+  at('kraft-bags', 69, 45), at('gift-card-totem', 71, 45),
   at('lockers', 72, 40),
   // El punto de información, a la derecha de la puerta: se le habla por encima del mostrador.
   ...all('counter', [[66, 40], [67, 40]]),
@@ -357,7 +382,7 @@ const QUEUE_TILES = new Set(CHECKOUTS.flatMap((c) => c.queue.map((q) => `${q.tx}
 
 /**
  * Muro arriba (dos filas), a los lados y abajo; la puerta en la penúltima fila. Debajo del pasillo de cajas sólo hay
- * nave en la franja de cajas y salida. Pasillos de hormigón, colas con su cinta amarilla ('e'), fitness de goma.
+ * nave en la franja de cajas y salida. Pasillos de hormigón, colas ('e', delimitadas por los postes con cinta de FRONT), fitness de goma.
  */
 function ground(): string[] {
   const fitness = SECTORS.find((s) => s.id === 'fitness-mat')!.rect;
@@ -383,14 +408,15 @@ const BROWSE = SECTORS.flatMap((s) => s.browse);
 const browseId = (i: number): string => `${P}_BROWSE_${String(i + 1).padStart(3, '0')}`;
 const sectionPoints = (ids: readonly string[]): string[] =>
   SECTORS.filter((s) => ids.includes(s.id)).flatMap((s) => s.browse.map((point) => browseId(BROWSE.indexOf(point))));
-const FITTINGS = [21, 22, 23, 24, 25].map((x) => p(x, 4, 'interact', 'up'));
+const FITTINGS = FITTING_ROOMS.map((f) => p(f.tile.tx, f.tile.ty + 1, 'interact', 'up'));
 const EXIT = { tx: DOOR_X, ty: DECATHLON_H - 3 };
 
 /** Percheros donde se mira, se prueba y se compra (data/retail.ts `decathlon`): el tile desde el que se habla. */
 const RACKS: readonly RackDef[] = [
   { tx: 10, ty: 2, name: 'Zapatillas', store: 'decathlon', categories: ['zapatillas'] },
-  { tx: 20, ty: 5, name: 'Camisetas y sudaderas', store: 'decathlon', categories: ['camiseta', 'sudadera'] },
-  { tx: 20, ty: 8, name: 'Pantalones de deporte', store: 'decathlon', categories: ['pantalon'] },
+  // DEC-02 · Sportswear bajó a las filas 7–10 (los probadores ocupan el fondo): delante de sus dos percheros.
+  { tx: 20, ty: 8, name: 'Camisetas y sudaderas', store: 'decathlon', categories: ['camiseta', 'sudadera'] },
+  { tx: 23, ty: 8, name: 'Pantalones de deporte', store: 'decathlon', categories: ['pantalon'] },
   // DEC-03 · como los de arriba, de pie sobre un punto de mirar de su sección (check-economy): el centro de los cuatro
   // percheros de Montaña hombre y delante de la mesa de Accesorios (57,16).
   { tx: 40, ty: 6, name: 'Chaquetas de montaña', store: 'decathlon', categories: ['chaqueta'] },
@@ -413,7 +439,7 @@ export const DECATHLON_STORE: LocationDef = {
   npcs: [],
   racks: RACKS,
   // DEC-06 · los probadores del jugador: los mismos puntos de los clientes, delante de cada cabina.
-  fittings: FITTINGS.map((_, i) => ({ point: `${P}_FITTING_${TWO(i)}`, store: 'decathlon', name: `Probador ${i + 1}` })),
+  fittings: FITTING_ROOMS.map((f, i) => ({ point: `${P}_FITTING_${TWO(i)}`, store: 'decathlon', name: fittingName(f) })),
   inspects: SECTORS.map((s): InspectDef => ({ tx: s.look.tx, ty: s.look.ty, name: s.name, lines: s.look.lines })),
   workplace: 'decathlon',
   // El fichaje (turnos con contrato y el turno suelto sin él: scenes/Menus.openJob) y el punto de información de la entrada.

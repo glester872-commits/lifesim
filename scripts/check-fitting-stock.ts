@@ -75,10 +75,13 @@ if (!pool.some((g) => g !== gone && getGarment(g).name === getGarment(gone).name
 // (d) Guardado intacto.
 assert.equal(SAVE_VERSION, 12); // VID-07 subió el esquema (wellbeing).
 
-// (e) Cinco probadores, cada uno con su punto DECAT_FITTING_* y su probador derivado.
+// (e) DEC-02 · Once probadores (1–5, otra 1, la accesible y 6–9, como en la foto), cada uno con su punto DECAT_FITTING_*
+// y su probador derivado, con nombres distintos y la accesible entre ellos.
 const pts = Object.keys(DECATHLON_STORE.points ?? {}).filter((k) => /^DECAT_FITTING_\d\d$/.test(k)).sort();
-assert.equal(pts.length, 5, 'no hay cinco DECAT_FITTING');
+assert.equal(pts.length, 11, 'no hay once DECAT_FITTING');
 const fits = DECATHLON_STORE.fittings ?? [];
+assert.equal(new Set(fits.map((f) => f.name)).size, fits.length, 'dos probadores con el mismo nombre');
+assert.ok(fits.some((f) => f.name === 'Probador accesible'), 'sin probador accesible');
 assert.deepEqual(fits.map((f) => f.point).sort(), pts, 'un probador sin punto o un punto sin probador');
 for (const f of fits) assert.ok(getStore(f.store).basket, `${f.name}: tienda sin cesta`);
 

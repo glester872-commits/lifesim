@@ -188,8 +188,8 @@ export const SECTION_LINES: readonly SectionLine[] = [
     'Ve hacia el fondo, a la fila de montaña, y sigue a la derecha del todo: están pegadas a camping.',
   ] },
   { id: 'advice-montana-probar', section: 'montana', kind: 'advice', ref: 'montana-probar', variations: [
-    'Los probadores están al fondo, entre Sportswear y Montaña junior.',
-    'Al fondo tienes los probadores, entre Sportswear y Montaña junior. Pruébate las capas una encima de otra.',
+    'Los probadores están al fondo, detrás de Sportswear y Montaña junior. Se entra por el mostrador azul.',
+    'Al fondo tienes los probadores, pasado Sportswear y Montaña junior; entra por el mostrador azul. Pruébate las capas una encima de otra.',
     'En los probadores del fondo, entre Sportswear y Montaña junior. Mira que te dejen mover los brazos.',
   ] },
   { id: 'advice-running-zapatilla', section: 'running', kind: 'advice', ref: 'running-zapatilla', variations: [

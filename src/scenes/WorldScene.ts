@@ -360,6 +360,8 @@ export class WorldScene extends Phaser.Scene {
   /** VID-06 · aviso del paquete recogido al salir de casa; sobrevive al restart, como cameIn. */
   private pendingNotice: string | null = null;
   private mapWidth = 0;
+  /** El mapa de ahora es un interior (LocationDef.kind): la cámara reserva arriba lo que tapa el HUD (fitCamera). */
+  private interiorMap = false;
   private mapHeight = 0;
   private metro: MetroSystem | null = null;
 
@@ -659,6 +661,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     this.mapWidth = built.widthPx;
+    this.interiorMap = def.kind === 'interior';
     this.mapHeight = built.heightPx;
     this.physics.world.setBounds(0, 0, built.widthPx, built.heightPx);
     this.player = new Player(this, position.x, position.y, facing);
@@ -1507,8 +1510,10 @@ export class WorldScene extends Phaser.Scene {
 
     const boundsWidth = Math.max(this.mapWidth, width / zoom);
     const boundsHeight = Math.max(this.mapHeight, height / zoom);
-    // Viendo el partido (frameMatch), la cámara puede subir por encima del mapa lo que tapan el HUD y los botones.
-    const above = this.matchFramed ? this.topReserve() : 0;
+    // Viendo el partido (frameMatch) y en cualquier interior (LocationDef.kind), la cámara puede subir por encima del mapa
+    // lo que tapan el HUD y los botones: la fila de arriba de una sala (probadores, baldas del fondo) no queda debajo.
+    // En un interior más pequeño que la pantalla, el margen de centrado ya cuenta: sólo se añade lo que falte, y sigue centrado.
+    const above = this.matchFramed ? this.topReserve() : this.interiorMap ? Math.max(0, this.topReserve() - (boundsHeight - this.mapHeight) / 2) : 0;
     camera.setBounds(
       (this.mapWidth - boundsWidth) / 2,
       (this.mapHeight - boundsHeight) / 2 - above,
@@ -1520,8 +1525,11 @@ export class WorldScene extends Phaser.Scene {
 
   /** Lo que tapan arriba el HUD y los botones de las esquinas (ui/HUD.topInset), en píxeles de mundo, con un margen. */
   private topReserve(): number {
-    const css = this.services.hud.topInset() - this.game.canvas.getBoundingClientRect().top;
-    return Math.max(0, css + 8) * (this.scale.gameSize.width / this.scale.displaySize.width) / this.cameras.main.zoom;
+    // CSS → píxeles de juego con el tamaño CSS real del lienzo: displaySize va en píxeles de dispositivo (DPR 3 en móvil).
+    const rect = this.game.canvas.getBoundingClientRect();
+    const ratio = this.scale.gameSize.width / Math.max(1, rect.width);
+    const css = this.services.hud.topInset() - rect.top;
+    return Math.max(0, css + 8) * ratio / this.cameras.main.zoom;
   }
 
   private bindKeys(): void {
@@ -3749,7 +3757,9 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.fittingRoom = point;
-    this.menus.openFittingRoom(f.store, `Probador ${f.all.indexOf(point) + 1}`, () => {
+    // El nombre de la cabina, de los datos (LocationDef.fittings): la numeración no siempre es la posición.
+    const name = getLocation(this.services.state.locationId).fittings?.find((x) => x.point === point)?.name ?? `Probador ${f.all.indexOf(point) + 1}`;
+    this.menus.openFittingRoom(f.store, name, () => {
       this.fittingRoom = null;
     });
   }

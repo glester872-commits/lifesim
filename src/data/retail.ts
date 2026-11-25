@@ -299,7 +299,7 @@ export const STORES: readonly RetailStoreDef[] = [
   },
   // Decathlon (data/decathlon.ts, Alpha-08): lo técnico a precio de nave, en sus percheros de running y sportswear.
   {
-    id: 'decathlon', name: 'Decathlon', greeting: 'Hola. Lo que ves en los percheros es lo que hay hoy; los probadores están al fondo, junto a Sportswear.', thanks: 'Guarda el tique: tienes noventa días para devolverlo.', basket: true,
+    id: 'decathlon', name: 'Decathlon', greeting: 'Hola. Lo que ves en los percheros es lo que hay hoy; los probadores están al fondo, detrás de Sportswear.', thanks: 'Guarda el tique: tienes noventa días para devolverlo.', basket: true,
     stock: [{ garment: 'camiseta-tecnica', price: 7.99 }, { garment: 'sudadera-entreno', price: 14.99 }, { garment: 'pantalon-chandal', price: 12.99 }, { garment: 'chandal-gris', price: 9.99 }, { garment: 'zapatillas-futbol-sala', price: 24.99 },
       // DEC-03 · Trazo y Ondra, las marcas de la casa.
       { garment: 'cortavientos-trazo', price: 19.99 }, { garment: 'polar-ondra', price: 24.99 }, { garment: 'zapatilla-trail-trazo', price: 29.99 },

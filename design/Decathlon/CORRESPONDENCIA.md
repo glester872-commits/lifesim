@@ -30,9 +30,10 @@ adyacencia de las secciones y la posición de pasillos y entrada.
 |---|---|---|
 | Raqueta (arriba izq., con el rectángulo alto) | `raqueta-padel` + pista de pádel 6 × 12 | 1,2–8,16 |
 | Running | `running` | 9,2–17,10 |
-| Sportswear | `sportswear` | 18,2–20,10 |
-| Probadores | `probadores` (5 cabinas) | 21,2–25,10 |
-| Montaña JR / mujer / Hombre | `montana-jr`, `montana-mujer`, `montana-hombre` | 26–44, 2–10 |
+| Probadores (proba.jpeg, probas.jpeg) | `probadores` (11 cabinas: 1–5, 1, accesible, 6–9; `fittingRooms` de decathlonLayout.ts, cabinas en x 19–29, fila 3) | 18,2–30,6 |
+| Sportswear | `sportswear` (DEC-02: bajo los probadores) | 18,7–23,10 |
+| Montaña JR | `montana-jr` (DEC-02: bajo los probadores) | 24,7–30,10 |
+| Montaña mujer / Hombre | `montana-mujer`, `montana-hombre` | 31–44, 2–10 |
 | Camping (arriba) | `camping` (DEC-02: se queda el hueco de mochilas y fútbol, sin muebles nuevos) | 45,2–60,10 |
 | Pro shop de segunda vida | `segunda-vida` | 63,2–74,12 |
 | Ciclismo | `ciclismo` | 63,15–74,33 |

@@ -1133,7 +1133,8 @@ export function buildTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-shelf', TILE, TILE * 2, drawShelf);
   make(scene, 'prop-plant', TILE, TILE, drawPlant);
   make(scene, 'prop-table', TILE, TILE, drawTable);
-  make(scene, 'prop-counter', TILE, TILE, drawCounter);
+  // Variante 0; la 1 (cajas de Decathlon) la hace world/StoreArt.buildStoreTextures.
+  make(scene, 'prop-counter-0', TILE, TILE, drawCounter);
   make(scene, 'prop-stall', TILE, TILE * 2, drawStall);
   STATION_SIGNS.forEach((s, i) =>
     make(scene, `prop-metro-sign-${i}`, SIGN_W, TILE, (ctx) => drawMetroSign(ctx, s.name, TILES[s.wall]?.trim ?? PALETTE.metroBlue)),

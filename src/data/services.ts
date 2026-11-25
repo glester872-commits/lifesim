@@ -63,7 +63,7 @@ export const SERVICE_OFFERS = {
     questions: [
       { id: 'montana-mochila', question: '¿Qué mochila me conviene?', answer: 'Para una salida corta, con 15 o 20 litros suele bastar. Cuenta con sitio para agua, comida y una capa de abrigo.' },
       { id: 'montana-mochilas-donde', question: '¿Dónde están las mochilas?', answer: 'Al fondo, en la fila de montaña, hacia el extremo derecho. Están junto a camping.' },
-      { id: 'montana-probar', question: '¿Dónde puedo probarme la ropa?', answer: 'Los probadores están al fondo, entre Sportswear y Montaña junior.' },
+      { id: 'montana-probar', question: '¿Dónde puedo probarme la ropa?', answer: 'Los probadores están al fondo, detrás de Sportswear y Montaña junior. Se entra por el mostrador azul.' },
     ],
   },
   'decathlon-running': {
