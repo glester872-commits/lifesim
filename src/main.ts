@@ -5,6 +5,7 @@ import { GameState } from './state/GameState';
 import { TimeSystem } from './systems/TimeSystem';
 import { DialogueSystem } from './systems/DialogueSystem';
 import { restore } from './systems/SaveSystem';
+import { deliveryHint } from './systems/Delivery';
 import { activeSlot, gameStorage, slotSave } from './systems/SaveSlots';
 import { findPoint, pointsOfKind, route, worldRoute } from './systems/Navigation';
 import { zoneActivity, zoneAt } from './systems/Zones';
@@ -66,7 +67,7 @@ import { auditableLocations, auditVenues, lastTransitionError } from './systems/
 import { getLocation } from './systems/LocationSystem';
 import type { WorldScene as WorldSceneType } from './scenes/WorldScene';
 import { HUD } from './ui/HUD';
-import { commitmentLine, commitments, departureText, dueText, estimateTrip, margin, marginLabel, review, travelHint, type TravelHint } from './systems/Agenda';
+import { commitmentLine, commitments, departureText, dueText, estimateTrip, guideInputOf, guideProgress, margin, marginLabel, review, travelHint, type TravelHint } from './systems/Agenda';
 import { opportunities, opportunityInput } from './systems/Opportunities';
 import { LINES } from './data/transit';
 import { DialogueBox } from './ui/DialogueBox';
@@ -86,8 +87,10 @@ import { PauseMenu } from './ui/PauseMenu';
 import { PlayerInput } from './systems/PlayerInput';
 import { KickDrill } from './ui/KickDrill';
 import { SparPanel } from './ui/SparPanel';
+import { AttentionPanel } from './ui/AttentionPanel';
 import { SimulationPause } from './systems/SimulationPause';
 import { METRO_CONFIG } from './config/metro';
+import { KMH_PER_PXS } from './config/cycling';
 import { cityAt, districtAt, travel, worldTree } from './systems/World';
 import { matchNow, upcomingMatches } from './systems/Match';
 import type { Services } from './services';
@@ -112,7 +115,7 @@ setReputationSource((loc) => valueIn(state.reputation, zoneOf(loc)));
 const dialogue = new DialogueSystem();
 const menu = new Menu(requireEl('#menu'));
 // Ni el móvil encima del mapa ni el mapa encima del móvil: primero se cierra uno.
-const phone = new PhoneScreen(requireEl('#phone'), requireEl('#phone-button') as HTMLButtonElement, requireEl('#phone-toast'), state, () => dialogue.isOpen || menu.isOpen || services.map.isOpen || services.kickDrill.isOpen || services.sparPanel.isOpen);
+const phone = new PhoneScreen(requireEl('#phone'), requireEl('#phone-button') as HTMLButtonElement, requireEl('#phone-toast'), state, () => dialogue.isOpen || menu.isOpen || services.map.isOpen || services.kickDrill.isOpen || services.sparPanel.isOpen || services.attention.isOpen);
 const clock = new TimeSystem(state);
 // Tras dormir, un turno o el metro, el reloj espera a que se lea lo que ha pasado (systems/TimeSystem.release).
 clock.holdJumps = true;
@@ -126,13 +129,14 @@ const services: Services = {
   hint: new TargetHint(requireEl('#hint')),
   kickDrill: new KickDrill(requireEl('#kick-drill'), input),
   sparPanel: new SparPanel(requireEl('#spar-panel'), input),
+  attention: new AttentionPanel(requireEl('#attention-panel'), input),
   metroDebug: METRO_CONFIG.debug ? new MetroDebug(requireEl('#metro-debug')) : null,
   announcer: new Announcer(requireEl('#announce')),
   place: new PlaceBanner(requireEl('#place')),
   metroEvents: new MetroEventManager(state),
   menu,
   // No se abre encima de un diálogo o un menú: primero se termina lo que se estaba haciendo.
-  map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen || phone.isOpen || services.kickDrill.isOpen || services.sparPanel.isOpen),
+  map: new MapScreen(requireEl('#map'), requireEl('#map-button') as HTMLButtonElement, state, () => dialogue.isOpen || menu.isOpen || phone.isOpen || services.kickDrill.isOpen || services.sparPanel.isOpen || services.attention.isOpen),
   input,
   phone,
   audio: new CityAudio(requireEl('#sound-button') as HTMLButtonElement),
@@ -300,10 +304,23 @@ const reviewAgenda = (): void => {
     services.save.save(state.snapshot);
   } else if (settled) services.save.save(state.snapshot);
 
-  const next = commitments(input).find((c) => c.kind !== 'gathering' && (!c.deadline || c.start - now < 24 * 60));
+  const all = commitments(input);
+  const first = all.find((c) => c.kind !== 'gathering' && (!c.deadline || c.start - now < 24 * 60));
+  // VID-05 · Varias visitas a la misma hora en el mismo sitio son una quedada: se nombra a todas.
+  const same = first?.kind === 'visit' ? all.filter((c) => c.kind === 'visit' && c.start === first.start && c.where?.name === first.where?.name) : [];
+  const next = first && same.length > 1
+    ? { ...first, title: `Quedada en casa con ${same.map((c) => c.title.replace(/^Quedada con /, '')).join(' y ')}` }
+    : first;
   // Sin nada con hora: lo primero que se puede hacer (data/opportunities.ts); el resto, en Hoy.
   const idea = next ? undefined : opportunities(opportunityInput(s, now))[0];
-  if (!next) services.hud.setNext(idea ? `Libre · Puedes: ${idea.title}. Más en el móvil (P) → Hoy.` : 'Libre. Ideas y guía: móvil (P) → Hoy.', 'ok');
+  // VID-10 · con un encargo de reparto vivo, lo que toca de él en lugar de la idea libre.
+  const delivery = next ? undefined : deliveryHint(state.delivery);
+  // VID-12 · con la guía puesta, la pista del siguiente hito; nunca con un diálogo o menú abierto (vuelve al minuto siguiente).
+  const tour = s.agenda?.guide?.mode === 'guided' && !services.dialogue.isOpen && !services.menu.isOpen ? guideProgress(guideInputOf(s)) : null;
+  const step = tour?.milestones.find((m) => m.id === tour.next);
+  const tip = step ? ` · Guía: ${step.hint}` : '';
+  if (delivery) services.hud.setNext(`Reparto: ${delivery}.${tip}`, 'ok');
+  else if (!next) services.hud.setNext(idea ? `Libre · Puedes: ${idea.title}. Más en el móvil (P) → Hoy.${tip}` : `Libre. Ideas y guía: móvil (P) → Hoy.${tip}`, 'ok');
   else {
     // Con hora y sitio, el HUD dice la salida y la categoría (corto); el texto del viaje se lee en Hoy.
     const timed = !!next.where && !next.deadline;
@@ -316,12 +333,12 @@ const reviewAgenda = (): void => {
     const line = depart
       ? [next.title, `${dueText(next, now)}${next.where ? ` · ${next.where.name}` : ''}`, depart].join(' · ')
       : commitmentLine(next, now, hint);
-    services.hud.setNext(`Próximo · ${line}${recharge}`, recharge ? 'tight' : margin(next, now, hint));
+    services.hud.setNext(`Próximo · ${line}${recharge}${tip}`, recharge ? 'tight' : margin(next, now, hint));
   }
 };
 state.on('change', reviewAgenda);
 // Firmar, matricularse, pagar o quedar con el reloj parado (en un menú) también cambia lo próximo: el HUD se rehace ya.
-for (const event of ['job', 'study', 'household', 'phone', 'story', 'housing']) {
+for (const event of ['job', 'study', 'household', 'phone', 'story', 'housing', 'delivery']) {
   state.on(event, () => {
     shownFor = '';
     reviewAgenda();
@@ -387,6 +404,16 @@ game.events.on('lifesim:pause', () => pauseMenu.show());
 game.events.on('lifesim:world-ready', () => {
   simulationPause.set('hidden', document.hidden);
   if (simulationPause.paused) game.scene.pause('World');
+});
+// BIKE-01 · km/h en el HUD mientras se pedalea (no en táctil); setSpeed sólo toca el DOM si cambia el entero.
+// A pie y ya oculto, sale sin tocar nada; la clase 'has-touch' sólo se mira montado.
+let speedShown = false;
+game.events.on(Phaser.Core.Events.POST_STEP, () => {
+  const { phase, speed } = state.ride;
+  const montado = phase === 'CYCLING' || phase === 'BRAKING';
+  if (!montado && !speedShown) return;
+  speedShown = montado && !document.body.classList.contains('has-touch');
+  services.hud.setSpeed(speedShown ? Math.round(speed * KMH_PER_PXS) : null);
 });
 
 // Girar el móvil, cambiar de monitor o hacer zoom en el navegador cambia el tamaño físico.

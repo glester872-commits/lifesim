@@ -11,7 +11,7 @@ import { NAMED_PEOPLE } from '../data/namedPeople';
 import {
   activePlan, contactsOf, deleteNote, MESSAGE_MAX, NOTE_BODY_MAX, NOTE_TITLE_MAX, PLAN_KINDS, phoneOptions, placeName,
   saveNote, sendFree, stampLabel, textLength, unreadTotal, whenLabel,
-  type Contact, type NpcStatus, type PhoneActionId, type PhoneNews, type SocialPlan,
+  type Contact, type NpcStatus, type PhoneActionId, type PhoneNews, type SocialPlan, type StoryPhoneOffer,
 } from '../systems/Phone';
 import { createSocialProfile, type ContactState } from '../systems/Social';
 import { dayOf, hireBlocker, levelOf, levelSummary, nextShift, settle, statusOf, type ShiftStatus } from '../systems/Jobs';
@@ -24,14 +24,20 @@ import { BILLS, GOALS } from '../data/household';
 import { euros } from '../systems/Commerce';
 import { COURSES, getGig, getSkill } from '../data/study';
 import { gigDeadline, gigStatus, hasCamera, knowledge, lessonStatus, levelName, nextSession, sessionLabel } from '../systems/Study';
-import { commitments, departureText, dueText, estimateTrip, margin, marginLabel, progressSignals, travelHint, type Commitment, type TravelHint } from '../systems/Agenda';
+import { commitments, departureText, dueText, estimateTrip, guideInputOf, guideProgress, margin, marginLabel, progressSignals, resumeGuide, travelHint, type Commitment, type TravelHint } from '../systems/Agenda';
 import { TOUR } from '../data/tour';
 import { opportunities, opportunityInput } from '../systems/Opportunities';
 import { getCatalog } from '../data/catalogs';
 import { destinationsFrom, getStop } from '../systems/Transit';
+import { getLocation } from '../systems/LocationSystem';
+import { diaryDetail, diaryRow, sortedEntries } from '../systems/Diary';
 import { rentsOf } from '../systems/Housing';
 import { CREDIT } from '../data/credit';
 import { GRACE_DAYS } from '../data/household';
+import {
+  CANCEL_CONSEQUENCE, startBlocker, emptyLifeProjects, lifeNoteId, projectCatalog, projectView,
+  type LifeProjectType, type ProjectResult, type ViewFacts,
+} from '../systems/LifeProjects';
 import { activeLoan, cancel, cancelQuote, creditBlocker, creditView, payInstallment, simulateCredit, syncCredit, take, totalOf, type CreditInput } from '../systems/Credit';
 
 /**
@@ -56,7 +62,7 @@ export interface PhoneHost {
   send(npc: string, action: PhoneActionId): void;
   read(npc: string): void;
   /** Una propuesta suya por contestar (systems/Story): con qué palabras se acepta o se dice que no. */
-  offer?(npc: string): { accept?: string; decline?: string; cancel?: boolean } | undefined;
+  offer?(npc: string): StoryPhoneOffer | undefined;
   /** El plan quedado con su historia (una visita a casa), dicho para la conversación: «tu piso · mañana a las 19:30». */
   planLine?(npc: string): string | undefined;
   /** Guarda la partida ya (tras un pago). */
@@ -69,7 +75,8 @@ type Screen =
   | { app: 'home' } | { app: 'contacts' } | { app: 'messages' } | { app: 'job' } | { app: 'thread'; npc: string }
   | { app: 'money' } | { app: 'pay'; bill: string; period: number } | { app: 'goals' } | { app: 'study' } | { app: 'today' }
   | { app: 'notes' } | { app: 'note'; id: string } | { app: 'reputation' } | { app: 'weather' }
-  | { app: 'credit' } | { app: 'loan' } | { app: 'loan-close' };
+  | { app: 'credit' } | { app: 'loan' } | { app: 'loan-close' } | { app: 'projects' }
+  | { app: 'diary' } | { app: 'diary-entry'; id: string };
 
 /** Un identificador que no se repite entre recargas (el del mensaje o la nota). */
 const freshId = (): string => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -277,7 +284,13 @@ export class PhoneScreen {
     state.on('change', () => {
       if (state.money === shown) return;
       shown = state.money;
-      if (this.screen.app === 'money' || this.screen.app === 'pay' || this.screen.app === 'goals') this.refresh();
+      if (this.screen.app === 'money' || this.screen.app === 'pay' || this.screen.app === 'goals' || this.screen.app === 'projects') this.refresh();
+    });
+    state.on('lifeProjects', () => {
+      if (this.screen.app === 'projects') this.refresh();
+    });
+    state.on('diary', () => {
+      if (this.screen.app === 'diary' || this.screen.app === 'diary-entry') this.refresh();
     });
     state.on('change', () => this.renderClock());
     // Hoy depende de la hora (cuánto falta, si da tiempo): se repinta cada cinco minutos de reloj, no en cada uno.
@@ -337,6 +350,7 @@ export class PhoneScreen {
     else if (s.app === 'pay' || s.app === 'goals' || s.app === 'credit' || s.app === 'loan') this.go({ app: 'money' });
     else if (s.app === 'loan-close') this.go({ app: 'loan' });
     else if (s.app === 'note') this.go({ app: 'notes' });
+    else if (s.app === 'diary-entry') this.go({ app: 'diary' });
     else this.go({ app: 'home' });
   }
 
@@ -454,6 +468,7 @@ export class PhoneScreen {
     else if (s.app === 'money') this.renderMoney();
     else if (s.app === 'pay') this.renderPay(s.bill, s.period);
     else if (s.app === 'goals') this.renderGoals();
+    else if (s.app === 'projects') this.renderProjects();
     else if (s.app === 'today') this.renderToday();
     else if (s.app === 'credit') this.renderCredit();
     else if (s.app === 'loan') this.renderLoan();
@@ -462,6 +477,8 @@ export class PhoneScreen {
     else if (s.app === 'note') this.renderNote(s.id);
     else if (s.app === 'reputation') this.renderReputation();
     else if (s.app === 'weather') this.renderWeather();
+    else if (s.app === 'diary') this.renderDiary();
+    else if (s.app === 'diary-entry') this.renderDiaryEntry(s.id);
     else this.renderThread(s.npc);
     this.selected = Math.min(Math.max(0, keep), Math.max(0, this.items.length - 1));
     this.mark();
@@ -496,8 +513,10 @@ export class PhoneScreen {
     app('✎', 'Estudios', () => this.go({ app: 'study' }));
     const urgent = unpaid(this.state.household).filter((o) => o.due <= this.state.day).length;
     app('€', 'Cuentas', () => this.go({ app: 'money' }), urgent);
+    app('→', 'Proyectos', () => this.go({ app: 'projects' }));
     app('✍', 'Notas', () => this.go({ app: 'notes' }));
     app('◆', 'Reputación', () => this.go({ app: 'reputation' }));
+    app('❖', 'Diario', () => this.go({ app: 'diary' }));
     app('☁', 'Tiempo', () => this.go({ app: 'weather' }));
     app('◉', 'Cámara', null);
     app('♪', 'Música', null);
@@ -565,13 +584,37 @@ export class PhoneScreen {
       this.item(li, target ? () => this.go(target) : () => undefined);
       progress.append(li);
     }
+    // VID-12 · los cuatro hitos, leídos de la partida (leer no escribe nada). Sin guía (partida de antes o recién
+    // empezada), los textos de siempre; al retomarla en una partida vieja, lo ya hecho cuenta por lo que guarda.
     const guide = el('ul', 'phone__list');
-    for (const step of TOUR) {
-      const li = el('li', 'phone__row');
-      li.append(rowText(step.title, step.text));
-      this.item(li, () => undefined);
-      guide.append(li);
+    const chosen = s.agenda.guide;
+    if (chosen) {
+      const g = guideProgress(guideInputOf(s.snapshot));
+      for (const m of g.milestones) {
+        const li = el('li', `phone__row${m.id === g.next && chosen.mode === 'guided' ? ' is-unread' : ''}`);
+        const steps = m.steps.map((st) => `${st.done ? '✓' : '○'} ${st.label}`).join(' · ');
+        const tip = m.id === g.next && chosen.mode === 'guided' ? ` · Ahora: ${m.hint}` : '';
+        li.append(rowText(m.title, `${steps}${tip}`), el('span', 'phone__row-meta', m.done ? '✓ Hecho' : 'Pendiente'));
+        // Sólo se lee: fuera de this.items, el foco va de la lista de arriba a «Retomar/Dejar la guía».
+        guide.append(li);
+      }
+    } else {
+      for (const step of TOUR) {
+        const li = el('li', 'phone__row');
+        li.append(rowText(step.title, step.text));
+        guide.append(li);
+      }
     }
+    const toggle = el('li', 'phone__row');
+    const guided = chosen?.mode === 'guided';
+    toggle.append(rowText(guided ? 'Dejar la guía' : 'Retomar la guía', guided ? 'Los hitos siguen aquí; sólo deja de dar pistas.' : 'Vuelve a dar pistas del siguiente hito. Lo ya hecho cuenta.'));
+    this.item(toggle, () => {
+      const a = s.agenda;
+      s.setAgenda(guided && a.guide ? { ...a, guide: { ...a.guide, mode: 'skipped' } } : resumeGuide(a, now, s.events.rides));
+      this.host?.persist();
+      this.refresh();
+    });
+    guide.append(toggle);
     const parts: HTMLElement[] = [head, ul];
     if (can.childElementCount) parts.push(el('p', 'phone__note', 'Puedes hacer'), can);
     this.screenEl.replaceChildren(...parts, el('p', 'phone__note', 'Cómo vas'), progress, el('p', 'phone__note', 'Guía'), guide);
@@ -807,6 +850,113 @@ export class PhoneScreen {
       ul.append(none);
     }
     this.screenEl.replaceChildren(el('p', 'phone__greeting', advice), ul);
+  }
+
+  // ------------------------------------------------------------ proyectos de vida (VID-01 F4; systems/LifeProjects)
+
+  /**
+   * Proyectos: los vivos (progreso con su causa, próximo paso, bloqueos, pausar/reanudar/abandonar), los que se pueden
+   * empezar y el historial con su recuerdo. Abandonar se confirma aquí mismo (armedDelete, como borrar una nota).
+   */
+  private renderProjects(): void {
+    this.titleEl.textContent = 'Proyectos';
+    const s = this.state;
+    const all = s.lifeProjects ?? emptyLifeProjects();
+    const now = this.host?.now() ?? 0;
+    const w = s.wallet;
+    const facts: ViewFacts = {
+      money: w.money, hasItem: (id) => (w.inventory[id] ?? 0) > 0,
+      job: s.job && settle(s.job, now).progress, unlocks: s.study.unlocks,
+    };
+    const parts: HTMLElement[] = [];
+    if (this.flash) parts.push(el('p', 'phone__greeting', this.flash));
+    this.flash = '';
+    const done = (r: ProjectResult): void => {
+      this.flash = r.message;
+      this.armedDelete = '';
+      if (r.ok) this.host?.persist();
+      this.render(this.selected, true);
+    };
+    const button = (label: string, run: () => void): HTMLButtonElement => {
+      const b = el('button', 'phone__reply', label) as HTMLButtonElement;
+      b.type = 'button';
+      this.item(b, run);
+      return b;
+    };
+    // phone__row--wrap: en Proyectos el texto (paso, sitio, horario, bloqueos, recuerdo) se lee entero.
+    const info = (ul: HTMLElement, title: string, sub: string, meta = ''): HTMLElement => {
+      const li = el('li', 'phone__row phone__row--wrap');
+      const text = rowText(title, sub);
+      const m = el('span', 'phone__row-meta', meta);
+      li.append(text, m);
+      ul.append(li);
+      return meta ? m : text;
+    };
+
+    const living = all.items.filter((p) => p.status === 'active' || p.status === 'paused');
+    if (!living.length) parts.push(el('p', 'phone__empty', 'No tienes proyectos en marcha.'));
+    for (const p of living) {
+      const v = projectView(p, facts);
+      const ul = el('ul', 'phone__list');
+      const pct = info(ul, `${v.title} · ${v.status}`, v.progressText, `${Math.round(v.ratio * 100)}%`);
+      const bar = el('div', 'phone__progress');
+      const fill = el('div', 'phone__progress-fill');
+      fill.style.width = `${Math.max(0, Math.min(1, v.ratio)) * 100}%`;
+      bar.append(fill);
+      pct.append(bar);
+      info(ul, 'Próximo paso', v.nextStep);
+      if (v.blockers.length) info(ul, 'Bloqueos', v.blockers.join(' · '));
+      const actions = el('div', 'phone__note-actions');
+      if (this.armedDelete === p.id) {
+        parts.push(ul, el('p', 'phone__note', `¿Abandonar «${v.title}»? ${CANCEL_CONSEQUENCE}`));
+        actions.append(
+          button('Sí, abandonar', () => done(s.cancelLifeProject(p.id))),
+          button('No', () => {
+            this.armedDelete = '';
+            this.render(this.selected, true);
+          }),
+        );
+      } else {
+        parts.push(ul);
+        for (const a of v.actions) {
+          if (a === 'pause') actions.append(button('Pausar', () => done(s.pauseLifeProject(p.id))));
+          else if (a === 'resume') actions.append(button('Reanudar', () => done(s.resumeLifeProject(p.id))));
+          else {
+            actions.append(button('Abandonar', () => {
+              this.armedDelete = p.id;
+              this.render(this.selected, true);
+            }));
+          }
+        }
+      }
+      parts.push(actions);
+    }
+
+    parts.push(el('p', 'phone__note', 'Empezar un proyecto'));
+    for (const type of Object.keys(projectCatalog) as LifeProjectType[]) {
+      const c = projectCatalog[type];
+      const ul = el('ul', 'phone__list');
+      // Mismo motivo que daría startProject; GameState sigue rechazando como respaldo.
+      const blocked = startBlocker(all, type, facts.hasItem);
+      const text = info(ul, c.title, `${c.summary} ${c.needs}`);
+      text.append(blocked === null ? button('Empezar', () => done(s.startLifeProject(type))) : el('span', '', blocked));
+      parts.push(ul);
+    }
+
+    const past = all.items.filter((p) => p.status === 'completed' || p.status === 'cancelled')
+      .sort((a, b) => (b.completedAt ?? b.startedAt) - (a.completedAt ?? a.startedAt));
+    if (past.length) {
+      parts.push(el('p', 'phone__note', 'Historial'));
+      const ul = el('ul', 'phone__list');
+      const notes = s.phone.notes ?? [];
+      for (const p of past) {
+        const memory = p.status === 'completed' ? notes.find((n) => n.id === lifeNoteId(p.id))?.body ?? '' : '';
+        const day = Math.floor((p.completedAt ?? p.startedAt) / 1440) + 1;
+        info(ul, `${projectCatalog[p.type].title} · ${projectView(p, facts).status}`, memory, formatDateShort(day));
+      }
+      parts.push(ul);
+    }
+    this.screenEl.replaceChildren(...parts);
   }
 
   // ------------------------------------------------------------ micropréstamo (Fase 3b; systems/Credit)
@@ -1148,6 +1298,56 @@ export class PhoneScreen {
       li.append(text, meta);
       ul.append(li);
     }
+    this.screenEl.replaceChildren(ul);
+  }
+
+  // ------------------------------------------------------------ diario (VID-11): sólo lectura
+
+  private renderDiary(): void {
+    this.titleEl.textContent = 'Diario';
+    const entries = sortedEntries(this.state.diary);
+    if (!entries.length) {
+      this.screenEl.replaceChildren(el('p', 'phone__empty', 'Todavía no hay recuerdos. Aquí quedarán los momentos importantes: un contrato firmado, un proyecto cumplido o una quedada en casa.'));
+      return;
+    }
+    const ul = el('ul', 'phone__list');
+    for (const e of entries) {
+      const r = diaryRow(e);
+      const b = el('button', 'phone__row phone__row--button phone__row--wrap') as HTMLButtonElement;
+      b.type = 'button';
+      b.append(rowText(r.title, r.when));
+      this.item(b, () => this.go({ app: 'diary-entry', id: e.id }));
+      const li = el('li', '');
+      li.append(b);
+      ul.append(li);
+    }
+    this.screenEl.replaceChildren(ul);
+  }
+
+  private renderDiaryEntry(id: string): void {
+    this.titleEl.textContent = 'Diario';
+    const e = this.state.diary.entries.find((x) => x.id === id);
+    if (!e) {
+      this.screenEl.replaceChildren(el('p', 'phone__empty', 'Este recuerdo ya no está en el diario.'));
+      return;
+    }
+    const d = diaryDetail(e, {
+      npc: (n) => getNpc(n).name,
+      place: (p) => {
+        try { return getLocation(p).name; } catch { return getStop(p).name; }
+      },
+    });
+    const ul = el('ul', 'phone__list');
+    const line = (label: string, text: string): void => {
+      const li = el('li', 'phone__row phone__row--wrap');
+      li.append(rowText(label, text));
+      ul.append(li);
+    };
+    line(d.type, d.title);
+    line('Cuándo', `${d.date} · ${d.time}`);
+    if (d.people.length) line('Con', d.people.join(', '));
+    if (d.place) line('Dónde', d.place);
+    if (d.facts.length) line('Cómo fue', d.facts.join(' · '));
     this.screenEl.replaceChildren(ul);
   }
 

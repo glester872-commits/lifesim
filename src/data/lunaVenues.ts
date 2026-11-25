@@ -14,6 +14,13 @@ export const LU_INTERIORS: readonly LocationDef[] = [
     browse: [[2, 3, 'up'], [6, 3, 'up'], [4, 6, 'up'], [11, 3, 'right']],
     inspects: [{ tx: 9, ty: 2, name: 'Cartel a mano', lines: ['«Hielo, pan de ayer y paciencia. Abierto hasta las 4». Debajo, otra letra: «la paciencia no se vende».'] }],
   }),
+  // LOC-01 · Horno de Luna: la planta de la Panadería Cuatro Hornos (Campo Alto), abierta de 22 a 7.
+  shopRoom({
+    id: 'lu-horno', name: 'Horno de Luna', building: 'lu-horno', street: 'luna', pre: 'LUHORNO', ambient: '#ffe4c4', catalog: 'lu-horno-mostrador',
+    props: [...many('bread-rack', [[2, 2], [3, 2], [4, 2], [5, 2], [6, 2]]), ...many('pastry-case', [[8, 7], [9, 7]]), at('espresso', 12, 6), at('chalkboard', 9, 1), at('plant', 1, 8)],
+    browse: [[2, 3, 'up'], [4, 3, 'up'], [6, 3, 'up']],
+    inspects: [{ tx: 9, ty: 2, name: 'Pizarra', lines: ['«De diez de la noche a siete de la mañana». Debajo: «Los cruasanes, a partir de las tres».'] }],
+  }),
 ];
 
 const night = (role: string, label: string, said: string, weight: number, party: readonly [number, number]): VisitorRole => ({
@@ -33,6 +40,13 @@ export const LU_PROFILES: readonly PopulationProfile[] = [
     weekday: [0, 0, 0, 0, 1, 1, 0], maxVisitors: 5,
     staff: [cashier('LUABIERTO', 'Abierto Toda la Noche', 'La bolsa son diez céntimos. A estas horas, te la regalo.')],
     visitors: [customer('LUABIERTO', 'Hielo y patatas, que los invitados no avisan.', 1, { party: [1, 2] })],
+  },
+  {
+    // LOC-01 · de 22 a 7 (data/places.ts): a la salida del bar y antes del primer metro.
+    place: 'lu-horno', bands: [[22, 24, 'LOW'], [0, 3, 'MEDIUM'], [3, 5, 'LOW'], [5, 7, 'MEDIUM']],
+    weekday: [0, 0, 0, 0, 1, 1, 0], maxVisitors: 4,
+    staff: [cashier('LUHORNO', 'Horno de Luna', 'La primera hornada sale a las doce. La buena, a las cinco.')],
+    visitors: [customer('LUHORNO', 'Un cruasán caliente antes de dormir. O de trabajar, según se mire.', 2)],
   },
   {
     place: 'lu-bar',

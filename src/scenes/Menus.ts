@@ -3,13 +3,16 @@ import type { Services } from '../services';
 import { getCatalog, type Catalog, type Product } from '../data/catalogs';
 import { garmentIcon, itemIcon } from '../ui/ItemIcons';
 import { getItem } from '../data/items';
-import { getActivity, getOffMapPlace, type ActivityDef } from '../data/activities';
+import { getActivity, getOffMapPlace, ingredientsOf, type ActivityDef } from '../data/activities';
 import { STOPS, type TransitStop } from '../data/transit';
-import { checkout, consume, euros, maxQty, payFare, productUse, purchase, spend } from '../systems/Commerce';
-import { blocker, perform, type ActivityContext } from '../systems/Activities';
+import { checkout, consume, euros, maxQty, payFare, productUse, purchase } from '../systems/Commerce';
+import { applyOutcome, blocker, perform, type ActivityContext } from '../systems/Activities';
 import { destinationsFrom, journeyFare, prepareRide, serviceOpen, visitable, weatherDelay, type Destination } from '../systems/Transit';
 import { formatClock } from '../systems/TimeSystem';
-import { getJob, JOB_FALLBACK, jobAt, type JobDef } from '../data/jobs';
+import { getJob, JOB_FALLBACK, JOBS, jobAt, type JobChoice, type JobDef } from '../data/jobs';
+import { ATTENTION } from '../data/customerService';
+import { pickCase } from '../systems/CustomerService';
+import { GRADE_LABEL } from '../ui/AttentionPanel';
 import { applicationCheck, applicationResult, clockInBlocker, decline, hire, hireBlocker, levelOf, levelSummary, missedNotice, nextShift, offerText, promote, promotionBlocker, promotionReady, quit, shiftClash, situationFor, work, type JobProgress } from '../systems/Jobs';
 import { formatDate, formatDateShort } from '../systems/Calendar';
 import type { MenuOption } from '../ui/Menu';
@@ -20,8 +23,14 @@ import { DOCTOR_LINES } from '../data/hospital';
 import { boardAt, type Board } from '../systems/Boards';
 import { attend as attendGathering, getGathering, hhmm, joinBlocker, lastAttendance, occurrenceOn } from '../systems/Parish';
 import { getNpc } from '../data/npcs';
+import { heldPackage, liveFavor } from '../systems/Neighborhood';
+import { accept as acceptDelivery, acceptBlocker, acceptShift, cancel as cancelDelivery, CANCEL_CARRYING_LINE, collectCompanyBikes, counterTask, deliver as deliverPackage, deliveryHint, emptyDelivery, endOpen, lendForShift, pickUp, shiftOfRun, type Result as DeliveryResult } from '../systems/Delivery';
+import { deliveriesOn, getDelivery, shiftsOn, type DeliveryDef, type ShiftDef } from '../data/deliveries';
+import { tensionBand, tensionLine, WORK_GAIN, WORK_LATE_GAIN } from '../systems/Wellbeing';
 import { buyTicket, fixtureLine, offer, ticketLine, venueOf } from '../systems/Tickets';
 import { absMinute } from '../systems/Handoff';
+import { characterDay } from '../systems/Characters';
+import { cancelGatheringsAt } from '../systems/HomeGathering';
 import { FACTORY_HAIR_COLOR, HAIR_COLORS, HAIR_DYE, HAIRSTYLES, type Appearance } from '../data/appearance';
 import type { Facing, RackDef, TilePoint } from '../types/game';
 import type { StaffRole } from '../data/population';
@@ -106,6 +115,8 @@ export interface MenuHost {
   refreshHome(): void;
   /** Te lleva a la entrada de tu casa nueva, tras mudarte. */
   movedHome(): void;
+  /** Vuelve a pintar las bicis aparcadas de aquí según state.bikes (prestada o recogida la de empresa). */
+  syncBikes(): void;
 }
 
 /**
@@ -144,6 +155,10 @@ export class Menus {
 
   /** DEC-06 · Al cerrar el menú del probador (endFitting), la Scene libera la cabina. */
   private leaveRoom: (() => void) | null = null;
+  /** VID-09: run() aplicando una actividad (guarda de re-entrada). */
+  private running = false;
+  /** VID-10: aplicando un paso del reparto (guarda de re-entrada contra el doble clic). */
+  private delivering = false;
 
   /**
    * DEC-06 · Un probador de una tienda con cesta: probarse a la vez lo de la cesta y lo que no tienes y no está agotado
@@ -427,7 +442,7 @@ export class Menus {
   // --------------------------------------------------------------- bolsa
 
   /** Lo que se lleva encima; comer o beber algo devuelve energía. */
-  openBag(note = '', selected = 0): void {
+  openBag(note = '', selected?: number): void {
     const { state, menu } = this.services;
     const wallet = state.wallet;
     const ids = Object.keys(wallet.inventory);
@@ -446,11 +461,26 @@ export class Menus {
     for (const [card, balance] of Object.entries(wallet.cards)) {
       options.push({ label: getItem(card).name, detail: `saldo ${euros(balance)}`, disabled: 'Se usa sola al subir al tren.' });
     }
+    // VID-06 · el paquete del portal (systems/Neighborhood), sólo de lectura: no es inventario, se da hablando con quien es.
+    const pkg = state.neighborhood && heldPackage(state.neighborhood);
+    if (pkg) options.push({ label: `Paquete para ${getNpc(pkg.recipient).name}`, detail: `hasta el ${formatDateShort(pkg.deadlineDay)}`, disabled: 'Dáselo cuando hables con quien es.' });
+    const fav = state.neighborhood && liveFavor(state.neighborhood);
+    if (fav?.status === 'accepted') options.push({ label: `Subirle la compra a ${getNpc(fav.npc).name}`, detail: 'hoy', disabled: 'Habla con quien te la pidió.' });
+    // VID-10 · el paquete de reparto, sólo de lectura: la custodia es el encargo (systems/Delivery), no un objeto de la bolsa.
+    const run = state.delivery?.active;
+    const runDef = run?.status === 'carrying' ? getDelivery(run.defId) : undefined;
+    if (run?.deadline !== undefined && runDef) {
+      const left = run.deadline - state.absMinute();
+      options.push({ label: `Paquete de reparto para ${runDef.to.label}`, detail: left >= 0 ? `quedan ${left} min` : `fuera de plazo (${-left} min)`, disabled: 'Se entrega en el mostrador del destino.' });
+    }
+    // VID-07 · cómo vas de tensión, sólo de lectura (systems/Wellbeing).
+    options.push({ label: tensionLine(tensionBand(state.wellbeing)), disabled: 'Andar, el deporte y una charla la bajan; el trabajo la sube.' });
     options.push({ label: 'Cerrar' });
     const shop = buyer && allLocations().find((l) => l.racks?.some((r) => r.store === buyer.storeId));
     const street = shop?.portals.find((p) => !p.train)?.to.location;
     const resold = buyer ? ` Lo de segunda mano lo recompra ${buyer.store}${street ? ` (${getLocation(street).name})` : ''}, con tique.` : '';
-    const text = options.length === 1 ? 'No llevas nada encima.' : `Lo que llevas encima.${resold}`;
+    // Siempre van la línea de tensión y «Cerrar»: con sólo esas dos, no llevas nada.
+    const text = options.length === 2 ? 'No llevas nada encima.' : `Lo que llevas encima.${resold}`;
     menu.open('Bolsa', text, options, (i) => {
       if (i >= ids.length) {
         menu.close();
@@ -463,7 +493,7 @@ export class Menus {
         this.host.persist();
       }
       this.openBag(result.message, i);
-    }, undefined, note, selected);
+    }, undefined, note, selected ?? Math.max(0, options.findIndex((o) => !o.disabled)));
   }
 
   // ---------------------------------------------------------------- tren
@@ -653,7 +683,10 @@ export class Menus {
     const boss = job.manager.split(',')[0];
     const checks = applicationCheck(job, state.job, state.day, state.study.skills);
     const list = checks.map((c) => `${c.label}: ${c.ok ? 'cumple' : `no cumple. ${c.why ?? ''}`}`.trim()).join(' · ');
+    // VID-12: la guía sólo lee este hecho; se apunta en cualquier modo (systems/Agenda.guideProgress).
+    this.markJob('applied');
     if (!applicationResult(checks)) {
+      this.markJob('denied');
       menu.open(job.manager, `Candidatura denegada. ${list}`, [{ label: 'Volver' }], () => back(), () => back());
       return;
     }
@@ -661,7 +694,10 @@ export class Menus {
       { label: 'Aceptar el contrato' },
       { label: 'Rechazar la oferta' },
     ], (i) => {
-      if (i === 1) return back(`${boss}: «Entendido. Si cambias de idea, ya sabes dónde encontrarme.»`);
+      if (i === 1) {
+        this.markJob('declined');
+        return back(`${boss}: «Entendido. Si cambias de idea, ya sabes dónde encontrarme.»`);
+      }
       // Se vuelve a mirar con el estado de ahora: el menú puede llevar rato abierto.
       const fresh = applicationCheck(job, state.job, state.day, state.study.skills);
       if (!applicationResult(fresh)) return back(fresh.find((c) => !c.ok)?.why ?? 'La oferta ya no está disponible.');
@@ -679,39 +715,70 @@ export class Menus {
     }, () => back());
   }
 
+  /** VID-12: lo hecho con un empleo (candidatura, rechazo, turno suelto) para la guía; agenda.marks['guia:job']. */
+  private markJob(v: 'applied' | 'declined' | 'denied' | 'casual'): void {
+    const { state } = this.services;
+    const agenda = state.agenda;
+    agenda.marks['guia:job'] = v;
+    state.setAgenda(agenda);
+    this.host.persist();
+  }
+
   /**
    * Fichar: antes de hacer el turno entero se decide la situación del día. Volver (o Esc) no ficha: ni cobra ni
    * pasa el tiempo, y el turno sigue ahí mientras haya margen.
    */
   private shiftDecision(job: JobDef, back: (n?: string) => void): void {
-    const { state, menu, clock, dialogue } = this.services;
+    const services = this.services;
+    const { state, menu } = services;
     const contract = state.job!;
     const situation = situationFor(contract, state.day);
     // Lo que se ha abierto estudiando (data/jobs.ts `perks`): una decisión más en cualquier turno.
     const unlocks = state.study.unlocks;
     const choices = [...situation.choices, ...(job.perks ?? []).filter((p) => unlocks.includes(p.unlock))];
-    menu.open(`Turno · ${levelOf(contract).title}`, situation.text, [...choices.map((c) => ({ label: c.label })), { label: 'Volver sin fichar' }], (i) => {
-      if (i === choices.length) return back();
-      // Se vuelve a mirar con el contrato de ahora (no el de al abrir): el menú puede llevar rato abierto.
-      const fresh = state.job;
-      if (!fresh || fresh.job !== job.id || fresh.status !== 'active' || fresh.shifts[state.day]) return back();
-      const blocked = clockInBlocker(fresh, this.now(), state.energy);
-      if (blocked) return back(blocked);
-      const out = work(fresh, this.now(), choices[i]);
-      menu.close();
-      state.setJob(out.progress);
-      // MAP-07: el barrio donde se trabaja lo nota; un turno por día y trabajo.
-      state.addReputation(zoneOf(state.locationId), REPUTATION_TRIGGERS[out.late ? 'shift-late' : 'shift-done'].delta, `shift:${state.day}:${job.id}`);
-      state.as(`Sueldo · ${job.employer}`, () => {
-        state.money += out.money;
-      });
-      state.energy += out.energy;
-      clock.advanceMinutes(out.minutes);
-      this.host.persist();
-      const ready = promotionReady(out.progress, unlocks) ? `${job.manager.split(',')[0]} quiere hablar contigo antes de que te vayas.` : '';
-      dialogue.start(job.employer, [...out.lines, ready, `${formatClock(state.day, state.hour, state.minute)}.`].filter(Boolean));
-      dialogue.once('close', () => back());
+    // VID-04: con minijuego (data/jobs.ts `minigame`), una opción más; su nota decide la elección del turno.
+    const game = job.minigame ? choices.length : -1;
+    const options = [...choices.map((c) => ({ label: c.label })), ...(job.minigame ? [{ label: ATTENTION.grades[0].choice.label }] : []), { label: 'Volver sin fichar' }];
+    menu.open(`Turno · ${levelOf(contract).title}`, situation.text, options, (i) => {
+      if (i === game) {
+        // Dejarlo vuelve a esta decisión sin fichar: ni sueldo, ni minutos, ni turno gastado.
+        menu.close();
+        services.attention.open(pickCase(state.day, contract.level), state.day, {
+          onDone: (r) => this.clockIn(job, back, r.choice, r.grade.patienceMin, `Atención al cliente ${GRADE_LABEL[r.grade.id]}: ${r.points}/${ATTENTION.maxPoints}.`),
+          onCancel: () => this.shiftDecision(job, back),
+        });
+        return;
+      }
+      if (i === options.length - 1) return back();
+      this.clockIn(job, back, choices[i]);
     }, () => back());
+  }
+
+  /** El turno de verdad con la elección hecha: se vuelve a mirar el contrato, se cobra, pasa el tiempo y se cuenta. */
+  private clockIn(job: JobDef, back: (n?: string) => void, choice: JobChoice, extraMinutes = 0, note = ''): void {
+    const { state, menu, clock, dialogue } = this.services;
+    const unlocks = state.study.unlocks;
+    // Se vuelve a mirar con el contrato de ahora (no el de al abrir): el menú puede llevar rato abierto.
+    const fresh = state.job;
+    if (!fresh || fresh.job !== job.id || fresh.status !== 'active' || fresh.shifts[state.day]) return back();
+    const blocked = clockInBlocker(fresh, this.now(), state.energy);
+    if (blocked) return back(blocked);
+    const out = work(fresh, this.now(), choice, tensionBand(state.wellbeing));
+    menu.close();
+    state.setJob(out.progress);
+    // VID-07: el turno carga; llegar tarde, más.
+    state.wellbeingSource('work', out.late ? WORK_LATE_GAIN : WORK_GAIN);
+    // MAP-07: el barrio donde se trabaja lo nota; un turno por día y trabajo.
+    state.addReputation(zoneOf(state.locationId), REPUTATION_TRIGGERS[out.late ? 'shift-late' : 'shift-done'].delta, `shift:${state.day}:${job.id}`);
+    state.as(`Sueldo · ${job.employer}`, () => {
+      state.money += out.money;
+    });
+    state.energy += out.energy;
+    clock.advanceMinutes(out.minutes + extraMinutes);
+    this.host.persist();
+    const ready = promotionReady(out.progress, unlocks) ? `${job.manager.split(',')[0]} quiere hablar contigo antes de que te vayas.` : '';
+    dialogue.start(job.employer, [note, ...out.lines, ready, `${formatClock(state.day, state.hour, state.minute)}.`].filter(Boolean));
+    dialogue.once('close', () => back());
   }
 
   private jobPromotion(job: JobDef, back: (n?: string) => void): void {
@@ -1103,6 +1170,16 @@ export class Menus {
       state.as(`Mudanza · ${home.name}`, () => {
         state.money = r.money;
       });
+      // VID-05 · Las quedadas abiertas en la casa que dejas se anulan (con su aviso) antes de mover las visitas.
+      const at = this.now();
+      const events = state.socialEvents;
+      const off = events ? cancelGatheringsAt(events, getHome(from.home).location, state.snapshot.stories ?? {}, state.social, state.phone, { day: characterDay(at), minute: at % 1440 }, at) : null;
+      if (off) {
+        for (const [npc, story] of Object.entries(off.stories)) state.setStory(npc, story);
+        for (const [npc, profile] of Object.entries(off.profiles)) state.setSocialProfile(npc, profile);
+        state.setSocialEvents(off.socialEvents);
+        state.setPhone(off.phone);
+      }
       // Las visitas ya quedadas pasan a la casa nueva (systems/Housing.movePlans).
       const moved = movePlans(state.snapshot.stories ?? {}, from.home, homeId);
       for (const [npc, story] of Object.entries(moved)) state.setStory(npc, story);
@@ -1122,6 +1199,7 @@ export class Menus {
         parked.length ? `No caben aquí y quedan guardadas en el trastero, sin perderse: ${names(parked)}.` : '',
         `Alquiler: ${euros(getHome(from.home).rent)} → ${euros(home.rent)} desde el próximo periodo.`,
         mateNote,
+        off?.notified.length ? 'Has anulado la quedada que tenías en la casa de antes y has avisado a las invitadas.' : '',
       ].filter(Boolean));
       dialogue.once('close', () => this.host.movedHome());
     }, () => menu.close(), note);
@@ -1663,6 +1741,8 @@ export class Menus {
       // CA-05b · apuntarse (no hay baja): sólo si este tablón tiene liga y aún no estás en ningún equipo.
       const leagueDef = LEAGUES[location];
       if (leagueDef && !state.league) extra.push({ label: 'Apuntarse a la liga', run: (at) => this.openLeagueSignup(leagueDef, () => this.openBoard(location, tx, ty, -1, at)) });
+      // VID-10 · encargos de reparto: sólo si este tablón ofrece alguno (data/deliveries.ts `board`).
+      if (deliveriesOn(location).length) extra.push({ label: 'Reparto', run: (at) => this.openDeliveryBoard(location, () => this.openBoard(location, tx, ty, -1, at)) });
       options.push(...extra.map((e) => ({ label: e.label })), { label: 'Cerrar' });
       menu.open(board.title, board.intro, options, (i) => {
         if (i < board.sections.length) this.openBoard(location, tx, ty, i);
@@ -1688,6 +1768,192 @@ export class Menus {
       if (more && i === 0) this.openBoardNotices(name, lines, back, page + 1);
       else back();
     }, back, lines.length > 1 ? `${page + 1} de ${lines.length}` : '', 0, false, `${name} · Carteles · ${page}`);
+  }
+
+  // --------------------------------------------------------------- reparto (VID-10)
+
+  /** Antes de cualquier menú de reparto: si el encargo ha vencido, se resuelve, se dice y luego `then`. true si lo hubo. */
+  private deliveryExpired(then: () => void): boolean {
+    const r = this.services.state.expireDelivery();
+    if (!r) return false;
+    this.host.persist();
+    this.showDeliveryResult(r, then);
+    return true;
+  }
+
+  /** Cómo acabó un encargo: estado, minutos de retraso, porcentaje y euros. */
+  private showDeliveryResult(r: DeliveryResult, then: () => void): void {
+    const { menu, dialogue, state } = this.services;
+    // Todo resultado pasa por aquí: sin turno activo, el servicio recoge la bici de empresa aparcada (systems/Delivery).
+    const bikes = collectCompanyBikes(state.bikes, state.delivery);
+    if (bikes !== state.bikes) {
+      state.setBikes(bikes);
+      this.host.persist();
+      this.host.syncBikes();
+    }
+    const head = r.status === 'delivered' ? 'Entregado a tiempo.'
+      : r.status === 'late' ? `Entregado con ${r.lateBy} min de retraso.`
+        : r.status === 'expired' ? `Vencido: ${r.lateBy} min fuera de plazo. El paquete vuelve al servicio.`
+          : 'Encargo cancelado.';
+    const money = r.status === 'cancelled' ? (r.rep < 0 ? `${CANCEL_CARRYING_LINE} Sin pago.` : 'Sin coste: aún no lo habías recogido.') : `Cobras el ${r.pct} %: ${euros(r.pay)}.`;
+    menu.close();
+    dialogue.start(`Reparto · ${shiftOfRun(r.runId)?.title ?? getDelivery(r.defId)?.title ?? ''}`, [head, money]);
+    dialogue.once('close', () => then());
+  }
+
+  /** El encargo vivo, dicho en una frase (o null). */
+  private deliveryNow(): string | null {
+    const hint = deliveryHint(this.services.state.delivery);
+    return hint ? `Reparto: ${hint}.` : null;
+  }
+
+  /** «Reparto» del tablón: cada encargo con origen → destino, pago, plazo y si se puede hacer ahora. */
+  private openDeliveryBoard(board: string, back: () => void, note = '', selected = 0): void {
+    if (this.deliveryExpired(() => this.openDeliveryBoard(board, back))) return;
+    const { state, menu } = this.services;
+    const abs = state.absMinute();
+    const shifts = shiftsOn(board);
+    const defs = deliveriesOn(board);
+    const active = !!state.delivery?.active;
+    const options: MenuOption[] = [
+      ...shifts.map((s) => ({ label: `${s.title} · ${s.legs.length} entregas`, detail: `${euros(s.pay)} · con bici de empresa` })),
+      ...defs.map((d) => ({
+        label: `${d.from.label} → ${d.to.label}`,
+        detail: `${euros(d.pay)} · ${d.deadlineMin} min · ${endOpen(d.from, abs) && endOpen(d.to, abs) ? 'abierto' : 'cerrado'}`,
+      })),
+    ];
+    const n0 = shifts.length + defs.length;
+    if (active) options.push({ label: 'Ver encargo' }, { label: 'Cancelar encargo' });
+    options.push({ label: 'Volver' });
+    const again = (n?: string, at = 0): void => this.openDeliveryBoard(board, back, n ?? '', at);
+    const text = this.deliveryNow() ?? 'Encargos por el barrio, a pie o en bici. El plazo empieza cuando recoges el paquete.';
+    menu.open('Tablón · Reparto', text, options, (i) => {
+      if (i < shifts.length) this.openShiftOffer(shifts[i], (n) => again(n, i));
+      else if (i < n0) this.openDeliveryOffer(defs[i - shifts.length], (n) => again(n, i));
+      else if (active && i === n0) again(this.deliveryNow() ?? '', i);
+      else if (active && i === n0 + 1) this.confirmDeliveryCancel((n) => again(n, i));
+      else back();
+    }, back, note, selected);
+  }
+
+  /** El turno de reparto: sus tramos, el pago fijo y «Aceptar» (con el motivo si no se puede). Presta la bici de empresa. */
+  private openShiftOffer(shift: ShiftDef, back: (note?: string) => void): void {
+    const { state, menu } = this.services;
+    const legs = shift.legs.map((id) => getDelivery(id)).filter((d): d is DeliveryDef => !!d);
+    const probe = state.delivery?.active ? null : acceptShift(state.delivery ?? emptyDelivery(), shift.id, state.absMinute());
+    const busy = state.delivery?.active ? 'Ya llevas un encargo: termínalo o cancélalo antes.' : probe && !probe.ok ? probe.reason : undefined;
+    const route = [legs[0]?.from.label, ...legs.map((d) => d.to.label)].join(' → ');
+    const text = `${legs.length} entregas seguidas: ${route}. Al entregar cada paquete recoges el siguiente en el mismo mostrador. `
+      + `Pago ${euros(shift.pay)} al acabar; si el último llega tarde, se paga menos. Dejar el turno a medias no cobra nada. `
+      + 'Te prestan una bici de la empresa junto al tablón, si no tienes aquí la tuya.';
+    menu.open(`Reparto · ${shift.title}`, text, [{ label: 'Aceptar', disabled: busy }, { label: 'Ahora no' }], (i) => {
+      if (i !== 0 || this.delivering) return back();
+      this.delivering = true;
+      try {
+        const o = acceptShift(state.delivery ?? emptyDelivery(), shift.id, state.absMinute());
+        if (!o.ok) return back(o.reason);
+        if (!state.applyDelivery(o)) return back();
+        const bikes = lendForShift(state.bikes, shift, state.locationId);
+        if (bikes !== state.bikes) {
+          state.setBikes(bikes);
+          this.host.syncBikes();
+        }
+        this.host.persist();
+        back(`Aceptado: recoge el primer paquete en ${legs[0]?.from.label ?? ''}.`);
+      } finally {
+        this.delivering = false;
+      }
+    }, () => back());
+  }
+
+  /** Los detalles de un encargo y «Aceptar» (deshabilitado, con el motivo, si ya llevas uno) o «Ahora no». */
+  private openDeliveryOffer(def: DeliveryDef, back: (note?: string) => void): void {
+    const { state, menu } = this.services;
+    const abs = state.absMinute();
+    const busy = state.delivery?.active ? 'Ya llevas un encargo: termínalo o cancélalo antes.' : acceptBlocker(def, abs) ?? undefined;
+    const st = (open: boolean): string => (open ? 'abierto' : 'cerrado ahora');
+    const text = `Recoges en ${def.from.label} (${st(endOpen(def.from, abs))}) y lo llevas a pie a ${def.to.label} (${st(endOpen(def.to, abs))}). `
+      + `Pago ${euros(def.pay)}. Plazo: ${def.deadlineMin} min desde que lo recoges; hasta ${def.lateMin} min tarde se paga del 90 al ${def.lateFloorPct} %; después, nada.`;
+    menu.open(`Reparto · ${def.title}`, text, [{ label: 'Aceptar', disabled: busy }, { label: 'Ahora no' }], (i) => {
+      if (i !== 0 || this.delivering) return back();
+      this.delivering = true;
+      try {
+        const o = acceptDelivery(state.delivery ?? emptyDelivery(), def.id, state.absMinute());
+        if (!o.ok) return back(o.reason);
+        if (!state.applyDelivery(o)) return back();
+        this.host.persist();
+        back(`Aceptado: recoge el paquete en ${def.from.label}.`);
+      } finally {
+        this.delivering = false;
+      }
+    }, () => back());
+  }
+
+  /** Cancelar con confirmación: sin recoger, gratis; con el paquete, sin pago y −1 en el barrio del destino. */
+  private confirmDeliveryCancel(back: (note?: string) => void): void {
+    if (this.deliveryExpired(() => back())) return;
+    const { state, menu } = this.services;
+    const run = state.delivery?.active;
+    if (!run) return back();
+    const text = run.status === 'carrying'
+      ? `Llevas el paquete. Si cancelas no cobras y en el barrio se nota. ${CANCEL_CARRYING_LINE}`
+      : 'Aún no lo has recogido: cancelar no cuesta nada.';
+    menu.open('Cancelar encargo', text, [{ label: 'Cancelar el encargo' }, { label: 'Seguir con él' }], (i) => {
+      if (i !== 0 || this.delivering) return back();
+      this.delivering = true;
+      try {
+        const o = cancelDelivery(state.delivery ?? emptyDelivery(), state.absMinute());
+        if (!o.ok || !o.result || !state.applyDelivery(o)) return back(o.ok ? '' : o.reason);
+        this.host.persist();
+        this.showDeliveryResult(o.result, () => back());
+      } finally {
+        this.delivering = false;
+      }
+    }, () => back());
+  }
+
+  /**
+   * El mostrador del origen o del destino del encargo vivo: «Recoger el paquete» o «Entregar el paquete» (con confirmación),
+   * y su menú normal con «Comprar» (`shop`). false si este mostrador no tiene nada del reparto: la Scene sigue como siempre.
+   */
+  openDeliveryCounter(title: string, catalog: string, shop: () => void, note = ''): boolean {
+    const { state, menu } = this.services;
+    if (!counterTask(state.delivery, state.locationId, catalog)) return false;
+    if (this.deliveryExpired(shop)) return true;
+    const task = counterTask(state.delivery, state.locationId, catalog);
+    if (!task) return false;
+    const { def, action } = task;
+    const end = action === 'pickUp' ? def.from : def.to;
+    const label = action === 'pickUp' ? 'Recoger el paquete' : 'Entregar el paquete';
+    const closed = endOpen(end, state.absMinute()) ? undefined : `${end.label} está cerrado ahora.`;
+    const text = action === 'pickUp' ? `Hay un paquete para ${def.to.label}. Desde que lo recojas tienes ${def.deadlineMin} min.` : this.deliveryNow() ?? '';
+    const again = (n?: string): void => void this.openDeliveryCounter(title, catalog, shop, n ?? '');
+    const turno = state.delivery?.active?.shift ? 'parte del turno' : `te pagan ${euros(def.pay)}`;
+    menu.open(title, text, [{ label, detail: turno, disabled: closed }, { label: 'Comprar' }, { label: 'Salir' }], (i) => {
+      if (i === 1) return shop();
+      if (i !== 0) return menu.close();
+      menu.open(`¿${label}?`, action === 'pickUp' ? `El plazo de ${def.deadlineMin} min empieza ahora.` : `Para ${def.to.label}.`, [{ label }, { label: 'Volver' }], (j) => {
+        if (j !== 0 || this.delivering) return again();
+        this.delivering = true;
+        try {
+          // Se revalida con el estado y el reloj de ahora: el menú puede llevar rato abierto.
+          const here = { location: state.locationId, catalog, abs: state.absMinute() };
+          const cur = state.delivery ?? emptyDelivery();
+          const o = action === 'pickUp' ? pickUp(cur, here) : deliverPackage(cur, here);
+          if (!o.ok) return again(o.reason);
+          if (!state.applyDelivery(o)) return again();
+          this.host.persist();
+          if (o.result) return this.showDeliveryResult(o.result, () => undefined);
+          menu.close();
+          // Tramo intermedio de un turno: entregado y, si sale de aquí, el siguiente ya va contigo (systems/Delivery deliver).
+          const said = action === 'pickUp' ? 'Recoges el paquete.' : 'Entregas el paquete.';
+          this.services.dialogue.start(end.label, [`${said} ${this.deliveryNow() ?? ''}`]);
+        } finally {
+          this.delivering = false;
+        }
+      }, () => again());
+    }, () => menu.close(), note);
+    return true;
   }
 
   /** Elegir equipo de la liga (CA-05b): queda guardado y no hay baja. «Volver» o Esc regresan sin apuntarse. */
@@ -2654,9 +2920,21 @@ export class Menus {
     const { menu } = this.services;
     const activities = activityIds.map(getActivity);
     const ctx = this.activityContext();
+    const inv = this.services.state.wallet.inventory;
+    const detail = (a: ActivityDef): string => {
+      if (a.cost) return euros(a.cost);
+      const uses = ingredientsOf(a);
+      if (uses.length === 0) return '';
+      if (!a.produces) return `gasta ${uses.map((c) => getItem(c.item).name.toLowerCase()).join(' y ')} · te quedan ${inv[uses[0].item] ?? 0}`;
+      // Receta: corto para que quepa en el menú (los minutos ya van en el nombre). ItemDef.short, o el nombre.
+      const short = (id: string): string => getItem(id).short ?? getItem(id).name.toLowerCase();
+      // Uno solo: el nombre del ítem, en singular (short puede ir en plural: «2 platos»).
+      const made = a.produces.qty === 1 ? getItem(a.produces.item).name.toLowerCase() : short(a.produces.item);
+      return `${uses.map((c) => short(c.item)).join(' y ')}: ${a.produces.qty} ${made}`;
+    };
     const options: MenuOption[] = activities.map((a) => ({
       label: a.name,
-      detail: a.cost ? euros(a.cost) : a.consumes ? `gasta ${getItem(a.consumes.item).name.toLowerCase()} · te quedan ${this.services.state.wallet.inventory[a.consumes.item] ?? 0}` : '',
+      detail: detail(a),
       disabled: blocker(a, ctx) ?? undefined,
     }));
     options.push({ label: 'Nada' });
@@ -2675,17 +2953,37 @@ export class Menus {
    * calle, metro y luz salen de ese reloj.
    */
   private run(title: string, def: ActivityDef, after?: () => void): void {
-    const { state, clock, menu, dialogue } = this.services;
-    const out = perform(def);
-    menu.close();
-    state.as(def.name.replace(/ \(.*\)$/, ''), () => {
-      state.money += out.money;
-    });
-    state.energy += out.energy;
-    if (out.consumes) state.wallet = spend(state.wallet, out.consumes.item, out.consumes.qty);
-    clock.advanceMinutes(out.minutes);
-    this.host.persist();
-    dialogue.start(title, [...out.lines, `${formatClock(state.day, state.hour, state.minute)}.`]);
-    if (after) dialogue.once('close', after);
+    // VID-09: un segundo toque mientras se aplica no vuelve a cobrar ni a gastar.
+    if (this.running) return;
+    this.running = true;
+    try {
+      const { state, clock, menu, dialogue } = this.services;
+      menu.close();
+      // Se revalida al aplicar: entre abrir el menú y elegir pudo cambiar la bolsa o la hora.
+      const blocked = blocker(def, this.activityContext());
+      if (blocked) {
+        dialogue.start(title, [blocked]);
+        return;
+      }
+      const out = perform(def);
+      const r = applyOutcome(state.wallet, out);
+      if (!r.ok) {
+        dialogue.start(title, [r.message]);
+        return;
+      }
+      // Dinero, ingredientes y lo que sale, en una sola asignación de la cartera.
+      state.as(def.name.replace(/ \(.*\)$/, ''), () => {
+        state.wallet = r.wallet;
+      });
+      state.energy += out.energy;
+      clock.advanceMinutes(out.minutes);
+      // VID-12: el turno suelto de un puesto (data/jobs.ts `casual`) cuenta para la guía.
+      if (JOBS.some((j) => j.casual === def.id)) this.markJob('casual');
+      this.host.persist();
+      dialogue.start(title, [...out.lines, `${formatClock(state.day, state.hour, state.minute)}.`]);
+      if (after) dialogue.once('close', after);
+    } finally {
+      this.running = false;
+    }
   }
 }

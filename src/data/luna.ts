@@ -10,10 +10,11 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement } from
  *   y 14–15 acera sur
  *   y 16–23 los bajos del sur: viviendas
  *
- * Los locales con puerta son el bar y la tienda (data/lunaVenues.ts y data/locations.ts); la sala, sin `enter`.
+ * Los locales con puerta son el bar, la tienda y el Horno de Luna (LOC-01; data/lunaVenues.ts y data/locations.ts);
+ * la sala, sin `enter`.
  *
  * MAP-EXP-01: la calle sigue hacia el este hasta x 60, con la Plazuela de Luna (x 44–47) abierta a los dos lados y,
- * en los bajos nuevos, el horno, la lavandería y el locutorio: puerta dibujada y sin `enter`.
+ * en los bajos nuevos, el horno (con interior desde LOC-01), la lavandería y el locutorio (puerta dibujada y sin `enter`).
  */
 const W = 64;
 const H = 24;
@@ -67,7 +68,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('lu-res-s6', 'Calle de la Luna 21', 'res-modern', [27, 16, 4, 8], 'n', 28),
   // MAP-EXP-01, el tramo este. Los tres locales, sin interior: sólo la puerta.
   b('lu-res-n7', 'Calle de la Luna 24', 'res-plaster', [31, 2, 5, 7], 's', 33),
-  b('lu-horno', 'Horno de Luna', 'bakery', [36, 2, 4, 7], 's', 37),
+  b('lu-horno', 'Horno de Luna', 'bakery', [36, 2, 4, 7], 's', 37, { enter: { location: 'lu-horno', spawn: 'entry' }, point: 'LU_HORNO_ENTRANCE' }),
   b('lu-res-n9', 'Calle de la Luna 28', 'res-brick', [40, 2, 4, 7], 's', 41),
   b('lu-lavanderia', 'Lavandería Luna', 'laundry', [48, 2, 5, 7], 's', 50),
   b('lu-res-n11', 'Calle de la Luna 32', 'res-modern', [53, 2, 4, 7], 's', 54),
@@ -137,7 +138,7 @@ const LINKS: readonly Link[] = [
   ...chain(...SOUTH.map((x) => `lu-s${pad(x)}`)),
   ['lu-n10', 'lu-cw'], ['lu-cw', 'lu-s10'], ['lu-n22', 'lu-ce'], ['lu-ce', 'lu-s22'],
   ['EDGE_LU_W', 'lu-s05'], ['EDGE_LU_E', 'lu-s28'],
-  ['LU_RES_1_ENTRANCE', 'lu-n05'], ['LU_BAR_ENTRANCE', 'lu-n10'], ['LU_SHOP_ENTRANCE', 'lu-n16'], ['LU_METRO_ENTRANCE', 'lu-n28'],
+  ['LU_RES_1_ENTRANCE', 'lu-n05'], ['LU_BAR_ENTRANCE', 'lu-n10'], ['LU_SHOP_ENTRANCE', 'lu-n16'], ['LU_METRO_ENTRANCE', 'lu-n28'], ['LU_HORNO_ENTRANCE', 'lu-n37'],
   ['LU_RES_2_ENTRANCE', 'lu-s15'], ['LU_RES_3_ENTRANCE', 'lu-s24'],
   ['LU_CORRILLO_01', 'lu-cw'], ['LU_CORRILLO_02', 'lu-cw'], ['LU_CORRILLO_03', 'lu-cw'], ['LU_CORRILLO_04', 'lu-cw'],
   ['LU_CORRILLO_05', 'lu-ce'], ['LU_CORRILLO_06', 'lu-ce'], ['LU_CORRILLO_07', 'lu-ce'], ['LU_CORRILLO_08', 'lu-ce'],
@@ -167,7 +168,7 @@ export const LUNA: LocationDef = {
     { profile: 'transit', tx: 26, ty: 0, w: 5, h: 12 },
   ],
   inspects: [
-    { tx: 30, ty: 9, name: 'Plano del barrio', lines: ['Luna: la Calle de la Luna, el Bar Luna Llena y el Abierto Toda la Noche; más allá, la Plazuela de Luna, el Horno, la Lavandería y el Locutorio. Línea 2 hacia Casco Antiguo y Vallesco.'] },
+    { tx: 30, ty: 9, name: 'Plano del barrio', lines: ['Luna: la Calle de la Luna, el Bar Luna Llena y el Abierto Toda la Noche; más allá, la Plazuela de Luna, el Horno (de 22 a 7), la Lavandería y el Locutorio. Línea 2 hacia Casco Antiguo y Vallesco.'] },
     { tx: 18, ty: 13, name: 'Tablón', lines: ['Un cartel a mano: «Se ha perdido un gato gris por la calle. Responde a Lunes». Debajo, otra letra: «y los demás días no».'] },
     { tx: 4, ty: 12, name: 'Fin de la calle', lines: ['Aquí acaba la Calle de la Luna: medianeras de la manzana. Se sale por el metro.'] },
     { tx: 59, ty: 12, name: 'Fin de la calle', lines: ['Aquí acaba la Calle de la Luna: medianeras de la manzana. Se sale por el metro.'] },

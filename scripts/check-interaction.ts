@@ -103,6 +103,23 @@ for (const loc of allLocations()) {
       assert.equal(pickTarget({ x: 0, y: 0 }, [...pair].reverse())?.id, want, `empate ${a}/${b}: depende del orden`);
     }
   }
+
+  // BIKE-01 · bajado delante del tablón (Campo Alto, jugador en 40,15 mirando arriba al 40,14): la bici aparcada queda bajo
+  // los pies y no tapa lo que se mira, ni aunque fuera la que se ofrecía; sola, o delante, sí se ofrece.
+  {
+    // Como WorldScene: el jugador (pies) en el centro de su tile, el origen 8 px más arriba y la bici medio tile por encima.
+    const feet = { x: 40 * TILE + C, y: 15 * TILE + C };
+    const me = { x: feet.x, y: feet.y - 8 };
+    const parked: Candidate = { id: 'bike', kind: 'bike', x: feet.x, y: feet.y - TILE / 2 };
+    const board: Candidate = { id: 'board', kind: 'inspect', x: feet.x, y: 14 * TILE + C };
+    const opts = { facing: 'up' as const, ahead: { tx: 40, ty: 14 } };
+    assert.equal(pickTarget(me, [parked, board], opts)?.id, 'board', 'la bici aparcada tapa el tablón');
+    assert.equal(pickTarget(me, [board, parked], { ...opts, current: parked })?.id, 'board', 'la bici ofrecida sigue tapando el tablón');
+    assert.equal(pickTarget(me, [parked], opts)?.id, 'bike', 'sola, la bici se ofrece');
+    const aheadBike: Candidate = { ...parked, y: board.y };
+    const side: Candidate = { id: 'side', kind: 'inspect', x: me.x + 14, y: me.y - 21 };
+    assert.equal(pickTarget(me, [aheadBike, side], opts)?.id, 'bike', 'la bici de delante gana');
+  }
   // Mismo tipo y misma distancia: manda el id (siempre el mismo), no el orden.
   const same: Candidate[] = [{ id: 'zeta', kind: 'seat', x: 12, y: 0 }, { id: 'alfa', kind: 'seat', x: -12, y: 0 }];
   assert.equal(pickTarget({ x: 0, y: 0 }, same)?.id, 'alfa');
@@ -329,6 +346,25 @@ for (const loc of allLocations()) {
   }
 }
 assert.ok(tills >= 19, `sólo ${tills} mostradores atendidos: ¿ha cambiado cómo se nombran los puntos?`);
+
+// PLAN-DOOR · en la casilla de acceso del restaurante (comensales y repartidores paran ahí), mirando a la puerta, la E
+// elige la puerta aunque haya alguien en la casilla o al lado; mirando a otro lado, a la persona.
+{
+  const loc = allLocations().find((l) => l.points?.RESTAURANT_ENTRANCE)!;
+  const step = loc.points!.RESTAURANT_ENTRANCE;
+  const facing = step.facing ?? 'down';
+  const door = loc.portals.find((p) => p.tx === tileAhead(step, facing).tx && p.ty === tileAhead(step, facing).ty);
+  assert.ok(door, 'delante de la casilla de acceso no está la puerta del restaurante');
+  const me = centre(step);
+  const portal: Candidate = { id: 'portal', kind: 'portal', ...centre(door!) };
+  for (const [name, npc] of [['en la casilla', { x: me.x + 2, y: me.y }], ['al lado', { x: me.x + TILE, y: me.y }]] as const) {
+    const cands: Candidate[] = [portal, { id: 'npc', kind: 'npc', ...npc }];
+    assert.equal(pickTarget(me, cands, { facing, ahead: tileAhead(step, facing) })?.id, 'portal', `con alguien ${name}, mirando a la puerta`);
+    // Al lado: mirándola (de espaldas a ambos, a la misma distancia, manda PRIORITY y gana la puerta).
+    const away: Facing = name === 'al lado' ? 'right' : facing === 'down' ? 'up' : 'down';
+    assert.equal(pickTarget(me, cands, { facing: away, ahead: tileAhead(step, away) })?.id, 'npc', `con alguien ${name}, de espaldas a la puerta`);
+  }
+}
 
 // Quien atiende se vuelve hacia el jugador por el perfil, como cualquier media vuelta (entities/Character necesita Phaser
 // y no se carga aquí: se mira el código). Antes, la dirección de la charla se ponía después del giro y pasaba de espaldas

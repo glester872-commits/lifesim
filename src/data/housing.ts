@@ -23,6 +23,11 @@ export interface HomeDef {
   visitPlan: string;
   /** Asiento (punto del interior) donde se sienta quien viene de visita. */
   guestSeat: string;
+  /**
+   * VID-05 · Asientos de más para una quedada con dos invitadas, además de guestSeat (puntos que ya existen en el
+   * interior y que no son el de `mate`). Sin ellos, en esa casa sólo cabe una invitada (seatsFor).
+   */
+  guestSeats?: readonly string[];
   /** Cómo se dice en una invitación: «en tu piso». */
   place: string;
   /** Lo que se cuenta de la casa antes de mudarse. */
@@ -50,6 +55,8 @@ export const HOMES: readonly HomeDef[] = [
     rent: 45,
     visitPlan: 'visita',
     guestSeat: 'HOME_SOFA_02',
+    // HOME_SOFA es del compañero de piso (mate.seat) por la tarde: la segunda, a la mesa del comedor.
+    guestSeats: ['HOME_TABLE_02'],
     mate: { seat: 'HOME_SOFA', portal: 'HOME_ENTRANCE' },
     place: 'tu piso',
     text: 'Dos plantas de ventana, cocina, baño, dormitorio y un salón con sitio de sobra. Es donde empiezas.',
@@ -63,6 +70,7 @@ export const HOMES: readonly HomeDef[] = [
     rent: 35,
     visitPlan: 'visita-estudio',
     guestSeat: 'STUDIO_SOFA_02',
+    guestSeats: ['STUDIO_SOFA'],
     place: 'tu estudio',
     text: 'Un estudio compacto: todo en una sola habitación, con el baño aparte. Pequeño, luminoso y €10 más barato a la semana.',
     move: { fee: 150, free: 250 },
@@ -89,11 +97,15 @@ export const HOMES: readonly HomeDef[] = [
     rent: 25,
     visitPlan: 'visita-mayor17',
     guestSeat: 'M17_SOFA_02',
+    guestSeats: ['M17_SOFA'],
     place: 'tu habitación de la Mayor',
     text: 'La habitación que anunciaba el portal: dormitorio pequeño con escritorio y, abajo, baño, cocina y un sofá de dos plazas. Encima de la Calle Mayor, con el horno y el metro a dos pasos. La más barata y la más pequeña.',
     move: { fee: 60, free: 90 },
   },
 ];
+
+/** VID-05 · Dónde se sientan las invitadas de una quedada, en orden: el de la visita y los de más. Ronda 8 sólo tiene el de la visita (R8_SOFA es del compañero). */
+export const seatsFor = (home: HomeDef): readonly string[] => [...new Set([home.guestSeat, ...(home.guestSeats ?? [])])];
 
 export interface Slot {
   /** Cómo se dice al elegir dónde va algo: «la esquina del salón». */

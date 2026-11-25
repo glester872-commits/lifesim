@@ -20,7 +20,7 @@ export const REPUTATION_EVENT_SPAN = 0.3;
 /** Qué es un suceso para el barrio: los negativos crecen con la mala fama; los positivos, con la buena. */
 export type EventPolarity = 'negative' | 'positive';
 
-export type ReputationTrigger = 'shift-done' | 'shift-late' | 'shift-missed' | 'bill-paid' | 'bill-late' | 'local-purchase';
+export type ReputationTrigger = 'shift-done' | 'shift-late' | 'shift-missed' | 'bill-paid' | 'bill-late' | 'local-purchase' | 'delivery-done' | 'delivery-failed';
 
 /** Lo que mueve la reputación y cómo se lee en el móvil. La clave de cada motivo (`shift:día:job`…) la pone quien lo dispara. */
 export const REPUTATION_TRIGGERS: Readonly<Record<ReputationTrigger, { delta: number; prefix: string; label: string }>> = {
@@ -33,4 +33,7 @@ export const REPUTATION_TRIGGERS: Readonly<Record<ReputationTrigger, { delta: nu
   // MAP-07b: misma clave que la pagada a tiempo; pagar se cumple, pero tarde el barrio lo nota un poco.
   'bill-late': { delta: -1, prefix: 'bill', label: 'Factura pagada con retraso' },
   'local-purchase': { delta: 1, prefix: 'buy', label: 'Compra en el barrio' },
+  // VID-10: clave `delivery:<runId>`, un encargo una vez. Con retraso no se mueve (0, no se apunta).
+  'delivery-done': { delta: 1, prefix: 'delivery', label: 'Reparto a tiempo' },
+  'delivery-failed': { delta: -1, prefix: 'delivery', label: 'Reparto sin entregar' },
 };

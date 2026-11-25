@@ -18,14 +18,15 @@ const CAFE: LocationDef = {
 
 /**
  * CA-03 · Taller Biciclo: la planta de tienda pequeña de Cuatro Ríos, como el Anticuario Ventura del Casco. Sólo vende
- * accesorios y algo para la ruta; no hay mostrador de reparaciones ni bicis a la venta (no existe bici propia).
+ * accesorios, algo para la ruta y una bicicleta de ciudad (VID-01; BIKE-01: aparece aparcada delante de casa y se monta); no hay
+ * mostrador de reparaciones.
  */
 const TALLER: LocationDef = shopRoom({
   id: 'ca-taller', name: 'Taller Biciclo', building: 'ca-taller', street: 'campo-alto', pre: 'CATALLER', ambient: '#f2ead8', catalog: 'ca-taller-mostrador',
   // Tres expositores de bicis (sólo colisiona su fila base), dos bicis en espera junto al mostrador, accesorios en la pared.
   props: [...many('bike-stand', [[2, 4], [5, 4], [2, 7]]), ...many('bike', [[12, 5], [12, 7]]), ...many('wall-shelf', [[2, 1], [5, 1]]), ...many('display-table', [[8, 3], [9, 3]]), at('crates', 12, 3)],
   browse: [[3, 5, 'up'], [6, 5, 'up'], [3, 8, 'up'], [8, 4, 'up']],
-  inspects: [{ tx: 6, ty: 2, name: 'Pizarra del taller', lines: ['Timbres, luces y agua para la ruta. Reparaciones, todavía no: el taller está en obras.', 'Las bicis de la exposición son del taller: de momento no se venden.'] }],
+  inspects: [{ tx: 6, ty: 2, name: 'Pizarra del taller', lines: ['Timbres, luces y agua para la ruta. Reparaciones, todavía no: el taller está en obras.', 'Se vende bicicleta de ciudad: pregunta en el mostrador.'] }],
 });
 
 /** CA-04 · Panadería Cuatro Hornos: la planta de La Espiga (Cuatro Ríos), con su mostrador de barrio. */
@@ -37,7 +38,16 @@ const PANADERIA: LocationDef = shopRoom({
   inspects: [{ tx: 9, ty: 2, name: 'Pizarra', lines: ['Barra, hogaza y bollería. Abrimos a las siete y cerramos a las dos.'] }],
 });
 
-export const CA_INTERIORS: readonly LocationDef[] = [CAFE, TALLER, PANADERIA];
+/** LOC-01 · Ultramarinos Esquina: ultramarinos de barrio moderno, en la planta de tienda pequeña con la caja del súper. */
+const ULTRAMARINOS: LocationDef = shopRoom({
+  id: 'ca-ultramarinos', name: 'Ultramarinos Esquina', building: 'ca-ultramarinos', street: 'campo-alto', pre: 'CAULTRA', ambient: '#f4f1e6', catalog: 'supermarket-till',
+  // Tres neveras al fondo, dos estanterías de despensa (latas y tarros), una góndola en medio y fruta a los lados.
+  props: [...many('fridge', [[2, 2], [3, 2], [4, 2]]), ...many('pantry-shelf', [[6, 2], [8, 2]]), ...many('gondola', [[4, 5], [5, 5]]), ...many('produce', [[2, 7], [3, 7]]), at('produce', 12, 3), at('tube-light', 6, 4)],
+  browse: [[2, 3, 'up'], [6, 3, 'up'], [4, 6, 'up'], [11, 3, 'right']],
+  inspects: [{ tx: 9, ty: 2, name: 'Cartel a mano', lines: ['«De 9 a 21. Domingos, de 10 a 14». Debajo: «Se fía sólo a los del portal».'] }],
+});
+
+export const CA_INTERIORS: readonly LocationDef[] = [CAFE, TALLER, PANADERIA, ULTRAMARINOS];
 
 export const CA_PROFILES: readonly PopulationProfile[] = [
   {
@@ -74,5 +84,12 @@ export const CA_PROFILES: readonly PopulationProfile[] = [
       customer('CAPAN', 'Una barra y dos cruasanes, que vienen los nietos.', 2),
       customer('CAPAN', 'Si queda de la trenza, me la guardas.', 1),
     ],
+  },
+  {
+    // LOC-01 · de 9 a 21 (el domingo, de 10 a 14; data/places.ts): la compra de diario, más por la tarde.
+    place: 'ca-ultramarinos', bands: [[9, 12, 'LOW'], [12, 17, 'LOW'], [17, 21, 'MEDIUM']],
+    weekday: [0, 0, 0, 0, 0, 1, 0], maxVisitors: 4,
+    staff: [cashier('CAULTRA', 'Ultramarinos Esquina', 'Leche, huevos y lo que se te haya olvidado. Aquí hay de todo, en pequeño.')],
+    visitors: [customer('CAULTRA', 'Sólo bajaba a por leche. Y ya que estoy, la cena.', 2)],
   },
 ];

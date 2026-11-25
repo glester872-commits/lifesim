@@ -7,6 +7,7 @@ import { every } from '../world/Motion';
 import { BENCH_BAR, RACK_EMPTY, REPS, SETUP_MS } from './Character';
 import type { Motion } from '../data/stations';
 import { LightDepth } from '../world/LightDepth';
+import { facingFrame, RIDER_H, RIDER_VERTICAL_PEDALS, RIDER_W, riderTexture, type RiderLook } from '../world/CyclistArt';
 
 export interface MoveInput {
   up: boolean;
@@ -19,6 +20,9 @@ export interface MoveInput {
    */
   analog?: { readonly x: number; readonly y: number };
 }
+
+/** Montado a la velocidad máxima, ms por cuarto de vuelta de pedal. */
+const STROKE_MS = 90;
 
 /** Con el stick apenas empujado se anda despacio; a fondo, al paso de siempre. */
 const MIN_ANALOG_PACE = 0.35;
@@ -50,6 +54,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Lo que se ve de la máquina mientras se usa: la banda, la jaula vacía (debajo) y la barra (encima). */
   private gearUnder?: Phaser.GameObjects.Image;
   private gearOver?: Phaser.GameObjects.Image;
+  /** BIKE-01 · montado: la textura del ciclista y la fase de la pedalada (0–4, un cuarto de vuelta por unidad). */
+  private rider: { key: string; pedal: number } | null = null;
   /** MAP-08: el tiempo frena el paso fuera (systems/Weather.weatherEffects); lo fija WorldScene, 1 bajo techo. */
   weatherPace = 1;
 
@@ -104,8 +110,57 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     return this.training !== null;
   }
 
+  /** BIKE-01 · montado en la bici: la textura es la del ciclista (world/CyclistArt) y se mueve con ride(). */
+  get isRiding(): boolean {
+    return this.rider !== null;
+  }
+
+  /**
+   * Sube o baja de la bici. El cuerpo de colisión es el mismo (tamaño y pies en el mismo sitio): sólo cambia el
+   * desplazamiento, porque la celda del ciclista es más grande que la del jugador a pie.
+   * De perfil (flipX a la izquierda), de frente o de espaldas según adónde mire (CyclistArt.facingFrame).
+   */
+  setRiding(on: boolean, look?: RiderLook): void {
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(0, 0);
+    if (on && look) {
+      this.anims.stop();
+      this.rider = { key: riderTexture(this.scene, { ...look, facings: true }), pedal: 0 };
+      this.setTexture(this.rider.key, facingFrame(this.dir, 0, true)).setFlipX(this.dir === 'left');
+      body.setOffset((RIDER_W - PLAYER_BODY.width) / 2, RIDER_H - PLAYER_BODY.height);
+    } else {
+      this.rider = null;
+      this.setFlipX(false);
+      body.setOffset((PLAYER_W - PLAYER_BODY.width) / 2, PLAYER_H - PLAYER_BODY.height);
+      this.halt();
+    }
+    this.sync();
+  }
+
+  /**
+   * Montado, cada frame: la velocidad que da systems/Cycling.step, mirando a `facing` y pedaleando al ritmo de
+   * `speedFrac` (0 parado, con un pie en el suelo; 1 a la velocidad máxima). Sin textura de ciclista, anda.
+   */
+  ride(vx: number, vy: number, facing: Facing, speedFrac: number): void {
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(vx, vy);
+    this.dir = facing;
+    if (!this.rider) {
+      this.anims.play(`player-walk-${facing}`, true);
+      this.anims.timeScale = Math.max(0.2, speedFrac);
+    } else {
+      this.rider.pedal = (this.rider.pedal + (this.scene.game.loop.delta / STROKE_MS) * speedFrac) % 4;
+      // De perfil, cuatro pasos por vuelta y flip a la izquierda; de frente y de espaldas, tres por vuelta y sin flip.
+      const side = facing === 'left' || facing === 'right';
+      this.setFlipX(facing === 'left');
+      const step = Math.floor(side ? this.rider.pedal : (this.rider.pedal * RIDER_VERTICAL_PEDALS) / 4);
+      this.setFrame(facingFrame(facing, step, speedFrac < 0.02));
+    }
+    this.sync();
+  }
+
   move(input: MoveInput): void {
-    if (this.seat || this.training) return;
+    if (this.seat || this.training || this.rider) return;
     let vx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     let vy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
     // Las teclas mandan; sin ellas, el stick: su dirección y, según lo que se empuje, más o menos deprisa.
@@ -142,6 +197,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Sentado sigue sentado aunque se abra un menú o una conversación; entrenando, también.
     if (this.seat || this.training) return;
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    // Montado y parado: un pie en el suelo, sin volver a la textura de a pie.
+    if (this.rider) {
+      this.setFrame(facingFrame(this.dir, 0, true));
+      this.sync();
+      return;
+    }
     // Quieto no es congelado: respira (a su ritmo, aunque viniera andando despacio con el stick).
     this.anims.timeScale = 1;
     this.anims.play(`player-idle-${this.dir}`, true);

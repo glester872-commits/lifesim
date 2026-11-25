@@ -10,9 +10,9 @@ export interface ItemDef {
   name: string;
   /**
    * ingredient: no se come tal cual, se usa (cocinar); medicine: se toma y quita el cansancio; hygiene: se gasta en
-   * una actividad (la ducha de casa), no desde la bolsa.
+   * una actividad (la ducha de casa), no desde la bolsa; gear: se tiene, ni se gasta ni se regala (la bici, VID-01).
    */
-  kind: 'food' | 'drink' | 'ingredient' | 'medicine' | 'hygiene' | 'gift' | 'card';
+  kind: 'food' | 'drink' | 'ingredient' | 'medicine' | 'hygiene' | 'gift' | 'card' | 'gear';
   /** Energía que devuelve al consumirlo. */
   energy?: number;
   /** Lo que se lee al usarlo. */
@@ -21,6 +21,10 @@ export interface ItemDef {
   where?: string;
   /** Unidades que caben en la bolsa (CARRY_MAX si no se dice). */
   max?: number;
+  /** Nombre en plural, en minúsculas, para los avisos («platos caseros»). */
+  plural?: string;
+  /** Nombre corto para el detail de un menú estrecho («compra y pan: 2 platos»). */
+  short?: string;
 }
 
 /** Lo que cabe de cada cosa en la bolsa: comprar más se niega y se explica (systems/Commerce.checkout). */
@@ -36,10 +40,14 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'coffee', name: 'Café con leche', kind: 'drink', energy: 10, use: 'Ahora sí.' },
   { id: 'croissant', name: 'Cruasán', kind: 'food', energy: 8, use: 'Deja migas en todas partes.' },
   // Segunda tanda: la compra (para cocinar en casa), la panadería y la farmacia.
-  { id: 'groceries', name: 'Bolsa de la compra', kind: 'ingredient', where: 'se cocina en la cocina de casa (+30 ⚡)', use: 'Arroz, huevos, verdura y algo de pescado. Da para una comida de verdad, si la cocinas.' },
+  { id: 'groceries', name: 'Bolsa de la compra', short: 'compra', kind: 'ingredient', where: 'en la cocina de casa, con una barra de pan, salen 2 platos caseros', use: 'Arroz, huevos, verdura y algo de pescado. Da para una comida de verdad, si la cocinas.' },
+  // VID-09: lo que sale de cocinar (data/activities.ts 'cook'); se come desde la bolsa o se comparte en una quedada en casa.
+  { id: 'home-meal', name: 'Plato casero', plural: 'platos caseros', short: 'platos', kind: 'food', energy: 15, max: 4, use: 'Arroz con verdura y huevo, en su táper. Sabe a casa.' },
   // Súper Rosales (CV-02): lo que faltaba para comer sin cocinar, un zumo y el gel de la ducha de casa.
   { id: 'ready-meal', name: 'Plato preparado', kind: 'food', energy: 16, use: 'Lentejas de tarrina, templadas a medias. Llenan igual.' },
   { id: 'juice', name: 'Zumo de naranja', kind: 'drink', energy: 7, use: 'Del brik, frío. Sabe a desayuno aunque sean las seis.' },
+  // VID-01 · Taller Biciclo (Campo Alto): un objeto duradero, una por persona. BIKE-01: aparece aparcada delante de casa.
+  { id: 'bike', name: 'Bicicleta de ciudad', kind: 'gear', where: 'Tu bici: la encuentras aparcada delante de casa. E para montar.', max: 1, use: 'Cuadro de acero, guardabarros y cesta delantera.' },
   // Una unidad es una ducha: el bote trae 8 (data/catalogs.ts) y caben dos botes.
   // Almacenes Velarde, regalos (CV-03): se dan hablando con alguien que conoces (systems/Gifts.ts), no se usan.
   { id: 'gift-chocolates', name: 'Caja de bombones', kind: 'gift', where: 'se regala hablando con alguien que conoces (una vez al día por persona)', max: 3, use: 'Bombones surtidos con lazo dorado.' },
@@ -70,7 +78,7 @@ export const ITEMS: readonly ItemDef[] = [
   // CV-08A · la bandeja del Arena en día de partido: para la espera de la cola.
   { id: 'sunflower-seeds', name: 'Bolsa de pipas', kind: 'food', energy: 3, use: 'Pipas con sal. Lo importante es tener algo en las manos.' },
   { id: 'shower-gel', name: 'Gel de ducha', kind: 'hygiene', where: 'en la ducha de casa: ducha con gel, +10 ⚡ en vez de +6', max: 16, use: 'Huele a algo que se llama «brisa marina».' },
-  { id: 'bread', name: 'Barra de pan', kind: 'food', energy: 6, use: 'Crujiente por fuera. Te comes el pico antes de llegar a casa.' },
+  { id: 'bread', name: 'Barra de pan', short: 'pan', kind: 'food', energy: 6, use: 'Crujiente por fuera. Te comes el pico antes de llegar a casa.' },
   { id: 'pastry', name: 'Napolitana de chocolate', kind: 'food', energy: 9, use: 'Todavía caliente.' },
   { id: 'fruit', name: 'Bolsa de fruta', kind: 'food', energy: 5, use: 'Una manzana. La más fea, la más buena.' },
   { id: 'ibuprofen', name: 'Ibuprofeno', kind: 'medicine', energy: 14, use: 'A la media hora el dolor de cabeza es un recuerdo.' },

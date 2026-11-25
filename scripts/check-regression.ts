@@ -16,7 +16,7 @@ import { STORES, GARMENTS } from '../src/data/retail.ts';
 import { LINES, STOPS } from '../src/data/transit.ts';
 import { allLocations, getLocation, isWalkable } from '../src/systems/LocationSystem.ts';
 import { destinationsFrom } from '../src/systems/Transit.ts';
-import { SaveSystem } from '../src/systems/SaveSystem.ts';
+import { SaveSystem, createInitialState } from '../src/systems/SaveSystem.ts';
 import { emptyMemory } from '../src/systems/MetroEventManager.ts';
 import { START_FITNESS } from '../src/systems/Fitness.ts';
 import type { GameStateData } from '../src/types/game.ts';
@@ -113,7 +113,8 @@ const full: GameStateData = {
   hour: 21,
   minute: 35,
   locationId: START_LOCATION,
-  position: { x: 123, y: 456 },
+  // La posición guardada se valida al cargar (SaveSystem.restore → safePosition): el fixture va en una casilla libre, la del spawn inicial.
+  position: { ...createInitialState().position },
   facing: 'left',
   events: emptyMemory(),
   inventory: { water: 2 },

@@ -60,7 +60,7 @@ export const METRO_FARE = 2;
 export const METRO_MINUTES = 15;
 
 export const SAVE_KEY = 'lifesim.save';
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 12;
 export const AUTOSAVE_INTERVAL_MS = 10_000;
 
 export const TRANSITION_MS = 180;

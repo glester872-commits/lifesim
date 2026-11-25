@@ -1,6 +1,6 @@
 import type { LocationDef } from '../types/game.ts';
 import type { PopulationProfile } from './population.ts';
-import { CAFE_RIO, many } from './interiors.ts';
+import { CAFE_RIO, at, many } from './interiors.ts';
 import { cashier, customer, shopRoom } from './cuatroRiosVenues.ts';
 import { rebased } from './velariaVenues.ts';
 
@@ -34,6 +34,15 @@ export const CAS_INTERIORS: readonly LocationDef[] = [
     browse: [[3, 4, 'up'], [8, 4, 'up'], [4, 6, 'left']],
     inspects: [{ tx: 6, ty: 2, name: 'Vitrina', lines: ['Relojes parados, un tintero y una nota: «De lunes a sábado. Los domingos estoy en el Rastro, pero sin prisa».'] }],
   }),
+  // LOC-01 · Ultramarinos Mayor: ultramarinos tradicional. Pared de despensa (dos estanterías, un botellero y cajas), cajas en el suelo,
+  // una vitrina y un estante de pared; luz de lámpara, sin neveras ni góndolas. Sin fruta: es de la frutería del mercado.
+  shopRoom({
+    id: 'cas-ultramarinos', name: 'Ultramarinos Mayor', building: 'cas-ultramarinos', street: 'casco-antiguo', pre: 'CASULTRA', ambient: '#f8e6c6', catalog: 'cas-ultramarinos-mostrador',
+    props: [...many('pantry-shelf', [[2, 2], [3, 2]]), at('wine-rack', 4, 2), at('crates', 5, 2), ...many('crates', [[2, 6], [3, 6], [12, 3]]), at('vitrine', 9, 3), at('wall-shelf', 8, 1), at('floor-lamp', 1, 8)],
+    // (3, 6) es una caja: se mira desde (4, 6), hacia la izquierda, como en la frutería.
+    browse: [[3, 3, 'up'], [8, 4, 'up'], [4, 6, 'left']],
+    inspects: [{ tx: 9, ty: 2, name: 'Cartel a mano', lines: ['«De lunes a sábado, de 9 a 20». Debajo: «Los domingos, cerrado. Hay Rastro, no hace falta nada más».'] }],
+  }),
   TABERNA,
 ];
 
@@ -50,6 +59,13 @@ export const CAS_PROFILES: readonly PopulationProfile[] = [
     weekday: [0, 0, 0, 0, 0, 1, -2], maxVisitors: 4,
     staff: [cashier('CASANT', 'Anticuario Ventura', 'Mire sin prisa. Lo que no es antiguo, es de segunda mano; que no es lo mismo.')],
     visitors: [customer('CASANT', 'Busco una novela que no me haya leído nadie.', 1)],
+  },
+  {
+    // LOC-01 · de lunes a sábado, de 9 a 20 (data/places.ts); el domingo, cerrado y vacío.
+    place: 'cas-ultramarinos', bands: [[9, 12, 'MEDIUM'], [12, 17, 'LOW'], [17, 20, 'MEDIUM']],
+    weekday: [0, 0, 0, 0, 0, 1, -2], maxVisitors: 4,
+    staff: [cashier('CASULTRA', 'Ultramarinos Mayor', 'Las latas de abajo están mejor de precio. Las de arriba, mejor de foto.')],
+    visitors: [customer('CASULTRA', 'Una barra y una lata de atún. Lo de siempre.', 1)],
   },
   {
     // El perfil del Café Campo Alto, a horas de taberna: el vermú del domingo, después del Rastro, es lo más lleno.

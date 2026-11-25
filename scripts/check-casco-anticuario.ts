@@ -81,10 +81,10 @@ const loaded = restore(save.load());
 assert.ok(Math.abs(loaded.money - bought.wallet.money) < 1e-6, 'al cargar cambia el dinero');
 assert.equal(loaded.inventory[itemId], 1, 'al cargar se pierde la compra');
 
-// (f) Discos y Taller, sólo fachada; en el barrio, cuatro puertas con interior.
+// (f) Discos y Taller, sólo fachada; en el barrio, cinco puertas con interior (LOC-01: el Ultramarinos Mayor).
 for (const id of ['cas-rastro-4', 'cas-rastro-6']) assert.equal(street.buildings!.find((b) => b.id === id)?.enter, undefined, `${id} lleva enter`);
 const doors = street.buildings!.filter((b) => b.enter).length;
-assert.equal(doors, 4, `${doors} puertas con interior`);
+assert.equal(doors, 5, `${doors} puertas con interior`);
 
 // (g) Un martes por la mañana no hay Rastro y la calle tiene gente.
 assert.equal(activePopUp('casco-antiguo', { day: 2, hour: 11, minute: 0 }), undefined, 'el martes a las 11:00 hay pop-up');

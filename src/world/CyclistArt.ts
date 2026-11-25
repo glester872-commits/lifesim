@@ -5,12 +5,14 @@ import type { NpcLook } from '../types/game';
 import { colorsOf, type HumanColors, type Pose } from './HumanArt';
 import { drawPersonFine } from './HumanArtHD';
 import { px, shade, type Ctx } from './paint';
+import { facingFrame, RIDER_BACK, RIDER_FRAMES, RIDER_FRONT, RIDER_STOPPED, RIDER_VERTICAL_FRAMES, RIDER_VERTICAL_PEDALS } from './RiderFrames';
 
 /**
  * Ciclistas de perfil, mirando a la derecha: la bici y encima una persona
  * cualquiera (su aspecto de NpcLook, el mismo que la pinta a pie), sentada y
  * pedaleando. Cualquier aspecto sobre cualquier bici: el día que un personaje
  * con nombre o el jugador monten, se pide su textura con su propio aspecto.
+ * BIKE-01: la textura lleva además el ciclista de frente y de espaldas (filas 1 y 2), que usa el jugador montado.
  */
 
 export const RIDER_W = 22;
@@ -24,9 +26,10 @@ export const RIDER_SCALE = 1 / RES;
 export const RIDER_H = 31;
 /** Cuánto se baja todo el dibujo dentro de la celda. */
 const TOP_PAD = 5;
-/** Cuatro fotogramas de pedalada y uno parado, con un pie en el suelo. */
-export const RIDER_FRAMES = 5;
-export const RIDER_STOPPED = 4;
+/** Perfil: cuatro fotogramas de pedalada y uno parado, con un pie en el suelo; de frente y de espaldas, en RiderFrames. */
+export { facingFrame, RIDER_BACK, RIDER_FRAMES, RIDER_FRONT, RIDER_STOPPED, RIDER_VERTICAL_FRAMES, RIDER_VERTICAL_PEDALS };
+/** Filas de la textura con `facings` (el jugador): perfil, frente y espalda. Sin él (NPC), sólo el perfil. */
+const RIDER_ROWS = 3;
 /** Luces de la bici en la celda (mirando a la derecha): se encienden de noche encima. */
 export const RIDER_LAMPS = { head: [18, 12 + TOP_PAD], tail: [4, 15 + TOP_PAD] } as const;
 
@@ -41,6 +44,8 @@ const KNEES: readonly Pt[] = [[12, 16], [11, 18], [10, 17], [12, 15]];
 const HELMETS = ['#e6e2d8', '#2b2d33', '#c0493f', '#3f6f78'] as const;
 const PACKS = ['#3a4f6e', '#5b4b3a', '#2b2d33', '#7a4a52'] as const;
 const RENTAL_BLUE = '#2f6fa8';
+/** El catadióptrico del guardabarros trasero (de espaldas): pintura, no una luz. */
+const REFLECTOR = '#c0493f';
 
 /** Quién monta qué: todo lo que hace falta para pintarlo. */
 export interface RiderLook {
@@ -50,15 +55,28 @@ export interface RiderLook {
   color: number;
   helmet: boolean;
   pack: boolean;
+  /** Los colores ya resueltos (el jugador, con su ropa y su complexión): si vienen, mandan sobre los de `look`. */
+  colors?: HumanColors;
+  /** Hornear también las filas de frente y de espaldas (sólo las usa el jugador, entities/Player). */
+  facings?: boolean;
+}
+
+/** Hash corto (FNV-1a, base 36) de unos colores: dos ropas distintas no comparten textura. */
+function colorsHash(c: HumanColors): string {
+  const s = JSON.stringify(c);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36);
 }
 
 export function riderKey(r: RiderLook): string {
-  return `rider-${r.bike.id}-${r.color}-${r.look.id}-${r.helmet ? 'h' : ''}${r.pack ? 'p' : ''}`;
+  const tint = r.colors ? `-${colorsHash(r.colors)}` : '';
+  return `rider-${r.bike.id}-${r.color}-${r.look.id}${tint}-${r.helmet ? 'h' : ''}${r.pack ? 'p' : ''}${r.facings ? 'f' : ''}`;
 }
 
 /**
  * Las texturas de ciclista pintadas, de la usada hace más tiempo a la última. Cada combinación de cara, bici, color,
- * casco y mochila es una textura (≈ 14 KB) y salen miles posibles: sin tope, crecían con cada escena y cada bici nueva.
+ * casco y mochila es una textura (110 × 31 px ≈ 13 KB la de un NPC; 110 × 93 ≈ 40 KB la del jugador, con frente y espalda) y salen miles posibles: sin tope, crecían con cada escena y cada bici nueva.
  */
 const BAKED: string[] = [];
 /** Las que se guardan al cambiar de escena: de sobra para la avenida en hora punta. */
@@ -76,27 +94,35 @@ export function pruneRiderTextures(scene: Phaser.Scene): void {
   }
 }
 
-/** La textura del ciclista con sus cinco fotogramas (0–4); se pinta la primera vez que hace falta. */
+/**
+ * La textura del ciclista; se pinta la primera vez que hace falta. Fila 0, el perfil (0–4, lo que usan CyclistView y
+ * SkateParkView); filas 1 y 2, de frente y de espaldas (RiderFrames.facingFrame), para el jugador.
+ */
 export function riderTexture(scene: Phaser.Scene, r: RiderLook): string {
   const key = riderKey(r);
   const at = BAKED.indexOf(key);
   if (at >= 0) BAKED.splice(at, 1);
   BAKED.push(key);
   if (scene.textures.exists(key)) return key;
-  const tex = scene.textures.createCanvas(key, RIDER_W * RIDER_FRAMES * RES, RIDER_H * RES);
+  const tex = scene.textures.createCanvas(key, RIDER_W * RIDER_FRAMES * RES, RIDER_H * (r.facings ? RIDER_ROWS : 1) * RES);
   if (!tex) return key;
   const ctx = tex.getContext();
   ctx.imageSmoothingEnabled = false;
   // Con casco, sin gorra: el casco va encima de la cabeza, no de la visera.
-  const colors: HumanColors = { ...colorsOf(r.look), ...(r.helmet ? { cap: undefined } : {}) };
+  const colors: HumanColors = { ...(r.colors ?? colorsOf(r.look)), ...(r.helmet ? { cap: undefined } : {}) };
   const body = seated(colors);
-  for (let f = 0; f < RIDER_FRAMES; f++) {
+  const cell = (f: number, col: number, row: number, draw: () => void): void => {
     ctx.save();
     ctx.scale(RES, RES);
-    ctx.translate(f * RIDER_W, TOP_PAD);
-    drawRider(ctx, r, colors, body, f);
+    ctx.translate(col * RIDER_W, row * RIDER_H + TOP_PAD);
+    draw();
     ctx.restore();
-    tex.add(f, 0, f * RIDER_W * RES, 0, RIDER_W * RES, RIDER_H * RES);
+    tex.add(f, 0, col * RIDER_W * RES, row * RIDER_H * RES, RIDER_W * RES, RIDER_H * RES);
+  };
+  for (let f = 0; f < RIDER_FRAMES; f++) cell(f, f, 0, () => drawRider(ctx, r, colors, body, f));
+  if (r.facings) for (const [row, first, facing] of [[1, RIDER_FRONT, 'down'], [2, RIDER_BACK, 'up']] as const) {
+    const torso = person(colors, 0, facing);
+    for (let i = 0; i < RIDER_VERTICAL_FRAMES; i++) cell(first + i, i, row, () => drawRiderFacing(ctx, r, colors, torso, facing, i));
   }
   tex.refresh();
   return key;
@@ -106,12 +132,12 @@ export function riderTexture(scene: Phaser.Scene, r: RiderLook): string {
  * La persona de perfil como va a pie (world/HumanArtHD.drawPersonFine): un lienzo suelto del que se recortan cabeza
  * y tronco, en las mismas filas que el dibujo de siempre.
  */
-function person(c: HumanColors, pose: Pose): HTMLCanvasElement {
+function person(c: HumanColors, pose: Pose, facing: 'right' | 'down' | 'up' = 'right'): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = 16 * RES;
   canvas.height = 24 * RES;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (ctx) drawPersonFine(ctx, 'right', pose, c);
+  if (ctx) drawPersonFine(ctx, facing, pose, c);
   return canvas;
 }
 
@@ -273,6 +299,120 @@ function drawRider(ctx: Ctx, r: RiderLook, c: HumanColors, body: HTMLCanvasEleme
   px(ctx, PALETTE.ink, CRANK[0], CRANK[1], 1, 1);
 }
 
+/** De frente y de espaldas, la fila del pie [izquierdo, derecho] en cada fotograma de pedalada: uno arriba y el otro abajo, y al revés. */
+const FACING_PEDALS: readonly (readonly [number, number])[] = [[19, 23], [21, 21], [23, 19]];
+
+/**
+ * El ciclista de frente (`down`, la rueda delantera hacia la cámara) o de espaldas (`up`, la trasera con su
+ * guardabarros y el catadióptrico): rueda como un óvalo estrecho y vertical, horquilla, manillar horizontal con las
+ * manos, la persona (cabeza y tronco de drawPersonFine en esa dirección) y las piernas a los lados de la rueda, una
+ * arriba y otra abajo según el fotograma. `f` 0–2 pedalea; RIDER_VERTICAL_PEDALS, parado con el pie derecho en el suelo.
+ */
+function drawRiderFacing(ctx: Ctx, r: RiderLook, c: HumanColors, torso: HTMLCanvasElement, facing: 'down' | 'up', f: number): void {
+  const frameColor = r.bike.colors[r.color];
+  const toward = facing === 'down';
+  if (r.bike.frame === 'skate' || r.bike.frame === 'scooter') {
+    // De pie, entera, sobre la tabla o la plataforma vista de punta; el patinete, con su columna y su manillar.
+    px(ctx, 'rgba(0,0,0,0.3)', 7, 23, 8, 2);
+    if (r.bike.frame === 'scooter' && !toward) px(ctx, PALETTE.outline, 10, 8, 2, 13);
+    ctx.drawImage(torso, 3, -1, 16, 24);
+    px(ctx, PALETTE.outline, 8, 22, 6, 2);
+    px(ctx, frameColor, 9, 22, 4, 1);
+    if (r.bike.frame === 'scooter') {
+      if (toward) {
+        px(ctx, PALETTE.outline, 10, 8, 2, 14);
+        px(ctx, frameColor, 10, 9, 1, 12);
+      }
+      px(ctx, PALETTE.ink, 6, 8, 10, 1);
+    }
+    return;
+  }
+  const stopped = f === RIDER_VERTICAL_PEDALS;
+  const b = !stopped && f === 1 ? 1 : 0;
+  const barY = r.bike.frame === 'road' ? 11 : 10;
+  const sleeve = c.sleeves ?? c.clothDark;
+  px(ctx, 'rgba(0,0,0,0.3)', 6, 24, 10, 2);
+  if (toward && r.bike.cube) {
+    // La caja del reparto asoma por detrás de los hombros.
+    px(ctx, PALETTE.outline, 5, -1 + b, 12, 8);
+    px(ctx, r.bike.cube, 6, b, 10, 6);
+    px(ctx, shade(r.bike.cube, 0.15), 6, b, 10, 1);
+  }
+  if (!toward) {
+    // De espaldas, el manillar va por delante de la persona: sólo asoman los puños y las manos.
+    px(ctx, PALETTE.ink, 4, barY, 14, 1);
+    px(ctx, c.skin, 5, barY - 1, 2, 2);
+    px(ctx, c.skin, 15, barY - 1, 2, 2);
+  }
+  // Cabeza y tronco (hasta la cintura: lo que cuelga por debajo lo tapa el manillar), y la cadera sobre el sillín.
+  ctx.drawImage(torso, 0, 0, 16 * RES, 15 * RES, 3, -3 + b, 16, 15);
+  px(ctx, PALETTE.outline, 7, 11 + b, 8, 3);
+  px(ctx, c.trousers, 8, 11 + b, 6, 2);
+  if (r.helmet) {
+    const color = HELMETS[(r.look.id.length + r.color) % HELMETS.length];
+    px(ctx, PALETTE.outline, 6, b - 1, 10, 4);
+    px(ctx, color, 7, b - 1, 8, 3);
+    px(ctx, shade(color, 0.18), 8, b - 1, 4, 1);
+    px(ctx, shade(color, -0.3), 9, b, 1, 1);
+    px(ctx, shade(color, -0.3), 12, b, 1, 1);
+  }
+  if (!toward && r.bike.cube) {
+    px(ctx, PALETTE.outline, 5, -1 + b, 12, 12);
+    px(ctx, r.bike.cube, 6, b, 10, 10);
+    px(ctx, shade(r.bike.cube, 0.15), 6, b, 10, 1);
+    px(ctx, shade(r.bike.cube, -0.25), 6, 9 + b, 10, 1);
+    px(ctx, PALETTE.ink, 10, 4 + b, 2, 2);
+  } else if (r.pack) {
+    const pack = PACKS[(r.look.id.length * 3 + r.color) % PACKS.length];
+    if (toward) {
+      // De frente, sólo las asas sobre los hombros.
+      px(ctx, shade(pack, -0.25), 8, 3 + b, 1, 5);
+      px(ctx, shade(pack, -0.25), 13, 3 + b, 1, 5);
+    } else {
+      px(ctx, PALETTE.outline, 7, 3 + b, 8, 8);
+      px(ctx, pack, 8, 4 + b, 6, 6);
+      px(ctx, shade(pack, 0.15), 8, 4 + b, 6, 1);
+      px(ctx, shade(pack, -0.25), 8, 9 + b, 6, 1);
+    }
+  }
+  // Piernas a los lados de la rueda, del sillín al pedal; parado, el pie derecho baja al suelo.
+  const [ly, ry] = stopped ? [21, 24] : FACING_PEDALS[f];
+  const legDown = (x: number, footX: number, footY: number): void => {
+    line(ctx, c.trousers, x, 13, footX, footY - 1, 2);
+    px(ctx, PALETTE.outline, footX - 1, footY, 4, 1);
+    px(ctx, c.shoes, footX, footY, 2, 1);
+  };
+  legDown(7, 7, ly);
+  legDown(13, stopped ? 15 : 13, ry);
+  // La rueda (un óvalo estrecho, de canto) con una marca que baja al rodar; la horquilla y el buje.
+  px(ctx, PALETTE.ink, 10, 15, 2, 10);
+  px(ctx, PALETTE.ink, 9, 17, 4, 6);
+  if (!stopped) px(ctx, shade(PALETTE.metal, 0.1), 10 + (f % 2), 16 + f * 3, 1, 1);
+  px(ctx, frameColor, 9, 13, 1, 7);
+  px(ctx, frameColor, 12, 13, 1, 7);
+  px(ctx, PALETTE.metal, 9, 20, 4, 1);
+  if (!toward) {
+    // Guardabarros con su catadióptrico.
+    px(ctx, frameColor, 9, 14, 4, 2);
+    px(ctx, REFLECTOR, 10, 14, 2, 1);
+    return;
+  }
+  // De frente: potencia, cesta o portabultos, manillar con las manos y los brazos desde los hombros.
+  px(ctx, frameColor, 10, barY, 2, 3);
+  if (r.bike.basket) {
+    px(ctx, '#6e5234', 8, barY + 1, 6, 4);
+    px(ctx, '#8a6a42', 8, barY + 1, 6, 1);
+    px(ctx, '#5a4228', 10, barY + 2, 1, 3);
+  } else if (r.bike.frame === 'rental') {
+    px(ctx, RENTAL_BLUE, 9, barY + 1, 4, 2);
+  }
+  px(ctx, PALETTE.ink, 4, barY, 14, 1);
+  line(ctx, sleeve, 6, 5 + b, 5, barY - 1, 2);
+  line(ctx, sleeve, 14, 5 + b, 15, barY - 1, 2);
+  px(ctx, c.skin, 5, barY - 1, 2, 2);
+  px(ctx, c.skin, 15, barY - 1, 2, 2);
+}
+
 function leg(ctx: Ctx, color: string, shoe: string, knee: Pt, foot: Pt): void {
   line(ctx, color, SEAT[0], SEAT[1] + 1, knee[0], knee[1], 2);
   line(ctx, color, knee[0], knee[1], foot[0], foot[1] - 1, 2);
@@ -349,6 +489,46 @@ function line(ctx: Ctx, color: string, x0: number, y0: number, x1: number, y1: n
       y += sy;
     }
   }
+}
+
+/** Ancho y alto de la textura de una bici aparcada suelta (la misma medida que el prop `bike` de world/PropArt). */
+export const PARKED_BIKE_W = 20;
+export const PARKED_BIKE_H = 16;
+
+/** BIKE-01 · la textura de una bici aparcada del mundo (systems/Cycling.BikeState), de su color; se pinta una vez. */
+export function parkedBikeTexture(scene: Phaser.Scene, color: number): string {
+  const key = `bike-parked-${color.toString(16)}`;
+  if (scene.textures.exists(key)) return key;
+  const tex = scene.textures.createCanvas(key, PARKED_BIKE_W, PARKED_BIKE_H);
+  if (!tex) return key;
+  const ctx = tex.getContext();
+  ctx.imageSmoothingEnabled = false;
+  drawParkedBike(ctx, 1, PARKED_BIKE_H - 1, `#${color.toString(16).padStart(6, '0')}`, 4, 10);
+  tex.refresh();
+  return key;
+}
+
+/** BIKE-01 · el poste de una estación de bici compartida: mástil de metal, pantalla y un anclaje a ras de suelo. 10 × 22. */
+export function bikeDockTexture(scene: Phaser.Scene): string {
+  const key = 'bike-share-dock';
+  if (scene.textures.exists(key)) return key;
+  const tex = scene.textures.createCanvas(key, 10, 22);
+  if (!tex) return key;
+  const ctx = tex.getContext();
+  ctx.imageSmoothingEnabled = false;
+  px(ctx, PALETTE.outline, 3, 3, 4, 19);
+  px(ctx, PALETTE.metal, 4, 4, 2, 17);
+  px(ctx, PALETTE.metalLit, 4, 4, 1, 17);
+  // Pantalla con el distintivo verde del servicio.
+  px(ctx, PALETTE.outline, 1, 0, 8, 7);
+  px(ctx, PALETTE.metroGreen, 2, 1, 6, 5);
+  px(ctx, PALETTE.metroCream, 3, 2, 4, 1);
+  px(ctx, PALETTE.metroCream, 4, 4, 2, 1);
+  // Anclaje: la boca donde se encaja la rueda.
+  px(ctx, PALETTE.outline, 0, 18, 10, 4);
+  px(ctx, PALETTE.ink, 1, 19, 8, 2);
+  tex.refresh();
+  return key;
 }
 
 /**

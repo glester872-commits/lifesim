@@ -698,6 +698,81 @@ function drawGondola(ctx: Ctx): void {
   }
 }
 
+/**
+ * Estantería de despensa (1 × 2 tiles, mismo hueco que `shelf`): marco de madera de 1 px, fondo oscuro y tres baldas
+ * claras de 1 px. Cada balda alta lleva un tipo de pieza con silueta propia (botellas de 2 px con cuello y tapón,
+ * latas con banda clara entre tapa y base metálicas, tarros anchos y bajos con tapa de otro color); la de abajo, un
+ * saco atado y el tipo que sobra. La variante `v` rota qué tipo va en cada balda, y un hash determinista de `v` decide
+ * alturas, colores, el lado del saco y qué hueco queda vacío: piezas separadas 1 px, nunca una tira continua.
+ */
+function drawPantryShelf(ctx: Ctx, v: number): void {
+  const labels = ['#c0493f', PALETTE.amber, '#4f8a7a', '#5c6fa8'];
+  const hash = (n: number): number => (((v + 1) * 2654435761) ^ (n * 40503)) >>> 0;
+  const kinds = ['bottle', 'can', 'jar'] as const;
+  type Kind = (typeof kinds)[number];
+  const width: Record<Kind, number> = { bottle: 2, can: 3, jar: 4 };
+
+  // Pieza apoyada en la balda de la fila `base` (dibuja hacia arriba desde base - 1).
+  const item = (kind: Kind, x: number, base: number, h: number): void => {
+    const label = labels[(h >>> 3) % labels.length];
+    if (kind === 'bottle') {
+      const body = 3 + (h & 1);
+      const glass = [shade(PALETTE.leafLit, -0.35), PALETTE.amberDim, shade(PALETTE.glass, 0.1)][(h >>> 5) % 3];
+      px(ctx, glass, x, base - body, 2, body);
+      px(ctx, PALETTE.white, x, base - body + 1, 2, 1);
+      px(ctx, glass, x, base - body - 1, 1, 1);
+      px(ctx, label, x, base - body - 2, 1, 1);
+    } else if (kind === 'can') {
+      const tall = (h & 2) !== 0;
+      const top = base - (tall ? 5 : 3);
+      px(ctx, PALETTE.metalLit, x, top, 3, 1);
+      px(ctx, label, x, top + 1, 3, tall ? 3 : 1);
+      px(ctx, PALETTE.white, x, top + (tall ? 2 : 1), 3, 1);
+      px(ctx, PALETTE.metal, x, base - 1, 3, 1);
+    } else {
+      px(ctx, labels[((h >>> 3) + 1) % labels.length], x, base - 4, 4, 1);
+      px(ctx, shade(label, -0.15), x, base - 3, 4, 3);
+      px(ctx, PALETTE.glassLit, x, base - 3, 1, 1);
+    }
+  };
+
+  // Llena [x0, x1] con piezas de `kind` separadas 1 px; el hueco `skip` queda vacío. Si no cabe, prueba una botella.
+  const fill = (kind: Kind, x0: number, x1: number, base: number, seed: number): void => {
+    const skip = hash(seed) % 2;
+    let x = x0;
+    for (let slot = 0; x <= x1; slot++) {
+      if (slot === skip) {
+        x += 3;
+        continue;
+      }
+      const k: Kind = x + width[kind] - 1 <= x1 ? kind : 'bottle';
+      if (x + width[k] - 1 > x1) break;
+      item(k, x, base, hash(seed * 8 + slot + 1));
+      x += width[k] + 1;
+    }
+  };
+
+  px(ctx, PALETTE.wood, 2, 4, 12, 28);
+  px(ctx, PALETTE.ink, 3, 5, 10, 26);
+  const boards = [12, 21, 30];
+  for (const y of boards) px(ctx, PALETTE.woodLit, 3, y, 10, 1);
+
+  fill(kinds[v % 3], 3, 12, boards[0], 1);
+  fill(kinds[(v + 1) % 3], 3, 12, boards[1], 2);
+
+  // Balda de abajo: saco de 5 × 4 (beige o ámbar) con la boca atada, a un lado; al otro, el tipo que queda.
+  const hs = hash(3);
+  const sackX = hs & 1 ? 8 : 3;
+  const sack = hs & 2 ? PALETTE.wall : PALETTE.amberDim;
+  const base = boards[2];
+  px(ctx, sack, sackX, base - 3, 5, 3);
+  px(ctx, sack, sackX + 1, base - 4, 3, 1);
+  px(ctx, shade(sack, -0.2), sackX, base - 1, 5, 1);
+  px(ctx, PALETTE.woodDark, sackX + 2, base - 4, 1, 1);
+  if (sackX === 3) fill(kinds[(v + 2) % 3], 9, 12, base, 4);
+  else fill(kinds[(v + 2) % 3], 3, 6, base, 4);
+}
+
 /** Mesa de reuniones de tres tiles con sillas a los lados largos. */
 function drawMeetingTable(ctx: Ctx): void {
   const w = TILE * 3;
@@ -1121,6 +1196,7 @@ export function buildPropTextures(scene: Phaser.Scene): void {
   make(scene, 'prop-register', TILE, TILE, drawRegister);
   make(scene, 'prop-fridge', TILE, TILE * 2, drawFridge);
   make(scene, 'prop-gondola', TILE, TILE, drawGondola);
+  for (let v = 0; v < 3; v++) make(scene, `prop-pantry-shelf-${v}`, TILE, TILE * 2, (ctx) => drawPantryShelf(ctx, v));
   make(scene, 'prop-cooler', TILE, TILE * 2, drawCooler);
   make(scene, 'prop-meeting-table', TILE * 3, TILE, drawMeetingTable);
   make(scene, 'fx-spray', 8, 7, drawSpray);

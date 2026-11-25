@@ -140,7 +140,7 @@ const emptyThread = (): PhoneThread => ({ messages: [], unread: 0, today: { day:
 export type PhoneActionId =
   | 'greet' | 'doing' | 'howru' | 'casual' | 'joke' | 'flirt'
   | 'invite-coffee' | 'invite-drink' | 'propose-plan' | 'propose-date'
-  | 'confirm-plan' | 'cancel-plan' | 'accept-invite' | 'decline-invite' | 'bye';
+  | 'confirm-plan' | 'cancel-plan' | 'accept-invite' | 'decline-invite' | 'invite-home' | 'cancel-gathering' | 'bye';
 
 interface ActionDef {
   label: string;
@@ -165,6 +165,9 @@ export const PHONE_ACTIONS: Readonly<Record<PhoneActionId, ActionDef>> = {
   'cancel-plan': { label: 'Cancelar el plan', text: ['Oye, lo de {cuando} no voy a poder. Lo siento.'] },
   'accept-invite': { label: 'Aceptar', text: ['¡Vale! Allí estaré.', '¡Hecho! Nos vemos.'] },
   'decline-invite': { label: 'Decir que no', text: ['Esta vez no puedo, lo siento.'] },
+  // VID-05 · Las resuelve WorldScene.sendPhone (systems/HomeGathering), no la respuesta diferida del móvil.
+  'invite-home': { label: 'Invitar a casa', text: ['¿Te vienes a casa {cuando}? A las {hora}.'] },
+  'cancel-gathering': { label: 'Anular la quedada', text: ['Tengo que anular la quedada en casa. Lo siento mucho.'] },
   bye: { label: 'Despedirse', text: ['Hablamos luego.', '¡Chao!'], social: 'bye' },
 };
 
@@ -410,7 +413,10 @@ export function activePlan(phone: PhoneState, npc: string, now: number): SocialP
  * y lo propio del móvil: confirmar o cancelar lo que tenéis, contestar a lo que te propone. Sin su número, nada;
  * esperando su respuesta, tampoco (no se le bombardea).
  */
-export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProfile, now: number, story?: { accept?: string; decline?: string; cancel?: boolean }): PhoneOption[] {
+/** Lo que añade su historia al hilo; `invite`/`gathering` salen de systems/HomeGathering.homeOffer (VID-05). */
+export interface StoryPhoneOffer { accept?: string; decline?: string; cancel?: boolean; invite?: boolean; gathering?: boolean }
+
+export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProfile, now: number, story?: StoryPhoneOffer): PhoneOption[] {
   if (!profile.contactExchanged || phone.threads[npc]?.pending) return [];
   // Una propuesta de su historia (systems/Story.phoneStory): se contesta aquí con sus palabras, o en persona.
   if (story?.accept && story.decline) return [{ id: 'accept-invite', label: story.accept }, { id: 'decline-invite', label: story.decline }, { id: 'bye', label: PHONE_ACTIONS.bye.label }];
@@ -438,10 +444,12 @@ export function phoneOptions(phone: PhoneState, npc: string, profile: SocialProf
   if (plan?.status === 'accepted') {
     if (!plan.confirmed) ids.push('confirm-plan');
     ids.push('cancel-plan');
-  } else if (story?.cancel) {
+  } else if (story?.cancel && !story.gathering) {
     // El plan quedado con su historia (una visita a casa): cancelarlo cuesta lo mismo que cancelar uno del móvil.
     ids.push('cancel-plan');
   }
+  if (story?.gathering) ids.push('cancel-gathering');
+  else if (story?.invite) ids.push('invite-home');
   ids.push('bye');
   return ids.map((id) => ({ id, label: PHONE_ACTIONS[id].label }));
 }

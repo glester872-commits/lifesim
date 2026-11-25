@@ -11,6 +11,18 @@
  * podrán ofrecer en un punto de su interior sin tocarlas.
  */
 
+export interface Ingredient {
+  item: string;
+  qty?: number;
+}
+
+/** `consumes` siempre como lista, con su cantidad (1 si no se dice). */
+export function ingredientsOf(def: Pick<ActivityDef, 'consumes'>): { item: string; qty: number }[] {
+  const c = def.consumes;
+  const list: readonly Ingredient[] = c === undefined ? [] : 'item' in c ? [c] : c;
+  return list.map((i) => ({ item: i.item, qty: i.qty ?? 1 }));
+}
+
 export interface ActivityDef {
   id: string;
   name: string;
@@ -26,8 +38,10 @@ export interface ActivityDef {
   };
   /** Euros que cuesta hacerla. */
   cost?: number;
-  /** Lo que gasta de la bolsa (cocinar gasta la compra). Sin ello en el inventario, no se puede. */
-  consumes?: { item: string; qty?: number };
+  /** Lo que gasta de la bolsa: uno o varios ingredientes (cocinar gasta la compra y el pan). Sin todo ello, no se puede. */
+  consumes?: Ingredient | readonly Ingredient[];
+  /** Lo que deja en la bolsa al acabar (cocinar: platos caseros). Si no cabe, no se empieza. */
+  produces?: { item: string; qty: number };
   /** Lo que cambia al acabar: dinero que se gana y energía (negativa si cansa). */
   effects: { money?: number; energy?: number };
   /** Lo que se cuenta al acabar. */
@@ -88,11 +102,13 @@ export const PLACE_ACTIVITIES: readonly ActivityDef[] = [
   },
   {
     id: 'cook',
-    name: 'Cocinar algo decente (45 min)',
+    name: 'Cocinar (45 min)',
     minutes: 45,
-    consumes: { item: 'groceries' },
-    effects: { energy: 30 },
-    lines: ['Arroz, un huevo, verdura salteada. No es un restaurante, pero es tuyo y es caliente.', 'Te sobra para mañana. No te sobrará.'],
+    // VID-09: la compra y una barra de pan dan dos platos caseros (data/items.ts home-meal); la energía, al comerlos.
+    consumes: [{ item: 'groceries' }, { item: 'bread' }],
+    produces: { item: 'home-meal', qty: 2 },
+    effects: {},
+    lines: ['Arroz, un huevo, verdura salteada y pan para mojar. No es un restaurante, pero es tuyo.', 'Salen dos platos: uno para ti y otro para quien venga. O para mañana.'],
   },
   {
     id: 'shower',

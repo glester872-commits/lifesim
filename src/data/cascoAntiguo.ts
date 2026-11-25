@@ -14,7 +14,8 @@ import type { BuildingDef, LocationDef, PointDef, PropKind, PropPlacement, Stall
  *   y 34–35 la Calle del Rastro: peatonal, sin calzada; en x 19–23 de la fila 34, el Rincón del Rastro (banco y macetas)
  *   y 36–43 los bajos del Rastro: viviendas, unas antigüedades y una churrería
  *
- * Los locales con puerta son la frutería y la Taberna La Lonja (data/cascoAntiguoVenues.ts); las demás fachadas, sin `enter`.
+ * Los locales con puerta son la frutería, la Taberna La Lonja, el Anticuario Ventura y el Ultramarinos Mayor (LOC-01)
+ * (data/cascoAntiguoVenues.ts); las demás fachadas, sin `enter`.
  * `stallAnchors`: dónde van los puestos del Gran Rastro de los domingos (data/popups.ts 'gran-rastro').
  */
 const W = 52;
@@ -62,7 +63,7 @@ const BUILDINGS: readonly BuildingDef[] = [
   b('cas-horno', 'Horno de la Plaza', 'bakery', [6, 2, 5, 7], 's', 8),
   b('cas-res-2', 'Calle Mayor 8', 'res-historic', [11, 2, 5, 7], 's', 13, { point: 'CAS_RES_2_ENTRANCE', tone: 1 }),
   b('cas-fruteria', 'Mercado · Frutas del Casco', 'fruit', [16, 2, 6, 7], 's', 18, { enter: { location: 'cas-fruteria', spawn: 'entry' }, point: 'CAS_FRUIT_ENTRANCE' }),
-  b('cas-ultramarinos', 'Ultramarinos Mayor', 'grocer', [22, 2, 5, 7], 's', 24),
+  b('cas-ultramarinos', 'Ultramarinos Mayor', 'grocer', [22, 2, 5, 7], 's', 24, { enter: { location: 'cas-ultramarinos', spawn: 'entry' }, point: 'CAS_ULTRA_ENTRANCE' }),
   b('cas-res-3', 'Calle Mayor 16', 'res-historic', [27, 2, 6, 7], 's', 29, { point: 'CAS_RES_3_ENTRANCE', tone: 2 }),
   // CAS-06: la taberna de tapas, con interior (data/cascoAntiguoVenues.ts); la puerta en x 35, fuera del Pasaje y de las columnas 19–23.
   b('cas-cafe', 'Taberna La Lonja', 'cafe', [33, 2, 5, 7], 's', 35, { enter: { location: 'cas-taberna', spawn: 'entry' }, point: 'CAS_TABERNA_ENTRANCE' }),
@@ -125,7 +126,7 @@ const p = (tx: number, ty: number, kind: PointDef['kind'], facing?: PointDef['fa
 const pad = (x: number): string => String(x).padStart(2, '0');
 
 /** Puertas de la acera norte (nodo en la fila 10), nodos de la central (fila 15) y de la sur (fila 24). */
-const NORTH = [2, 13, 18, 21, 29, 35, 40] as const;
+const NORTH = [2, 13, 18, 21, 24, 29, 35, 40] as const;
 const MID = [10, 21, 33, 46] as const;
 const SOUTH = [9, 17, 21, 36, 44] as const;
 /** La Calle del Rastro (fila 35), donde desembocan el Pasaje (x 17) y el Callejón de las Cestas (x 44). */
@@ -186,7 +187,7 @@ const LINKS: readonly Link[] = [
   ...chain('EDGE_CAS_RW', ...RASTRO.map((x) => `cas-r${pad(x)}`), 'EDGE_CAS_RE'),
   ['cas-s17', 'cas-r17'], ['cas-s44', 'cas-r44'],
   ['cas-m46', 'cas-plaza-e'], ['cas-plaza', 'cas-plaza-e'], ['cas-plaza-e', 'cas-s44'],
-  ['CAS_RES_1_ENTRANCE', 'cas-n02'], ['CAS_RES_2_ENTRANCE', 'cas-n13'], ['CAS_RES_3_ENTRANCE', 'cas-n29'],
+  ['CAS_RES_1_ENTRANCE', 'cas-n02'], ['CAS_RES_2_ENTRANCE', 'cas-n13'], ['CAS_RES_3_ENTRANCE', 'cas-n29'], ['CAS_ULTRA_ENTRANCE', 'cas-n24'],
   ['CAS_FRUIT_ENTRANCE', 'cas-n18'], ['CAS_TABERNA_ENTRANCE', 'cas-n35'], ['CAS_METRO_ENTRANCE', 'cas-n40'],
   ['CAS_ANTICUARIO_ENTRANCE', 'cas-r17'],
   ['CAS_PLAZA_01', 'cas-plaza'], ['CAS_PLAZA_02', 'cas-plaza'], ['CAS_PLAZA_03', 'cas-plaza'], ['CAS_PLAZA_04', 'cas-plaza'],
@@ -245,7 +246,7 @@ export const CASCO_ANTIGUO: LocationDef = {
     hourly: [[0, 7, 0], [7, 21, 1], [21, 24, 0]],
   },
   inspects: [
-    { tx: 43, ty: 9, name: 'Plano del barrio', lines: ['Casco Antiguo: la Calle Mayor, la Plaza del Mercado, la Calle del Rastro y la frutería del mercado. Línea 2 hacia Decathlon, Ribera y Vallesco.'] },
+    { tx: 43, ty: 9, name: 'Plano del barrio', lines: ['Casco Antiguo: la Calle Mayor, la Plaza del Mercado, la Calle del Rastro, la frutería del mercado y el Ultramarinos Mayor (de lunes a sábado, de 9 a 20). Línea 2 hacia Decathlon, Ribera y Vallesco.'] },
     // CAS-09: aquí se alquila el puesto propio del Rastro: el tablón de esta casilla ofrece «Puesto en el Rastro»
     // (systems/PlayerStall.stallDeskAt → Menus.openStallBoard).
     { tx: 36, ty: 14, name: 'Tablón', stallDesk: 'gran-rastro', lines: ['Un cartel a mano: «Mercadillo de los domingos en la plaza. Se buscan puestos». Debajo, un teléfono a medio arrancar.'] },
