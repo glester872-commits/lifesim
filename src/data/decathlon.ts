@@ -111,9 +111,10 @@ export const SECTORS: readonly Sector[] = [
     props: [
       ...FITTING_ROOMS.map((f) => ({ ...at('fitting-room', f.tile.tx, f.tile.ty), variant: fittingVariant(f) })),
       // El control de delante (probas.jpeg), en la fila 6: la 5 queda libre para llegar a todas las cabinas, y se sube a
-      // ella por x 18–20 y 29–30. Entrada, dos módulos, cajonera, papelera de salida, poste, mesa y carro. Decorado.
+      // ella por x 18–19, 26 y 29–30. Poste en la entrada (QA-10: en 26 cerraba un pasillo de un tile), dos módulos,
+      // cajonera, papelera de salida, mesa y carro. Decorado.
       ...[0, 1, 1, 2, 3].map((v, i) => ({ ...at('fitting-desk', 21 + i, 6), variant: v })),
-      at('stanchion', 26, 6), at('black-table', 27, 6), at('hanger-cart', 28, 6),
+      at('stanchion', 20, 6), at('black-table', 27, 6), at('hanger-cart', 28, 6),
     ],
     browse: [[30, 5, 'up']],
     look: { tx: FITTING_ROOMS[2].tile.tx, ty: FITTING_ROOMS[2].tile.ty, lines: ['Once cabinas en fila, del 1 al 9, con la accesible en medio y su silla azul en el panel. En la 3 alguien lleva diez minutos decidiendo entre dos mallas iguales.'] },
