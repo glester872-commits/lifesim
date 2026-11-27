@@ -113,6 +113,7 @@ Llámalo siempre con `model: "opus"` en la herramienta Agent: el plugin model-ro
 Antes de la primera llamada al builder, registra el baseline con los criterios del planner:
 `node scripts/autodev-gate.mjs baseline --run=<$AUTODEV_RUN_ID si existe, si no <ticket>-<n>> --files=<files del plan> --acceptance=<ids> [--authorize=<protegidos que el ticket autoriza>]`.
 Esto guarda el estado de git, los hashes y una instantánea de los archivos del plan en `.autodev/gate/`. Sin baseline no hay builder.
+Autorizaciones agrupadas: antes del baseline, junta en **una sola pregunta** al usuario todo lo protegido que el plan pueda necesitar (`package.json`, `.claude/`, `CLAUDE.md`…) y pásalo en `--authorize`. Lo que se autorice después del baseline no cuenta para el Gate (VISUAL-UPGRADE-01). Las decisiones técnicas menores que la evidencia resuelve no se preguntan. Si el usuario pidió commit o push, se piden juntos, una sola vez, al cierre y tras el Gate en PASS.
 
 ## 5. Quality Gate (lo ejecutas tú y registras comando, exit code y evidencia)
 - Siempre, además de lo del modo: los `checksToRun` del builder y los `requestedChecks` del evaluator.
