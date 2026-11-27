@@ -32,3 +32,11 @@ export const BUDGETS: Readonly<Record<QualityLevel, Budget>> = {
   medium: { agents: 95, near: 70, vehicles: 20, particles: 48, tweens: 140, objects: 4000, interiors: 1 },
   low: { agents: 75, near: 55, vehicles: 16, particles: 0, tweens: 120, objects: 3600, interiors: 1 },
 };
+
+/** Techo absoluto del pozo de world/Atmosphere: el `particles` más alto de los presupuestos. */
+export const MAX_PARTICLES = 64;
+
+/** Sprites del pozo de world/Atmosphere en esa calidad: nunca más que su presupuesto (en low, ninguno). */
+export function atmosphereCap(level: QualityLevel): number {
+  return Math.min(MAX_PARTICLES, BUDGETS[level].particles);
+}
