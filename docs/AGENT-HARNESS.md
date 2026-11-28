@@ -214,14 +214,38 @@ Formato: hallazgo · dónde (`ruta:símbolo`) · prueba (comando→resultado) ·
 - Prueba: `node scripts/check-sidewalks.ts` → exit 1, «decathlon-tienda: stanchion en 26,6» (en `b7e694d` y en `1b148e4` con el árbol de trabajo). Los comandos posteriores de la cadena, ejecutados uno a uno en la prueba C, salen con exit 0.
 - 2026-11-26 · alcance: solo datos (gameplay): necesita su propio ticket, no se corrige aquí.
 - Invalida si: cambian los props de `decathlon-tienda`, `solidMask` o `PropDef.post`.
-- Estado: **reproducido**. Sin corregir en ninguna rama. Ticket: **`QA-10.md`**.
+- Estado: **corregido (2026-11-26)** en `vid-12-guia`: `src/data/decathlon.ts`, poste de (26,6) a (20,6), sin tocar el check. Verificado: `check-sidewalks` exit 0; `npm run check` entero exit 0 (2826 líneas, run v207-C3); en el navegador, las 11 cabinas alcanzables (run qa10-a3). Ticket: **`QA-10.md`**.
 
 **L-01 · Perfil de Chrome del MCP de DevTools bloqueado: los especialistas no pueden usar el navegador** (V2-07 prueba C)
 - Hallazgo: `gameplay-qa`/`visual-qa` devuelven BLOCKED porque el MCP no puede abrir su Chrome. Su perfil está en uso.
 - Prueba: `~/.cache/chrome-devtools-mcp/chrome-profile/lockfile` existe y hay 8 procesos `chrome.exe` con `chrome-devtools-mcp` en la línea de órdenes (2026-11-26, una única comprobación).
 - No se cerraron esos procesos: pueden ser de otra sesión del usuario, y matarlos no estaba autorizado. Tampoco se abrió otro ciclo de investigación.
 - Cómo verificarlo: cierra las sesiones de Claude Code o los Chrome que usan ese perfil y repite gameplay-qa de QA-09 (tirón de 300 ms, y ≥ 80 en cada `worldstep`). El E2E (`npm run test:e2e`) no se ve afectado: usa su propio perfil temporal.
-- Estado: **limitación abierta**. Mientras siga, la parte de navegador de los especialistas queda BLOCKED, y el DEEP no puede cerrar en PASS si la necesita.
+- Estado: **OBSOLETA (2026-11-26)**. La causa era el propio MCP de la sesión interactiva; al cerrarlo (con autorización), los especialistas de la run v207-C3 usaron Chrome. Si vuelve: cerrar el MCP de chrome-devtools de la sesión principal antes de lanzar `claude -p`.
+
+**H-003 · Parche de QA-09 en `Walker.step`: arregla la vía pero rompe la entrada al metro. NO INTEGRAR** (V2-07 prueba C, run v207-C3)
+- Hallazgo: el parche (`.autodev/v207-evidence/C3/walker-qa09-c3.patch`) cumple A1–A5 de QA-09 (0 pasajeros en la vía en 20 ciclos; ≥ 92 en cada `worldstep` con tirones de 300 ms), pero provoca H-004.
+- SHA base `3257f41` · 2026-11-26 · alcance: `src/entities/Walker.ts`.
+- Estado: **rechazado**. QA-09 sigue abierto; hay que rehacer el arreglo sin regresión en `metro`.
+
+**H-004 · La primera E delante de la boca del metro no entra (regresión del parche H-003)**
+- Prueba: `node scripts/qa/e2e.mjs --only=metro`, 6 ejecuciones por lado. Sin parche (`1b148e4`, `src/` idéntico a `3257f41`): la primera E falla 1/6. Con parche: 6/6, y en 1 tampoco entra la segunda (caso FAIL). Probabilidad por azar < 1 %.
+- Artefactos: `.autodev/v207-evidence/C3/base-metro-*.log`, `C3/base-e2e/` (sin parche) y `C3/e2e/` (con parche).
+- Causa: **no investigada** (fuera del alcance de V2-07). En la calle no se ejecuta `Walker.step`, así que el mecanismo no es directo.
+- Invalida si: cambian `Walker.ts`, el portal de la boca en los datos de la calle o el caso `metro` de `e2e.mjs`.
+- Estado: **reproducido**. Necesita ticket propio junto con QA-09.
+
+**H-005 · El caso `metro` del E2E mide a veces 16 min en vez de 15 en Vallesco→Ribera** (previo, no del parche)
+- Prueba: sin parche, 2 de 6 ejecuciones de `--only=metro` fallan con «el viaje Vallesco→Ribera no suma 15 min de juego (16)»; con el parche, 1 de 4.
+- Dónde: probablemente el muestreo del reloj en `scripts/qa/e2e.mjs:391` (inferencia, no verificada). No se sabe si es del test o del juego.
+- Invalida si: cambian ese muestreo, `MetroSystem.ts` o la tarifa (`minutes`) del portal.
+- Estado: **reproducido, intermitente**. Necesita ticket propio.
+
+**H-006 · El orquestador deja el servidor de QA en 5197 tras decir que lo detuvo** (V2-07, 3 veces)
+- Prueba: tras las runs de C, C2 y C3, `vite --port 5197` seguía escuchando (en C3, PID 23944), y el informe decía «detenido». También en C3 un especialista dejó capturas `tmp-qa09-*.png` en la raíz, y por eso el Gate dio FAIL.
+- Estado: **reproducido**. Pendiente de corregir en `SKILL.md` §2 o con una comprobación del Gate.
+
+**V2-07 · cierre (2026-11-26): NOT READY.** B2 PASS; C (DEEP) BLOCKED (Gate `QA-09-2` FAIL, evaluator BLOCKED, optimizer sin salir del menú de título, visual-qa sin verificar el andén en el embarque); **prueba A (ECO) NO VERIFICADA, pendiente**. QA-10 corregido (H-002). Evidencias: `.autodev/v207-evidence/`.
 
 **Regresiones conocidas: pendientes de verificar, no son arreglos confirmados**
 - **R-01 · NPC que camina sobre el fondo negro o las vías del metro. REPRODUCIDO, INTERMITENTE.** `npm run test:e2e -- --only=npc-tracks` en el andén de Vallesco, 3 ciclos de tren por ejecución. De 2 ejecuciones, 1 PASS y 1 **FAIL**. En el FAIL, un pasajero quedó en la vía en la fase BOARDING/BOARDING (`y=78`, borde `80`), con `onTrackAfterPhysics: 1` y `diag: invasion 1, guard 1`. Es decir, la guarda lo devolvió, pero llegó a pisar la vía tras un paso de física. Artefactos en `.autodev/e2e/2026-11-26T01-25-08-489Z/npc-tracks/`. SHA `1b148e4`, 2026-11-26. No se ha corregido: es gameplay fuera de esta misión. Ticket: **`QA-09.md`**. Alcance: solo vallesco-station. Invalida si cambian `PassengerAI.ts`, `MetroSystem.ts` o `data/zones.ts`.

@@ -18,6 +18,7 @@ import type { Facing, LocationDef, NpcDef, PortalDef, RackDef, SpawnDef, Termina
 import type { MetroEventDef, RideContext } from '../systems/MetroEventManager';
 import { allLocations, doorRow, getLocation, getSpawn, isStandable, isWalkable, spawnToWorld } from '../systems/LocationSystem';
 import { QUALITY, type QualityLevel } from '../config/quality';
+import { comfortNow } from '../config/comfort';
 import { BUDGETS, type Budget } from '../config/budgets';
 import { Ambience } from '../world/Ambience';
 import { PROPS } from '../world/tiles';
@@ -2371,7 +2372,7 @@ export class WorldScene extends Phaser.Scene {
       // A la mesa, qué pasa con lo tuyo; viendo el partido, sus opciones; si no, sólo cómo levantarse.
       const status = this.dining ? this.tableService?.playerStatus() : null;
       this.services.hint.show(status ? `${status} · E: opciones · Esc: levantarse` : watching ? 'Viendo el partido · E: opciones · Esc: levantarse' : 'Levantarse');
-      this.prompt.setPosition(this.player.x, this.player.y - PLAYER_H - 8).setVisible(true);
+      this.prompt.setPosition(this.player.x, this.player.y - PLAYER_H - 8).setVisible(comfortNow().hints === 'visible');
     }
     // Esc levanta: en el móvil, «Volver» hace lo mismo (el botón de acción puede estar ocupado hablando con alguien).
     this.services.input.setContext({ action: target ? this.actionLabel(target) : this.dining || watching ? 'Opciones' : 'Levantarse', back: true, busy: false });
@@ -3735,7 +3736,7 @@ export class WorldScene extends Phaser.Scene {
     const targetTop = target.kind === 'npc' ? target.sprite.y - PLAYER_H : target.y - 8;
     const top = Math.min(this.player.y - PLAYER_H, targetTop);
     const anchorX = target.kind === 'npc' ? target.sprite.x : this.player.x;
-    this.prompt.setPosition(anchorX, top - 8).setVisible(true);
+    this.prompt.setPosition(anchorX, top - 8).setVisible(comfortNow().hints === 'visible');
     // Por id, no por objeto: un evento de calle se crea de nuevo cada frame y reiniciaría la animación sin parar.
     this.activeTarget = target;
     const id = this.idOf(target);

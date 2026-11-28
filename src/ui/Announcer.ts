@@ -1,3 +1,5 @@
+import { messageMs } from '../config/comfort';
+
 const VISIBLE_MS = 5_000;
 
 /** Megafonía: una línea discreta arriba, que se desvanece sola. */
@@ -18,7 +20,7 @@ export class Announcer {
     this.text.textContent = message;
     this.root.classList.add('is-visible');
     window.clearTimeout(this.hideTimer);
-    this.hideTimer = window.setTimeout(() => this.hide(), VISIBLE_MS);
+    this.hideTimer = window.setTimeout(() => this.hide(), messageMs(VISIBLE_MS));
   }
 
   hide(): void {

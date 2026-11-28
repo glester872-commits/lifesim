@@ -153,6 +153,8 @@ export class Menu {
       ...open.options.map((o, i) => {
         const li = document.createElement('li');
         li.className = `menu__item${i === this.selected ? ' is-selected' : ''}${o.disabled ? ' is-disabled' : ''}`;
+        // La marcada se anuncia también al lector de pantalla, no sólo con color.
+        if (i === this.selected) li.ariaCurrent = 'true';
         const label = document.createElement('span');
         label.textContent = `${i + 1}. ${o.label}`;
         const detail = document.createElement('span');

@@ -3,6 +3,7 @@ import { version } from '../package.json';
 import { PALETTE } from './config/constants';
 import { AUDIO_LABEL, AUDIO_LEVELS, loadAudioLevel, saveAudioLevel, type AudioLevel } from './config/audio';
 import { QUALITY, setQuality, type QualityLevel } from './config/quality';
+import { applyComfort, COMFORT_FIELDS, COMFORT_OPTIONS, comfortNow, DEFAULT_COMFORT, sameComfort, saveComfort, setConfirmed, type Comfort } from './config/comfort';
 import { formatDateShort } from './systems/Calendar';
 import { euros } from './systems/Commerce';
 import { getLocation } from './systems/LocationSystem';
@@ -17,7 +18,7 @@ import { LOGO_W, paintLogo, startTitleScene } from './ui/TitleScene';
 /**
  * Pantalla de inicio (Alpha-01). Va antes que main.ts: hasta que se elige Continuar o Nueva partida no hay
  * juego, ni autoguardado, ni nada que pueda pisar lo guardado. Sólo lee; lo único que escribe es
- * SaveSystem.startNew (copia y quita lo anterior) y los ajustes del navegador (sonido y calidad).
+ * SaveSystem.startNew (copia y quita lo anterior) y los ajustes del navegador (sonido, calidad y, al pulsar Guardar, el confort).
  * Volver aquí desde la partida es recargar la página (ui/PauseMenu): ninguna escena, escucha ni temporizador sobrevive.
  */
 
@@ -34,6 +35,8 @@ for (const el of behind) if (el) el.inert = true;
 
 document.documentElement.style.setProperty('--amber', PALETTE.amber);
 document.documentElement.style.setProperty('--accent', PALETTE.glassLit);
+// El confort confirmado, aplicado ya al documento: main.ts se carga en esta misma página y lo encuentra puesto.
+applyComfort(comfortNow());
 
 // Ranuras (systems/SaveSlots): la de trabajo es la última jugada; «Partidas» y «Nueva partida» cambian de ranura.
 const { base, persistent, writable } = gameStorage();
@@ -63,6 +66,38 @@ function slotLine(v: SlotView): string {
 
 const QUALITY_LABEL: Readonly<Record<QualityLevel, string>> = { low: 'baja', medium: 'media', high: 'alta' };
 const QUALITY_LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
+
+/** UXN-01 · Confort: el nombre de cada preferencia y de sus valores, en el orden de COMFORT_OPTIONS. */
+const COMFORT_LABEL: { readonly [K in keyof Comfort]: { name: string; values: Readonly<Record<Comfort[K], string>> } } = {
+  text: { name: 'Tamaño de texto', values: { normal: 'Normal', large: 'Grande' } },
+  contrast: { name: 'Contraste de diálogos', values: { normal: 'Normal', high: 'Alto' } },
+  messages: { name: 'Duración de mensajes', values: { normal: 'Normal', long: 'Larga' } },
+  hints: { name: 'Pistas de interacción', values: { visible: 'Visibles', hidden: 'Ocultas' } },
+  flashes: { name: 'Parpadeos', values: { normal: 'Normales', reduced: 'Reducidos' } },
+};
+/** Lo que se ve en Ajustes antes de Guardar (vista previa); lo confirmado es comfortNow(). */
+let comfortDraft: Comfort = { ...comfortNow() };
+/** «Restaurar predeterminados» pide confirmación antes de tocar el borrador. */
+let askReset = false;
+/** El botón que recibe el foco tras el próximo render (por data-action). */
+let focusNext = '';
+
+/** Salir de Ajustes sin Guardar: el borrador vuelve a lo confirmado y se ve como estaba. Nunca escribe. */
+function discardComfort(): void {
+  comfortDraft = { ...comfortNow() };
+  askReset = false;
+  applyComfort(comfortDraft);
+}
+
+function comfortGroup<K extends keyof Comfort>(field: K): string {
+  const { name, values } = COMFORT_LABEL[field];
+  const id = `set-comfort-${field}`;
+  const options = COMFORT_OPTIONS[field].map((v) => {
+    const on = comfortDraft[field] === v;
+    return button(`comfort:${field}:${v}`, `${on ? '✓ ' : ''}${values[v]}`, `aria-pressed="${on}" aria-label="${name}: ${values[v]}"`);
+  });
+  return `<p class="title__label" id="${id}">${name}</p><div class="title__row" role="group" aria-labelledby="${id}">${options.join('')}</div>`;
+}
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const pad = (n: number): string => String(n).padStart(2, '0');
@@ -235,8 +270,24 @@ function render(): void {
         <div class="title__row" role="group" aria-labelledby="set-audio">${AUDIO_LEVELS.map((l) => button(`audio:${l}`, AUDIO_LABEL[l], `aria-pressed="${l === audio}"`)).join('')}</div>
         <p class="title__label" id="set-quality">Calidad gráfica</p>
         <div class="title__row" role="group" aria-labelledby="set-quality">${QUALITY_LEVELS.map((l) => button(`quality:${l}`, QUALITY_LABEL[l], `aria-pressed="${l === QUALITY.level}"`)).join('')}</div>
-        <p class="title__muted">Se recuerdan en este navegador, no en la partida.</p>
+        ${COMFORT_FIELDS.map(comfortGroup).join('')}
+        <figure class="title__preview" aria-label="Muestra de un diálogo con los ajustes elegidos">
+          <div class="dialogue__panel">
+            <p class="dialogue__speaker">Vecina</p>
+            <p class="dialogue__text">¿Bajas al mercado conmigo? Abren a las nueve.</p>
+            <ol class="dialogue__choices"><li>1. Vale, vamos.</li><li>2. Hoy no puedo.</li></ol>
+            <p class="dialogue__hint">Elige con 1–2</p>
+          </div>
+        </figure>
+        <p class="title__text title__muted">Se recuerdan en este navegador, no en la partida. Sonido y calidad se aplican al momento; el resto, al pulsar Guardar.</p>
       </div>
+      ${sameComfort(comfortDraft, comfortNow()) ? '' : '<p class="title__unsaved" role="status">Cambios sin guardar</p>'}
+      ${askReset
+        ? `<div class="title__text" role="alertdialog" aria-labelledby="reset-text">
+            <p id="reset-text">¿Restaurar los predeterminados de confort? Cambia tamaño de texto, contraste, duración de mensajes, pistas y parpadeos. No cambia sonido ni calidad. Se aplica al pulsar Guardar.</p>
+            <div class="title__row">${button('comfort-reset-yes', 'Sí, restaurar')}${button('comfort-reset-no', 'No')}</div>
+          </div>`
+        : `<div class="title__row title__actions">${button('comfort-save', 'Guardar')}${button('comfort-cancel', 'Cancelar')}${button('comfort-reset', 'Restaurar predeterminados')}</div>`}
       <nav class="title__menu">${back}</nav>`;
   } else if (view === 'saves') {
     // Tres ranuras independientes: cada una con su partida, su copia de seguridad y su archivo exportado.
@@ -301,8 +352,10 @@ function render(): void {
   const logo = panel.querySelector<HTMLCanvasElement>('.title__logo-art');
   // Escala entera que quepa en el panel (de 3 a 7 veces el dibujo) y, en pantallas bajas (un móvil apaisado), en el alto.
   if (logo) paintLogo(logo, Math.max(3, Math.min(7, Math.floor(Math.min(window.innerWidth - 72, 400) / LOGO_W), Math.floor(window.innerHeight / 110))));
-  // El foco, en el primer botón que se puede usar: con el teclado se empieza a elegir sin ratón.
-  panel.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+  // El foco, en el botón pedido (Ajustes: el mismo que se pulsó) o en el primero que se puede usar.
+  const wanted = focusNext ? panel.querySelector<HTMLButtonElement>(`button[data-action="${focusNext}"]:not([disabled])`) : null;
+  focusNext = '';
+  (wanted ?? panel.querySelector<HTMLButtonElement>('button:not([disabled])'))?.focus();
 }
 
 let booting = false;
@@ -357,6 +410,9 @@ function handle(action: string): void {
   notice = '';
   const [verb, n] = action.split(':');
   const id = (SLOT_IDS as readonly number[]).includes(Number(n)) ? (Number(n) as SlotId) : null;
+  // Cualquier salida de Ajustes que no sea Guardar descarta el borrador de confort (sonido y calidad ya se guardaron).
+  const fromSettings = view === 'settings';
+  if (fromSettings && !action.startsWith('comfort') && !action.startsWith('audio:') && !action.startsWith('quality:')) discardComfort();
   if (action === 'continue' && info.status === 'ok') return void boot();
   if (verb === 'use' && id) {
     useSlot(id);
@@ -433,17 +489,49 @@ function handle(action: string): void {
     saveAudioLevel(action.slice(6) as AudioLevel);
   } else if (action.startsWith('quality:')) {
     setQuality(action.slice(8) as QualityLevel);
+  } else if (verb === 'comfort' && fromSettings) {
+    // Vista previa: cambia el borrador y el documento; no escribe nada hasta Guardar.
+    const field = n as keyof Comfort;
+    const value = action.split(':')[2];
+    if (COMFORT_FIELDS.includes(field) && (COMFORT_OPTIONS[field] as readonly string[]).includes(value)) {
+      comfortDraft = { ...comfortDraft, [field]: value } as Comfort;
+      applyComfort(comfortDraft);
+    }
+  } else if (action === 'comfort-save' && fromSettings) {
+    if (saveComfort(comfortDraft)) {
+      setConfirmed(comfortDraft);
+      notice = 'Ajustes guardados.';
+    } else message = 'No se han podido guardar los ajustes: el almacenamiento del navegador está bloqueado o lleno. Siguen en vista previa: reintenta con Guardar o pulsa Cancelar.';
+  } else if (action === 'comfort-cancel') {
+    discardComfort();
+    view = 'main';
+  } else if (action === 'comfort-reset') {
+    askReset = true;
+  } else if (action === 'comfort-reset-yes') {
+    comfortDraft = { ...DEFAULT_COMFORT };
+    askReset = false;
+    applyComfort(comfortDraft);
+  } else if (action === 'comfort-reset-no') {
+    askReset = false;
   } else if (action === 'main') {
     view = 'main';
   } else if (action === 'about' || action === 'controls' || action === 'settings') {
     view = action;
   }
+  // En Ajustes, el foco vuelve al botón pulsado (o al que toca del aviso de restaurar); al salir, a «Ajustes».
+  if (view === 'settings') focusNext = action === 'comfort-reset' ? 'comfort-reset-yes' : action === 'comfort-reset-yes' || action === 'comfort-reset-no' ? 'comfort-reset' : action;
+  else if (fromSettings && view === 'main') focusNext = 'settings';
   render();
 }
 
 // Teclado: flechas para moverse entre botones (además de Tab) y Esc para volver al menú.
 panel.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && view !== 'main' && view !== 'loading') {
+    // Desde Ajustes, Esc es Cancelar: el confort vuelve a lo guardado.
+    if (view === 'settings') {
+      discardComfort();
+      focusNext = 'settings';
+    }
     view = 'main';
     message = '';
     render();

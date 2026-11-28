@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PALETTE, TILE } from '../config/constants';
+import { comfortNow } from '../config/comfort';
 import type { LocationDef, TilePoint } from '../types/game';
 import type { Agent } from '../systems/Crowd';
 import type { Weather } from '../systems/Weather';
@@ -144,7 +145,8 @@ export class EmergencyView {
       this.engine.setVisible(parked);
       if (parked && e) this.engine.setPosition(e[0].tx * TILE + (e.length * TILE) / 2, (e[0].ty + 1) * TILE).setDepth(standing((e[0].ty + 1) * TILE));
     }
-    this.beacon.setVisible(parked && this.phaseNow === 'extinguishing' && Math.floor(time / 300) % 2 === 0);
+    // Sólo es visual (la fase la dicen las llamas, el chorro y la gente): con parpadeos reducidos, fijo encendido.
+    this.beacon.setVisible(parked && this.phaseNow === 'extinguishing' && (comfortNow().flashes === 'reduced' || Math.floor(time / 300) % 2 === 0));
     if (parked && e) this.beacon.setPosition(e[0].tx * TILE + (e.length * TILE) / 2, (e[0].ty - 1) * TILE + 3).setDepth(standing((e[0].ty + 1) * TILE) + 1);
 
     // La gente: los curiosos llegan con el humo y se van al recoger; la dotación baja de la autobomba al llegar.
