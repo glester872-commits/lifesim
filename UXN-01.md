@@ -53,8 +53,8 @@ Recalculados con la fórmula de luminancia relativa; coinciden con los del plan.
 ## Archivos modificados y motivo
 
 - `src/config/comfort.ts` (nuevo): tipo, validación, carga/guardado, aplicación al documento, confirmado en memoria, `messageMs`.
-- `src/title.ts`: vista Ajustes (cinco grupos, muestra, borrador, Guardar/Cancelar/Restaurar, Escape, foco); aplica lo confirmado al arrancar.
-- `src/style.css`: reglas `data-comfort-*`, desplazamiento de Ajustes, botones de 44 px, muestra no clicable.
+- `src/title.ts`: vista Ajustes (cinco grupos, muestra, borrador, Guardar/Cancelar/Restaurar, Escape, foco); aplica lo confirmado al arrancar. Corrección (ronda 2): «✓» y `aria-label` en Sonido y Calidad; clase `title__reset`.
+- `src/style.css`: reglas `data-comfort-*`, desplazamiento de Ajustes, botones de 44 px, muestra no clicable. Corrección (ronda 2): quitado `min-width:44px` de los botones de Ajustes y añadida la regla `.title__reset`.
 - `src/ui/Announcer.ts`, `src/ui/Phone.ts`: duración vía `messageMs`.
 - `src/scenes/WorldScene.ts`: icono de acción según «Pistas».
 - `src/world/Lighting.ts`, `src/world/EmergencyView.ts`, `src/ui/TitleScene.ts`: parpadeos.
@@ -71,28 +71,77 @@ Recalculados con la fórmula de luminancia relativa; coinciden con los del plan.
 
 ## Tabla de aceptación
 
-PENDIENTE (lo rellena el coordinador)
+| Id | Pasos | Esperado | Observado | Estado | Evidencia |
+|---|---|---|---|---|---|
+| A1 | Grande + Alto en Ajustes | Texto y contraste aplicados | Aplicados | PASS | `comfort.ts:applyComfort`, `style.css`; captura r2-1280-grande-alto; check-comfort |
+| A2 | Vista previa sin Guardar | Cambia el documento, no el almacenamiento | dataset cambia, storage idéntico; a 390, `stored` null tras vista previa | PASS | gameplay-qa; medición a 390 |
+| A3 | Cancelar / Escape | Restaura lo confirmado | Restauran; foco a Ajustes | PASS | gameplay-qa |
+| A4 | Guardar y recargar | Persisten | JSON v1 y recarga coinciden | PASS | e2e save PASS |
+| A5 | Guardar | Sólo `lifesim.comfort` | Sólo esa clave; otras idénticas | PASS | check-title-save → 0 |
+| A6 | — | — | Conforme | PASS | gameplay-qa |
+| A7 | — | — | Conforme | PASS | gameplay-qa |
+| A8 | Ajustes a 1280 y 390 | Ningún texto fuera de botón ni panel | Ninguno | PASS | r2-1280-normal, r2-1280-grande-alto, r2-1280-reset, r2-390-grande-alto |
+| A9 | Contraste alto | Ratios AA y señal no sólo cromática | #efe9df 15,8:1; #8fd6cd 11,5:1; disabled .75 ≈ 9,1:1 sobre #0e0f16; ✓ y ▸ además del color | PASS | tabla de ratios |
+| A10 | Duración Larga | Sólo megafonía y aviso del móvil | `messageMs` sólo en `Announcer.ts:23` y `Phone.ts:405` | PASS | check-comfort |
+| A11 | Pistas Ocultas en táctil; E con Ocultas | Sin pistas; E sigue funcionando | Sin ejecución: los eventos sintéticos del especialista no movían al jugador. Por código ningún camino lee `prompt.visible` (`WorldScene:2375/3739`) | NO VERIFICADO | lectura de código |
+| A12 | Parpadeos Reducidos | Neón, focos, rotativo y farolas sin parpadeo; señales intactas | Lighting neón y focos, EmergencyView rotativo fijo, farolas de portada; SignalView y Train excluidos | PASS | gameplay-qa |
+| A13 | 390×844, Grande + Alto | Objetivos ≥ 44 px, teclado operable | 20 botones, mínimo 94,3×44 px (`getBoundingClientRect`); teclado por gameplay-qa; e2e mobile PASS. El toque sobre Ajustes no se ejecutó | PASS | medición; e2e mobile |
+| A14 | Foco | Vuelve al botón pulsado y a Ajustes | Así; tras Continuar el jugador se mueve | PASS | e2e boot-move, save |
+| A15 | Datos corruptos / fallo de escritura | Predeterminados; mensaje de error sin falso éxito | check-comfort casos corruptos OK; en navegador, fallo de `setItem` → mensaje correcto, sin «Ajustes guardados.», reintento OK. Corruptos en navegador no ejecutados (bloqueados por el hook de pruebas) | PASS | check-comfort; navegador |
+| A16 | build/check/e2e | Sin regresión | Sin regresión salvo metro: primera E falla 4/7 con UXN-01 frente a 1/6 en la base e3a2d88; caso FAIL 2/7 frente a 4/6 (H-005, 16 min). No concluyente | NO VERIFICADO | H-004, H-005 |
 
 ## Capturas
 
-PENDIENTE (lo rellena el coordinador)
+- `.autodev/uxn-01/01`..`05`: ronda 1, con defectos de desborde.
+- `.autodev/uxn-01/r2-1280-normal`, `r2-1280-grande-alto`, `r2-1280-reset`, `r2-390-grande-alto`: ronda 2, PASS.
+- Viewports: 1280×720 DPR 1 y 390×844 DPR 2 móvil táctil emulado (no dispositivo físico). Sin datos personales.
 
 ## Build, check y tests
 
-PENDIENTE (lo rellena el coordinador)
+Sobre d25a122:
+- `npm run build` → 0
+- `npm run check` → 0 (290 s, 2824 líneas)
+- `node scripts/check-comfort.ts` → 0 (28 comprobaciones)
+- `check-menu`, `check-title-save`, `check-resale` → 0
+- `npm run test:e2e` → exit 1: boot-move, collision, npc-tracks, save, mobile, visual PASS; metro FAIL; bike/shift NO VERIFICADO (no obligatorios).
+
+Tras la corrección: build → 0, check-comfort → 0, check-menu → 0, check-title-save → 0, e2e mobile PASS, e2e save PASS.
 
 ## Rendimiento
 
-PENDIENTE (lo rellena el coordinador)
+Calle, calidad alta, 10 s quieto: rAF 58–60/s, `perf().over` vacío, heap estable ~270 MB; sin E/S de almacenamiento por frame (`comfortNow` es memoria). NO VERIFICADO: comparación con la base y tamaño del bundle sin medir; no se afirma «sin pérdida de FPS».
 
 ## Revisión DeepSeek
 
-PENDIENTE (lo rellena el coordinador) · NOT EVALUATED: no conectado.
+NOT EVALUATED: no conectado al flujo.
 
 ## git diff --stat
 
-PENDIENTE (lo rellena el coordinador)
+UXN-01, e3a2d88 → árbol, sin contar `docs/AGENT-HARNESS.md` (ajeno):
+
+```
+UXN-01.md                    98+
+scripts/check-comfort.ts     98+
+src/config/comfort.ts       105+
+src/scenes/WorldScene.ts      5
+src/style.css               110  (+7/-1 de la corrección)
+src/title.ts                100  (+6/-3 de la corrección)
+src/ui/Announcer.ts           4
+src/ui/Menu.ts                2+
+src/ui/Phone.ts               3
+src/ui/TitleScene.ts          4
+src/world/EmergencyView.ts    4
+src/world/Lighting.ts         5
+```
+
+Total del commit d25a122: 13 archivos, 550+/16-. El commit d25a122 lo pidió el usuario e incluye `docs/AGENT-HARNESS.md`, ajeno al ticket.
 
 ## Riesgos
 
-PENDIENTE (lo rellena el coordinador)
+- H-004: falla la primera E del metro; no atribuida al diff.
+- A 390 la barra de desplazamiento tapa el borde derecho de MEDIO / ALTO / ✓ ALTA.
+- «✓ BAJO» se parte en 2 líneas.
+- A 1280×720 con Grande + Alto y el aviso abierto, el panel se desplaza entero.
+- La muestra `.title__preview` no se ve sin desplazamiento a 1280×720.
+- Sin acceso a Ajustes desde la pausa.
+- A11 en táctil, por verificar.

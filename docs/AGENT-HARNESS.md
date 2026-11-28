@@ -247,6 +247,14 @@ Formato: hallazgo · dónde (`ruta:símbolo`) · prueba (comando→resultado) ·
 
 **V2-07 · cierre (2026-11-26): NOT READY.** B2 PASS; C (DEEP) BLOCKED (Gate `QA-09-2` FAIL, evaluator BLOCKED, optimizer sin salir del menú de título, visual-qa sin verificar el andén en el embarque); **prueba A (ECO) NO VERIFICADA, pendiente**. QA-10 corregido (H-002). Evidencias: `.autodev/v207-evidence/`.
 
+**H-007 · UXN-01: primera E del metro con y sin el cambio** (2026-11-28, amplía H-004)
+- Prueba: `npm run test:e2e -- --only=metro` alternado. Árbol UXN-01 (d25a122): primera E falla 4/7, caso FAIL 2/7 (1 doble E, 1 H-005). Base e3a2d88: primera E falla 1/6, caso FAIL 4/6 (todos H-005). p≈0,27: no concluyente.
+- El diff de la calle sólo cambia `prompt.setVisible(comfortNow().hints==='visible')` (WorldScene), que con valores predeterminados equivale a `setVisible(true)`.
+- Invalida si: cambian `Walker.ts`, el portal de la boca, el caso `metro` o `config/comfort.ts`.
+- Estado: **reproducido, no atribuido**. Necesita ticket propio junto con H-004.
+
+**H-006 · repetido en UXN-01 (2026-11-28):** tras `TaskStop` del servidor de 5197, vite siguió escuchando dos veces (PID 1804 y 17152); se cerró comprobando la línea de órdenes. Los especialistas con Chrome de DevTools agotan su límite de turnos antes de entregar: hay que darles encargos de ≤12 llamadas.
+
 **Regresiones conocidas: pendientes de verificar, no son arreglos confirmados**
 - **R-01 · NPC que camina sobre el fondo negro o las vías del metro. REPRODUCIDO, INTERMITENTE.** `npm run test:e2e -- --only=npc-tracks` en el andén de Vallesco, 3 ciclos de tren por ejecución. De 2 ejecuciones, 1 PASS y 1 **FAIL**. En el FAIL, un pasajero quedó en la vía en la fase BOARDING/BOARDING (`y=78`, borde `80`), con `onTrackAfterPhysics: 1` y `diag: invasion 1, guard 1`. Es decir, la guarda lo devolvió, pero llegó a pisar la vía tras un paso de física. Artefactos en `.autodev/e2e/2026-11-26T01-25-08-489Z/npc-tracks/`. SHA `1b148e4`, 2026-11-26. No se ha corregido: es gameplay fuera de esta misión. Ticket: **`QA-09.md`**. Alcance: solo vallesco-station. Invalida si cambian `PassengerAI.ts`, `MetroSystem.ts` o `data/zones.ts`.
 - **R-02 · Sprites y ojos al caminar con el zoom lejano.** `npm run test:e2e -- --only=visual` deja capturas `zoom-near.png` y `zoom-far.png` en `.autodev/e2e/<ejecución>/visual/` y confirma nearest-neighbor. La comparación con una referencia sigue **NO VERIFICADA**: no hay baseline aprobada, la tiene que revisar una persona. `check-eye-frame.ts` solo cubre un frame quieto.

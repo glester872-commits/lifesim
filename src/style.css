@@ -3145,12 +3145,17 @@ body.has-touch .kick__help {
 
 .title__settings .title__button,
 .title__actions .title__button {
-  min-width: 44px;
   min-height: 44px;
 }
 
 .title__actions {
   margin-top: 10px;
+}
+
+.title__reset {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(232, 227, 218, 0.14);
 }
 
 .title__unsaved {

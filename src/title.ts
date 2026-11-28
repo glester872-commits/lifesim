@@ -267,9 +267,9 @@ function render(): void {
     const audio = loadAudioLevel();
     body = `<div class="title__settings">
         <p class="title__label" id="set-audio">Sonido de ambiente</p>
-        <div class="title__row" role="group" aria-labelledby="set-audio">${AUDIO_LEVELS.map((l) => button(`audio:${l}`, AUDIO_LABEL[l], `aria-pressed="${l === audio}"`)).join('')}</div>
+        <div class="title__row" role="group" aria-labelledby="set-audio">${AUDIO_LEVELS.map((l) => button(`audio:${l}`, `${l === audio ? '✓ ' : ''}${AUDIO_LABEL[l]}`, `aria-pressed="${l === audio}" aria-label="Sonido de ambiente: ${AUDIO_LABEL[l]}"`)).join('')}</div>
         <p class="title__label" id="set-quality">Calidad gráfica</p>
-        <div class="title__row" role="group" aria-labelledby="set-quality">${QUALITY_LEVELS.map((l) => button(`quality:${l}`, QUALITY_LABEL[l], `aria-pressed="${l === QUALITY.level}"`)).join('')}</div>
+        <div class="title__row" role="group" aria-labelledby="set-quality">${QUALITY_LEVELS.map((l) => button(`quality:${l}`, `${l === QUALITY.level ? '✓ ' : ''}${QUALITY_LABEL[l]}`, `aria-pressed="${l === QUALITY.level}" aria-label="Calidad gráfica: ${QUALITY_LABEL[l]}"`)).join('')}</div>
         ${COMFORT_FIELDS.map(comfortGroup).join('')}
         <figure class="title__preview" aria-label="Muestra de un diálogo con los ajustes elegidos">
           <div class="dialogue__panel">
@@ -283,7 +283,7 @@ function render(): void {
       </div>
       ${sameComfort(comfortDraft, comfortNow()) ? '' : '<p class="title__unsaved" role="status">Cambios sin guardar</p>'}
       ${askReset
-        ? `<div class="title__text" role="alertdialog" aria-labelledby="reset-text">
+        ? `<div class="title__text title__reset" role="alertdialog" aria-labelledby="reset-text">
             <p id="reset-text">¿Restaurar los predeterminados de confort? Cambia tamaño de texto, contraste, duración de mensajes, pistas y parpadeos. No cambia sonido ni calidad. Se aplica al pulsar Guardar.</p>
             <div class="title__row">${button('comfort-reset-yes', 'Sí, restaurar')}${button('comfort-reset-no', 'No')}</div>
           </div>`
