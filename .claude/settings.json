@@ -1,0 +1,91 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(src/**)",
+      "Edit(scripts/check-*.ts)",
+      "Edit(scripts/simulate-*.ts)",
+      "Edit(scripts/qa/**)",
+      "Edit(docs/**)",
+      "Edit(design/**)",
+      "Edit(.autodev/**)",
+      "Bash(npm run build)",
+      "Bash(npm run check)",
+      "Bash(npm run test:e2e)",
+      "Bash(npm run test:e2e *)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(npx vite --port 5197 --strictPort)",
+      "Bash(node scripts/check-*)",
+      "Bash(node scripts/simulate-*)",
+      "Bash(node scripts/bench-*)",
+      "Bash(node scripts/qa/e2e.mjs *)",
+      "Bash(node scripts/autodev-gate.mjs *)",
+      "Bash(node scripts/agent-guard.mjs --selftest)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git rev-parse *)",
+      "Bash(git branch -vv)",
+      "Bash(git worktree list)"
+    ],
+    "deny": [
+      "Bash(git clean)",
+      "Bash(git clean *)",
+      "Bash(git reset --hard)",
+      "Bash(git reset --hard *)",
+      "Bash(git checkout .)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore .)",
+      "Bash(git restore -p)",
+      "Bash(git restore -p *)",
+      "Bash(git stash)",
+      "Bash(git stash *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git diff *--output*)",
+      "Bash(git log *--output*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Edit(**/settings.local.json)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git reset *)",
+      "Bash(git restore *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Edit(.github/**)",
+      "Edit(.gitignore)",
+      "Edit(.claude/**)",
+      "Edit(CLAUDE.md)",
+      "Edit(AGENTS.md)",
+      "Edit(package.json)",
+      "Edit(scripts/agent-guard.mjs)",
+      "Edit(scripts/autodev-gate.mjs)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/agent-guard.mjs\" --policy=project",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}

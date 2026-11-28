@@ -3133,3 +3133,108 @@ body.has-touch .kick__help {
   .attn__help { display: none; }
   .attn__quit { min-height: 40px; margin-left: auto; }
 }
+
+/* ------------------------------------------------- UXN-01 · Ajustes de confort (config/comfort.ts) */
+
+/* Ajustes se desplaza por dentro; Guardar, Cancelar y Volver quedan fuera, siempre a mano (390 px de ancho). */
+.title__settings {
+  max-height: max(180px, calc(100dvh - 300px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.title__settings .title__button,
+.title__actions .title__button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.title__actions {
+  margin-top: 10px;
+}
+
+.title__unsaved {
+  margin: 10px 0 0;
+  font: 700 13px / 1.4 var(--ui-mono);
+  color: var(--amber);
+}
+
+/* La muestra usa las clases reales del diálogo; es sólo lectura: ni puntero ni toque. */
+.title__preview {
+  margin: 0 0 14px;
+}
+
+.title__preview .dialogue__panel,
+.title__preview .dialogue__choices li {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* Tamaño de texto: Grande (+3 a 4 px sobre cada tamaño de juego). */
+:root[data-comfort-text="large"] .dialogue__text { font-size: 20px; }
+:root[data-comfort-text="large"] .dialogue__choices { font-size: 16px; }
+:root[data-comfort-text="large"] .dialogue__speaker { font-size: 12px; }
+:root[data-comfort-text="large"] .dialogue__hint { font-size: 14px; }
+:root[data-comfort-text="large"] .menu__text { font-size: 17px; }
+:root[data-comfort-text="large"] .menu__list { font-size: 16px; }
+:root[data-comfort-text="large"] .menu__title { font-size: 12px; }
+:root[data-comfort-text="large"] .menu__hint,
+:root[data-comfort-text="large"] .menu__caption { font-size: 14px; }
+:root[data-comfort-text="large"] .menu__note { font-size: 16px; }
+:root[data-comfort-text="large"] #hint {
+  max-width: calc(100vw - 32px);
+  font-size: 15px;
+  white-space: normal;
+  text-align: center;
+}
+:root[data-comfort-text="large"] #announce { font-size: 15px; }
+:root[data-comfort-text="large"] .announce__label { font-size: 12px; }
+:root[data-comfort-text="large"] #phone-toast .phone__row-text b { font-size: 17px; }
+:root[data-comfort-text="large"] #phone-toast .phone__row-text span { font-size: 15px; }
+:root[data-comfort-text="large"] .title__panel :is(.title__save, .title__text, .title__warn, .title__ok, .title__keys, .title__unsaved, .title__button) { font-size: 16px; }
+:root[data-comfort-text="large"] .title__panel :is(.title__label, .title__tagline) { font-size: 14px; }
+
+/* Con letra grande, el panel se desplaza en vez de salirse de la pantalla, y nada se corta con puntos suspensivos. */
+:root[data-comfort-text="large"] .dialogue__panel,
+:root[data-comfort-text="large"] .menu__panel {
+  max-height: 70dvh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+:root[data-comfort-text="large"] .menu__item > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Contraste de diálogos: Alto. Fondo opaco y borde claro; secundarios a texto pleno (ratios en UXN-01.md). */
+:root[data-comfort-contrast="high"] :is(.dialogue__panel, .menu__panel, #hint) {
+  border: 2px solid #efe9df;
+  background: #0e0f16;
+}
+
+:root[data-comfort-contrast="high"] :is(.dialogue__hint, .menu__hint, .menu__caption, .menu__detail) {
+  color: #efe9df;
+}
+
+:root[data-comfort-contrast="high"] :is(.dialogue__choices, .menu__item.is-selected) {
+  color: #8fd6cd;
+}
+
+:root[data-comfort-contrast="high"] .menu__item.is-disabled {
+  color: rgba(239, 233, 223, 0.75);
+}
+
+/* La marcada no se distingue sólo por el color: raya más gruesa y flecha delante del nombre. */
+:root[data-comfort-contrast="high"] .menu__item.is-selected {
+  border-left: 3px solid #8fd6cd;
+}
+
+:root[data-comfort-contrast="high"] .menu__item.is-selected > span:first-child::before {
+  content: "▸ ";
+}
+
+/* Pistas de interacción: Ocultas. Sólo las de teclas (ui/Menu y ui/DialogueBox no ponen ahí otra cosa). */
+:root[data-comfort-hints="hidden"] :is(.dialogue__hint, .menu__hint) {
+  display: none;
+}

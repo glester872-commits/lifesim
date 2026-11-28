@@ -381,7 +381,9 @@ export function startTitleScene(host: HTMLElement): TitleScene {
     const stage = t >= STAGE_AT[2] ? 2 : t >= STAGE_AT[1] ? 1 : 0;
     // Las farolas parpadean dos veces al encenderse.
     const flick = t - STAGE_AT[1];
-    const lamps = stage >= 1 && !(flick < 0.12 || (flick > 0.3 && flick < 0.38));
+    // Con «Parpadeos: Reducidos» (lo que haya en el documento, también la vista previa de Ajustes), se encienden sin parpadeo.
+    const steady = document.documentElement.dataset.comfortFlashes === 'reduced';
+    const lamps = stage >= 1 && (steady || !(flick < 0.12 || (flick > 0.3 && flick < 0.38)));
     out.clearRect(0, 0, W, H);
     out.drawImage(sky, 0, 0);
     for (const c of clouds) paintCloud(out, c);

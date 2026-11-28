@@ -1,5 +1,6 @@
 import { formatDate, SEASON_LABEL, seasonOf } from '../systems/Calendar';
 import { PICK_LOCK_MS } from '../config/constants';
+import { messageMs } from '../config/comfort';
 import type { GameState } from '../state/GameState';
 import { reasonLabel, tone, valueIn, zoneOf } from '../systems/Reputation';
 import { REPUTATION_TRIGGERS } from '../data/reputation';
@@ -401,7 +402,7 @@ export class PhoneScreen {
     this.toast.dataset.title = title;
     this.toast.classList.add('is-visible');
     window.clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => this.hideToast(), 6000);
+    this.toastTimer = window.setTimeout(() => this.hideToast(), messageMs(6000));
     this.refresh();
   }
 

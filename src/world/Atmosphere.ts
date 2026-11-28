@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { TILE } from '../config/constants';
+import { atmosphereCap } from '../config/budgets';
+import { QUALITY } from '../config/quality';
 import type { LocationDef, PropKind, Vec2 } from '../types/game';
 import type { Weather } from '../systems/Weather';
 import type { Traffic } from '../systems/Traffic';
@@ -31,8 +33,6 @@ import { make, px } from './paint';
  * nada más. Con movimiento reducido, no hay ambiente.
  */
 
-/** Sprites en el pozo: el techo de partículas vivas a la vez. */
-export const MAX_PARTICLES = 72;
 /** Cada cuánto se decide qué emite (ms reales). */
 const TICK_MS = 100;
 /** Margen alrededor de la cámara en el que una fuente cuenta. */
@@ -117,9 +117,11 @@ export class Atmosphere {
   constructor(scene: Phaser.Scene, def: LocationDef, feeds: AtmosphereFeeds) {
     this.scene = scene;
     this.feeds = feeds;
-    this.off = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    // El pozo, del presupuesto de la calidad (config/budgets.ts): en low no hay ambiente, ni siquiera sprites ocultos.
+    const cap = atmosphereCap(QUALITY.level);
+    this.off = cap === 0 || (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
     if (this.off) return;
-    for (let i = 0; i < MAX_PARTICLES; i++) {
+    for (let i = 0; i < cap; i++) {
       const img = scene.add.image(0, 0, 'fx-dot').setVisible(false);
       this.pool.push({ img, kind: 'mote', alive: false, age: 0, life: 1, x: 0, y: 0, vx: 0, vy: 0, floor: 0, alpha: 1, grow: 0, seed: i });
     }

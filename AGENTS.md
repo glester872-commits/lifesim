@@ -60,7 +60,11 @@ recuadros alternos.
 
 ## Agentes
 
-`/autodev [--mode=ECO|BALANCED|DEEP] [--audit] <objetivo>` (o prefijo `[ECO]`…) es el
-único orquestador: `.claude/skills/autodev/SKILL.md`. Sin modo, BALANCED. Correcciones
-máximas 1/2/3. Especialistas de solo lectura según el tipo de tarea, nunca todos:
-`gameplay-qa`, `visual-qa`, `optimizer` (`.claude/agents/`).
+`/autodev [--mode=AUTO|ECO|BALANCED|DEEP] [--audit] [--dry-run] <objetivo>` (o prefijo
+`[ECO]`…) es el único orquestador: `.claude/skills/autodev/SKILL.md`. Sin modo, AUTO:
+clasifica con evidencia y elige ECO, BALANCED o DEEP; si hay duda, BALANCED. Correcciones
+máximas 1/2/3, con 3 como techo absoluto aunque se escale. Por defecto se invocan los 6 agentes (planner, builder, evaluator y los
+especialistas de solo lectura `gameplay-qa`, `visual-qa`, `optimizer`); un especialista
+se omite sólo si claramente no aplica, diciendo cuál y por qué. Contrato de seguridad,
+principios y handoff: `CLAUDE.md` § SAFETY & CHANGE CONTROL, § PRINCIPIOS OPERATIVOS y
+§ Handoff, que son la fuente única.

@@ -12,6 +12,7 @@ import { every, wave } from './Motion';
 import { backRows, facadeRows } from '../systems/LocationSystem';
 import { DISTRICTS, type DistrictProfile } from '../data/districts';
 import { QUALITY } from '../config/quality';
+import { comfortNow } from '../config/comfort';
 import { windowKind, windowRank } from './Detail';
 import { LAMP_LIGHT } from './LampShadows';
 import { LAYER } from './Layers';
@@ -492,7 +493,7 @@ export class Lighting {
       // Un rótulo está en la fachada: lo que se ve delante de él está delante (world/LightDepth).
       if (!this.indoor) depth.light(img, g.depth ?? -Infinity);
       // Neón de la noche y rótulos del Carmen: fijos casi siempre y, de higos a brevas, un tartamudeo (tick). Con movimiento reducido, fijos.
-      const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+      const flickers = !!place && (place.tags.includes('nightlife') || place.tags.includes('carmen')) && !(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false) && comfortNow().flashes !== 'reduced';
       this.emissives.push({ img, place, flicker: flickers ? this.emissives.length + 1 : undefined });
       if (!place && g.cast !== false) {
         // La boca de metro, siempre encendida, alumbra la acera de delante.
@@ -570,7 +571,7 @@ export class Lighting {
    * quietos.
    */
   private strobe(scene: Phaser.Scene, area: NonNullable<LocationDef['strobe']>, live: () => boolean): void {
-    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const calm = (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false) || comfortNow().flashes === 'reduced';
     const spot = (i: number, beat: number): { x: number; y: number } => {
       const h = Math.imul(i * 7919 + beat * 104729 + 1, 2654435761) >>> 0;
       return {
